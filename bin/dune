@@ -1,4 +1,4 @@
 (executable
  (public_name coq-ditto)
  (name main)
- (libraries coq_ditto lsp))
+ (libraries coq_ditto lsp unix str))
