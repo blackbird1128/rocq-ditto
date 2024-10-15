@@ -1,8 +1,4 @@
-
 (* Basic LSP client using the LSP library in OCaml *)
-(* Input channel: where we wend our inputs  *)
-(* output channel: where we get coq_lsp output *)
-
 
 open Lsp.Types 
 open Lsp
@@ -17,6 +13,10 @@ module RequestCounter = struct
     let current = !counter in
     counter := !counter + 1;
     current
+
+  (* let next_as_id () = *)
+  (*     let int_id : Jsonrpc.Id.t = `Int (next ()) in *)
+  (*     int_id  *)
 end
 
 module IntHash =
@@ -56,6 +56,7 @@ let send_init_request output_channel =
     ~capabilities: ( ClientCapabilities.create ())
     ~trace: TraceValues.Off
     ~processId: (-1)
+    ~workspaceFolders: (Some [(WorkspaceFolder.create ~name:"test" ~uri: (Uri.of_path "."))] )
     () in
   let request = Client_request.Initialize init_params in
   let int_id : Jsonrpc.Id.t = `Int (RequestCounter.next ()) in
@@ -64,21 +65,22 @@ let send_init_request output_channel =
 
 let handle_server_notification server_notification =
     match server_notification with
-      | Server_notification.PublishDiagnostics _ -> raise (Not_Implemented "Publish Diagnostic handling not implemented")
+      | Server_notification.PublishDiagnostics diagnostics_notif -> print_endline ( Yojson.Safe.to_string (PublishDiagnosticsParams.yojson_of_t diagnostics_notif) )
       | Server_notification.ShowMessage notif -> print_endline notif.message
       | Server_notification.LogMessage notif -> log_to_file "logs.txt" notif.message 
-      | Server_notification.LogTrace _ -> raise (Not_Implemented "Log trace handling not implemented")
+      | Server_notification.LogTrace notif -> log_to_file "trace.txt" notif.message
       | Server_notification.TelemetryNotification _ -> raise (Not_Implemented "Telemetry Notification handling not implemented")
       | Server_notification.CancelRequest _ -> raise (Not_Implemented "Cancel Request handling not implemented")
       | Server_notification.WorkDoneProgress _ -> raise (Not_Implemented "Work Done Progress handling not implemented")
-      | Server_notification.UnknownNotification notif -> print_endline (notif.method_)
+      | Server_notification.UnknownNotification notif -> print_endline (notif.method_); if Option.is_some notif.params then 
+          print_endline (Yojson.Safe.to_string(Jsonrpc.Structured.yojson_of_t (Option.get notif.params)))
 
   (*Function to handle incoming messages from the server *)
 let handle_message msg request_hashtbl =
     match Yojson.Safe.from_string msg with
   | `Assoc [("jsonrpc", `String "2.0");("id", `Int id) ; ("result", result)] ->
           IntHashtbl.add request_hashtbl id result;
-          IntHashtbl.iter (fun x y -> Printf.printf "%d -> %s\n" x (Yojson.Safe.to_string y)) request_hashtbl;
+          (* IntHashtbl.iter (fun x y -> Printf.printf "%d -> %s\n" x (Yojson.Safe.to_string y)) request_hashtbl; *)
           print_newline ();
   | `Assoc [("jsonrpc", `String "2.0");("method", `String method_called);("params", params)] ->
           let structured_params = Jsonrpc.Structured.t_of_yojson params in
@@ -123,6 +125,21 @@ let shutdown_server output_channel input_channel request_hashtbl =
     let exit_notification = Client_notification.Exit in
     exit_notification |> serialize_notification |> send_json_request output_channel
 
+let read_all file_path =
+    (* open_in_bin works correctly on Unix and Windows *)
+    let ch = open_in_bin file_path in
+    let s = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    s
+
+let create_text_document document_path =
+    let text = read_all document_path in
+    let uri = Uri.of_path document_path in
+    TextDocumentItem.create 
+        ~languageId: "coq"
+        ~text: text
+        ~uri: uri
+        ~version: 0
 
 
 let () = 
@@ -132,9 +149,17 @@ let () =
   let _ = get_response_sync 0 request_hashtbl coq_lsp_in in
   let initialization_notif = Client_notification.Initialized in
   send_json_request coq_lsp_out (serialize_notification initialization_notif);
+  let document_open_notif = Client_notification.TextDocumentDidOpen  (DidOpenTextDocumentParams.create ~textDocument: (create_text_document "./example1.v")) in
+  document_open_notif |> serialize_notification |> send_json_request coq_lsp_out;
+  let versioned_document = VersionedTextDocumentIdentifier.create ~uri: (Uri.of_path "./example1.v") ~version:0 in
+  let versioned_document_json = VersionedTextDocumentIdentifier.yojson_of_t versioned_document in
+  let id_ast_req = RequestCounter.next () in
+  let ast_request = Jsonrpc.Request.create ~params: (`Assoc [("textDocument",versioned_document_json)]) ~method_:"coq/getDocument" ~id:(`Int id_ast_req) () in
+  send_json_request coq_lsp_out (Yojson.Safe.to_string (Jsonrpc.Request.yojson_of_t ast_request));
+  print_endline (Yojson.Safe.to_string (Jsonrpc.Request.yojson_of_t ast_request));
+  let ast_resp = get_response_sync id_ast_req request_hashtbl coq_lsp_in in
+  print_endline (Yojson.Safe.prettify (Yojson.Safe.to_string ast_resp) );
   shutdown_server coq_lsp_out coq_lsp_in request_hashtbl;
   close_in coq_lsp_in;
-  close_out coq_lsp_out
-  (* client_loop coq_lsp_out () *)
-
-(* what the difference between server notification and server request ? *)
+  close_out coq_lsp_out;
+  log_to_file "logs.txt" "\n"
