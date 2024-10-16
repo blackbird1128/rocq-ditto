@@ -3,7 +3,6 @@
 open Lsp.Types 
 open Lsp
 
-
 module RequestCounter = struct
   (* Mutable state *)
   let counter = ref 0
@@ -14,9 +13,6 @@ module RequestCounter = struct
     counter := !counter + 1;
     current
 
-  (* let next_as_id () = *)
-  (*     let int_id : Jsonrpc.Id.t = `Int (next ()) in *)
-  (*     int_id  *)
 end
 
 module IntHash =
@@ -30,21 +26,24 @@ module IntHashtbl = Hashtbl.Make(IntHash)
 
 exception Not_Implemented of string
 
-(**   *)
+(** log a line to a file *)
 let log_to_file filename line =
   let oc = open_out_gen [Open_append; Open_creat] 0o666 filename in
   output_string oc (line ^ "\n");
   close_out oc
 
+(** turn a Lsp.Client_notification into a string *)
 let serialize_notification notification =
   let json_rpc  = Client_notification.to_jsonrpc notification in
   Yojson.Safe.to_string (Jsonrpc.Notification.yojson_of_t json_rpc)
 
+(** turn a Lsp.Client_request into a string *)
 let serialize_request request id =
   Client_request.to_jsonrpc_request request ~id:id  |>
   Jsonrpc.Request.yojson_of_t |>
   Yojson.Safe.to_string
 
+(** Send the request to coq-lsp with the appropriate header *)
 let send_json_request output_channel request =
   output_string output_channel (Header.to_string (Header.create ~content_length:(String.length request) ()));
   output_string output_channel request;
@@ -63,6 +62,7 @@ let send_init_request output_channel =
   let json_string = serialize_request request int_id in
   send_json_request output_channel json_string
 
+(** treat server notifications (mostly just log for now) *)
 let handle_server_notification server_notification =
     match server_notification with
       | Server_notification.PublishDiagnostics diagnostics_notif -> print_endline ( Yojson.Safe.to_string (PublishDiagnosticsParams.yojson_of_t diagnostics_notif) )
@@ -75,12 +75,11 @@ let handle_server_notification server_notification =
       | Server_notification.UnknownNotification notif -> print_endline (notif.method_); if Option.is_some notif.params then 
           print_endline (Yojson.Safe.to_string(Jsonrpc.Structured.yojson_of_t (Option.get notif.params)))
 
-  (*Function to handle incoming messages from the server *)
+(*Function to handle incoming messages from the server *)
 let handle_message msg request_hashtbl =
     match Yojson.Safe.from_string msg with
   | `Assoc [("jsonrpc", `String "2.0");("id", `Int id) ; ("result", result)] ->
           IntHashtbl.add request_hashtbl id result;
-          (* IntHashtbl.iter (fun x y -> Printf.printf "%d -> %s\n" x (Yojson.Safe.to_string y)) request_hashtbl; *)
           print_newline ();
   | `Assoc [("jsonrpc", `String "2.0");("method", `String method_called);("params", params)] ->
           let structured_params = Jsonrpc.Structured.t_of_yojson params in
@@ -93,8 +92,7 @@ let handle_message msg request_hashtbl =
               handle_server_notification server_notification
   | _ -> ()
 
-  
-
+(* extract the content length of a received message *) 
 let extract_content_length header =
   let re = Str.regexp "Content-Length: \\([0-9]+\\)" in
   if Str.string_match re header 0 then
@@ -102,11 +100,13 @@ let extract_content_length header =
   else
     failwith "Content-Length not found"
 
+(* parse one incoming message from the server *)
 let receive_message input_chan =
     let header = input_line input_chan in
     let content_length = extract_content_length header in
     String.trim (Stdlib.really_input_string input_chan content_length)
 
+(* get a response to the request with the id [id] blocking*)
 let rec get_response_sync id request_hashtbl input_chan =
     if IntHashtbl.mem request_hashtbl id then
         IntHashtbl.find request_hashtbl id 
@@ -115,6 +115,7 @@ let rec get_response_sync id request_hashtbl input_chan =
        handle_message json_msg request_hashtbl;
        get_response_sync id request_hashtbl input_chan
 
+(** shutdown the lsp server*)
 let shutdown_server output_channel input_channel request_hashtbl =
     let request = Client_request.Shutdown in
     let id = RequestCounter.next() in
@@ -158,7 +159,8 @@ let () =
   send_json_request coq_lsp_out (Yojson.Safe.to_string (Jsonrpc.Request.yojson_of_t ast_request));
   print_endline (Yojson.Safe.to_string (Jsonrpc.Request.yojson_of_t ast_request));
   let ast_resp = get_response_sync id_ast_req request_hashtbl coq_lsp_in in
-  print_endline (Yojson.Safe.prettify (Yojson.Safe.to_string ast_resp) );
+  
+  print_endline (Yojson.Safe.prettify (Yojson.Safe.to_string ast_resp) ); 
   shutdown_server coq_lsp_out coq_lsp_in request_hashtbl;
   close_in coq_lsp_in;
   close_out coq_lsp_out;
