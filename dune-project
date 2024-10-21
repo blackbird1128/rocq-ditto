@@ -19,7 +19,7 @@
  (name coq-ditto)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune lsp coq-lsp unix str)
+ (depends ocaml dune lsp coq-lsp unix str ppx-deriving)
  (tags
   (topics "to describe" your project)))
 

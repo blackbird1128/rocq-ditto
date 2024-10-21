@@ -1,4 +1,6 @@
 (executable
  (public_name coq-ditto)
  (name main)
- (libraries coq_ditto lsp unix str))
+ (preprocess
+   (pps ppx_deriving.show))
+ (libraries coq_ditto coq-lsp.serlib coq-lsp.coq lsp unix str))
