@@ -1,95 +1,7 @@
 (* Basic LSP client using the LSP library in OCaml *)
 
 open Lsp
-
-type position = {
-  line : int;
-  character : int;
-  offset : int;
-} [@@deriving show]
-
-type range = {
-    start: position;
-    end_: position;
-} [@@deriving show]
-
-
-type rangedSpan = {
-  range: range;
-  span: Yojson.Safe.t
-
-} [@@deriving show]
-
-type completionStatus = {
-
-    status: string list;
-    range: range;
-} [@@deriving show]
-
-type document = {
-    spans: rangedSpan list;
-    completed: completionStatus
-} [@@deriving show]
-
-
-module Ast = struct
-  type t = Coq.Ast.t
-
-  (* XXX: Better catch the exception below, but this requires a new SerAPI
-     release *)
-  let () = Serlib.Serlib_base.exn_on_opaque := false
-
-  let to_yojson x =
-    Serlib.Ser_vernacexpr.vernac_control_to_yojson (Coq.Ast.to_coq x)
-
-  let of_yojson x =
-    Serlib.Ser_vernacexpr.vernac_control_of_yojson x
-    |> Result.map Coq.Ast.of_coq
-end
-
-(* Parse a position object *)
-let parse_position (json : Yojson.Safe.t) : position =
-  let open Yojson.Safe.Util in
-  {
-    line = json |> member "line" |> to_int;
-    character = json |> member "character" |> to_int;
-    offset = json |> member "offset" |> to_int;
-  }
-
-(* Parse a range object *)
-let parse_range (json : Yojson.Safe.t) : range =
-  let open Yojson.Safe.Util in
-  {
-    start = json |> member "start" |> parse_position;
-    end_ = json |> member "end" |> parse_position;
-  }
-
-(* Parse a rangedSpan object *)
-let parse_rangedSpan (json : Yojson.Safe.t) : rangedSpan =
-  let open Yojson.Safe.Util in
-  {
-    range = json |> member "range" |> parse_range;
-    span = json |> member "span";
-  }
-
-(* Parse a completionStatus object *)
-let parse_completionStatus (json : Yojson.Safe.t) : completionStatus =
-  let open Yojson.Safe.Util in
-  {
-    status = json |> member "status" |> to_list |> List.map to_string;
-    range = json |> member "range" |> parse_range;
-  }
-
-(* Parse the main document object *)
-let parse_document (json : Yojson.Safe.t) : document =
-  let open Yojson.Safe.Util in
-  {
-    spans = json |> member "spans" |> to_list |> List.map parse_rangedSpan;
-    completed = json |> member "completed" |> parse_completionStatus;
-  }
-
-
-
+open Ditto.CoqDocument
 
 module RequestCounter = struct
   (* Mutable state *)
@@ -214,7 +126,7 @@ let shutdown_server output_channel input_channel request_hashtbl =
     exit_notification |> serialize_notification |> send_json_request output_channel
 
 let read_all file_path =
-    (* open_in_bin works correctly on Unix and Windows *)
+    (* open_in_bin works correctly on Unix and. Windows *)
     let ch = open_in_bin file_path in
     let s = really_input_string ch (in_channel_length ch) in
     close_in ch;
@@ -229,6 +141,10 @@ let create_text_document document_path =
         ~uri: uri
         ~version: 0
 
+let display_range (x: rangedSpan) : unit =
+    print_endline (show_range x.range)
+
+
 
 let () = 
   let  (coq_lsp_in,coq_lsp_out) = Unix.open_process "coq-lsp" in (* coq_lsp_in is an input channel that get the output of coq_lsp and coq_lsp_out is an output channel to send things to coq_lsp *)
@@ -237,22 +153,26 @@ let () =
   let _ = get_response_sync 0 request_hashtbl coq_lsp_in in
   let initialization_notif = Client_notification.Initialized in
   send_json_request coq_lsp_out (serialize_notification initialization_notif);
-  let document_open_notif = Client_notification.TextDocumentDidOpen  (Types.DidOpenTextDocumentParams.create ~textDocument: (create_text_document "./example2.v")) in
+  let filename = "./example2.v" in
+
+  let document_open_notif = Client_notification.TextDocumentDidOpen  (Types.DidOpenTextDocumentParams.create ~textDocument: (create_text_document filename)) in
   document_open_notif |> serialize_notification |> send_json_request coq_lsp_out;
-  let versioned_document = Types.VersionedTextDocumentIdentifier.create ~uri: (Uri.of_path "./example2.v") ~version:0 in
+
+  let versioned_document = Types.VersionedTextDocumentIdentifier.create ~uri: (Uri.of_path filename) ~version:0 in
   let versioned_document_json = Types.VersionedTextDocumentIdentifier.yojson_of_t versioned_document in
   let id_ast_req = RequestCounter.next () in
   let ast_request = Jsonrpc.Request.create ~params: (`Assoc [("textDocument",versioned_document_json)]) ~method_:"coq/getDocument" ~id:(`Int id_ast_req) () in
+
   send_json_request coq_lsp_out (Yojson.Safe.to_string (Jsonrpc.Request.yojson_of_t ast_request));
   print_endline (Yojson.Safe.to_string (Jsonrpc.Request.yojson_of_t ast_request));
   let ast_resp = get_response_sync id_ast_req request_hashtbl coq_lsp_in in
 
   let ast_json_file = open_out "out.json" in
   Yojson.Safe.pretty_to_channel ast_json_file ast_resp;
-  let parsed_ast_repr = parse_document ast_resp in 
-  print_endline  (show_document parsed_ast_repr);
+  let parsed_ast_repr = Ditto.CoqDocument.parse_document ast_resp in 
+  print_endline ( Ditto.CoqDocument.show_completionStatus parsed_ast_repr.completed );
+  List.iter (fun x -> if Option.has_some x.span then (Pp.pp_with Format.std_formatter (Coq.Ast.print (Option.get x.span));print_newline ()) else print_endline "" ) parsed_ast_repr.spans;
+
   shutdown_server coq_lsp_out coq_lsp_in request_hashtbl;
   close_in coq_lsp_in;
-  close_out coq_lsp_out;
-  log_to_file "logs.txt" "\n"
-  
+  close_out coq_lsp_out

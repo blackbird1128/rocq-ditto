@@ -1,2 +1,5 @@
 (library
- (name coq_ditto))
+ (name ditto)
+ (preprocess
+   (pps ppx_deriving.show))
+ (libraries findlib.dynload coq-lsp.serlib coq-lsp.coq unix ))
