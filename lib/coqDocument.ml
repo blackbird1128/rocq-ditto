@@ -19,15 +19,25 @@ type rangedSpan = {
 
 }
 
+type rangedCoqSpan = {
+    range: range;
+    span: Vernacexpr.vernac_control option;
+}
+
 type completionStatus = {
 
     status: string list;
     range: range;
 } [@@deriving show]
 
-type document = {
+type lspDocument = {
     spans: rangedSpan list;
-    completed: completionStatus
+    completed: completionStatus;
+}
+
+type coqDocument = {
+    spans: rangedCoqSpan list;
+    completed: completionStatus;
 }
 
 (* Parse a position object *)
@@ -66,10 +76,23 @@ let parse_completionStatus (json : Yojson.Safe.t) : completionStatus =
   }
 
 (* Parse the main document object *)
-let parse_document (json : Yojson.Safe.t) : document =
+let parse_document (json : Yojson.Safe.t) : lspDocument =
   let open Yojson.Safe.Util in
   {
     spans = json |> member "spans" |> to_list |> List.map parse_rangedSpan;
     completed = json |> member "completed" |> parse_completionStatus;
   }
 
+let ranged_span_to_ranged_coq_span (x : rangedSpan) : rangedCoqSpan =
+  {
+    span = Option.map (Coq.Ast.to_coq)  x.span ;
+    range = x.range;
+  } 
+
+
+let lsp_doc_to_coq_doc (doc : lspDocument) : coqDocument =
+    let coq_spans = (List.map (fun x -> (ranged_span_to_ranged_coq_span x)) doc.spans ) in
+    {
+        spans = coq_spans;
+        completed = doc.completed;
+   }

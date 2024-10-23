@@ -23,7 +23,7 @@ type completionStatus = {
     range: range;
 } [@@deriving show]
 
-type document = {
+type lspDocument = {
     spans: rangedSpan list;
     completed: completionStatus
 } 
@@ -39,5 +39,5 @@ val parse_rangedSpan : Yojson.Safe.t -> rangedSpan
 
 val parse_completionStatus : Yojson.Safe.t -> completionStatus
 
-val parse_document : Yojson.Safe.t -> document
+val parse_document : Yojson.Safe.t -> lspDocument
 
