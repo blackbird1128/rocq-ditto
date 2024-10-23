@@ -165,6 +165,17 @@ let create_text_document document_path =
 
 let display_range (x : rangedSpan) : unit = print_endline (show_range x.range)
 
+let is_ranged_coq_span_proof_start (x : rangedCoqSpan) : bool =
+  if Option.has_some x.span then
+    let x_span = Option.get x.span in
+    match x_span.CAst.v.expr with
+    | VernacSynterp synterp_expr -> false
+    | VernacSynPure expr -> (
+        match expr with
+        | Vernacexpr.VernacStartTheoremProof _ -> true
+        | _ -> false)
+  else false
+
 let () =
   let coq_lsp_in, coq_lsp_out = Unix.open_process "coq-lsp" in
   (* coq_lsp_in is an input channel that get the output of coq_lsp and coq_lsp_out is an output channel to send things to coq_lsp *)
@@ -173,7 +184,7 @@ let () =
   let _ = get_response_sync 0 request_hashtbl coq_lsp_in in
   let initialization_notif = Client_notification.Initialized in
   send_json_request coq_lsp_out (serialize_notification initialization_notif);
-  let filename = "./example2.v" in
+  let filename = "./example1.v" in
 
   let document_open_notif =
     Client_notification.TextDocumentDidOpen
@@ -204,17 +215,13 @@ let () =
 
   let ast_json_file = open_out "out.json" in
   Yojson.Safe.pretty_to_channel ast_json_file ast_resp;
-  let parsed_ast_repr = Ditto.CoqDocument.parse_document ast_resp in
-  print_endline
-    (Ditto.CoqDocument.show_completionStatus parsed_ast_repr.completed);
-  List.iter
-    (fun x ->
-      if Option.has_some x.span then (
-        Pp.pp_with Format.std_formatter (Coq.Ast.print (Option.get x.span));
-        print_newline ())
-      else print_endline "")
-    parsed_ast_repr.spans;
-
+  let parsed_ast_repr = parse_document ast_resp in
+  print_endline (show_completionStatus parsed_ast_repr.completed);
+  let coq_ast_doc = lsp_doc_to_coq_doc parsed_ast_repr in
+  let x =
+    List.map (fun x -> is_ranged_coq_span_proof_start x) coq_ast_doc.spans
+  in
+  List.iter (fun w -> print_string (if w then "START PROOF\n" else "")) x;
   shutdown_server coq_lsp_out coq_lsp_in request_hashtbl;
   close_in coq_lsp_in;
   close_out coq_lsp_out
