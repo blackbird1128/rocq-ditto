@@ -1,2 +1,4 @@
-(test
- (name test_coq_ditto))
+(library
+ (name ditto_test)
+ (inline_tests)
+ (preprocess (pps ppx_inline_test)))

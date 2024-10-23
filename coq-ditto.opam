@@ -14,9 +14,10 @@ depends: [
   "dune" {>= "3.16"}
   "lsp"
   "coq-lsp"
-  "unix"
-  "str"
+  "base-unix"
+  "re"
   "ppx-deriving"
+  "ppx-inline-test"
   "odoc" {with-doc}
 ]
 build: [
