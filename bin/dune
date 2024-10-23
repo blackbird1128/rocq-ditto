@@ -3,4 +3,4 @@
  (name main)
  (preprocess
    (pps ppx_deriving.show))
- (libraries ditto coq-lsp.serlib coq-lsp.coq lsp unix str))
+ (libraries ditto coq-lsp.serlib coq-lsp.coq lsp unix re))
