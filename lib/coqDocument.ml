@@ -1,44 +1,13 @@
+type position = { line : int; character : int; offset : int } [@@deriving show]
+type range = { start : position; end_ : position } [@@deriving show]
+type rangedSpan = { range : range; span : CoqAst.t option }
+type rangedCoqSpan = { range : range; span : Vernacexpr.vernac_control option }
 
+type completionStatus = { status : string list; range : range }
+[@@deriving show]
 
-
-type position = {
-  line : int;
-  character : int;
-  offset : int;
-} [@@deriving show]
-
-type range = {
-    start: position;
-    end_: position;
-} [@@deriving show]
-
-
-type rangedSpan = {
-  range: range;
-  span: CoqAst.t option;
-
-}
-
-type rangedCoqSpan = {
-    range: range;
-    span: Vernacexpr.vernac_control option;
-}
-
-type completionStatus = {
-
-    status: string list;
-    range: range;
-} [@@deriving show]
-
-type lspDocument = {
-    spans: rangedSpan list;
-    completed: completionStatus;
-}
-
-type coqDocument = {
-    spans: rangedCoqSpan list;
-    completed: completionStatus;
-}
+type lspDocument = { spans : rangedSpan list; completed : completionStatus }
+type coqDocument = { spans : rangedCoqSpan list; completed : completionStatus }
 
 (* Parse a position object *)
 let parse_position (json : Yojson.Safe.t) : position =
@@ -62,10 +31,11 @@ let parse_rangedSpan (json : Yojson.Safe.t) : rangedSpan =
   let open Yojson.Safe.Util in
   let span_result = json |> member "span" |> CoqAst.of_yojson in
   {
-    range = json |> member "range" |> parse_range; 
-    span = if Result.is_ok span_result then Some (Result.get_ok span_result) else None;
+    range = json |> member "range" |> parse_range;
+    span =
+      (if Result.is_ok span_result then Some (Result.get_ok span_result)
+       else None);
   }
-  
 
 (* Parse a completionStatus object *)
 let parse_completionStatus (json : Yojson.Safe.t) : completionStatus =
@@ -84,15 +54,10 @@ let parse_document (json : Yojson.Safe.t) : lspDocument =
   }
 
 let ranged_span_to_ranged_coq_span (x : rangedSpan) : rangedCoqSpan =
-  {
-    span = Option.map (Coq.Ast.to_coq)  x.span ;
-    range = x.range;
-  } 
-
+  { span = Option.map Coq.Ast.to_coq x.span; range = x.range }
 
 let lsp_doc_to_coq_doc (doc : lspDocument) : coqDocument =
-    let coq_spans = (List.map (fun x -> (ranged_span_to_ranged_coq_span x)) doc.spans ) in
-    {
-        spans = coq_spans;
-        completed = doc.completed;
-   }
+  let coq_spans =
+    List.map (fun x -> ranged_span_to_ranged_coq_span x) doc.spans
+  in
+  { spans = coq_spans; completed = doc.completed }
