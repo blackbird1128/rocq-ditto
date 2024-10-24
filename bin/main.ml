@@ -1,7 +1,9 @@
 (* Basic LSP client using the LSP library in OCaml *)
 
 open Lsp
+open Types
 open Ditto.CoqDocument
+open Ditto.Proof
 
 module RequestCounter = struct
   (* Mutable state *)
@@ -165,17 +167,6 @@ let create_text_document document_path =
 
 let display_range (x : rangedSpan) : unit = print_endline (show_range x.range)
 
-let is_ranged_coq_span_proof_start (x : rangedCoqSpan) : bool =
-  if Option.has_some x.span then
-    let x_span = Option.get x.span in
-    match x_span.CAst.v.expr with
-    | VernacSynterp synterp_expr -> false
-    | VernacSynPure expr -> (
-        match expr with
-        | Vernacexpr.VernacStartTheoremProof _ -> true
-        | _ -> false)
-  else false
-
 let () =
   let coq_lsp_in, coq_lsp_out = Unix.open_process "coq-lsp" in
   (* coq_lsp_in is an input channel that get the output of coq_lsp and coq_lsp_out is an output channel to send things to coq_lsp *)
@@ -218,10 +209,43 @@ let () =
   let parsed_ast_repr = parse_document ast_resp in
   print_endline (show_completionStatus parsed_ast_repr.completed);
   let coq_ast_doc = lsp_doc_to_coq_doc parsed_ast_repr in
-  let x =
-    List.map (fun x -> is_ranged_coq_span_proof_start x) coq_ast_doc.spans
+  let proofs = get_proofs coq_ast_doc in
+  let first_tac_start = (List.nth (List.hd proofs).proof_steps 1).range.start in
+  let first_tac_position =
+    Position.create ~character:first_tac_start.character
+      ~line:first_tac_start.line
   in
-  List.iter (fun w -> print_string (if w then "START PROOF\n" else "")) x;
+  let id_tactic_request = RequestCounter.next () in
+  let tactic_request =
+    Jsonrpc.Request.create
+      ~params:
+        (`Assoc
+          [
+            ("textDocument", versioned_document_json);
+            ("position", Position.yojson_of_t first_tac_position);
+          ])
+      ~method_:"proof/goals" ~id:(`Int id_tactic_request) ()
+  in
+  send_json_request coq_lsp_out
+    (Yojson.Safe.to_string (Jsonrpc.Request.yojson_of_t tactic_request));
+  print_endline
+    (Yojson.Safe.to_string (Jsonrpc.Request.yojson_of_t tactic_request));
+  let tactic_resp =
+    get_response_sync id_tactic_request request_hashtbl coq_lsp_in
+  in
+  let ast_json_file = open_out "out1.json" in
+  Yojson.Safe.pretty_to_channel ast_json_file tactic_resp;
+
+  (* List.iter
+       (fun x ->
+         if is_ranged_coq_span_proof_start x then
+           print_endline ("proof start : " ^ show_range x.range)
+         else if is_ranged_coq_span_proof_end x then
+           print_endline ("proof end : " ^ show_range x.range))
+       coq_ast_doc.spans;
+     print_endline
+       ("number of proofs: "
+       ^ Stdlib.string_of_int (List.length (get_proofs coq_ast_doc))); *)
   shutdown_server coq_lsp_out coq_lsp_in request_hashtbl;
   close_in coq_lsp_in;
   close_out coq_lsp_out
