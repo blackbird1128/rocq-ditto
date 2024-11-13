@@ -1,4 +1,4 @@
-(lang dune 3.16)
+(lang dune 3.15)
 
 (name coq-ditto)
 
@@ -19,7 +19,7 @@
  (name coq-ditto)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune lsp coq-lsp base-unix re ppx-deriving ppx-inline-test)
+ (depends ocaml dune lsp coq-lsp base-unix re ppx_deriving ppx_inline_test)
  (tags
   (topics "to describe" your project)))
 
