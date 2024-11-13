@@ -1,6 +1,6 @@
 type position = { line : int; character : int; offset : int } [@@deriving show]
 type range = { start : position; end_ : position } [@@deriving show]
-type rangedSpan = { range : range; span : CoqAst.t option }
+type rangedSpan = { range : range; span : Coq_ast.t option }
 type rangedCoqSpan = { range : range; span : Vernacexpr.vernac_control option }
 
 type completionStatus = { status : string list; range : range }

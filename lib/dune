@@ -2,4 +2,4 @@
  (name ditto)
  (preprocess
    (pps ppx_deriving.show))
- (libraries findlib.dynload coq-lsp.serlib coq-lsp.coq unix ))
+ (libraries findlib.dynload lsp re coq-lsp.serlib coq-lsp.coq unix ))

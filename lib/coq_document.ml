@@ -1,6 +1,6 @@
 type position = { line : int; character : int; offset : int } [@@deriving show]
 type range = { start : position; end_ : position } [@@deriving show]
-type rangedSpan = { range : range; span : CoqAst.t option }
+type rangedSpan = { range : range; span : Coq_ast.t option }
 type rangedCoqSpan = { range : range; span : Vernacexpr.vernac_control option }
 
 type completionStatus = { status : string list; range : range }
@@ -29,7 +29,7 @@ let parse_range (json : Yojson.Safe.t) : range =
 (* Parse a rangedSpan object *)
 let parse_rangedSpan (json : Yojson.Safe.t) : rangedSpan =
   let open Yojson.Safe.Util in
-  let span_result = json |> member "span" |> CoqAst.of_yojson in
+  let span_result = json |> member "span" |> Coq_ast.of_yojson in
   {
     range = json |> member "range" |> parse_range;
     span =

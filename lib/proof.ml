@@ -1,7 +1,20 @@
-open CoqDocument
+open Coq_document
 
 type proof = { proposition : rangedCoqSpan; proof_steps : rangedCoqSpan list }
 (* proposition can also be a type, better name ? *)
+
+let is_ranged_coq_span_tactic (x : rangedCoqSpan) : bool =
+  if Option.has_some x.span then
+    let x_span = Option.get x.span in
+    match x_span.CAst.v.expr with
+    | VernacSynterp synterp_expr -> (
+        match synterp_expr with
+        | VernacExtend (extend_name, args) ->
+            print_endline extend_name.Vernacexpr.ext_plugin;
+            false
+        | _ -> false)
+    | VernacSynPure expr -> false
+  else false
 
 let is_ranged_coq_span_proof_start (x : rangedCoqSpan) : bool =
   if Option.has_some x.span then
