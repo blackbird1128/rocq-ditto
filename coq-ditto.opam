@@ -11,13 +11,15 @@ doc: "https://url/to/documentation"
 bug-reports: "https://github.com/username/reponame/issues"
 depends: [
   "ocaml"
-  "dune" {>= "3.16"}
+  "dune" {>= "3.15"}
   "lsp"
   "coq-lsp"
   "base-unix"
   "re"
-  "ppx-deriving"
-  "ppx-inline-test"
+  "ppx_deriving"
+  "ppx_assert"
+  "ppx_inline_test"
+  "alcotest" {with-test}
   "odoc" {with-doc}
 ]
 build: [

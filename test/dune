@@ -1,4 +1,16 @@
-(library
- (name ditto_test)
- (inline_tests)
- (preprocess (pps ppx_inline_test)))
+(alias
+ (name runtest)
+ (deps
+  (alias fixture_gen)))
+
+(rule
+ (alias fixture_gen)       ; Attach this rule to the alias
+ (deps (universe))
+ (action
+  (bash "find fixtures/ -name '*.v' -exec dune exec fixture_gen {} --profile=release \\;")))
+
+(test
+ (name test_ast)
+ (deps (glob_files "fixtures/*.json"))
+ (libraries alcotest ditto yojson))
+
