@@ -1,5 +1,4 @@
 open Lsp
-open Types
 open Request_counter
 open Int_hash
 open Logging
@@ -44,10 +43,11 @@ let send_init_request output_channel =
 let handle_server_notification server_notification =
   match server_notification with
   | Server_notification.PublishDiagnostics diagnostics_notif ->
-      print_endline
-        (Yojson.Safe.to_string
-           (Types.PublishDiagnosticsParams.yojson_of_t diagnostics_notif))
-  | Server_notification.ShowMessage notif -> print_endline notif.message
+      ()
+      (* print_endline *)
+      (*   (Yojson.Safe.to_string *)
+      (*      (Types.PublishDiagnosticsParams.yojson_of_t diagnostics_notif)) *)
+  | Server_notification.ShowMessage _ -> () (* print_endline notif.message *)
   | Server_notification.LogMessage notif -> log_to_file "logs.txt" notif.message
   | Server_notification.LogTrace notif -> log_to_file "trace.txt" notif.message
   | Server_notification.TelemetryNotification _ ->
@@ -56,20 +56,19 @@ let handle_server_notification server_notification =
       raise (Not_Implemented "Cancel Request handling not implemented")
   | Server_notification.WorkDoneProgress _ ->
       raise (Not_Implemented "Work Done Progress handling not implemented")
-  | Server_notification.UnknownNotification notif ->
-      print_endline notif.method_;
-      if Option.has_some notif.params then
-        print_endline
-          (Yojson.Safe.to_string
-             (Jsonrpc.Structured.yojson_of_t (Option.get notif.params)))
+  | Server_notification.UnknownNotification _ -> ()
+(* print_endline notif.method_;
+   if Option.has_some notif.params then
+     print_endline
+       (Yojson.Safe.to_string
+          (Jsonrpc.Structured.yojson_of_t (Option.get notif.params))) *)
 
 (*Function to handle incoming messages from the server *)
 let handle_message msg request_hashtbl =
   match Yojson.Safe.from_string msg with
   | `Assoc [ ("jsonrpc", `String "2.0"); ("id", `Int id); ("result", result) ]
     ->
-      IntHashtbl.add request_hashtbl id result;
-      print_newline ()
+      IntHashtbl.add request_hashtbl id result
   | `Assoc
       [
         ("jsonrpc", `String "2.0");
@@ -93,7 +92,6 @@ let handle_message msg request_hashtbl =
 
 (* extract the content length of a received message *)
 let extract_content_length header =
-  let open Re.Pcre in
   let re = Re.Pcre.regexp "Content-Length: ([0-9]+)" in
   match Re.exec_opt re header with
   | Some group ->
