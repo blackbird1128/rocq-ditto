@@ -1,6 +1,8 @@
 (alias
  (name runtest)
  (deps
+  (glob_files "fixtures/*.v")
+  (glob_files "fixtures/*.json")
   (alias fixture_gen)))
 
 (rule
@@ -11,6 +13,6 @@
 
 (test
  (name test_ast)
- (deps (glob_files "fixtures/*.json"))
- (libraries alcotest ditto yojson))
+ (deps (alias fixture_gen) (glob_files "fixtures/*.json"))
+ (libraries alcotest ditto yojson findlib.dynload coq-lsp.serlib coq-lsp.coq))
 
