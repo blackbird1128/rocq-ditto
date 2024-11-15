@@ -1,5 +1,6 @@
 (executable
  (name fixture_gen)
  (public_name fixture_gen)
+ (package coq-ditto)
  (libraries ditto coq-lsp.serlib coq-lsp.coq lsp unix re))
 

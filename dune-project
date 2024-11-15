@@ -21,10 +21,12 @@
  (description "A longer description")
  (depends ocaml dune lsp coq-lsp base-unix re ppx_deriving ppx_assert ppx_inline_test (alcotest :with-test))
  (tags
-  (topics "to describe" your project))
+  (topics "to describe" your project)))
 
- )
-
+(package
+  (name ditto-plugin)
+  (allow_empty)
+  (depends ocaml dune lsp coq-lsp base-unix re ditto))
 
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html

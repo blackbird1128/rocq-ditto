@@ -3,4 +3,5 @@
  (name main)
  (preprocess
    (pps ppx_deriving.show))
+ (package coq-ditto)
  (libraries ditto coq-lsp.serlib coq-lsp.coq lsp unix re))

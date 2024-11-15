@@ -18,6 +18,7 @@ let read_all file_path =
 let create_text_document document_path =
   let text = read_all document_path in
   let uri = Uri.of_path document_path in
+
   Types.TextDocumentItem.create ~languageId:"coq" ~text ~uri ~version:0
 
 let display_range (x : rangedSpan) : unit = print_endline (show_range x.range)
@@ -65,13 +66,8 @@ let () =
 
   print_endline (show_completionStatus parsed_ast_repr.completed);
   let coq_ast_doc = lsp_doc_to_coq_doc parsed_ast_repr in
-
-  List.iter
-    (fun x ->
-      is_ranged_coq_span_tactic x;
-      ())
-    coq_ast_doc.spans;
-
+  let first_line = List.nth coq_ast_doc.spans 0 in
+  print_endline (ranged_coq_span_to_string first_line);
   (* let proofs = get_proofs coq_ast_doc in
      let first_tac_start = (List.nth (List.hd proofs).proof_steps 1).range.start in
      let first_tac_position =
@@ -98,7 +94,6 @@ let () =
      in
      let ast_json_file = open_out "out1.json" in
      Yojson.Safe.pretty_to_channel ast_json_file tactic_resp; *)
-
   (* List.iter
        (fun x ->
          if is_ranged_coq_span_proof_start x then
@@ -109,6 +104,5 @@ let () =
      print_endline
        ("number of proofs: "
        ^ Stdlib.string_of_int (List.length (get_proofs coq_ast_doc))); *)
-  shutdown_server coq_lsp_out coq_lsp_in request_hashtbl;
   close_in coq_lsp_in;
   close_out coq_lsp_out
