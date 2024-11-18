@@ -1,6 +1,6 @@
 (library
  (public_name ditto-plugin)
  (name ditto_plugin)
- (libraries coq-ditto coq-lsp.lsp coq-lsp.fleche)
+ (libraries coq-ditto coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche)
  )
 
