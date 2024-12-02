@@ -26,7 +26,7 @@
 (package
   (name ditto-plugin)
   (allow_empty)
-  (depends ocaml dune lsp coq-lsp base-unix re ditto))
+  (depends ocaml dune lsp coq-lsp base-unix re coq-ditto))
 
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
