@@ -5,3 +5,5 @@ type coq_element = CoqNode of Doc.Node.Ast.t | CoqStatement of proof
 
 val parse_document : Doc.Node.Ast.t list -> coq_element list
 val coq_element_to_string : coq_element -> string
+val get_theorem_names : coq_element list -> string list
+val get_proofs : coq_element list -> proof list

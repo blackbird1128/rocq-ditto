@@ -8,6 +8,20 @@ let coq_element_to_string (x : coq_element) : string =
   | CoqNode e -> Ppvernac.pr_vernac (Coq.Ast.to_coq e.v) |> Pp.string_of_ppcmds
   | CoqStatement e -> Proof.proof_to_coq_script_string e
 
+let get_theorem_names (elements : coq_element list) : string list =
+  List.map
+    (fun x ->
+      match x with
+      | CoqStatement e -> Option.default "" (Proof.get_proof_name e)
+      | _ -> "")
+    elements
+  |> List.filter (fun s -> String.length s > 0)
+
+let get_proofs (elements : coq_element list) : proof list =
+  List.filter_map
+    (fun x -> match x with CoqStatement e -> Some e | _ -> None)
+    elements
+
 let parse_document (x : Doc.Node.Ast.t list) : coq_element list =
   let rec aux spans current_proof document =
     match spans with
@@ -40,6 +54,7 @@ let parse_document (x : Doc.Node.Ast.t list) : coq_element list =
     (* Skip spans not part of any proof *)
   in
   aux x None []
+
 (*
    let get_document_script (d : coq_element list) : string =
      String.concat "\n"
