@@ -18,3 +18,5 @@ val is_doc_node_ast_proof_start : Doc.Node.Ast.t -> bool
 
 val is_doc_node_ast_proof_end : Doc.Node.Ast.t -> bool
 (** [is_doc_node_ast_proof_end x] checks if [x] marks the end of a proof in the Coq document. *)
+
+val get_tactics : proof -> string list
