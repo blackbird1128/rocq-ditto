@@ -19,7 +19,7 @@
  (name coq-ditto)
  (synopsis "Coq ditto lib")
  (description "A longer description")
- (depends ocaml dune lsp coq-lsp base-unix re ppx_deriving ppx_assert ppx_inline_test (alcotest :with-test))
+ (depends ocaml dune coq-lsp base-unix re )
  (tags
   (topics "to describe" your project)))
 
