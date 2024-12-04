@@ -37,11 +37,11 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       print_newline ())
     proofs;
 
-  List.iter
+  (* List.iter
     (fun proof ->
       depth_first_print (treeify_proof proof doc);
       print_newline ())
-    proofs;
+    proofs; *)
   ()
 
 let main () = Theory.Register.Completed.add dump_ast

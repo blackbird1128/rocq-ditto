@@ -34,7 +34,4 @@ val print_tree : string nary_tree -> string -> unit
 val tactics_with_goalcount :
   Coq.Limits.Token.t -> Agent.State.t -> string list -> (string * int) list
 
-val treeify_proof_rec :
-  (string * int) list -> int -> string nary_tree * (string * int) list
-
 val treeify_proof : proof -> Doc.t -> string nary_tree

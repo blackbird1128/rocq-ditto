@@ -90,30 +90,38 @@ let rec tactics_with_goalcount (token : Coq.Limits.Token.t) (st : Agent.State.t)
       let goal_count = count_goals token agent_state in
       (tactic, goal_count) :: tactics_with_goalcount token agent_state tail
 
-let rec treeify_proof_rec (tactics_with_goals : (string * int) list)
-    (old_goals : int) : string nary_tree * (string * int) list =
-  match tactics_with_goals with
-  | [] -> (Node ("empty", []), [])
-  | (tactic, new_goals) :: tail ->
-      if new_goals < old_goals then (Node (tactic, []), tail)
-      else if new_goals = old_goals then
-        let subtree, tail_f = treeify_proof_rec tail new_goals in
-        (Node (tactic, [ subtree ]), tail_f)
-      else
-        let dummy = List.init new_goals (fun _ -> ()) in
-        let remaining, subtrees =
-          List.fold_left
-            (fun (remaining_tactics, subtrees) _ ->
-              let goals_opt =
-                Option.map snd (List.nth_opt remaining_tactics 0)
-              in
-              let goals = Option.default new_goals goals_opt in
-              let subtree, tail_f = treeify_proof_rec remaining_tactics goals in
 
-              (tail_f, subtree :: subtrees))
-            (tail, []) dummy
-        in
-        (Node (tactic, List.rev subtrees), remaining)
+let print_parents (parents: (int * string, int * string) Hashtbl.t) =
+  Hashtbl.iter
+    (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
+      Printf.printf "Parent: (idx: %d, tactic: %s) -> Child: (idx: %d, tactic: %s)\n"
+        k_idx k_tactic v_idx v_tactic)
+    parents
+
+
+let rec get_parents_rec (tactics_with_goals: (string * int) list) (prev_goals: int) (cur_par: (int * string) option) (idx: int) (parents: (int * string, int * string) Hashtbl.t) =
+    match tactics_with_goals with 
+        | [] -> parents
+        | (tactic, new_goals)::tail -> 
+                (match cur_par with 
+                    | None -> get_parents_rec tail new_goals (Some (idx, tactic)) (idx+1) parents
+                    | Some par ->
+                            if new_goals < prev_goals then begin
+                                Hashtbl.add parents par (idx,tactic);
+                                get_parents_rec tail new_goals cur_par (idx+1) parents end
+                            else if new_goals = prev_goals then begin
+                                Hashtbl.add parents par (idx,tactic);
+                                get_parents_rec tail new_goals (Some (idx,tactic)) (idx+1) parents end
+                            else begin
+                                Hashtbl.add parents par (idx,tactic);
+                                get_parents_rec tail new_goals (Some (idx,tactic)) (idx+1) parents end
+
+                )
+
+let rec proof_tree_from_parents (cur_node: (int* string)) (parents: (int * string, int * string) Hashtbl.t) : string nary_tree =
+    let _, tactic = cur_node in
+    let childs = Hashtbl.find_all parents cur_node in
+    Node(tactic, List.rev_map (fun node -> proof_tree_from_parents node parents) childs )
 
 let treeify_proof (p : proof) (doc : Doc.t) : string nary_tree =
   let token = Coq.Limits.Token.create () in
@@ -123,8 +131,7 @@ let treeify_proof (p : proof) (doc : Doc.t) : string nary_tree =
   let init_state = Agent.start ~token ~doc ~thm:proof_name () in
   let proof_state = (get_proof_state init_state).st in
   let tactics_with_goals = tactics_with_goalcount token proof_state tactics in
-  List.iter
-    (fun (tactic, goal_count) ->
-      print_endline (tactic ^ " " ^ string_of_int goal_count))
-    tactics_with_goals;
-  fst (treeify_proof_rec tactics_with_goals 1)
+  let parents = Hashtbl.create (List.length tactics_with_goals) in
+  let _ =  get_parents_rec tactics_with_goals 1 None 0 parents in
+  proof_tree_from_parents (0, (List.hd tactics)) parents 
+
