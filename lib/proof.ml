@@ -99,24 +99,42 @@ let print_parents (parents: (int * string, int * string) Hashtbl.t) =
     parents
 
 
-let rec get_parents_rec (tactics_with_goals: (string * int) list) (prev_goals: int) (cur_par: (int * string) option) (idx: int) (parents: (int * string, int * string) Hashtbl.t) =
+type parent_category = Fork | Linear
+
+
+let rec pop_until_fork (prev_pars: (int * string * parent_category) list) =
+    match prev_pars with
+        [] -> []
+        | (_,_,cat_par)::tail_par -> 
+                match cat_par with 
+                    | Fork -> prev_pars
+                    | Linear -> pop_until_fork tail_par
+
+
+let rec get_parents_rec (tactics_with_goals: (string * int) list) (prev_goals: int) (prev_pars: (int * string * parent_category) list) (idx: int) (parents: (int * string, int * string) Hashtbl.t) =
     match tactics_with_goals with 
         | [] -> parents
         | (tactic, new_goals)::tail -> 
-                (match cur_par with 
-                    | None -> get_parents_rec tail new_goals (Some (idx, tactic)) (idx+1) parents
-                    | Some par ->
+                (match prev_pars with 
+                    | [] -> 
+                            if new_goals > prev_goals then
+                                get_parents_rec tail new_goals [(idx, tactic,Fork)] (idx+1) parents
+                            else
+                                get_parents_rec tail new_goals [(idx, tactic,Linear)] (idx+1) parents
+                    | (idx_par,tactic_par,_):: _ ->
+                            let par = (idx_par,tactic_par) in
                             if new_goals < prev_goals then begin
                                 Hashtbl.add parents par (idx,tactic);
-                                get_parents_rec tail new_goals cur_par (idx+1) parents end
+                                get_parents_rec tail new_goals (pop_until_fork prev_pars) (idx+1) parents end
                             else if new_goals = prev_goals then begin
                                 Hashtbl.add parents par (idx,tactic);
-                                get_parents_rec tail new_goals (Some (idx,tactic)) (idx+1) parents end
+                                get_parents_rec tail new_goals ((idx,tactic,Linear)::prev_pars) (idx+1) parents end
                             else begin
                                 Hashtbl.add parents par (idx,tactic);
-                                get_parents_rec tail new_goals (Some (idx,tactic)) (idx+1) parents end
+                                get_parents_rec tail new_goals ((idx,tactic,Fork)::prev_pars) (idx+1) parents end
 
                 )
+
 
 let rec proof_tree_from_parents (cur_node: (int* string)) (parents: (int * string, int * string) Hashtbl.t) : string nary_tree =
     let _, tactic = cur_node in
@@ -132,6 +150,6 @@ let treeify_proof (p : proof) (doc : Doc.t) : string nary_tree =
   let proof_state = (get_proof_state init_state).st in
   let tactics_with_goals = tactics_with_goalcount token proof_state tactics in
   let parents = Hashtbl.create (List.length tactics_with_goals) in
-  let _ =  get_parents_rec tactics_with_goals 1 None 0 parents in
+  let _ =  get_parents_rec tactics_with_goals 1 [] 0 parents in
   proof_tree_from_parents (0, (List.hd tactics)) parents 
 
