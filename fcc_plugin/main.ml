@@ -1,7 +1,11 @@
 open Fleche
 open Ditto
 open Ditto.Proof
+open Ditto.Coq_document
 (* open Stack  *)
+
+let doc_node_to_string (d : Doc.Node.Ast.t) : string =
+  Ppvernac.pr_vernac (Coq.Ast.to_coq d.v) |> Pp.string_of_ppcmds
 
 let parse_json_list json_repr =
   match json_repr with
@@ -23,9 +27,25 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let asts = Doc.asts doc in
   let parsed_document = Coq_document.parse_document asts in
 
+  List.iter (fun element ->
+        match element with 
+            CoqNode e -> print_endline (doc_node_to_string e)
+            | CoqStatement p -> print_endline (Proof.proof_to_coq_script_string p)
+) parsed_document;
+
   let out_file_j = Lang.LUri.File.to_string_file uri ^ ".astdump.json" in
   let proofs = Coq_document.get_proofs parsed_document in
 
+  let proof_propositions = List.map (fun proof -> proof.proposition ) proofs in
+  List.iter (fun (prop: Doc.Node.Ast.t) -> (print_endline (doc_node_to_string prop) )) proof_propositions;
+
+
+
+  let ast_infos_options = List.map (fun (prop : Doc.Node.Ast.t) -> prop.ast_info ) proof_propositions in
+  List.iter (fun info_opt -> 
+      let infos = Option.get info_opt in
+  List.iter (fun (info : Lang.Ast.Info.t) -> print_endline (Lang.Range.to_string info.range)) infos;
+  ) ast_infos_options;
   let out_chan = open_out out_file_j in
   Yojson.Safe.pretty_to_channel out_chan
     (`List

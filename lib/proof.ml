@@ -30,7 +30,7 @@ let is_doc_node_ast_tactic (x : Doc.Node.Ast.t) : bool =
       match synterp_expr with VernacExtend (_, _) -> false | _ -> false)
   | VernacSynPure _ -> false
 
-let is_doc_node_ast_tactic (x : Doc.Node.Ast.t) : bool =
+let is_doc_node_ast_tactic (x : Doc.Node.Ast.t) : bool = 
   match (Coq.Ast.to_coq x.v).CAst.v.expr with
   | VernacSynterp synterp_expr -> (
       match synterp_expr with
@@ -38,6 +38,7 @@ let is_doc_node_ast_tactic (x : Doc.Node.Ast.t) : bool =
           if ext.ext_plugin = "coq-core.plugins.ltac" then true else false
       | _ -> false)
   | VernacSynPure _ -> false
+
 
 let is_doc_node_ast_proof_start (x : Doc.Node.Ast.t) : bool =
   match (Coq.Ast.to_coq x.v).CAst.v.expr with

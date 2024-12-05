@@ -54,12 +54,3 @@ let parse_document (x : Doc.Node.Ast.t list) : coq_element list =
     (* Skip spans not part of any proof *)
   in
   aux x None []
-
-(*
-   let get_document_script (d : coq_element list) : string =
-     String.concat "\n"
-       (List.map
-          (fun x -> match (x : coq_element) with CoqNode e -> Ppvernac.pr_vernac x. | CoqStatement p -> "")
-   (*   Ppvernac.pr_vernac (Coq.Ast.to_coq *)
-   (*   |> Pp.string_of_ppcmds |> print_endline) *)
-          d) *)
