@@ -24,9 +24,14 @@ let get_proofs (elements : coq_element list) : proof list =
     (fun x -> match x with CoqStatement e -> Some e | _ -> None)
     elements
 
-let parse_document (x : Doc.Node.t list) : coq_element list =
+let node_representation (node : Doc.Node.t) (document : string) : string =
+  String.sub document node.range.start.offset
+    (node.range.end_.offset - node.range.start.offset)
+
+let parse_document (nodes : Doc.Node.t list) (document_repr : string) :
+    coq_element list =
   let nodes_with_ast =
-    List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) x
+    List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
   let rec aux (spans : Doc.Node.t list) current_proof document =
     match spans with
@@ -37,7 +42,11 @@ let parse_document (x : Doc.Node.t list) : coq_element list =
         | None -> List.rev document)
     | span :: rest -> (
         let annotated_span =
-          { ast = Option.get span.ast; range = span.range }
+          {
+            ast = Option.get span.ast;
+            range = span.range;
+            repr = node_representation span document_repr;
+          }
         in
         if is_doc_node_ast_proof_start annotated_span then
           aux rest

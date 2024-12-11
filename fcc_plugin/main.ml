@@ -33,13 +33,30 @@ let rec proof_tree_to_minimized_proof (proof_tree : string nary_tree) =
                      (acc ^ proof_tree_to_minimized_proof child ^ "]", idx + 1))
                  ("[", 0) childs))
 
+let read_whole_file filename =
+  (* open_in_bin works correctly on Unix and Windows *)
+  let ch = open_in_bin filename in
+  let s = really_input_string ch (in_channel_length ch) in
+  close_in ch;
+  s
+
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
+  let document_text = read_whole_file uri_str in
+  (* print_endline document_text; *)
   let lvl = Io.Level.Info in
   Io.Report.msg ~io ~lvl "[ast plugin] dumping ast for %s ..." uri_str;
   let nodes = doc.nodes in
-  let parsed_document = Coq_document.parse_document nodes in
+  let nodes_with_ast =
+    List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
+  in
+
+  List.iter
+    (fun n -> print_endline (Lang.Range.to_string (Doc.Node.range n)))
+    nodes_with_ast;
+
+  let parsed_document = Coq_document.parse_document nodes document_text in
 
   (* List.iter
      (fun element ->
@@ -48,10 +65,11 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
        | CoqStatement p -> print_endline (Proof.proof_to_coq_script_string p))
      parsed_document; *)
   let proofs = Coq_document.get_proofs parsed_document in
-  List.iter
-    (fun proof ->
-      print_endline (proof_tree_to_minimized_proof (treeify_proof proof doc)))
-    proofs;
+
+  (* List.iter *)
+  (*   (fun proof -> *)
+  (*     print_endline (proof_tree_to_minimized_proof (treeify_proof proof doc))) *)
+  (*   proofs; *)
 
   (* let out_file_j = Lang.LUri.File.to_string_file uri ^ ".astdump.json" in *)
   (* let proofs = Coq_document.get_proofs parsed_document in *)

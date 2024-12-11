@@ -1,6 +1,10 @@
 open Fleche
 
-type annotatedASTNode = { ast : Doc.Node.Ast.t; range : Lang.Range.t }
+type annotatedASTNode = {
+  ast : Doc.Node.Ast.t;
+  range : Lang.Range.t;
+  repr : string;
+}
 
 val is_doc_node_ast_tactic : annotatedASTNode -> bool
 (** [is_doc_node_ast_tactic x] checks if [x] represents a tactic in the Coq document. *)

@@ -1,6 +1,10 @@
 open Fleche
 
-type annotatedASTNode = { ast : Doc.Node.Ast.t; range : Lang.Range.t }
+type annotatedASTNode = {
+  ast : Doc.Node.Ast.t;
+  range : Lang.Range.t;
+  repr : string;
+}
 
 let is_doc_node_ast_tactic (x : annotatedASTNode) : bool =
   match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with

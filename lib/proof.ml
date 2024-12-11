@@ -30,9 +30,8 @@ let proof_to_coq_script_string (p : proof) : string =
   ^ String.concat "\n"
       (List.map (fun n -> doc_node_to_string n.ast) p.proof_steps)
 
-let get_tactics (p : proof) : string list =
-  List.filter is_doc_node_ast_tactic p.proof_steps
-  |> List.map (fun p -> doc_node_to_string p.ast)
+(* let get_tactics (p : proof) : string list =
+   List.filter is_doc_node_ast_tactic p.proof_steps |> List.map (fun p -> p.repr) *)
 
 type 'a nary_tree = Node of 'a * 'a nary_tree list
 
@@ -51,21 +50,22 @@ let count_goals (token : Coq.Limits.Token.t) (st : Agent.State.t) : int =
   | Ok None -> 0
   | Error _ -> 0
 
-let rec print_tree tree indent =
+let rec print_tree (tree : annotatedASTNode nary_tree) indent =
   match tree with
   | Node (value, children) ->
-      Printf.printf "%sNode(%s)\n" indent value;
+      Printf.printf "%sNode(%s)\n" indent value.repr;
       List.iter (fun child -> print_tree child (indent ^ "  ")) children
 
-let rec tactics_with_goalcount (token : Coq.Limits.Token.t) (st : Agent.State.t)
-    (tactics : string list) : (string * int) list =
-  match tactics with
+let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
+    (st : Agent.State.t) (steps : annotatedASTNode list) :
+    (annotatedASTNode * int) list =
+  match steps with
   | [] -> []
-  | tactic :: tail ->
-      let state = Agent.run ~token ~st ~tac:(tactic ^ ".") () in
+  | step :: tail ->
+      let state = Agent.run ~token ~st ~tac:step.repr () in
       let agent_state = (get_proof_state state).st in
       let goal_count = count_goals token agent_state in
-      (tactic, goal_count) :: tactics_with_goalcount token agent_state tail
+      (step, goal_count) :: proof_steps_with_goalcount token agent_state tail
 
 (* let print_parents (parents : (int * string, int * string) Hashtbl.t) =
    Hashtbl.iter
@@ -77,61 +77,67 @@ let rec tactics_with_goalcount (token : Coq.Limits.Token.t) (st : Agent.State.t)
 
 type parent_category = Fork | Linear
 
-let rec pop_until_fork (prev_pars : (int * string * parent_category) list) =
+let rec pop_until_fork
+    (prev_pars : (int * annotatedASTNode * parent_category) list) =
   match prev_pars with
   | [] -> []
   | (_, _, cat_par) :: tail_par -> (
       match cat_par with Fork -> prev_pars | Linear -> pop_until_fork tail_par)
 
-let rec get_parents_rec (tactics_with_goals : (string * int) list)
-    (prev_goals : int) (prev_pars : (int * string * parent_category) list)
-    (idx : int) (parents : (int * string, int * string) Hashtbl.t) =
-  match tactics_with_goals with
+let rec get_parents_rec (steps_with_goals : (annotatedASTNode * int) list)
+    (prev_goals : int)
+    (prev_pars : (int * annotatedASTNode * parent_category) list) (idx : int)
+    (parents : (int * annotatedASTNode, int * annotatedASTNode) Hashtbl.t) =
+  match steps_with_goals with
   | [] -> parents
-  | (tactic, new_goals) :: tail -> (
+  | (step, new_goals) :: tail -> (
       match prev_pars with
       | [] ->
           if new_goals > prev_goals then
             get_parents_rec tail new_goals
-              [ (idx, tactic, Fork) ]
+              [ (idx, step, Fork) ]
               (idx + 1) parents
           else
             get_parents_rec tail new_goals
-              [ (idx, tactic, Linear) ]
+              [ (idx, step, Linear) ]
               (idx + 1) parents
       | (idx_par, tactic_par, _) :: _ ->
           let par = (idx_par, tactic_par) in
           if new_goals < prev_goals then (
-            Hashtbl.add parents par (idx, tactic);
+            Hashtbl.add parents par (idx, step);
             get_parents_rec tail new_goals (pop_until_fork prev_pars) (idx + 1)
               parents)
           else if new_goals = prev_goals then (
-            Hashtbl.add parents par (idx, tactic);
+            Hashtbl.add parents par (idx, step);
             get_parents_rec tail new_goals
-              ((idx, tactic, Linear) :: prev_pars)
+              ((idx, step, Linear) :: prev_pars)
               (idx + 1) parents)
           else (
-            Hashtbl.add parents par (idx, tactic);
+            Hashtbl.add parents par (idx, step);
             get_parents_rec tail new_goals
-              ((idx, tactic, Fork) :: prev_pars)
+              ((idx, step, Fork) :: prev_pars)
               (idx + 1) parents))
 
-let rec proof_tree_from_parents (cur_node : int * string)
-    (parents : (int * string, int * string) Hashtbl.t) : string nary_tree =
+let rec proof_tree_from_parents (cur_node : int * annotatedASTNode)
+    (parents : (int * annotatedASTNode, int * annotatedASTNode) Hashtbl.t) :
+    annotatedASTNode nary_tree =
   let _, tactic = cur_node in
   let childs = Hashtbl.find_all parents cur_node in
   Node
     ( tactic,
       List.rev_map (fun node -> proof_tree_from_parents node parents) childs )
 
-let treeify_proof (p : proof) (doc : Doc.t) : string nary_tree =
+let treeify_proof (p : proof) (doc : Doc.t) : annotatedASTNode nary_tree =
   let token = Coq.Limits.Token.create () in
   let proof_name_opt = get_proof_name p in
   let proof_name = Option.get proof_name_opt in
-  let tactics = get_tactics p in
+  (* let tactics = get_tactics p in *)
   let init_state = Agent.start ~token ~doc ~thm:proof_name () in
   let proof_state = (get_proof_state init_state).st in
-  let tactics_with_goals = tactics_with_goalcount token proof_state tactics in
-  let parents = Hashtbl.create (List.length tactics_with_goals) in
-  let _ = get_parents_rec tactics_with_goals 1 [] 0 parents in
-  proof_tree_from_parents (0, List.hd tactics) parents
+  let steps_with_goals =
+    proof_steps_with_goalcount token proof_state p.proof_steps
+  in
+
+  let parents = Hashtbl.create (List.length steps_with_goals) in
+  let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
+  proof_tree_from_parents (0, List.hd p.proof_steps) parents
