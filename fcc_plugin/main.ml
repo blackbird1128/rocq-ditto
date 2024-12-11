@@ -3,9 +3,6 @@ open Ditto
 open Ditto.Proof
 (* open Stack  *)
 
-let doc_node_to_string (d : Doc.Node.Ast.t) : string =
-  Ppvernac.pr_vernac (Coq.Ast.to_coq d.v) |> Pp.string_of_ppcmds
-
 let parse_json_list json_repr =
   match json_repr with
   | `List elements -> elements
@@ -41,8 +38,8 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri_str = Lang.LUri.File.to_string_uri uri in
   let lvl = Io.Level.Info in
   Io.Report.msg ~io ~lvl "[ast plugin] dumping ast for %s ..." uri_str;
-  let asts = Doc.asts doc in
-  let parsed_document = Coq_document.parse_document asts in
+  let nodes = doc.nodes in
+  let parsed_document = Coq_document.parse_document nodes in
 
   (* List.iter
      (fun element ->

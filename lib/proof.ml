@@ -1,7 +1,11 @@
 open Fleche
 open Petanque
+open Annotated_ast_node
 
-type proof = { proposition : Doc.Node.Ast.t; proof_steps : Doc.Node.Ast.t list }
+type proof = {
+  proposition : annotatedASTNode;
+  proof_steps : annotatedASTNode list;
+}
 (* proposition can also be a type, better name ? *)
 
 (* A node can have multiple names (ie mutual recursive defs) *)
@@ -12,8 +16,8 @@ let get_names (infos : Lang.Ast.Info.t list) =
     infos
 
 let get_proof_name (p : proof) : string option =
-  if Option.has_some p.proposition.ast_info then
-    (Option.get p.proposition.ast_info |> get_names |> List.nth_opt) 0
+  if Option.has_some p.proposition.ast.ast_info then
+    (Option.get p.proposition.ast.ast_info |> get_names |> List.nth_opt) 0
   else None
 
 let doc_node_to_string (d : Doc.Node.Ast.t) : string =
@@ -21,36 +25,14 @@ let doc_node_to_string (d : Doc.Node.Ast.t) : string =
   Pp.string_of_ppcmds pp_expr
 
 let proof_to_coq_script_string (p : proof) : string =
-  doc_node_to_string p.proposition
+  doc_node_to_string p.proposition.ast
   ^ "\n"
-  ^ String.concat "\n" (List.map (fun n -> doc_node_to_string n) p.proof_steps)
-
-let is_doc_node_ast_tactic (x : Doc.Node.Ast.t) : bool =
-  match (Coq.Ast.to_coq x.v).CAst.v.expr with
-  | VernacSynterp synterp_expr -> (
-      match synterp_expr with
-      | VernacExtend (ext, _) ->
-          if ext.ext_plugin = "coq-core.plugins.ltac" then true else false
-      | _ -> false)
-  | VernacSynPure _ -> false
-
-let is_doc_node_ast_proof_start (x : Doc.Node.Ast.t) : bool =
-  match (Coq.Ast.to_coq x.v).CAst.v.expr with
-  | VernacSynterp _ -> false
-  | VernacSynPure expr -> (
-      match expr with
-      | Vernacexpr.VernacStartTheoremProof _ -> true
-      | _ -> false)
-
-let is_doc_node_ast_proof_end (x : Doc.Node.Ast.t) : bool =
-  match (Coq.Ast.to_coq x.v).CAst.v.expr with
-  | VernacSynterp _ -> false
-  | VernacSynPure expr -> (
-      match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false)
+  ^ String.concat "\n"
+      (List.map (fun n -> doc_node_to_string n.ast) p.proof_steps)
 
 let get_tactics (p : proof) : string list =
   List.filter is_doc_node_ast_tactic p.proof_steps
-  |> List.map doc_node_to_string
+  |> List.map (fun p -> doc_node_to_string p.ast)
 
 type 'a nary_tree = Node of 'a * 'a nary_tree list
 

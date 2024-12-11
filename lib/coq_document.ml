@@ -1,11 +1,13 @@
 open Proof
 open Fleche
+open Annotated_ast_node
 
-type coq_element = CoqNode of Doc.Node.Ast.t | CoqStatement of proof
+type coq_element = CoqNode of annotatedASTNode | CoqStatement of proof
 
 let coq_element_to_string (x : coq_element) : string =
   match x with
-  | CoqNode e -> Ppvernac.pr_vernac (Coq.Ast.to_coq e.v) |> Pp.string_of_ppcmds
+  | CoqNode e ->
+      Ppvernac.pr_vernac (Coq.Ast.to_coq e.ast.v) |> Pp.string_of_ppcmds
   | CoqStatement e -> Proof.proof_to_coq_script_string e
 
 let get_theorem_names (elements : coq_element list) : string list =
@@ -22,8 +24,11 @@ let get_proofs (elements : coq_element list) : proof list =
     (fun x -> match x with CoqStatement e -> Some e | _ -> None)
     elements
 
-let parse_document (x : Doc.Node.Ast.t list) : coq_element list =
-  let rec aux spans current_proof document =
+let parse_document (x : Doc.Node.t list) : coq_element list =
+  let nodes_with_ast =
+    List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) x
+  in
+  let rec aux (spans : Doc.Node.t list) current_proof document =
     match spans with
     | [] -> (
         match current_proof with
@@ -31,15 +36,21 @@ let parse_document (x : Doc.Node.Ast.t list) : coq_element list =
             raise (Invalid_argument "proof started but ended at document end")
         | None -> List.rev document)
     | span :: rest -> (
-        if is_doc_node_ast_proof_start span then
-          aux rest (Some { proposition = span; proof_steps = [] }) document
-        else if is_doc_node_ast_proof_end span then
+        let annotated_span =
+          { ast = Option.get span.ast; range = span.range }
+        in
+        if is_doc_node_ast_proof_start annotated_span then
+          aux rest
+            (Some { proposition = annotated_span; proof_steps = [] })
+            document
+        else if is_doc_node_ast_proof_end annotated_span then
           match current_proof with
           | Some current_proof ->
               let completed_proof =
                 {
                   current_proof with
-                  proof_steps = List.rev (span :: current_proof.proof_steps);
+                  proof_steps =
+                    List.rev (annotated_span :: current_proof.proof_steps);
                 }
               in
               aux rest None (CoqStatement completed_proof :: document)
@@ -48,9 +59,13 @@ let parse_document (x : Doc.Node.Ast.t list) : coq_element list =
           match current_proof with
           | Some proof ->
               aux rest
-                (Some { proof with proof_steps = span :: proof.proof_steps })
+                (Some
+                   {
+                     proof with
+                     proof_steps = annotated_span :: proof.proof_steps;
+                   })
                 document
-          | None -> aux rest None (CoqNode span :: document))
+          | None -> aux rest None (CoqNode annotated_span :: document))
     (* Skip spans not part of any proof *)
   in
-  aux x None []
+  aux nodes_with_ast None []
