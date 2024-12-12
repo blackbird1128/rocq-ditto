@@ -148,6 +148,19 @@ let tree_to_proof (tree: annotatedASTNode nary_tree) =
     let nodes = proof_tree_to_node_list tree in 
     { proposition = List.hd nodes; proof_steps = List.tl nodes  }
 
+let previous_steps_from_tree (node: annotatedASTNode) (tree: annotatedASTNode nary_tree) =
+    let nodes = proof_tree_to_node_list tree in
+    let steps = List.tl nodes in
+    let rec sublist_before_id lst target_id =
+        match lst with
+          | [] -> []
+          | x :: xs ->
+          if x.id = target_id then
+            []
+          else
+        x :: sublist_before_id xs target_id in
+    sublist_before_id steps node.id
+
 let last_offset (p : proof) =
   List.fold_left
     (fun acc elem ->
