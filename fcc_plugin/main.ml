@@ -1,6 +1,6 @@
 open Fleche
 open Ditto
-open Ditto.Proof
+open Ditto.Proof_tree
 (* open Stack  *)
 
 let parse_json_list json_repr =
@@ -67,6 +67,14 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
        | CoqStatement p -> print_endline (Proof.proof_to_coq_script_string p))
      parsed_document; *)
   let proofs = Coq_document.get_proofs parsed_document in
+  let trees = List.map (fun proof -> Proof.treeify_proof proof doc) proofs in
+  let first_tree = List.hd trees in
+  let filtered_tree =
+    Proof_tree.remove_all_nonmatching
+      (fun node -> Annotated_ast_node.is_doc_node_ast_tactic node)
+      first_tree
+  in
+  Proof.print_tree (Option.get filtered_tree) "";
 
   (* List.iter *)
   (*   (fun proof -> *)
@@ -96,11 +104,6 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
      Yojson.Safe.pretty_to_channel out_chan
        (`List
          (List.map (fun (x : Doc.Node.Ast.t) -> Lsp.JCoq.Ast.to_yojson x.v) asts)); *)
-  List.iter
-    (fun proof ->
-      Proof.print_tree (treeify_proof proof doc) " ";
-      print_newline ())
-    proofs;
   (* List.iter
        (fun proof ->
          depth_first_print (treeify_proof proof doc);
