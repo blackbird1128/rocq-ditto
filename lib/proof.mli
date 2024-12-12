@@ -1,6 +1,7 @@
 open Fleche
 open Petanque
 open Annotated_ast_node
+open Proof_tree
 
 (** Represents a proof in a Coq document. *)
 type proof = {
@@ -15,8 +16,6 @@ val get_names : Lang.Ast.Info.t list -> string list
 val proof_to_coq_script_string : proof -> string
 val get_proof_name : proof -> string option
 (* val get_tactics : proof -> string list *)
-
-type 'a nary_tree = Node of 'a * 'a nary_tree list
 
 val get_proof_state : ('a, Agent.Error.t) result -> 'a
 

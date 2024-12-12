@@ -46,6 +46,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string) :
             ast = Option.get span.ast;
             range = span.range;
             repr = node_representation span document_repr;
+            id = Unique_id.next ();
           }
         in
         if is_doc_node_ast_proof_start annotated_span then
@@ -88,13 +89,7 @@ let rec dump_to_string (doc : coq_element list) : string =
         | CoqStatement p -> Proof.proof_nodes p)
       doc
   in
-  (* let block_size =
-       List.fold_left
-         (fun acc node ->
-           if node.range.end_.offset > acc then node.range.end_.offset else acc)
-         0 annotated_nodes
-     in
-     let block = Bytes.make block_size ' ' in *)
+
   let rec aux (annotated_nodes : annotatedASTNode list) (doc_repr : string)
       (previous_line : int) =
     match annotated_nodes with
@@ -109,3 +104,30 @@ let rec dump_to_string (doc : coq_element list) : string =
         aux tail repr node.range.end_.line
   in
   aux annotated_nodes "" 0
+
+let replace_node (new_node : annotatedASTNode) (nodes : annotatedASTNode list) =
+  List.map (fun node -> if node.id = new_node.id then new_node else node) nodes
+
+module IntMap = Map.Make (Int)
+
+let replace_proof (proof : proof) (nodes : annotatedASTNode list) :
+    annotatedASTNode list =
+  let proof_nodes = Proof.proof_nodes proof in
+  let build_replacement_map replacements =
+    List.fold_left
+      (fun map elem -> IntMap.add elem.id elem map)
+      IntMap.empty replacements
+  in
+  let replacement_map = build_replacement_map proof_nodes in
+  List.map
+    (fun elem ->
+      match IntMap.find_opt elem.id replacement_map with
+      | Some new_elem -> new_elem (* Replace if found *)
+      | None -> elem (* Keep original if not found *))
+    nodes
+
+let replace_coq_element (element : coq_element) (nodes : annotatedASTNode list)
+    =
+  match element with
+  | CoqNode e -> replace_node e nodes
+  | CoqStatement p -> replace_proof p nodes

@@ -1,6 +1,7 @@
 open Fleche
 open Petanque
 open Annotated_ast_node
+open Proof_tree
 
 type proof = {
   proposition : annotatedASTNode;
@@ -32,8 +33,6 @@ let proof_to_coq_script_string (p : proof) : string =
 
 (* let get_tactics (p : proof) : string list =
    List.filter is_doc_node_ast_tactic p.proof_steps |> List.map (fun p -> p.repr) *)
-
-type 'a nary_tree = Node of 'a * 'a nary_tree list
 
 let get_proof_state start_result =
   match start_result with
@@ -141,6 +140,9 @@ let treeify_proof (p : proof) (doc : Doc.t) : annotatedASTNode nary_tree =
   let parents = Hashtbl.create (List.length steps_with_goals) in
   let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
   proof_tree_from_parents (0, List.hd p.proof_steps) parents
+
+let rec proof_tree_to_node_list (Node (value, children)) =
+  value :: List.concat (List.map proof_tree_to_node_list children)
 
 let last_offset (p : proof) =
   List.fold_left

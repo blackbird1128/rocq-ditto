@@ -4,6 +4,7 @@ type annotatedASTNode = {
   ast : Doc.Node.Ast.t;
   range : Lang.Range.t;
   repr : string;
+  id : int;
 }
 
 let is_doc_node_ast_tactic (x : annotatedASTNode) : bool =
