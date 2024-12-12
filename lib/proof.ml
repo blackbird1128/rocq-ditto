@@ -141,3 +141,12 @@ let treeify_proof (p : proof) (doc : Doc.t) : annotatedASTNode nary_tree =
   let parents = Hashtbl.create (List.length steps_with_goals) in
   let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
   proof_tree_from_parents (0, List.hd p.proof_steps) parents
+
+let last_offset (p : proof) =
+  List.fold_left
+    (fun acc elem ->
+      if elem.range.end_.offset > acc then elem.range.end_.offset else acc)
+    0
+    (p.proposition :: p.proof_steps)
+
+let proof_nodes (p : proof) = p.proposition :: p.proof_steps

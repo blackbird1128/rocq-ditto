@@ -57,6 +57,8 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
     nodes_with_ast;
 
   let parsed_document = Coq_document.parse_document nodes document_text in
+  let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
+  output_string out (Coq_document.dump_to_string parsed_document);
 
   (* List.iter
      (fun element ->

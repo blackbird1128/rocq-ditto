@@ -78,3 +78,34 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string) :
     (* Skip spans not part of any proof *)
   in
   aux nodes_with_ast None []
+
+let rec dump_to_string (doc : coq_element list) : string =
+  let annotated_nodes =
+    List.concat_map
+      (fun elem ->
+        match elem with
+        | CoqNode e -> [ e ]
+        | CoqStatement p -> Proof.proof_nodes p)
+      doc
+  in
+  (* let block_size =
+       List.fold_left
+         (fun acc node ->
+           if node.range.end_.offset > acc then node.range.end_.offset else acc)
+         0 annotated_nodes
+     in
+     let block = Bytes.make block_size ' ' in *)
+  let rec aux (annotated_nodes : annotatedASTNode list) (doc_repr : string)
+      (previous_line : int) =
+    match annotated_nodes with
+    | [] -> doc_repr
+    | node :: tail ->
+        let repr =
+          doc_repr
+          ^ String.make (node.range.start.line - previous_line) '\n'
+          ^ String.make node.range.start.character ' '
+          ^ node.repr
+        in
+        aux tail repr node.range.end_.line
+  in
+  aux annotated_nodes "" 0
