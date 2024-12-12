@@ -48,17 +48,15 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let lvl = Io.Level.Info in
   Io.Report.msg ~io ~lvl "[ast plugin] dumping ast for %s ..." uri_str;
   let nodes = doc.nodes in
-  let nodes_with_ast =
-    List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
-  in
+  (* let nodes_with_ast = *)
+  (*   List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes *)
+  (* in *)
 
-  List.iter
+  (* List.iter
     (fun n -> print_endline (Lang.Range.to_string (Doc.Node.range n)))
-    nodes_with_ast;
+    nodes_with_ast; *)
 
   let parsed_document = Coq_document.parse_document nodes document_text in
-  let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-  output_string out (Coq_document.dump_to_string parsed_document);
 
   (* List.iter
      (fun element ->
@@ -71,17 +69,38 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let first_tree = List.hd trees in
   let filtered_tree =
     Proof_tree.remove_all_nonmatching
-      (fun node -> Annotated_ast_node.is_doc_node_ast_tactic node)
+      (fun node -> (Annotated_ast_node.is_doc_node_ast_tactic node || Annotated_ast_node.is_doc_node_ast_proof_start node || Annotated_ast_node.is_doc_node_ast_proof_end node || Annotated_ast_node.is_doc_node_ast_proof_command node))
       first_tree
   in
+
+  Proof.print_tree (first_tree) "";
+  print_newline ();
   Proof.print_tree (Option.get filtered_tree) "";
+  let tree_proof = Proof.tree_to_proof (Option.get filtered_tree) in
+  let updated = Coq_document.replace_coq_element (CoqStatement tree_proof) parsed_document in
 
-  (* List.iter *)
-  (*   (fun proof -> *)
-  (*     print_endline (proof_tree_to_minimized_proof (treeify_proof proof doc))) *)
-  (*   proofs; *)
+  let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
+  output_string out (Coq_document.dump_to_string updated);
+(*   List.iter
+    (fun proof ->
+      Proof.print_tree (Proof.treeify_proof proof doc) "")
+    proofs; *)
 
-  (* let out_file_j = Lang.LUri.File.to_string_file uri ^ ".astdump.json" in *)
+  let annotated_nodes =
+    List.concat_map
+      (fun elem ->
+        match elem with
+        | Coq_document.CoqNode e -> [ e ]
+        | Coq_document.CoqStatement p -> Proof.proof_nodes p)
+      parsed_document
+  in
+
+  let asts = List.map (fun (node : Annotated_ast_node.annotatedASTNode) -> node.ast) annotated_nodes in
+  let out_file_j = Lang.LUri.File.to_string_file uri ^ ".astdump.json" in
+  let out_chan = open_out out_file_j in
+     Yojson.Safe.pretty_to_channel out_chan
+       (`List
+         (List.map (fun (x : Doc.Node.Ast.t) -> Lsp.JCoq.Ast.to_yojson x.v) asts));
   (* let proofs = Coq_document.get_proofs parsed_document in *)
 
   (* let proof_propositions = List.map (fun proof -> proof.proposition) proofs in

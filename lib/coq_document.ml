@@ -105,29 +105,8 @@ let rec dump_to_string (doc : coq_element list) : string =
   in
   aux annotated_nodes "" 0
 
-let replace_node (new_node : annotatedASTNode) (nodes : annotatedASTNode list) =
-  List.map (fun node -> if node.id = new_node.id then new_node else node) nodes
-
-module IntMap = Map.Make (Int)
-
-let replace_proof (proof : proof) (nodes : annotatedASTNode list) :
-    annotatedASTNode list =
-  let proof_nodes = Proof.proof_nodes proof in
-  let build_replacement_map replacements =
-    List.fold_left
-      (fun map elem -> IntMap.add elem.id elem map)
-      IntMap.empty replacements
-  in
-  let replacement_map = build_replacement_map proof_nodes in
-  List.map
-    (fun elem ->
-      match IntMap.find_opt elem.id replacement_map with
-      | Some new_elem -> new_elem (* Replace if found *)
-      | None -> elem (* Keep original if not found *))
-    nodes
-
-let replace_coq_element (element : coq_element) (nodes : annotatedASTNode list)
-    =
-  match element with
-  | CoqNode e -> replace_node e nodes
-  | CoqStatement p -> replace_proof p nodes
+let replace_coq_element (updated_element : coq_element) (doc: coq_element list) =
+        List.map (fun elem -> match updated_element, elem with 
+            CoqNode updated_node , CoqNode old_node -> if updated_node.id = old_node.id then updated_element else elem
+            | CoqStatement updated_proof , CoqStatement old_proof -> if updated_proof.proposition.id = old_proof.proposition.id then updated_element else elem
+            | _, e -> e) doc
