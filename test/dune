@@ -1,0 +1,10 @@
+(executable
+ (name test_nary_tree)
+ (public_name test)
+ (package coq-ditto)
+ (libraries ditto alcotest))
+
+(rule
+ (alias runtest)
+ (deps test_nary_tree.exe)
+ (action (run ./test_nary_tree.exe)))
