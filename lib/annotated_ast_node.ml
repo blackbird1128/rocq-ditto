@@ -5,6 +5,8 @@ type annotatedASTNode = {
   range : Lang.Range.t;
   repr : string;
   id : int;
+  proof_id : int option;
+      (* the id of the proof associated with the node if there is one *)
 }
 
 let is_doc_node_ast_tactic (x : annotatedASTNode) : bool =
@@ -30,7 +32,7 @@ let is_doc_node_ast_proof_end (x : annotatedASTNode) : bool =
   | VernacSynPure expr -> (
       match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false)
 
-let is_doc_node_ast_proof_command (x: annotatedASTNode) : bool =
+let is_doc_node_ast_proof_command (x : annotatedASTNode) : bool =
   match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
   | VernacSynterp _ -> false
   | VernacSynPure expr -> (

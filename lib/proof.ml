@@ -139,27 +139,28 @@ let treeify_proof (p : proof) (doc : Doc.t) : annotatedASTNode nary_tree =
 
   let parents = Hashtbl.create (List.length steps_with_goals) in
   let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
-  Node(p.proposition,  [proof_tree_from_parents (0, List.hd p.proof_steps) parents])
+  Node
+    ( p.proposition,
+      [ proof_tree_from_parents (0, List.hd p.proof_steps) parents ] )
 
 let rec proof_tree_to_node_list (Node (value, children)) =
   value :: List.concat (List.map proof_tree_to_node_list children)
 
-let tree_to_proof (tree: annotatedASTNode nary_tree) =
-    let nodes = proof_tree_to_node_list tree in 
-    { proposition = List.hd nodes; proof_steps = List.tl nodes  }
+let tree_to_proof (tree : annotatedASTNode nary_tree) =
+  let nodes = proof_tree_to_node_list tree in
+  { proposition = List.hd nodes; proof_steps = List.tl nodes }
 
-let previous_steps_from_tree (node: annotatedASTNode) (tree: annotatedASTNode nary_tree) =
-    let nodes = proof_tree_to_node_list tree in
-    let steps = List.tl nodes in
-    let rec sublist_before_id lst target_id =
-        match lst with
-          | [] -> []
-          | x :: xs ->
-          if x.id = target_id then
-            []
-          else
-        x :: sublist_before_id xs target_id in
-    sublist_before_id steps node.id
+let previous_steps_from_tree (node : annotatedASTNode)
+    (tree : annotatedASTNode nary_tree) =
+  let nodes = proof_tree_to_node_list tree in
+  let steps = List.tl nodes in
+  let rec sublist_before_id lst target_id =
+    match lst with
+    | [] -> []
+    | x :: xs ->
+        if x.id = target_id then [] else x :: sublist_before_id xs target_id
+  in
+  sublist_before_id steps node.id
 
 let last_offset (p : proof) =
   List.fold_left
