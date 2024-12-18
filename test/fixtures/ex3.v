@@ -7,6 +7,7 @@ Proof.
   split.
   destruct H as [H1 H2].
   assumption.
+  Search "sweetNothing".
   destruct H as [H1 H2].
   assumption.
 Qed.
@@ -24,5 +25,3 @@ Proof.
   assumption.
   assumption.
 Qed.
-  
-  
