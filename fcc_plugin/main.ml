@@ -51,6 +51,7 @@ let make_from_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) :
     range;
     id = Unique_id.next ();
     repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds;
+    proof_id = None;
   }
 
 let depth_to_bullet_type (depth : int) =
@@ -118,39 +119,52 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let parsed_document =
     Coq_document.parse_document nodes document_text uri_str
   in
+  print_endline (Coq_document.dump_to_string parsed_document);
+  print_endline "---------------------------";
+  List.iter
+    (fun node ->
+      print_endline (string_of_int (Option.default (-1) node.proof_id)))
+    parsed_document.elements;
 
   let proofs = Coq_document.get_proofs parsed_document in
-  let trees = List.map (fun proof -> Proof.treeify_proof proof doc) proofs in
-  let first_tree = List.hd trees in
-  let first_proof_with_bullets = add_bullet first_tree in
-
-  let updated =
-    Coq_document.replace_coq_element (CoqStatement first_proof_with_bullets)
-      parsed_document
-  in
-
-  let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-  output_string out (Coq_document.dump_to_string updated);
-  let annotated_nodes =
-    List.concat_map
-      (fun elem ->
-        match elem with
-        | Coq_document.CoqNode e -> [ e ]
-        | Coq_document.CoqStatement p -> Proof.proof_nodes p)
-      parsed_document.elements
-  in
-
-  let asts =
-    List.map
-      (fun (node : Annotated_ast_node.annotatedASTNode) -> node.ast)
-      annotated_nodes
-  in
-  let out_file_j = Lang.LUri.File.to_string_file uri ^ ".astdump.json" in
-  let out_chan = open_out out_file_j in
-  Yojson.Safe.pretty_to_channel out_chan
-    (`List
-      (List.map (fun (x : Doc.Node.Ast.t) -> Lsp.JCoq.Ast.to_yojson x.v) asts));
+  print_endline ("number of proofs : " ^ string_of_int (List.length proofs));
+  print_endline
+    ("proof steps first proof : "
+    ^ string_of_int (List.length (List.hd proofs).proof_steps));
+  List.iter
+    (fun proof -> print_endline (Proof.proof_to_coq_script_string proof))
+    proofs;
   ()
+(* let first_tree = List.hd trees in *)
+(* let first_proof_with_bullets = add_bullet first_tree in *)
+
+(* let updated = *)
+(*   Coq_document.replace_coq_element (CoqStatement first_proof_with_bullets) *)
+(*     parsed_document *)
+(* in *)
+
+(* let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in *)
+(* output_string out (Coq_document.dump_to_string updated); *)
+(* let annotated_nodes = *)
+(*   List.concat_map *)
+(*     (fun elem -> *)
+(*       match elem with *)
+(*       | Coq_document.CoqNode e -> [ e ] *)
+(*       | Coq_document.CoqStatement p -> Proof.proof_nodes p) *)
+(*     parsed_document.elements *)
+(* in *)
+
+(* let asts = *)
+(*   List.map *)
+(*     (fun (node : Annotated_ast_node.annotatedASTNode) -> node.ast) *)
+(*     annotated_nodes *)
+(* in *)
+(* let out_file_j = Lang.LUri.File.to_string_file uri ^ ".astdump.json" in *)
+(* let out_chan = open_out out_file_j in *)
+(* Yojson.Safe.pretty_to_channel out_chan *)
+(*   (`List *)
+(*     (List.map (fun (x : Doc.Node.Ast.t) -> Lsp.JCoq.Ast.to_yojson x.v) asts)); *)
+(* () *)
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()
