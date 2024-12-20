@@ -9,6 +9,21 @@ type annotatedASTNode = {
       (* the id of the proof associated with the node if there is one *)
 }
 
+let shift_point (n_line : int) (n_char : int) (x : Lang.Point.t) : Lang.Point.t
+    =
+  { x with line = x.line + n_line; offset = x.offset + n_char }
+
+let shift_node (n_line : int) (n_char : int) (x : annotatedASTNode) :
+    annotatedASTNode =
+  {
+    x with
+    range =
+      {
+        start = shift_point n_line n_char x.range.start;
+        end_ = shift_point n_line n_char x.range.end_;
+      };
+  }
+
 let is_doc_node_ast_tactic (x : annotatedASTNode) : bool =
   match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
   | VernacSynterp synterp_expr -> (

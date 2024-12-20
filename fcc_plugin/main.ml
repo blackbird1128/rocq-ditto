@@ -119,21 +119,13 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let parsed_document =
     Coq_document.parse_document nodes document_text uri_str
   in
-  print_endline (Coq_document.dump_to_string parsed_document);
+  let modified = Coq_document.remove_node_with_id 3 parsed_document in
+  print_endline (Coq_document.dump_to_string modified);
   print_endline "---------------------------";
-  List.iter
-    (fun node ->
-      print_endline (string_of_int (Option.default (-1) node.proof_id)))
-    parsed_document.elements;
 
-  let proofs = Coq_document.get_proofs parsed_document in
-  print_endline ("number of proofs : " ^ string_of_int (List.length proofs));
-  print_endline
-    ("proof steps first proof : "
-    ^ string_of_int (List.length (List.hd proofs).proof_steps));
-  List.iter
-    (fun proof -> print_endline (Proof.proof_to_coq_script_string proof))
-    proofs;
+  let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
+  output_string out (Coq_document.dump_to_string modified);
+
   ()
 (* let first_tree = List.hd trees in *)
 (* let first_proof_with_bullets = add_bullet first_tree in *)
@@ -143,8 +135,6 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 (*     parsed_document *)
 (* in *)
 
-(* let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in *)
-(* output_string out (Coq_document.dump_to_string updated); *)
 (* let annotated_nodes = *)
 (*   List.concat_map *)
 (*     (fun elem -> *)

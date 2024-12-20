@@ -2,7 +2,7 @@ open Proof
 open Fleche
 open Annotated_ast_node
 
-type proof_state = NoProof | ProofOpened
+type proofState = NoProof | ProofOpened
 
 type t = {
   filename : string;
@@ -10,10 +10,14 @@ type t = {
   document_repr : string;
 }
 
+type insertPosition = Before of int | After of int | Start | End
+
+
 module IntMap = Map.Make (Int)
 
 let get_proofs (doc : t) : proof list =
   let map_acc = IntMap.empty in
+
   let map_proofs =
     List.fold_left
       (fun map_acc elem ->
@@ -41,7 +45,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
   let nodes_with_ast =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
-  let rec aux (spans : Doc.Node.t list) (proof_state : proof_state)
+  let rec aux (spans : Doc.Node.t list) (proof_state : proofState)
       (proof_id : int option) document =
     match spans with
     | [] -> (
@@ -105,30 +109,47 @@ let rec dump_to_string (doc : t) : string =
 let element_with_id (element_id : int) (doc : t) : annotatedASTNode option =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
 
-let split_at_id (element_id: int) (doc: t) : (annotatedASTNode list * annotatedASTNode list,string) result =
-  let rec aux elements =
+let split_at_id (target_id : int) (doc : t) :
+    annotatedASTNode list * annotatedASTNode list =
+  let rec aux (elements : annotatedASTNode list) (acc : annotatedASTNode list) =
     match elements with
-      [] -> []
-    | elem::tail -> 
-  let element = element_with_id element_id doc in
-  match element with
-    Some elem ->
-     
-  |  None -> Error "element id: " ^ (string_of_int element_id) ^  " isn't in the doc" 
-  
-       
-       
+    | [] -> (acc, [])
+    | x :: tail ->
+        if x.id = target_id then (List.rev acc, tail) else aux tail (x :: acc)
+  in
+  aux doc.elements []
 
 let elements_starting_at_line (line_number : int) (doc : t) =
   List.filter (fun elem -> elem.range.start.line = line_number) doc.elements
 
-let remove_node_with_id (id_target: int) (doc : t) : t =
-  match element_with_id id_target doc with
-    Some elem ->
-     if elements_starting_at_line elem.range.start.line doc > 1 then (* there is more than a node on the current line*)
-     else
-       
-    None -> doc 
+let remove_node_with_id (target_id : int) (doc : t) : t =
+  match element_with_id target_id doc with
+  | Some elem ->
+      let before, after = split_at_id target_id doc in
+      let line_shift =
+        if List.length (elements_starting_at_line elem.range.start.line doc) > 1
+        then 0
+        else -1
+      in
+      {
+        doc with
+        elements =
+          List.concat
+            [
+              before;
+              List.map
+                (fun x ->
+                  Annotated_ast_node.shift_node line_shift
+                    (String.length elem.repr) x)
+                after;
+            ];
+      }
+      (* Shift n char off the line if more than one element   *)
+  | None -> doc
+
+let add_node (new_node: annotatedASTNode) (doc: t) (insert_pos: insertPosition) : t =
+  
+
 
 (* let remove_coq_element (element_id: int) (doc: t) : (t, string) result = *)
 (*   let element = element_with_id element_id doc in *)

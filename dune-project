@@ -19,7 +19,7 @@
  (name coq-ditto)
  (synopsis "Coq ditto lib")
  (description "A longer description")
- (depends ocaml dune coq-lsp base-unix re )
+ (depends ocaml dune coq-lsp base-unix re alcotest)
  (tags
   (topics "to describe" your project)))
 
@@ -27,6 +27,3 @@
   (name ditto-plugin)
   (allow_empty)
   (depends ocaml dune lsp coq-lsp base-unix re coq-ditto))
-
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
