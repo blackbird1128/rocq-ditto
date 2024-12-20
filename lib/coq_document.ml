@@ -12,7 +12,6 @@ type t = {
 
 type insertPosition = Before of int | After of int | Start | End
 
-
 module IntMap = Map.Make (Int)
 
 let get_proofs (doc : t) : proof list =
@@ -106,7 +105,7 @@ let rec dump_to_string (doc : t) : string =
   in
   aux doc.elements "" 0
 
-let element_with_id (element_id : int) (doc : t) : annotatedASTNode option =
+let element_with_id_opt (element_id : int) (doc : t) : annotatedASTNode option =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
 
 let split_at_id (target_id : int) (doc : t) :
@@ -122,8 +121,12 @@ let split_at_id (target_id : int) (doc : t) :
 let elements_starting_at_line (line_number : int) (doc : t) =
   List.filter (fun elem -> elem.range.start.line = line_number) doc.elements
 
+let shift_nodes (n_line : int) (n_char : int) (nodes : annotatedASTNode list) :
+    annotatedASTNode list =
+  List.map (Annotated_ast_node.shift_node n_line n_char) nodes
+
 let remove_node_with_id (target_id : int) (doc : t) : t =
-  match element_with_id target_id doc with
+  match element_with_id_opt target_id doc with
   | Some elem ->
       let before, after = split_at_id target_id doc in
       let line_shift =
@@ -133,23 +136,59 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
       in
       {
         doc with
-        elements =
-          List.concat
-            [
-              before;
-              List.map
-                (fun x ->
-                  Annotated_ast_node.shift_node line_shift
-                    (String.length elem.repr) x)
-                after;
-            ];
+        elements = List.concat [ before; shift_nodes line_shift 0 after ];
       }
       (* Shift n char off the line if more than one element   *)
   | None -> doc
 
-let add_node (new_node: annotatedASTNode) (doc: t) (insert_pos: insertPosition) : t =
-  
-
+let insert_node (new_node : annotatedASTNode) (doc : t)
+    (insert_pos : insertPosition) : (t, string) result =
+  match insert_pos with
+  | Before id -> (
+      let target_node = element_with_id_opt id doc in
+      match target_node with
+      | Some target ->
+          let before, after = split_at_id id doc in
+          Ok
+            {
+              doc with
+              elements =
+                List.concat
+                  [
+                    before;
+                    [ new_node ];
+                    shift_nodes 1 (String.length new_node.repr) (target :: after);
+                  ];
+            }
+      | None -> Error ("node with id " ^ string_of_int id ^ "doesn't exist"))
+  | After id -> (
+      let target_node = element_with_id_opt id doc in
+      match target_node with
+      | Some target ->
+          let before, after = split_at_id id doc in
+          Ok
+            {
+              doc with
+              elements =
+                List.concat
+                  [
+                    before;
+                    [ target ];
+                    [ new_node ];
+                    shift_nodes 1 (String.length new_node.repr) after;
+                  ];
+            }
+      | None -> Error ("node with id " ^ string_of_int id ^ "doesn't exist"))
+  | Start ->
+      Ok
+        {
+          doc with
+          elements =
+            shift_nodes 1
+              (String.length new_node.repr)
+              (new_node :: doc.elements);
+        }
+  | End -> Ok { doc with elements = doc.elements @ [ new_node ] }
 
 (* let remove_coq_element (element_id: int) (doc: t) : (t, string) result = *)
 (*   let element = element_with_id element_id doc in *)

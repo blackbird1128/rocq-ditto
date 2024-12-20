@@ -62,7 +62,8 @@ let depth_to_bullet_type (depth : int) =
   | 2 -> VernacBullet (Proof_bullet.Star bullet_number)
   | _ -> VernacBullet (Proof_bullet.Dash bullet_number)
 
-let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) =
+let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) :
+    annotatedASTNode =
   let example_without_dirpath : Loc.source =
     InFile { dirpath = None; file = "main.ml" }
   in
@@ -119,14 +120,20 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let parsed_document =
     Coq_document.parse_document nodes document_text uri_str
   in
+  let node_id_3 =
+    Option.get (Coq_document.element_with_id_opt 3 parsed_document)
+  in
   let modified = Coq_document.remove_node_with_id 3 parsed_document in
-  print_endline (Coq_document.dump_to_string modified);
-  print_endline "---------------------------";
+  let modified_bis = Coq_document.insert_node node_id_3 modified (After 2) in
+  match modified_bis with
+  | Ok new_doc -> print_endline (Coq_document.dump_to_string new_doc)
+  | Error err_msg ->
+      print_endline err_msg;
+      print_endline "---------------------------";
+      let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
+      output_string out (Coq_document.dump_to_string modified);
 
-  let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-  output_string out (Coq_document.dump_to_string modified);
-
-  ()
+      ()
 (* let first_tree = List.hd trees in *)
 (* let first_proof_with_bullets = add_bullet first_tree in *)
 

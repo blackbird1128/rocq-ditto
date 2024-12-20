@@ -8,7 +8,11 @@ type t = {
   document_repr : string;
 }
 
+type insertPosition = Before of int | After of int | Start | End
+
 val parse_document : Doc.Node.t list -> string -> string -> t
+val element_with_id_opt : int -> t -> annotatedASTNode option
+val insert_node : annotatedASTNode -> t -> insertPosition -> (t, string) result
 val remove_node_with_id : int -> t -> t
 val get_proofs : t -> proof list
 val dump_to_string : t -> string
