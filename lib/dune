@@ -1,4 +1,4 @@
 (library
  (name ditto)
  (public_name coq-ditto)
- (libraries coq-lsp.fleche coq-lsp.serlib coq-lsp.coq coq-lsp.petanque unix )) 
+ (libraries coq-lsp.fleche coq-lsp.serlib coq-lsp.coq coq-lsp.lsp coq-lsp.petanque unix )) 

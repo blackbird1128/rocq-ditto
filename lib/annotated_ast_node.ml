@@ -9,6 +9,34 @@ type annotatedASTNode = {
       (* the id of the proof associated with the node if there is one *)
 }
 
+let ast_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
+  `Assoc [ ("v", Lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
+(* TODO treat info *)
+
+let point_to_yojson (point : Lang.Point.t) : Yojson.Safe.t =
+  `Assoc
+    [
+      ("line", `Int point.line);
+      ("character", `Int point.character);
+      ("offset", `Int point.offset);
+    ]
+
+let range_to_yojson (range : Lang.Range.t) : Yojson.Safe.t =
+  `Assoc
+    [
+      ("start", point_to_yojson range.start); ("end", point_to_yojson range.end_);
+    ]
+
+let to_yojson (node : annotatedASTNode) : Yojson.Safe.t =
+  `Assoc
+    [
+      ("ast", ast_node_to_yojson node.ast);
+      ("range", range_to_yojson node.range);
+      ("repr", `String node.repr);
+      ("id", `Int node.id);
+      ("proof_id", match node.proof_id with Some id -> `Int id | None -> `Null);
+    ]
+
 let shift_point (n_line : int) (n_char : int) (x : Lang.Point.t) : Lang.Point.t
     =
   { x with line = x.line + n_line; offset = x.offset + n_char }

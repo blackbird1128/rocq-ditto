@@ -16,7 +16,6 @@ module IntMap = Map.Make (Int)
 
 let get_proofs (doc : t) : proof list =
   let map_acc = IntMap.empty in
-
   let map_proofs =
     List.fold_left
       (fun map_acc elem ->
@@ -41,6 +40,14 @@ let get_proofs (doc : t) : proof list =
 let node_representation (node : Doc.Node.t) (document : string) : string =
   String.sub document node.range.start.offset
     (node.range.end_.offset - node.range.start.offset)
+
+let doc_to_yojson (doc : t) : Yojson.Safe.t =
+  `Assoc
+    [
+      ("filename", `String doc.filename);
+      ("elements", `List (List.map Annotated_ast_node.to_yojson doc.elements));
+      ("document_repr", `String doc.document_repr);
+    ]
 
 let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     (filename : string) : t =

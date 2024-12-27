@@ -27,3 +27,8 @@
   (name ditto-plugin)
   (allow_empty)
   (depends ocaml dune lsp coq-lsp base-unix re coq-ditto))
+
+(package
+ (name dump-json-plugin)
+ (allow_empty)
+ (depends ocaml dune lsp coq-lsp base-unix re coq-ditto))

@@ -11,6 +11,7 @@ type t = {
 type insertPosition = Before of int | After of int | Start | End
 
 val parse_document : Doc.Node.t list -> string -> string -> t
+val doc_to_yojson : t -> Yojson.Safe.t
 val element_with_id_opt : int -> t -> annotatedASTNode option
 val insert_node : annotatedASTNode -> t -> insertPosition -> (t, string) result
 val remove_node_with_id : int -> t -> t
