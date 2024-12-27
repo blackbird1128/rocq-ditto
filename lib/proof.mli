@@ -30,7 +30,7 @@ val proof_steps_with_goalcount :
   annotatedASTNode list ->
   (annotatedASTNode * int) list
 
-val treeify_proof : proof -> Doc.t -> annotatedASTNode nary_tree
-val tree_to_proof : annotatedASTNode nary_tree -> proof 
+val treeify_proof : Doc.t -> proof -> annotatedASTNode nary_tree
+val tree_to_proof : annotatedASTNode nary_tree -> proof
 val last_offset : proof -> int
 val proof_nodes : proof -> annotatedASTNode list

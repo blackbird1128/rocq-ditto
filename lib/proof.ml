@@ -126,16 +126,16 @@ let rec proof_tree_from_parents (cur_node : int * annotatedASTNode)
     ( tactic,
       List.rev_map (fun node -> proof_tree_from_parents node parents) childs )
 
-let treeify_proof (p : proof) (doc : Doc.t) : annotatedASTNode nary_tree =
+let treeify_proof (doc : Doc.t) (p : proof) : annotatedASTNode nary_tree =
   let token = Coq.Limits.Token.create () in
   let proof_name_opt = get_proof_name p in
   let proof_name = Option.get proof_name_opt in
-  (* let tactics = get_tactics p in *)
   let init_state = Agent.start ~token ~doc ~thm:proof_name () in
   let proof_state = (get_proof_state init_state).st in
   let steps_with_goals =
     proof_steps_with_goalcount token proof_state p.proof_steps
   in
+  List.iter (fun x -> print_endline (string_of_int (snd x))) steps_with_goals;
 
   let parents = Hashtbl.create (List.length steps_with_goals) in
   let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
