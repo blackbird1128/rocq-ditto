@@ -13,4 +13,7 @@ val pp_nary_tree :
 (** Pretty-printer for n-ary trees. 
   [pp_nary_tree pp_a fmt tree] prints the [tree] to the formatter [fmt]
   using [pp_a] to print elements of type ['a].
-*)
+ *)
+
+val flatten : 'a nary_tree -> 'a list
+val flatten_map : ('a -> 'b) -> 'a nary_tree -> 'b list
