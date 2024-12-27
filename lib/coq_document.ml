@@ -33,7 +33,10 @@ let get_proofs (doc : t) : proof list =
         | None -> map_acc)
       map_acc doc.elements
   in
-  snd (List.split (IntMap.to_list map_proofs))
+  let proofs_rev = snd (List.split (IntMap.to_list map_proofs)) in
+  List.map
+    (fun proof -> { proof with proof_steps = List.rev proof.proof_steps })
+    proofs_rev
 
 let node_representation (node : Doc.Node.t) (document : string) : string =
   String.sub document node.range.start.offset
