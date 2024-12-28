@@ -1,0 +1,5 @@
+(library
+ (public_name dump-json-plugin)
+ (name ditto_dump_json)
+ (libraries coq-ditto coq-core.plugins.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche)
+ )
