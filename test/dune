@@ -3,6 +3,12 @@
  (package coq-ditto)
  (libraries ditto alcotest))
 
+(test
+ (name test_coq_document)
+ (package coq-ditto)
+ (deps (glob_files "fixtures/*.json"))
+ (libraries findlib.dynload coq-lsp.serlib ditto alcotest))
+
 (rule
  (alias runtest)
  (deps test_nary_tree.exe)
