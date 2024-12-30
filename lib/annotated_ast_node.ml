@@ -13,6 +13,14 @@ let ast_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
   `Assoc [ ("v", Lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
 (* TODO treat info *)
 
+let ast_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
+  let open Yojson.Safe.Util in
+  {
+    v = json |> member "v" |> Lsp.JCoq.Ast.of_yojson |> Result.get_ok;
+    ast_info = None;
+  }
+(* TODO treat AST info *)
+
 let point_to_yojson (point : Lang.Point.t) : Yojson.Safe.t =
   `Assoc
     [
@@ -21,11 +29,27 @@ let point_to_yojson (point : Lang.Point.t) : Yojson.Safe.t =
       ("offset", `Int point.offset);
     ]
 
+let point_of_yojson (json : Yojson.Safe.t) : Lang.Point.t =
+  let open Yojson.Safe.Util in
+  {
+    line = json |> member "line" |> to_int;
+    character = json |> member "character" |> to_int;
+    offset = json |> member "offset" |> to_int;
+  }
+
 let range_to_yojson (range : Lang.Range.t) : Yojson.Safe.t =
   `Assoc
     [
-      ("start", point_to_yojson range.start); ("end", point_to_yojson range.end_);
+      ("start", point_to_yojson range.start);
+      ("end_", point_to_yojson range.end_);
     ]
+
+let range_of_yojson (json : Yojson.Safe.t) : Lang.Range.t =
+  let open Yojson.Safe.Util in
+  {
+    start = json |> member "start" |> point_of_yojson;
+    end_ = json |> member "end_" |> point_of_yojson;
+  }
 
 let to_yojson (node : annotatedASTNode) : Yojson.Safe.t =
   `Assoc
@@ -36,6 +60,16 @@ let to_yojson (node : annotatedASTNode) : Yojson.Safe.t =
       ("id", `Int node.id);
       ("proof_id", match node.proof_id with Some id -> `Int id | None -> `Null);
     ]
+
+let of_yojson (json : Yojson.Safe.t) : annotatedASTNode =
+  let open Yojson.Safe.Util in
+  {
+    ast = json |> member "ast" |> ast_node_of_yojson;
+    range = json |> member "range" |> range_of_yojson;
+    repr = json |> member "repr" |> to_string;
+    id = json |> member "id" |> to_int;
+    proof_id = json |> member "proof_id" |> to_option to_int;
+  }
 
 let shift_point (n_line : int) (n_char : int) (x : Lang.Point.t) : Lang.Point.t
     =

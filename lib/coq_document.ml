@@ -49,6 +49,16 @@ let doc_to_yojson (doc : t) : Yojson.Safe.t =
       ("document_repr", `String doc.document_repr);
     ]
 
+let doc_of_yojson (json : Yojson.Safe.t) : t =
+  let open Yojson.Safe.Util in
+  {
+    filename = json |> member "filename" |> to_string;
+    document_repr = json |> member "document_repr" |> to_string;
+    elements =
+      json |> member "elements" |> to_list
+      |> List.map Annotated_ast_node.of_yojson;
+  }
+
 let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     (filename : string) : t =
   let nodes_with_ast =
