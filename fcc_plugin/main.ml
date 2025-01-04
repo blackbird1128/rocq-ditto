@@ -1,6 +1,7 @@
 open Fleche
 open Ditto
 open Ditto.Proof_tree
+open Ditto.Proof
 open Ditto.Annotated_ast_node
 open Vernacexpr
 
@@ -11,12 +12,12 @@ let parse_json_list json_repr =
   | `List elements -> elements
   | _ -> failwith "Expected a JSON list"
 
-let rec depth_first_print (Node (value, children)) =
+let rec depth_first_print (Node (value, childrens)) =
   (* Print the current node's value *)
   print_endline value;
   (* Change this to match your type *)
   (* Recursively traverse each child *)
-  List.iter depth_first_print children
+  List.iter depth_first_print childrens
 
 let rec proof_tree_to_minimized_proof (proof_tree : string nary_tree) =
   match proof_tree with
@@ -35,13 +36,6 @@ let rec proof_tree_to_minimized_proof (proof_tree : string nary_tree) =
                    else
                      (acc ^ proof_tree_to_minimized_proof child ^ "]", idx + 1))
                  ("[", 0) childs))
-
-let read_whole_file filename =
-  (* open_in_bin works correctly on Unix and Windows *)
-  let ch = open_in_bin filename in
-  let s = really_input_string ch (in_channel_length ch) in
-  close_in ch;
-  s
 
 let make_from_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) :
     annotatedASTNode =
@@ -83,85 +77,57 @@ let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) :
   let ast_node = Coq.Ast.of_coq vernac_control in
   make_from_coq_ast ast_node range
 
-let push_node_n_char (n_char : int) (node : annotatedASTNode) : annotatedASTNode
-    =
-  { node with range = Range_transformation.push_range_n_char n_char node.range }
-
-let add_bullet (proof_tree : annotatedASTNode Proof_tree.nary_tree) :
-    Ditto.Proof.proof =
-  let proof_expr, childrens =
-    match proof_tree with Node (e, childrens) -> (e, childrens)
+let add_bullets (proof_tree : annotatedASTNode nary_tree) : Ditto.Proof.proof =
+  let rec aux (depth : int) (node : annotatedASTNode nary_tree) =
+    match node with
+    | Node (x, []) -> [ x ]
+    | Node (x, [ child ]) -> x :: aux depth child
+    | Node (x, childrens) ->
+        print_endline
+          ("number of childrens: " ^ string_of_int (List.length childrens));
+        let bullet = create_annotated_ast_bullet depth x.range in
+        x
+        :: List.concat
+             (List.map (fun child -> bullet :: aux (depth + 1) child) childrens)
   in
-  let rec aux pt depth =
-    match pt with
-    | Node (e, childs) -> (
-        match childs with
-        | [] -> [ e ]
-        | [ x ] -> e :: aux x depth
-        | childrens ->
-            List.concat
-              (List.map
-                 (fun (Node (value, _) as child) ->
-                   create_annotated_ast_bullet depth value.range
-                   :: push_node_n_char 2 e
-                   :: aux child (depth + 1))
-                 childrens))
-  in
-  { proposition = proof_expr; proof_steps = aux (List.hd childrens) 0 }
+  let res = aux 0 proof_tree in
+  { proposition = List.hd res; proof_steps = List.tl res }
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
-  let document_text = read_whole_file uri_str in
+  let document_text = doc.contents.raw in
   let lvl = Io.Level.Info in
   Io.Report.msg ~io ~lvl "[ast plugin] dumping ast for %s ..." uri_str;
   let nodes = doc.nodes in
-
   let parsed_document =
     Coq_document.parse_document nodes document_text uri_str
   in
-  let node_id_3 =
-    Option.get (Coq_document.element_with_id_opt 3 parsed_document)
-  in
-  let modified = Coq_document.remove_node_with_id 3 parsed_document in
-  let modified_bis = Coq_document.insert_node node_id_3 modified (After 2) in
-  match modified_bis with
-  | Ok new_doc -> print_endline (Coq_document.dump_to_string new_doc)
-  | Error err_msg ->
-      print_endline err_msg;
-      print_endline "---------------------------";
-      let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-      output_string out (Coq_document.dump_to_string modified);
 
+  let proofs = Coq_document.get_proofs parsed_document in
+  print_endline ("number of proofs:" ^ string_of_int (List.length proofs));
+
+  let proof_trees = List.map (Proof.treeify_proof doc) proofs in
+
+  let first_proof_tree = List.hd proof_trees in
+  let bulleted = add_bullets first_proof_tree in
+  print_endline (proof_to_coq_script_string bulleted);
+
+  let modified = Coq_document.replace_proof bulleted parsed_document in
+  match modified with
+  | Ok res ->
+      print_endline "here come the dump";
+      List.iter
+        (fun node ->
+          print_endline ("id: " ^ string_of_int node.id ^ " " ^ node.repr))
+        res.elements;
+
+      print_endline (Coq_document.dump_to_string res);
+      print_endline "done"
+  | Error msg ->
+      print_endline "error";
+      print_endline msg;
       ()
-(* let first_tree = List.hd trees in *)
-(* let first_proof_with_bullets = add_bullet first_tree in *)
-
-(* let updated = *)
-(*   Coq_document.replace_coq_element (CoqStatement first_proof_with_bullets) *)
-(*     parsed_document *)
-(* in *)
-
-(* let annotated_nodes = *)
-(*   List.concat_map *)
-(*     (fun elem -> *)
-(*       match elem with *)
-(*       | Coq_document.CoqNode e -> [ e ] *)
-(*       | Coq_document.CoqStatement p -> Proof.proof_nodes p) *)
-(*     parsed_document.elements *)
-(* in *)
-
-(* let asts = *)
-(*   List.map *)
-(*     (fun (node : Annotated_ast_node.annotatedASTNode) -> node.ast) *)
-(*     annotated_nodes *)
-(* in *)
-(* let out_file_j = Lang.LUri.File.to_string_file uri ^ ".astdump.json" in *)
-(* let out_chan = open_out out_file_j in *)
-(* Yojson.Safe.pretty_to_channel out_chan *)
-(*   (`List *)
-(*     (List.map (fun (x : Doc.Node.Ast.t) -> Lsp.JCoq.Ast.to_yojson x.v) asts)); *)
-(* () *)
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()

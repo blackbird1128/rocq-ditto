@@ -1,6 +1,7 @@
 open Fleche
 open Petanque
 open Annotated_ast_node
+open Vernacexpr
 open Proof_tree
 
 type proof = {
@@ -41,7 +42,7 @@ let get_proof_state start_result =
       Printf.eprintf "Error: %s\n" (Agent.Error.to_string err);
       raise (Failure "Failed to start proof")
 
-(** count the number of goalf of a state *)
+(** count the number of goals of a state *)
 let count_goals (token : Coq.Limits.Token.t) (st : Agent.State.t) : int =
   let goals = Agent.goals ~token ~st in
   match goals with
@@ -66,13 +67,14 @@ let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
       let goal_count = count_goals token agent_state in
       (step, goal_count) :: proof_steps_with_goalcount token agent_state tail
 
-(* let print_parents (parents : (int * string, int * string) Hashtbl.t) =
-   Hashtbl.iter
-     (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
-       Printf.printf
-         "Parent: (idx: %d, tactic: %s) -> Child: (idx: %d, tactic: %s)\n" k_idx
-         k_tactic v_idx v_tactic)
-     parents *)
+let print_parents
+    (parents : (int * annotatedASTNode, int * annotatedASTNode) Hashtbl.t) =
+  Hashtbl.iter
+    (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
+      Printf.printf
+        "Parent: (idx: %d, tactic: %s) -> Child: (idx: %d, tactic: %s)\n" k_idx
+        k_tactic.repr v_idx v_tactic.repr)
+    parents
 
 type parent_category = Fork | Linear
 
@@ -104,8 +106,13 @@ let rec get_parents_rec (steps_with_goals : (annotatedASTNode * int) list)
           let par = (idx_par, tactic_par) in
           if new_goals < prev_goals then (
             Hashtbl.add parents par (idx, step);
-            get_parents_rec tail new_goals (pop_until_fork prev_pars) (idx + 1)
-              parents)
+            if new_goals > 0 then
+              get_parents_rec tail new_goals (pop_until_fork prev_pars)
+                (idx + 1) parents
+            else
+              get_parents_rec tail new_goals
+                [ (idx, step, Linear) ]
+                (idx + 1) parents)
           else if new_goals = prev_goals then (
             Hashtbl.add parents par (idx, step);
             get_parents_rec tail new_goals
@@ -121,6 +128,7 @@ let rec proof_tree_from_parents (cur_node : int * annotatedASTNode)
     (parents : (int * annotatedASTNode, int * annotatedASTNode) Hashtbl.t) :
     annotatedASTNode nary_tree =
   let _, tactic = cur_node in
+
   let childs = Hashtbl.find_all parents cur_node in
   Node
     ( tactic,
@@ -135,9 +143,9 @@ let treeify_proof (doc : Doc.t) (p : proof) : annotatedASTNode nary_tree =
   let steps_with_goals =
     proof_steps_with_goalcount token proof_state p.proof_steps
   in
-  List.iter (fun x -> print_endline (string_of_int (snd x))) steps_with_goals;
 
   let parents = Hashtbl.create (List.length steps_with_goals) in
+
   let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
   Node
     ( p.proposition,

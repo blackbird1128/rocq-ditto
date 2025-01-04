@@ -125,8 +125,20 @@ let rec dump_to_string (doc : t) : string =
   in
   aux doc.elements "" 0
 
+let element_before_id_opt (target_id : int) (doc : t) : annotatedASTNode option
+    =
+  match List.find_index (fun elem -> elem.id = target_id) doc.elements with
+  | Some elem_id ->
+      if elem_id - 1 < 0 then None
+      else List.find_opt (fun elem -> elem.id = elem_id - 1) doc.elements
+  | None -> None
+
 let element_with_id_opt (element_id : int) (doc : t) : annotatedASTNode option =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
+
+let proof_with_id_opt (proof_id : int) (doc : t) : proof option =
+  let proofs = get_proofs doc in
+  List.find_opt (fun elem -> elem.proposition.id = proof_id) proofs
 
 let split_at_id (target_id : int) (doc : t) :
     annotatedASTNode list * annotatedASTNode list =
@@ -182,6 +194,7 @@ let insert_node (new_node : annotatedASTNode) (doc : t)
             }
       | None -> Error ("node with id " ^ string_of_int id ^ "doesn't exist"))
   | After id -> (
+      print_endline ("inserting after : " ^ string_of_int id);
       let target_node = element_with_id_opt id doc in
       match target_node with
       | Some target ->
@@ -198,7 +211,7 @@ let insert_node (new_node : annotatedASTNode) (doc : t)
                     shift_nodes 1 (String.length new_node.repr) after;
                   ];
             }
-      | None -> Error ("node with id " ^ string_of_int id ^ "doesn't exist"))
+      | None -> Error ("node with id " ^ string_of_int id ^ " doesn't exist"))
   | Start ->
       Ok
         {
@@ -210,28 +223,44 @@ let insert_node (new_node : annotatedASTNode) (doc : t)
         }
   | End -> Ok { doc with elements = doc.elements @ [ new_node ] }
 
-(* let remove_coq_element (element_id: int) (doc: t) : (t, string) result = *)
-(*   let element = element_with_id element_id doc in *)
-(*   match element with *)
-(*     Some elem -> *)
-(*      if List.length (elements_starting_at_line elem.range.start.line doc) > 1 then *)
-(*        List.t *)
-(*      else *)
-(*    | None -> Error "element not found" *)
+let remove_proof (target : proof) (doc : t) : t =
+  let proof_nodes = target.proposition :: target.proof_steps in
+  List.fold_left
+    (fun doc_acc node -> remove_node_with_id node.id doc_acc)
+    doc proof_nodes
 
-(* let replace_coq_element (updated_element : coq_element) (doc : t) = *)
-(*   { *)
-(*     doc with *)
-(*     elements = *)
-(*       List.map *)
-(*         (fun elem -> *)
-(*           match (updated_element, elem) with *)
-(*           | CoqNode updated_node, CoqNode old_node -> *)
-(*               if updated_node.id = old_node.id then updated_element else elem *)
-(*           | CoqStatement updated_proof, CoqStatement old_proof -> *)
-(*               if updated_proof.proposition.id = old_proof.proposition.id then *)
-(*                 updated_element *)
-(*               else elem *)
-(*           | _, e -> e) *)
-(*         doc.elements; *)
-(*   } *)
+let insert_proof (target : proof) (doc : t) (insert_pos : insertPosition) :
+    (t, string) result =
+  let proof_nodes = target.proposition :: target.proof_steps in
+  let rec aux (nodes : annotatedASTNode list) (doc_acc : t)
+      (pos : insertPosition) : (t, string) result =
+    match nodes with
+    | [] -> Ok doc_acc
+    | node :: tail -> (
+        match insert_node node doc_acc pos with
+        | Ok new_doc ->
+            (* print_endline "new doc: -------------------------"; *)
+            (* List.iter *)
+            (*   (fun node -> *)
+            (*     print_endline ("id: " ^ string_of_int node.id ^ " " ^ node.repr)) *)
+            (*   doc_acc.elements; *)
+            (* print_endline "----------------------------------"; *)
+            aux tail new_doc (After node.id)
+        | Error msg -> Error msg)
+  in
+  aux proof_nodes doc insert_pos
+
+let replace_proof (target : proof) (doc : t) : (t, string) result =
+  match proof_with_id_opt target.proposition.id doc with
+  | Some elem -> (
+      let proof_id = target.proposition.id in
+      let doc_removed = remove_proof elem doc in
+      match element_before_id_opt proof_id doc with
+      | Some element_before ->
+          insert_proof target doc_removed (After element_before.id)
+      | None -> insert_proof target doc_removed Start)
+  | None ->
+      Error
+        ("proof with id "
+        ^ string_of_int target.proposition.id
+        ^ "isn't in the document")
