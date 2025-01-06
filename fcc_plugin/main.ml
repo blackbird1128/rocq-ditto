@@ -5,38 +5,6 @@ open Ditto.Proof
 open Ditto.Annotated_ast_node
 open Vernacexpr
 
-(* open Stack  *)
-
-let parse_json_list json_repr =
-  match json_repr with
-  | `List elements -> elements
-  | _ -> failwith "Expected a JSON list"
-
-let rec depth_first_print (Node (value, childrens)) =
-  (* Print the current node's value *)
-  print_endline value;
-  (* Change this to match your type *)
-  (* Recursively traverse each child *)
-  List.iter depth_first_print childrens
-
-let rec proof_tree_to_minimized_proof (proof_tree : string nary_tree) =
-  match proof_tree with
-  | Node (tactic, childrens) -> (
-      match childrens with
-      | [] -> tactic
-      | [ next ] -> tactic ^ ";" ^ proof_tree_to_minimized_proof next
-      | childs ->
-          let child_length = List.length childs in
-          tactic ^ ";"
-          ^ fst
-              (List.fold_left
-                 (fun (acc, idx) child ->
-                   if idx < child_length - 1 then
-                     (acc ^ proof_tree_to_minimized_proof child ^ "|", idx + 1)
-                   else
-                     (acc ^ proof_tree_to_minimized_proof child ^ "]", idx + 1))
-                 ("[", 0) childs))
-
 let make_from_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) :
     annotatedASTNode =
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
@@ -83,12 +51,15 @@ let add_bullets (proof_tree : annotatedASTNode nary_tree) : Ditto.Proof.proof =
     | Node (x, []) -> [ x ]
     | Node (x, [ child ]) -> x :: aux depth child
     | Node (x, childrens) ->
-        print_endline
-          ("number of childrens: " ^ string_of_int (List.length childrens));
-        let bullet = create_annotated_ast_bullet depth x.range in
         x
         :: List.concat
-             (List.map (fun child -> bullet :: aux (depth + 1) child) childrens)
+             (List.map
+                (fun child ->
+                  (match child with
+                  | Node (y, _) -> create_annotated_ast_bullet depth y.range)
+                  :: aux (depth + 1) child)
+                childrens)
+    (* each bullet need a different id *)
   in
   let res = aux 0 proof_tree in
   { proposition = List.hd res; proof_steps = List.tl res }
@@ -105,21 +76,29 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   in
 
   let proofs = Coq_document.get_proofs parsed_document in
-  print_endline ("number of proofs:" ^ string_of_int (List.length proofs));
 
   let proof_trees = List.map (Proof.treeify_proof doc) proofs in
 
   let first_proof_tree = List.hd proof_trees in
   let bulleted = add_bullets first_proof_tree in
   print_endline (proof_to_coq_script_string bulleted);
+  List.iter
+    (fun node ->
+      print_endline ("id: " ^ string_of_int node.id ^ " " ^ node.repr))
+    (bulleted.proposition :: bulleted.proof_steps);
 
   let modified = Coq_document.replace_proof bulleted parsed_document in
   match modified with
   | Ok res ->
-      print_endline "here come the dump";
       List.iter
         (fun node ->
-          print_endline ("id: " ^ string_of_int node.id ^ " " ^ node.repr))
+          print_endline "-------------------------";
+          print_endline ("id: " ^ string_of_int node.id ^ " " ^ node.repr);
+          Lang.Range.pp Format.std_formatter node.range;
+          print_newline ();
+          print_endline "-------------------------";
+          let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
+          output_string out (Coq_document.dump_to_string res))
         res.elements;
 
       print_endline (Coq_document.dump_to_string res);
