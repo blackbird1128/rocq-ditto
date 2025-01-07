@@ -15,5 +15,7 @@ val pp_nary_tree :
   using [pp_a] to print elements of type ['a].
  *)
 
+val depth_first_fold : ('acc -> 'a -> 'acc) -> 'acc -> 'a nary_tree -> 'acc
+val map : ('a -> 'b) -> 'a nary_tree -> 'b nary_tree
 val flatten : 'a nary_tree -> 'a list
 val flatten_map : ('a -> 'b) -> 'a nary_tree -> 'b list

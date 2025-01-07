@@ -52,6 +52,12 @@ let test_flatten_map_simple () =
     "the result doesn't have the same shape at the expected result" expected
     flattened_map
 
+let test_depth_first_fold_simple () =
+  let tree1 = Node (1, [ Node (2, []); Node (4, [ Node (3, []) ]) ]) in
+  let expected = 10 in
+  let res = depth_first_fold (fun acc x -> acc + x) 0 tree1 in
+  Alcotest.(check int) "result isn't correct" expected res
+
 let tests =
   [
     ( "n-ary tree tests",
@@ -64,6 +70,8 @@ let tests =
         Alcotest.test_case "flatten a simple tree" `Quick test_flatten_simple;
         Alcotest.test_case "flatten and double each value of a simple tree"
           `Quick test_flatten_map_simple;
+        Alcotest.test_case "fold a simple tree" `Quick
+          test_depth_first_fold_simple;
       ] );
   ]
 
