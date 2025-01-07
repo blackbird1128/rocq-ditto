@@ -8,6 +8,8 @@ type annotatedASTNode = {
   proof_id : int option;
 }
 
+val ast_node_of_coq_ast : Coq.Ast.t -> Lang.Range.t -> annotatedASTNode
+
 val ast_node_to_yojson : Doc.Node.Ast.t -> Yojson.Safe.t
 (** [ast_node_to_yojson ast_node] converts an AST node of type [Doc.Node.Ast.t] 
     into a Yojson.Safe.t representation. *)

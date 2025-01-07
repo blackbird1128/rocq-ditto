@@ -9,6 +9,47 @@ type annotatedASTNode = {
       (* the id of the proof associated with the node if there is one *)
 }
 
+let generate_ast code =
+  let mode = Ltac_plugin.G_ltac.classic_proof_mode in
+  let entry = Pvernac.main_entry (Some mode) in
+  let code_stream = Gramlib.Stream.of_string code in
+  let init_parser = Pcoq.Parsable.make code_stream in
+  let rec f parser =
+    match Pcoq.Entry.parse entry parser with
+    | None -> []
+    | Some ast -> ast :: f parser
+  in
+  f init_parser
+
+let ast_node_of_string (code : string) (range : Lang.Range.t) :
+    (annotatedASTNode, string) result =
+  match generate_ast code with
+  | [] -> Error ("node node found in string " ^ code)
+  | [ x ] ->
+      let node_ast : Doc.Node.Ast.t =
+        { v = Coq.Ast.of_coq x; ast_info = None }
+      in
+      Ok
+        {
+          ast = node_ast;
+          range;
+          id = Unique_id.next ();
+          repr = code;
+          proof_id = None;
+        }
+  | _ -> Error ("more than one node found in string " ^ code)
+
+let ast_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) :
+    annotatedASTNode =
+  let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
+  {
+    ast = node_ast;
+    range;
+    id = Unique_id.next ();
+    repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds;
+    proof_id = None;
+  }
+
 let ast_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
   `Assoc [ ("v", Lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
 (* TODO treat info *)

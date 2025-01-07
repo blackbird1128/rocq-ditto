@@ -238,14 +238,7 @@ let insert_proof (target : proof) (doc : t) (insert_pos : insertPosition) :
     | [] -> Ok doc_acc
     | node :: tail -> (
         match insert_node node doc_acc pos with
-        | Ok new_doc ->
-            (* print_endline "new doc: -------------------------"; *)
-            (* List.iter *)
-            (*   (fun node -> *)
-            (*     print_endline ("id: " ^ string_of_int node.id ^ " " ^ node.repr)) *)
-            (*   doc_acc.elements; *)
-            (* print_endline "----------------------------------"; *)
-            aux tail new_doc (After node.id)
+        | Ok new_doc -> aux tail new_doc (After node.id)
         | Error msg -> Error msg)
   in
   aux proof_nodes doc insert_pos
