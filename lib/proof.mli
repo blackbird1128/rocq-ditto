@@ -24,6 +24,9 @@ val count_goals : Coq.Limits.Token.t -> Agent.State.t -> int
 
 val print_tree : annotatedASTNode nary_tree -> string -> unit
 
+val get_init_state :
+  Doc.t -> proof -> Agent.State.t Agent.Run_result.t Agent.R.t option
+
 val proof_steps_with_goalcount :
   Coq.Limits.Token.t ->
   Agent.State.t ->

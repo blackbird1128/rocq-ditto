@@ -32,9 +32,6 @@ let proof_to_coq_script_string (p : proof) : string =
   ^ String.concat "\n"
       (List.map (fun n -> doc_node_to_string n.ast) p.proof_steps)
 
-(* let get_tactics (p : proof) : string list =
-   List.filter is_doc_node_ast_tactic p.proof_steps |> List.map (fun p -> p.repr) *)
-
 let get_proof_state start_result =
   match start_result with
   | Ok run_result -> run_result
@@ -134,11 +131,17 @@ let rec proof_tree_from_parents (cur_node : int * annotatedASTNode)
     ( tactic,
       List.rev_map (fun node -> proof_tree_from_parents node parents) childs )
 
+let get_init_state (doc : Doc.t) (p : proof) :
+    Agent.State.t Agent.Run_result.t Agent.R.t option =
+  match get_proof_name p with
+  | Some name ->
+      let token = Coq.Limits.Token.create () in
+      Some (Agent.start ~token ~doc ~thm:name ())
+  | None -> None
+
 let treeify_proof (doc : Doc.t) (p : proof) : annotatedASTNode nary_tree =
   let token = Coq.Limits.Token.create () in
-  let proof_name_opt = get_proof_name p in
-  let proof_name = Option.get proof_name_opt in
-  let init_state = Agent.start ~token ~doc ~thm:proof_name () in
+  let init_state = Option.get (get_init_state doc p) in
   let proof_state = (get_proof_state init_state).st in
   let steps_with_goals =
     proof_steps_with_goalcount token proof_state p.proof_steps
