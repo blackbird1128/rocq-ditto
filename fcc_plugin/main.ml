@@ -5,17 +5,6 @@ open Ditto.Proof
 open Ditto.Annotated_ast_node
 open Vernacexpr
 
-let make_from_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) :
-    annotatedASTNode =
-  let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
-  {
-    ast = node_ast;
-    range;
-    id = Unique_id.next ();
-    repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds;
-    proof_id = None;
-  }
-
 let depth_to_bullet_type (depth : int) =
   let bullet_number = 1 + (depth / 3) in
   match depth mod 3 with
@@ -43,7 +32,7 @@ let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) :
   let loc = Loc.create example_without_dirpath 0 0 0 0 in
   let vernac_control = CAst.make ~loc control_r in
   let ast_node = Coq.Ast.of_coq vernac_control in
-  make_from_coq_ast ast_node range
+  ast_node_of_coq_ast ast_node range
 
 let add_bullets (proof_tree : annotatedASTNode nary_tree) : Ditto.Proof.proof =
   let rec aux (depth : int) (node : annotatedASTNode nary_tree) =
@@ -64,6 +53,43 @@ let add_bullets (proof_tree : annotatedASTNode nary_tree) : Ditto.Proof.proof =
   let res = aux 0 proof_tree in
   { proposition = List.hd res; proof_steps = List.tl res }
 
+let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
+    (Ditto.Proof.proof, string) result =
+  let token = Coq.Limits.Token.create () in
+  let proof = Proof.tree_to_proof proof_tree in
+  let init_state = Proof.get_init_state doc proof in
+  let rec aux (st : Petanque.Agent.State.t) (previous_goals : int)
+      (node : annotatedASTNode nary_tree) : annotatedASTNode list =
+    match node with
+    | Node (x, childrens) -> (
+        print_endline ("treating : " ^ x.repr);
+        let lia_node =
+          Result.get_ok (Annotated_ast_node.ast_node_of_string "lia." x.range)
+        in
+        let state_x = Petanque.Agent.run ~token ~st ~tac:x.repr () in
+        let proof_state_x = Proof.get_proof_state state_x in
+        let new_goals = count_goals token proof_state_x in
+        let state_lia = Petanque.Agent.run ~token ~st ~tac:lia_node.repr () in
+        match state_lia with
+        | Ok state ->
+            if count_goals token state.st < previous_goals then [ lia_node ]
+            else
+              x
+              :: List.concat (List.map (aux proof_state_x new_goals) childrens)
+        | Error err ->
+            x :: List.concat (List.map (aux proof_state_x new_goals) childrens))
+  in
+  match init_state with
+  | Some state_err_wrap -> (
+      match state_err_wrap with
+      | Ok state ->
+          let list = aux state.st 1 proof_tree in
+          print_endline ("len list : " ^ string_of_int (List.length list));
+          List.iter (fun x -> print_endline x.repr) list;
+          Ok (Proof.proof_from_nodes list)
+      | Error err -> Error "failed to create an initial state")
+  | None -> Error "can't create an initial state for the proof "
+
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
@@ -80,29 +106,20 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let proof_trees = List.map (Proof.treeify_proof doc) proofs in
 
   let first_proof_tree = List.hd proof_trees in
-  let bulleted = add_bullets first_proof_tree in
-  print_endline (proof_to_coq_script_string bulleted);
-  List.iter
-    (fun node ->
-      print_endline ("id: " ^ string_of_int node.id ^ " " ^ node.repr))
-    (bulleted.proposition :: bulleted.proof_steps);
+  print_tree first_proof_tree " ";
+  print_endline "parsed the proof trees";
 
+  let bulleted = Result.get_ok (replace_by_lia doc first_proof_tree) in
+
+  print_endline "past bulleted";
   let modified = Coq_document.replace_proof bulleted parsed_document in
+
   match modified with
   | Ok res ->
-      List.iter
-        (fun node ->
-          print_endline "-------------------------";
-          print_endline ("id: " ^ string_of_int node.id ^ " " ^ node.repr);
-          Lang.Range.pp Format.std_formatter node.range;
-          print_newline ();
-          print_endline "-------------------------";
-          let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-          output_string out (Coq_document.dump_to_string res))
-        res.elements;
+      List.iter (fun x -> print_endline x.repr) res.elements;
+      let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
 
-      print_endline (Coq_document.dump_to_string res);
-      print_endline "done"
+      output_string out (Coq_document.dump_to_string res)
   | Error msg ->
       print_endline "error";
       print_endline msg;
