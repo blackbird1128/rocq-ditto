@@ -50,6 +50,9 @@ let ast_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) :
     proof_id = None;
   }
 
+let qed_ast_node (range : Lang.Range.t) : annotatedASTNode =
+  Result.get_ok (ast_node_of_string "Qed." range)
+
 let ast_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
   `Assoc [ ("v", Lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
 (* TODO treat info *)
@@ -116,16 +119,16 @@ let shift_point (n_line : int) (n_char : int) (x : Lang.Point.t) : Lang.Point.t
     =
   { x with line = x.line + n_line; offset = x.offset + n_char }
 
+let shift_range (n_line : int) (n_char : int) (x : Lang.Range.t) : Lang.Range.t
+    =
+  {
+    start = shift_point n_line n_char x.start;
+    end_ = shift_point n_line n_char x.end_;
+  }
+
 let shift_node (n_line : int) (n_char : int) (x : annotatedASTNode) :
     annotatedASTNode =
-  {
-    x with
-    range =
-      {
-        start = shift_point n_line n_char x.range.start;
-        end_ = shift_point n_line n_char x.range.end_;
-      };
-  }
+  { x with range = shift_range n_line n_char x.range }
 
 let is_doc_node_ast_tactic (x : annotatedASTNode) : bool =
   match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
