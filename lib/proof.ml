@@ -44,7 +44,7 @@ let get_proof_state (start_result : Agent.State.t Agent.Run_result.t Agent.R.t)
 let count_goals (token : Coq.Limits.Token.t) (st : Agent.State.t) : int =
   let goals = Agent.goals ~token ~st in
   match goals with
-  | Ok (Some reified_goals) -> List.length reified_goals.goals
+  | Ok (Some reified_goals) -> List.length reified_goals.stack
   | Ok None -> 0
   | Error _ -> 0
 
