@@ -17,7 +17,8 @@ val proof_to_coq_script_string : proof -> string
 val get_proof_name : proof -> string option
 (* val get_tactics : proof -> string list *)
 
-val get_proof_state : ('a, Agent.Error.t) result -> 'a
+val get_proof_state :
+  Agent.State.t Agent.Run_result.t Agent.R.t -> Agent.State.t
 
 val count_goals : Coq.Limits.Token.t -> Agent.State.t -> int
 (** Count the number of goals of a state *)
@@ -37,3 +38,4 @@ val treeify_proof : Doc.t -> proof -> annotatedASTNode nary_tree
 val tree_to_proof : annotatedASTNode nary_tree -> proof
 val last_offset : proof -> int
 val proof_nodes : proof -> annotatedASTNode list
+val proof_from_nodes : annotatedASTNode list -> proof

@@ -32,9 +32,10 @@ let proof_to_coq_script_string (p : proof) : string =
   ^ String.concat "\n"
       (List.map (fun n -> doc_node_to_string n.ast) p.proof_steps)
 
-let get_proof_state start_result =
+let get_proof_state (start_result : Agent.State.t Agent.Run_result.t Agent.R.t)
+    : Agent.State.t =
   match start_result with
-  | Ok run_result -> run_result
+  | Ok run_result -> run_result.st
   | Error err ->
       Printf.eprintf "Error: %s\n" (Agent.Error.to_string err);
       raise (Failure "Failed to start proof")
@@ -60,7 +61,7 @@ let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
   | [] -> []
   | step :: tail ->
       let state = Agent.run ~token ~st ~tac:step.repr () in
-      let agent_state = (get_proof_state state).st in
+      let agent_state = get_proof_state state in
       let goal_count = count_goals token agent_state in
       (step, goal_count) :: proof_steps_with_goalcount token agent_state tail
 
@@ -142,7 +143,7 @@ let get_init_state (doc : Doc.t) (p : proof) :
 let treeify_proof (doc : Doc.t) (p : proof) : annotatedASTNode nary_tree =
   let token = Coq.Limits.Token.create () in
   let init_state = Option.get (get_init_state doc p) in
-  let proof_state = (get_proof_state init_state).st in
+  let proof_state = get_proof_state init_state in
   let steps_with_goals =
     proof_steps_with_goalcount token proof_state p.proof_steps
   in
@@ -181,3 +182,6 @@ let last_offset (p : proof) =
     (p.proposition :: p.proof_steps)
 
 let proof_nodes (p : proof) = p.proposition :: p.proof_steps
+
+let proof_from_nodes (nodes : annotatedASTNode list) : proof =
+  { proposition = List.hd nodes; proof_steps = List.tl nodes }
