@@ -150,7 +150,8 @@ let split_at_id (target_id : int) (doc : t) :
   in
   aux doc.elements []
 
-let elements_starting_at_line (line_number : int) (doc : t) =
+let elements_starting_at_line (line_number : int) (doc : t) :
+    annotatedASTNode list =
   List.filter (fun elem -> elem.range.start.line = line_number) doc.elements
 
 let shift_nodes (n_line : int) (n_char : int) (nodes : annotatedASTNode list) :
@@ -194,7 +195,6 @@ let insert_node (new_node : annotatedASTNode) (doc : t)
             }
       | None -> Error ("node with id " ^ string_of_int id ^ "doesn't exist"))
   | After id -> (
-      print_endline ("inserting after : " ^ string_of_int id);
       let target_node = element_with_id_opt id doc in
       match target_node with
       | Some target ->
