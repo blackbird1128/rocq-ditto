@@ -31,6 +31,9 @@ let rec flatten_filter f (Node (x, children)) : 'a nary_tree list =
 let remove_all_nonmatching f tree =
   match flatten_filter f tree with [ result ] -> Some result | _ -> None
 
+let add_child (tree : 'a nary_tree) (child : 'a nary_tree) : 'a nary_tree =
+  match tree with Node (x, childrens) -> Node (x, child :: childrens)
+
 let rec map (f : 'a -> 'b) (tree : 'a nary_tree) : 'b nary_tree =
   match tree with Node (x, childrens) -> Node (f x, List.map (map f) childrens)
 
@@ -49,3 +52,12 @@ let rec flatten_map (f : 'a -> 'b) (tree : 'a nary_tree) : 'b list =
   match tree with
   | Node (x, childrens) ->
       f x :: List.concat (List.map (flatten_map f) childrens)
+
+let top_n (tree : 'a nary_tree) (depth : int) : 'a nary_tree =
+  let rec aux (cur_depth : int) (node : 'a nary_tree) : 'a nary_tree =
+    match node with
+    | Node (x, childrens) ->
+        if cur_depth > depth then Node (x, [])
+        else Node (x, List.map (aux (cur_depth + 1)) childrens)
+  in
+  aux 0 tree
