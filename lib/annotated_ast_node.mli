@@ -10,6 +10,9 @@ type annotatedASTNode = {
 
 val ast_node_of_coq_ast : Coq.Ast.t -> Lang.Range.t -> annotatedASTNode
 
+val ast_node_of_string :
+  string -> Lang.Range.t -> (annotatedASTNode, string) result
+
 val ast_node_to_yojson : Doc.Node.Ast.t -> Yojson.Safe.t
 (** [ast_node_to_yojson ast_node] converts an AST node of type [Doc.Node.Ast.t] 
     into a Yojson.Safe.t representation. *)
@@ -36,11 +39,14 @@ val of_yojson : Yojson.Safe.t -> annotatedASTNode
 val shift_point : int -> int -> Lang.Point.t -> Lang.Point.t
 val shift_node : int -> int -> annotatedASTNode -> annotatedASTNode
 
+val is_doc_node_ast_proof_command : annotatedASTNode -> bool
+(** [is_doc_node_ast_proof_command x] checks if [x] represents the command Proof. *)
+
 val is_doc_node_ast_tactic : annotatedASTNode -> bool
-(** [is_doc_node_ast_tactic x] checks if [x] represents a tactic in the Coq document. *)
+(** [is_doc_node_ast_tactic x] checks if [x] represents a tactic. *)
 
 val is_doc_node_ast_proof_start : annotatedASTNode -> bool
-(** [is_doc_node_ast_proof_start x] checks if [x] marks the start of a proof in the Coq document. *)
+(** [is_doc_node_ast_proof_start x] checks if [x] marks the start of a proof. *)
 
 val is_doc_node_ast_proof_end : annotatedASTNode -> bool
 (** [is_doc_node_ast_proof_end x] checks if [x] marks the end of a proof in the Coq document. *)

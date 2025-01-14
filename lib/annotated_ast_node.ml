@@ -136,6 +136,12 @@ let is_doc_node_ast_tactic (x : annotatedASTNode) : bool =
       | _ -> false)
   | VernacSynPure _ -> false
 
+let is_doc_node_ast_proof_command (x : annotatedASTNode) : bool =
+  match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
+  | VernacSynterp _ -> false
+  | VernacSynPure expr -> (
+      match expr with Vernacexpr.VernacProof _ -> true | _ -> false)
+
 let is_doc_node_ast_proof_start (x : annotatedASTNode) : bool =
   match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
   | VernacSynterp _ -> false
