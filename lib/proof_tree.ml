@@ -53,11 +53,11 @@ let rec flatten_map (f : 'a -> 'b) (tree : 'a nary_tree) : 'b list =
   | Node (x, childrens) ->
       f x :: List.concat (List.map (flatten_map f) childrens)
 
-let top_n (tree : 'a nary_tree) (depth : int) : 'a nary_tree =
-  let rec aux (cur_depth : int) (node : 'a nary_tree) : 'a nary_tree =
-    match node with
-    | Node (x, childrens) ->
-        if cur_depth > depth then Node (x, [])
-        else Node (x, List.map (aux (cur_depth + 1)) childrens)
-  in
-  aux 0 tree
+let rec top_n (n : int) (Node (value, children)) : 'a nary_tree =
+  if n <= 0 then Node (value, [])
+  else Node (value, List.map (top_n (n - 1)) children)
+
+let rec bottom_n (n : int) (Node (_, children) as tree) =
+  if n = 0 then [ tree ]
+    (* Return the current subtree when exactly at depth n *)
+  else List.flatten (List.map (bottom_n (n - 1)) children)
