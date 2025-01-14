@@ -58,6 +58,35 @@ let test_depth_first_fold_simple () =
   let res = depth_first_fold (fun acc x -> acc + x) 0 tree1 in
   Alcotest.(check int) "result isn't correct" expected res
 
+let test_top_n_simple () =
+  let tree1 = Node (1, [ Node (2, []) ]) in
+  let expected = Node (1, [ Node (2, []) ]) in
+  let res = top_n 1 tree1 in
+  Alcotest.check int_tree
+    "the result doesn't have the same shape as the expected result" expected res
+
+let test_top_n_n_equal_two () =
+  let tree1 = Node (1, [ Node (2, []); Node (4, [ Node (3, []) ]) ]) in
+  let expected = Node (1, [ Node (2, []); Node (4, [ Node (3, []) ]) ]) in
+  let res = top_n 2 tree1 in
+  Alcotest.check int_tree
+    "the result doesn't have the same shape as the expected result" expected res
+
+let test_top_n_n_equal_zero () =
+  let tree1 = Node (1, [ Node (2, []); Node (3, [ Node (4, []) ]) ]) in
+  let expected = Node (1, []) in
+  let res = top_n 0 tree1 in
+  Alcotest.check int_tree
+    "the result doesn't have the same shape as the expected result" expected res
+
+let test_bottom_n_simple () =
+  let tree1 = Node (1, [ Node (2, []) ]) in
+  let expected = Node (1, [ Node (2, []) ]) in
+  let res = bottom_n 0 tree1 in
+  Alcotest.check int_tree
+    "the result doesn't have the same shape as the expected result" expected
+    (List.hd res)
+
 let tests =
   [
     ( "n-ary tree tests",
@@ -72,6 +101,14 @@ let tests =
           `Quick test_flatten_map_simple;
         Alcotest.test_case "fold a simple tree" `Quick
           test_depth_first_fold_simple;
+        Alcotest.test_case "top_n with n = 1 on a simple tree" `Quick
+          test_top_n_simple;
+        Alcotest.test_case "top_n with n = 2 on a simple tree" `Quick
+          test_top_n_n_equal_two;
+        Alcotest.test_case "top_n with n = 0 on a simple tree" `Quick
+          test_top_n_n_equal_zero;
+        Alcotest.test_case "bottom n with n = 0 on a simple tree" `Quick
+          test_bottom_n_simple;
       ] );
   ]
 
