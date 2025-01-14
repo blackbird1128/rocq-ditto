@@ -62,7 +62,6 @@ let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
       (node : annotatedASTNode nary_tree) : annotatedASTNode list =
     match node with
     | Node (x, childrens) -> (
-        print_endline ("treating : " ^ x.repr);
         let lia_node =
           Result.get_ok (Annotated_ast_node.ast_node_of_string "lia." x.range)
         in
@@ -71,8 +70,12 @@ let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
         let new_goals = count_goals token proof_state_x in
         let state_lia = Petanque.Agent.run ~token ~st ~tac:lia_node.repr () in
         match state_lia with
-        | Ok state ->
-            if count_goals token state.st < previous_goals then [ lia_node ]
+        | Ok state_uw ->
+            let goals_with_lia = count_goals token state_uw.st in
+            if goals_with_lia < previous_goals then
+              if goals_with_lia = 0 then
+                [ lia_node; qed_ast_node (shift_range 1 0 lia_node.range) ]
+              else [ lia_node ]
             else
               x
               :: List.concat (List.map (aux proof_state_x new_goals) childrens)
@@ -83,10 +86,12 @@ let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
   | Some state_err_wrap -> (
       match state_err_wrap with
       | Ok state ->
-          let list = aux state.st 1 proof_tree in
-          print_endline ("len list : " ^ string_of_int (List.length list));
-          List.iter (fun x -> print_endline x.repr) list;
-          Ok (Proof.proof_from_nodes list)
+          let head_tree = top_n 1 proof_tree in
+          let tail_tree = List.hd (bottom_n 2 proof_tree) in
+          let list = aux state.st 1 tail_tree in
+          let list_head_tail = flatten head_tree @ list in
+          List.iter (fun x -> print_endline x.repr) (flatten head_tree);
+          Ok (Proof.proof_from_nodes list_head_tail)
       | Error err -> Error "failed to create an initial state")
   | None -> Error "can't create an initial state for the proof "
 
@@ -105,13 +110,11 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
   let proof_trees = List.map (Proof.treeify_proof doc) proofs in
 
-  let first_proof_tree = List.hd proof_trees in
+  let first_proof_tree = List.nth proof_trees 4 in
   print_tree first_proof_tree " ";
-  print_endline "parsed the proof trees";
 
   let bulleted = Result.get_ok (replace_by_lia doc first_proof_tree) in
 
-  print_endline "past bulleted";
   let modified = Coq_document.replace_proof bulleted parsed_document in
 
   match modified with
