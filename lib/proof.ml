@@ -40,15 +40,15 @@ let get_proof_state (start_result : Agent.State.t Agent.Run_result.t Agent.R.t)
       Printf.eprintf "Error: %s\n" (Agent.Error.to_string err);
       raise (Failure "Failed to start proof")
 
-(** count the number of goals of a state *)
 let count_goals (token : Coq.Limits.Token.t) (st : Agent.State.t) : int =
   let goals = Agent.goals ~token ~st in
   match goals with
-  | Ok (Some reified_goals) -> List.length reified_goals.stack
+  | Ok (Some reified_goals) -> List.length reified_goals.goals
   | Ok None -> 0
   | Error _ -> 0
 
-let rec print_tree (tree : annotatedASTNode nary_tree) indent =
+let rec print_tree (tree : annotatedASTNode nary_tree) (indent : string) : unit
+    =
   match tree with
   | Node (value, children) ->
       Printf.printf "%sNode(%s)\n" indent value.repr;
@@ -66,7 +66,8 @@ let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
       (step, goal_count) :: proof_steps_with_goalcount token agent_state tail
 
 let print_parents
-    (parents : (int * annotatedASTNode, int * annotatedASTNode) Hashtbl.t) =
+    (parents : (int * annotatedASTNode, int * annotatedASTNode) Hashtbl.t) :
+    unit =
   Hashtbl.iter
     (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
       Printf.printf
@@ -77,7 +78,8 @@ let print_parents
 type parent_category = Fork | Linear
 
 let rec pop_until_fork
-    (prev_pars : (int * annotatedASTNode * parent_category) list) =
+    (prev_pars : (int * annotatedASTNode * parent_category) list) :
+    (int * annotatedASTNode * parent_category) list =
   match prev_pars with
   | [] -> []
   | (_, _, cat_par) :: tail_par -> (
@@ -155,10 +157,11 @@ let treeify_proof (doc : Doc.t) (p : proof) : annotatedASTNode nary_tree =
     ( p.proposition,
       [ proof_tree_from_parents (0, List.hd p.proof_steps) parents ] )
 
-let rec proof_tree_to_node_list (Node (value, children)) =
+let rec proof_tree_to_node_list (Node (value, children)) : annotatedASTNode list
+    =
   value :: List.concat (List.map proof_tree_to_node_list children)
 
-let tree_to_proof (tree : annotatedASTNode nary_tree) =
+let tree_to_proof (tree : annotatedASTNode nary_tree) : proof =
   let nodes = proof_tree_to_node_list tree in
   { proposition = List.hd nodes; proof_steps = List.tl nodes }
 
@@ -174,14 +177,25 @@ let previous_steps_from_tree (node : annotatedASTNode)
   in
   sublist_before_id steps node.id
 
-let last_offset (p : proof) =
+let last_offset (p : proof) : int =
   List.fold_left
     (fun acc elem ->
       if elem.range.end_.offset > acc then elem.range.end_.offset else acc)
     0
     (p.proposition :: p.proof_steps)
 
-let proof_nodes (p : proof) = p.proposition :: p.proof_steps
+let proof_nodes (p : proof) : annotatedASTNode list =
+  p.proposition :: p.proof_steps
 
 let proof_from_nodes (nodes : annotatedASTNode list) : proof =
   { proposition = List.hd nodes; proof_steps = List.tl nodes }
+
+let rec depth_first_fold_with_state
+    (f : Petanque.Agent.State.t -> 'acc -> 'a -> 'acc) (acc : 'acc)
+    (tree : 'a nary_tree) : ('acc, string) result =
+  let init_state =Proof.get_init_state
+  let rec aux f acc tree =
+  match tree with
+  | Node (x, children) ->
+      let new_acc = f state acc x in
+      List.fold_left (aux f) new_acc children in
