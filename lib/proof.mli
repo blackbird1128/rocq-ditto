@@ -10,7 +10,7 @@ type proof = {
 (** Represents a proof in a Coq document.
     [proof] contains the initial proposition and a list of proof steps. *)
 
-val get_names : Lang.Ast.Info.t list -> string list
+val get_names : annotatedASTNode -> string list
 (** A node can have multiple names (i.e., mutual recursive definitions) *)
 
 val proof_to_coq_script_string : proof -> string
@@ -88,3 +88,14 @@ val proof_from_nodes : annotatedASTNode list -> proof
     where the first node in the list is used as the proposition, and the
     remaining nodes are the proof steps. Assumes that the list is non-empty. *)
 (* TODO fix to return an error if the list is empty *)
+
+val depth_first_fold_with_state :
+  Doc.t ->
+  Coq.Limits.Token.t ->
+  (Petanque.Agent.State.t ->
+  'acc ->
+  annotatedASTNode ->
+  Petanque.Agent.State.t * 'acc) ->
+  'acc ->
+  annotatedASTNode nary_tree ->
+  ('acc, string) result

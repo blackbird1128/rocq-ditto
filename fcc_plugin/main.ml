@@ -83,17 +83,67 @@ let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
             x :: List.concat (List.map (aux proof_state_x new_goals) childrens))
   in
   match init_state with
-  | Some state_err_wrap -> (
-      match state_err_wrap with
-      | Ok state ->
-          let head_tree = top_n 1 proof_tree in
-          let tail_tree = List.hd (bottom_n 2 proof_tree) in
-          let list = aux state.st 1 tail_tree in
-          let list_head_tail = flatten head_tree @ list in
-          List.iter (fun x -> print_endline x.repr) (flatten head_tree);
-          Ok (Proof.proof_from_nodes list_head_tail)
-      | Error err -> Error "failed to create an initial state")
-  | None -> Error "can't create an initial state for the proof "
+  | Some (Ok state) ->
+      let head_tree = top_n 1 proof_tree in
+      let tail_tree = List.hd (bottom_n 2 proof_tree) in
+      let list = aux state.st 1 tail_tree in
+      let list_head_tail = flatten head_tree @ list in
+      Ok (Proof.proof_from_nodes list_head_tail)
+  | _ -> Error "can't create an initial state for the proof "
+
+let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
+    : (Ditto.Proof.proof, string) result =
+  let token = Coq.Limits.Token.create () in
+  let res =
+    Proof.depth_first_fold_with_state doc token
+      (fun state acc node ->
+        print_endline "step ! ";
+        print_endline ("treating node: " ^ node.repr);
+        let previous_goals, steps_acc = acc in
+        let lia_node =
+          Result.get_ok (Annotated_ast_node.ast_node_of_string "lia" node.range)
+        in
+        print_endline "created lia node ! ";
+        let new_goals = count_goals token state in
+        let state_lia =
+          Petanque.Agent.run ~token ~st:state ~tac:lia_node.repr ()
+        in
+        match state_lia with
+        | Ok state_uw ->
+            let goals_with_lia = count_goals token state_uw.st in
+            if goals_with_lia < previous_goals then
+              if goals_with_lia = 0 then
+                ( state_uw.st,
+                  ( goals_with_lia,
+                    [ lia_node; qed_ast_node (shift_range 1 0 lia_node.range) ]
+                    @ steps_acc ) )
+              else (state_uw.st, (goals_with_lia, lia_node :: steps_acc))
+            else (state, (new_goals, node :: steps_acc))
+        | Error err -> (state, (new_goals, node :: steps_acc)))
+      (1, []) proof_tree
+  in
+  match res with
+  | Ok (goals, steps) ->
+      print_endline ("goals : " ^ string_of_int goals);
+      List.iter (fun node -> print_endline node.repr) steps;
+      Ok (Proof.proof_from_nodes (List.rev steps))
+  | Error err -> Error err
+
+let simple_fold (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
+    (Ditto.Proof.proof, string) result =
+  let token = Coq.Limits.Token.create () in
+  let res =
+    Proof.depth_first_fold_with_state doc token
+      (fun state acc node -> (state, acc + 1))
+      0 proof_tree
+  in
+  match res with
+  | Ok acc ->
+      print_endline (string_of_int acc);
+      Ok (Proof.tree_to_proof proof_tree)
+  | Error err ->
+      print_endline "got an error ";
+      Error err
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -110,18 +160,16 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
   let proof_trees = List.map (Proof.treeify_proof doc) proofs in
 
-  let first_proof_tree = List.nth proof_trees 4 in
+  let first_proof_tree = List.nth proof_trees 0 in
   print_tree first_proof_tree " ";
 
-  let bulleted = Result.get_ok (replace_by_lia doc first_proof_tree) in
+  let bulleted = Result.get_ok (simple_fold doc first_proof_tree) in
 
   let modified = Coq_document.replace_proof bulleted parsed_document in
 
   match modified with
   | Ok res ->
-      List.iter (fun x -> print_endline x.repr) res.elements;
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-
       output_string out (Coq_document.dump_to_string res)
   | Error msg ->
       print_endline "error";

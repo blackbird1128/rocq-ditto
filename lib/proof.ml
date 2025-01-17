@@ -11,16 +11,20 @@ type proof = {
 (* proposition can also be a type, better name ? *)
 
 (* A node can have multiple names (ie mutual recursive defs) *)
-let get_names (infos : Lang.Ast.Info.t list) =
-  List.concat_map
-    (fun (info : Lang.Ast.Info.t) ->
-      match info.name.v with None -> [] | Some s -> [ s ])
-    infos
+let get_names (node : annotatedASTNode) : string list =
+  match node.ast.ast_info with
+  | Some infos ->
+      List.concat_map
+        (fun (info : Lang.Ast.Info.t) ->
+          match info.name.v with None -> [] | Some s -> [ s ])
+        infos
+  | None -> []
 
 let get_proof_name (p : proof) : string option =
-  if Option.has_some p.proposition.ast.ast_info then
-    (Option.get p.proposition.ast.ast_info |> get_names |> List.nth_opt) 0
-  else None
+  List.nth_opt (get_names p.proposition) 0
+
+let get_tree_name (Node (x, children)) : string option =
+  List.nth_opt (get_names x) 0
 
 let doc_node_to_string (d : Doc.Node.Ast.t) : string =
   let pp_expr = Ppvernac.pr_vernac_expr (Coq.Ast.to_coq d.v).CAst.v.expr in
@@ -190,12 +194,32 @@ let proof_nodes (p : proof) : annotatedASTNode list =
 let proof_from_nodes (nodes : annotatedASTNode list) : proof =
   { proposition = List.hd nodes; proof_steps = List.tl nodes }
 
-let rec depth_first_fold_with_state
-    (f : Petanque.Agent.State.t -> 'acc -> 'a -> 'acc) (acc : 'acc)
-    (tree : 'a nary_tree) : ('acc, string) result =
-  let init_state =Proof.get_init_state
-  let rec aux f acc tree =
-  match tree with
-  | Node (x, children) ->
-      let new_acc = f state acc x in
-      List.fold_left (aux f) new_acc children in
+(* take a full tree and return an acc *)
+(* fold over the proof while running the expr each time to get a new state *)
+(* TODO: decide if the function should run to a get a new state each time or if we leave this to the user ? *)
+let rec depth_first_fold_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
+    (f :
+      Petanque.Agent.State.t ->
+      'acc ->
+      annotatedASTNode ->
+      Petanque.Agent.State.t * 'acc) (acc : 'acc)
+    (tree : annotatedASTNode nary_tree) : ('acc, string) result =
+  let rec aux
+      (f :
+        Petanque.Agent.State.t -> 'acc -> 'a -> Petanque.Agent.State.t * 'acc)
+      (state : Petanque.Agent.State.t) (acc : 'acc) (tree : 'a nary_tree) : 'acc
+      =
+    match tree with
+    | Node (x, children) -> (
+        let new_state_result = Agent.run ~token ~st:state ~tac:x.repr () in
+        match new_state_result with
+        | Ok new_state ->
+            let new_acc = f new_state.st acc x in
+            List.fold_left (aux f (fst new_acc)) (snd new_acc) children
+        | Error err -> raise (Failure (Petanque.Agent.Error.to_string err)))
+  in
+  let proof = tree_to_proof tree in
+  match get_init_state doc proof with
+  | Some (Ok state) -> (
+      try Ok (aux f state.st acc tree) with Failure reason -> Error reason)
+  | _ -> Error "Unable to retrieve initial state"

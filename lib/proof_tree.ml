@@ -60,13 +60,6 @@ let rec top_n (n : int) (Node (value, children)) : 'a nary_tree =
   if n <= 0 then Node (value, [])
   else Node (value, List.map (top_n (n - 1)) children)
 
-let rec bottom_n (n : int) (Node (_, children) as tree) =
+let rec bottom_n (n : int) (Node (_, children) as tree) : 'a nary_tree list =
   if n = 0 then [ tree ]
   else List.flatten (List.map (bottom_n (n - 1)) children)
-
-let rec depth_first_fold_with_state (f : 'acc -> 'a -> 'acc) (acc : 'acc)
-    (tree : 'a nary_tree) : 'acc =
-  match tree with
-  | Node (x, children) ->
-      let new_acc = f acc x in
-      List.fold_left (depth_first_fold f) new_acc children
