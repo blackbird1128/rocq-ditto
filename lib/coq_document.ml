@@ -217,9 +217,7 @@ let insert_node (new_node : annotatedASTNode) (doc : t)
         {
           doc with
           elements =
-            shift_nodes 1
-              (String.length new_node.repr)
-              (new_node :: doc.elements);
+            new_node :: shift_nodes 1 (String.length new_node.repr) doc.elements;
         }
   | End -> Ok { doc with elements = doc.elements @ [ new_node ] }
 
