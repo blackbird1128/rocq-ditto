@@ -194,6 +194,17 @@ let proof_nodes (p : proof) : annotatedASTNode list =
 let proof_from_nodes (nodes : annotatedASTNode list) : proof =
   { proposition = List.hd nodes; proof_steps = List.tl nodes }
 
+let get_current_goal (token : Coq.Limits.Token.t) (state : Agent.State.t) :
+    (string Coq.Goals.Reified_goal.t, string) result =
+  let goals_err_opt = Petanque.Agent.goals ~token ~st:state in
+  match goals_err_opt with
+  | Ok (Some goals) -> (
+      match List.nth_opt goals.goals 0 with
+      | Some goal -> Ok goal
+      | None -> Error "zero goal at this state")
+  | Ok None -> Error "zero goal at this state"
+  | Error err -> Error (Agent.Error.to_string err)
+
 (* take a full tree and return an acc *)
 (* fold over the proof while running the expr each time to get a new state *)
 let rec depth_first_fold_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
