@@ -196,7 +196,6 @@ let proof_from_nodes (nodes : annotatedASTNode list) : proof =
 
 (* take a full tree and return an acc *)
 (* fold over the proof while running the expr each time to get a new state *)
-(* TODO: decide if the function should run to a get a new state each time or if we leave this to the user ? *)
 let rec depth_first_fold_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
     (f :
       Petanque.Agent.State.t ->
@@ -210,16 +209,11 @@ let rec depth_first_fold_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
       (state : Petanque.Agent.State.t) (acc : 'acc) (tree : 'a nary_tree) : 'acc
       =
     match tree with
-    | Node (x, children) -> (
-        let new_state_result = Agent.run ~token ~st:state ~tac:x.repr () in
-        match new_state_result with
-        | Ok new_state ->
-            let new_acc = f new_state.st acc x in
-            List.fold_left (aux f (fst new_acc)) (snd new_acc) children
-        | Error err -> raise (Failure (Petanque.Agent.Error.to_string err)))
+    | Node (x, children) ->
+        let new_acc = f state acc x in
+        List.fold_left (aux f (fst new_acc)) (snd new_acc) children
   in
   let proof = tree_to_proof tree in
   match get_init_state doc proof with
-  | Some (Ok state) -> (
-      try Ok (aux f state.st acc tree) with Failure reason -> Error reason)
+  | Some (Ok state) -> Ok (aux f state.st acc tree)
   | _ -> Error "Unable to retrieve initial state"

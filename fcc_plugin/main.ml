@@ -97,53 +97,84 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
   let res =
     Proof.depth_first_fold_with_state doc token
       (fun state acc node ->
-        print_endline "step ! ";
-        print_endline ("treating node: " ^ node.repr);
         let previous_goals, steps_acc = acc in
-        let lia_node =
-          Result.get_ok (Annotated_ast_node.ast_node_of_string "lia" node.range)
-        in
-        print_endline "created lia node ! ";
-        let new_goals = count_goals token state in
-        let state_lia =
-          Petanque.Agent.run ~token ~st:state ~tac:lia_node.repr ()
-        in
-        match state_lia with
-        | Ok state_uw ->
-            let goals_with_lia = count_goals token state_uw.st in
-            if goals_with_lia < previous_goals then
-              if goals_with_lia = 0 then
-                ( state_uw.st,
-                  ( goals_with_lia,
-                    [ lia_node; qed_ast_node (shift_range 1 0 lia_node.range) ]
-                    @ steps_acc ) )
-              else (state_uw.st, (goals_with_lia, lia_node :: steps_acc))
-            else (state, (new_goals, node :: steps_acc))
-        | Error err -> (state, (new_goals, node :: steps_acc)))
+        if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
+          (state, (previous_goals, node :: steps_acc))
+        else
+          let state_node =
+            Proof.get_proof_state
+              (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
+          in
+          let lia_node =
+            Result.get_ok
+              (Annotated_ast_node.ast_node_of_string "lia." node.range)
+          in
+
+          let new_goals = count_goals token state in
+          let state_lia =
+            Petanque.Agent.run ~token ~st:state ~tac:lia_node.repr ()
+          in
+          match state_lia with
+          | Ok state_uw ->
+              let goals_with_lia = count_goals token state_uw.st in
+              if goals_with_lia < previous_goals then
+                if goals_with_lia = 0 then
+                  ( state_uw.st,
+                    ( goals_with_lia,
+                      [
+                        lia_node; qed_ast_node (shift_range 1 0 lia_node.range);
+                      ]
+                      @ steps_acc ) )
+                else (state_uw.st, (goals_with_lia, lia_node :: steps_acc))
+              else (state_node, (new_goals, node :: steps_acc))
+          | Error err -> (state_node, (new_goals, node :: steps_acc)))
       (1, []) proof_tree
   in
   match res with
-  | Ok (goals, steps) ->
-      print_endline ("goals : " ^ string_of_int goals);
-      List.iter (fun node -> print_endline node.repr) steps;
-      Ok (Proof.proof_from_nodes (List.rev steps))
+  | Ok (goals, steps) -> Ok (Proof.proof_from_nodes (List.rev steps))
   | Error err -> Error err
 
-let simple_fold (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
-    (Ditto.Proof.proof, string) result =
+let pp_goals ~token ~st =
+  match Coq.State.lemmas ~st with
+  | None -> Pp.str "no goals"
+  | Some proof -> (
+      match Coq.Print.pr_goals ~token ~proof with
+      | { Coq.Protect.E.r = Completed (Ok goals); _ } -> goals
+      | {
+       Coq.Protect.E.r =
+         Completed (Error (User { msg; _ } | Anomaly { msg; _ }));
+       _;
+      } ->
+          Pp.(str "error when printing goals: " ++ msg)
+      | { Coq.Protect.E.r = Interrupted; _ } ->
+          Pp.str "goal printing was interrupted")
+
+let fold_inspect (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) =
   let token = Coq.Limits.Token.create () in
-  let res =
+  let _ =
     Proof.depth_first_fold_with_state doc token
-      (fun state acc node -> (state, acc + 1))
-      0 proof_tree
+      (fun state acc node ->
+        if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
+          (state, node :: acc)
+        else
+          let state_node =
+            Proof.get_proof_state
+              (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
+          in
+          let coq_state : Coq.State.t = state_node in
+
+          let premises = Petanque.Agent.premises ~token ~st:state_node in
+          match premises with
+          | Ok res ->
+              List.iter
+                (fun (x : Petanque.Agent.Premise.t) ->
+                  print_endline x.full_name)
+                res;
+              (state_node, node :: acc)
+          | Error err -> (state_node, node :: acc))
+      [] proof_tree
   in
-  match res with
-  | Ok acc ->
-      print_endline (string_of_int acc);
-      Ok (Proof.tree_to_proof proof_tree)
-  | Error err ->
-      print_endline "got an error ";
-      Error err
+  ()
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -163,18 +194,20 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let first_proof_tree = List.nth proof_trees 0 in
   print_tree first_proof_tree " ";
 
-  let bulleted = Result.get_ok (simple_fold doc first_proof_tree) in
+  fold_inspect doc first_proof_tree;
+  ()
+(* let bulleted = Result.get_ok (fold_replace_by_lia doc first_proof_tree) in *)
 
-  let modified = Coq_document.replace_proof bulleted parsed_document in
+(* let modified = Coq_document.replace_proof bulleted parsed_document in *)
 
-  match modified with
-  | Ok res ->
-      let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-      output_string out (Coq_document.dump_to_string res)
-  | Error msg ->
-      print_endline "error";
-      print_endline msg;
-      ()
+(* match modified with *)
+(* | Ok res -> *)
+(*     let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in *)
+(*     output_string out (Coq_document.dump_to_string res) *)
+(* | Error msg -> *)
+(*     print_endline "error"; *)
+(*     print_endline msg; *)
+(*     () *)
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()

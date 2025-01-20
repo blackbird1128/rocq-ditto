@@ -158,3 +158,8 @@ let is_doc_node_ast_proof_end (x : annotatedASTNode) : bool =
   | VernacSynterp _ -> false
   | VernacSynPure expr -> (
       match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false)
+
+let is_doc_node_proof_intro_or_end (x : annotatedASTNode) : bool =
+  is_doc_node_ast_proof_start x
+  || is_doc_node_ast_proof_command x
+  || is_doc_node_ast_proof_end x
