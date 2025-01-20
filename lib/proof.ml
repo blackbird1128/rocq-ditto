@@ -210,6 +210,7 @@ let rec depth_first_fold_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
       =
     match tree with
     | Node (x, children) ->
+        (* print_endline ("treating node: " ^ x.repr ^ "id : " ^ string_of_int x.id); *)
         let new_acc = f state acc x in
         List.fold_left (aux f (fst new_acc)) (snd new_acc) children
   in

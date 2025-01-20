@@ -134,23 +134,34 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
   | Ok (goals, steps) -> Ok (Proof.proof_from_nodes (List.rev steps))
   | Error err -> Error err
 
-let pp_goals ~token ~st =
-  match Coq.State.lemmas ~st with
-  | None -> Pp.str "no goals"
-  | Some proof -> (
-      match Coq.Print.pr_goals ~token ~proof with
-      | { Coq.Protect.E.r = Completed (Ok goals); _ } -> goals
-      | {
-       Coq.Protect.E.r =
-         Completed (Error (User { msg; _ } | Anomaly { msg; _ }));
-       _;
-      } ->
-          Pp.(str "error when printing goals: " ++ msg)
-      | { Coq.Protect.E.r = Interrupted; _ } ->
-          Pp.str "goal printing was interrupted")
+let pp_goal (goal : string Coq.Goals.Reified_goal.t) : unit =
+  print_endline ("Goal : " ^ goal.ty);
+  print_endline "---------------------";
+  print_endline "Hypothesis: ";
+  List.iter
+    (fun (hyp : string Coq.Goals.Reified_goal.hyp) ->
+      List.iter (fun name -> print_endline name) hyp.names)
+    goal.hyps;
+  print_endline "----------------------";
+  ()
+
+let pp_goal_stack
+    (stack :
+      (string Coq.Goals.Reified_goal.t list
+      * string Coq.Goals.Reified_goal.t list)
+      list) =
+  print_endline ("size stack : " ^ string_of_int (List.length stack));
+  List.iter
+    (fun elem ->
+      List.iter
+        (fun (goal : string Coq.Goals.Reified_goal.t) -> pp_goal goal)
+        (snd elem))
+    stack;
+  ()
 
 let fold_inspect (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) =
   let token = Coq.Limits.Token.create () in
+
   let _ =
     Proof.depth_first_fold_with_state doc token
       (fun state acc node ->
@@ -161,17 +172,25 @@ let fold_inspect (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) =
             Proof.get_proof_state
               (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
           in
-          let coq_state : Coq.State.t = state_node in
-
-          let premises = Petanque.Agent.premises ~token ~st:state_node in
-          match premises with
-          | Ok res ->
-              List.iter
-                (fun (x : Petanque.Agent.Premise.t) ->
-                  print_endline x.full_name)
-                res;
+          print_endline ("Treating node : " ^ node.repr);
+          let goals_err_opt = Petanque.Agent.goals ~token ~st:state_node in
+          match goals_err_opt with
+          | Ok (Some goals) ->
+              List.iter pp_goal goals.goals;
+              print_endline "\n";
               (state_node, node :: acc)
-          | Error err -> (state_node, node :: acc))
+          | _ ->
+              print_endline "error getting goals";
+              (state_node, node :: acc))
+      (* let premises = Petanque.Agent.premises ~token ~st:state_node in *)
+      (* match premises with *)
+      (* | Ok res -> *)
+      (*     List.iter *)
+      (*       (fun (x : Petanque.Agent.Premise.t) -> *)
+      (*         print_endline x.full_name) *)
+      (*       res; *)
+      (*     (state_node, node :: acc) *)
+      (* | Error err -> (state_node, node :: acc)) *)
       [] proof_tree
   in
   ()
