@@ -206,15 +206,22 @@ let rec depth_first_fold_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
   let rec aux
       (f :
         Petanque.Agent.State.t -> 'acc -> 'a -> Petanque.Agent.State.t * 'acc)
-      (state : Petanque.Agent.State.t) (acc : 'acc) (tree : 'a nary_tree) : 'acc
-      =
+      (state : Petanque.Agent.State.t) (acc : 'acc) (tree : 'a nary_tree) :
+      Petanque.Agent.State.t * 'acc =
     match tree with
     | Node (x, children) ->
-        (* print_endline ("treating node: " ^ x.repr ^ "id : " ^ string_of_int x.id); *)
-        let new_acc = f state acc x in
-        List.fold_left (aux f (fst new_acc)) (snd new_acc) children
+        let state, acc = f state acc x in
+        (* Fold over the children using the updated state and accumulator *)
+        List.fold_left
+          (fun (state, acc) child ->
+            let new_state, new_acc = aux f state acc child in
+            (new_state, new_acc))
+          (state, acc) children
+    (* Fold over the children, threading the state and updating acc *)
+    (* Update state and accumulator for the current node *)
   in
+
   let proof = tree_to_proof tree in
   match get_init_state doc proof with
-  | Some (Ok state) -> Ok (aux f state.st acc tree)
+  | Some (Ok state) -> Ok (snd (aux f state.st acc tree))
   | _ -> Error "Unable to retrieve initial state"
