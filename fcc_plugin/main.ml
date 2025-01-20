@@ -195,6 +195,22 @@ let fold_inspect (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) =
   in
   ()
 
+let fold_replace_assumption_with_apply (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)  : (Ditto.Proof.proof, string) result =
+  let token = Coq.Limits.Token.create () in
+  let res = Proof.depth_first_fold_with_state doc token
+              (fun state acc node ->
+                if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
+                  (state, (node :: acc))
+                else
+
+                  let state_node = Proof.get_proof_state (Petanque.Agent.run ~token ~st:state ~tac:node.repr ()) in
+                  (if String.starts_with ~prefix:"apply" node.repr then
+                     let hypothesis =
+
+                   else
+                     (state_node, (node :: acc)
+                     )
+
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
