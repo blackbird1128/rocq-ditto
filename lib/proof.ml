@@ -205,6 +205,12 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Agent.State.t) :
   | Ok None -> Error "zero goal at this state"
   | Error err -> Error (Agent.Error.to_string err)
 
+let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
+    =
+  List.concat_map
+    (fun (hyp : string Coq.Goals.Reified_goal.hyp) -> hyp.names)
+    goal.hyps
+
 (* take a full tree and return an acc *)
 (* fold over the proof while running the expr each time to get a new state *)
 let rec depth_first_fold_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)

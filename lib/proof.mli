@@ -88,6 +88,8 @@ val proof_from_nodes : annotatedASTNode list -> proof
     Assumes that the list is non-empty. *)
 (* TODO fix to return an error if the list is empty *)
 
+val get_hypothesis_names : string Coq.Goals.Reified_goal.t -> string list
+
 val get_current_goal :
   Coq.Limits.Token.t ->
   Agent.State.t ->
