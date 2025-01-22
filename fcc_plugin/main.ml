@@ -182,34 +182,77 @@ let fold_inspect (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) =
           | _ ->
               print_endline "error getting goals";
               (state_node, node :: acc))
-      (* let premises = Petanque.Agent.premises ~token ~st:state_node in *)
-      (* match premises with *)
-      (* | Ok res -> *)
-      (*     List.iter *)
-      (*       (fun (x : Petanque.Agent.Premise.t) -> *)
-      (*         print_endline x.full_name) *)
-      (*       res; *)
-      (*     (state_node, node :: acc) *)
-      (* | Error err -> (state_node, node :: acc)) *)
       [] proof_tree
   in
   ()
 
-let fold_replace_assumption_with_apply (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)  : (Ditto.Proof.proof, string) result =
+let fold_replace_assumption_with_apply (doc : Doc.t)
+    (proof_tree : annotatedASTNode nary_tree) :
+    (Ditto.Proof.proof, string) result =
   let token = Coq.Limits.Token.create () in
-  let res = Proof.depth_first_fold_with_state doc token
-              (fun state acc node ->
-                if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
-                  (state, (node :: acc))
-                else
+  let res =
+    Proof.depth_first_fold_with_state doc token
+      (fun state acc node ->
+        if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
+          (state, node :: acc)
+        else
+          let state_node =
+            Proof.get_proof_state
+              (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
+          in
+          if String.starts_with ~prefix:"assumption" node.repr then
+            let goal_count_after_assumption =
+              Proof.count_goals token state_node
+            in
 
-                  let state_node = Proof.get_proof_state (Petanque.Agent.run ~token ~st:state ~tac:node.repr ()) in
-                  (if String.starts_with ~prefix:"apply" node.repr then
-                     let hypothesis =
-
-                   else
-                     (state_node, (node :: acc)
-                     )
+            let curr_goal_err = Proof.get_current_goal token state in
+            match curr_goal_err with
+            | Ok curr_goal ->
+                let hypothesis = curr_goal.hyps in
+                let hypothesis_apply_repr =
+                  List.concat_map
+                    (fun (hyp : string Coq.Goals.Reified_goal.hyp) ->
+                      List.map (fun name -> "apply " ^ name ^ ".") hyp.names)
+                    hypothesis
+                in
+                List.iter print_endline hypothesis_apply_repr;
+                print_endline "-----------------";
+                let hypothesis_apply_nodes =
+                  List.filter_map
+                    (fun repr ->
+                      Result.to_option
+                        (Annotated_ast_node.ast_node_of_string repr node.range))
+                    hypothesis_apply_repr
+                in
+                let apply_states =
+                  List.filter_map
+                    (fun node ->
+                      let r =
+                        Petanque.Agent.run ~token ~st:state ~tac:node.repr ()
+                      in
+                      match r with
+                      | Ok state_uw -> Some (node, state_uw.st)
+                      | Error _ -> None)
+                    hypothesis_apply_nodes
+                in
+                List.iter (fun x -> print_endline (fst x).repr) apply_states;
+                let replacement =
+                  List.find
+                    (fun tuple_n_s ->
+                      Proof.count_goals token (snd tuple_n_s)
+                      = goal_count_after_assumption)
+                    apply_states
+                in
+                List.iter print_endline hypothesis_apply_repr;
+                print_endline "---------";
+                (state_node, fst replacement :: acc)
+            | Error _ -> (state_node, node :: acc)
+          else (state_node, node :: acc))
+      [] proof_tree
+  in
+  match res with
+  | Ok steps -> Ok (Proof.proof_from_nodes (List.rev steps))
+  | Error err -> Error err
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -229,20 +272,20 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let first_proof_tree = List.nth proof_trees 0 in
   print_tree first_proof_tree " ";
 
-  fold_inspect doc first_proof_tree;
-  ()
-(* let bulleted = Result.get_ok (fold_replace_by_lia doc first_proof_tree) in *)
+  let new_proof_err = fold_replace_assumption_with_apply doc first_proof_tree in
+  match new_proof_err with
+  | Ok new_proof -> (
+      (* let bulleted = Result.get_ok (fold_replace_by_lia doc first_proof_tree) in *)
+      let modified = Coq_document.replace_proof new_proof parsed_document in
 
-(* let modified = Coq_document.replace_proof bulleted parsed_document in *)
-
-(* match modified with *)
-(* | Ok res -> *)
-(*     let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in *)
-(*     output_string out (Coq_document.dump_to_string res) *)
-(* | Error msg -> *)
-(*     print_endline "error"; *)
-(*     print_endline msg; *)
-(*     () *)
+      match modified with
+      | Ok res ->
+          let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
+          output_string out (Coq_document.dump_to_string res)
+      | Error msg ->
+          print_endline "error";
+          print_endline msg)
+  | Error err -> print_endline "err"
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()
