@@ -95,6 +95,29 @@ val get_current_goal :
   Agent.State.t ->
   (string Coq.Goals.Reified_goal.t, string) result
 
+val fold_nodes_with_state :
+  Doc.t ->
+  Coq.Limits.Token.t ->
+  (Petanque.Agent.State.t ->
+  'acc ->
+  annotatedASTNode ->
+  Petanque.Agent.State.t * 'acc) ->
+  Petanque.Agent.State.t ->
+  'acc ->
+  annotatedASTNode list ->
+  'acc
+
+val fold_proof_with_state :
+  Doc.t ->
+  Coq.Limits.Token.t ->
+  (Petanque.Agent.State.t ->
+  'acc ->
+  annotatedASTNode ->
+  Petanque.Agent.State.t * 'acc) ->
+  'acc ->
+  proof ->
+  ('acc, string) result
+
 val depth_first_fold_with_state :
   Doc.t ->
   Coq.Limits.Token.t ->

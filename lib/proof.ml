@@ -242,3 +242,38 @@ let rec depth_first_fold_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
   match get_init_state doc proof with
   | Some (Ok state) -> Ok (snd (aux f state.st acc tree))
   | _ -> Error "Unable to retrieve initial state"
+
+let rec fold_nodes_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
+    (f :
+      Petanque.Agent.State.t ->
+      'acc ->
+      annotatedASTNode ->
+      Petanque.Agent.State.t * 'acc) (init_state : Petanque.Agent.State.t)
+    (acc : 'acc) (l : annotatedASTNode list) : 'acc =
+  let rec aux (state : Petanque.Agent.State.t) (acc : 'acc) =
+    match l with
+    | [] -> acc
+    | x :: tail ->
+        let res = f state acc x in
+        aux (fst res) (snd res)
+  in
+  aux init_state acc
+
+let rec fold_proof_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
+    (f :
+      Petanque.Agent.State.t ->
+      'acc ->
+      annotatedASTNode ->
+      Petanque.Agent.State.t * 'acc) (acc : 'acc) (p : proof) :
+    ('acc, string) result =
+  let proof_nodes = proof_nodes p in
+  let rec aux (state : Petanque.Agent.State.t) (acc : 'acc) =
+    match proof_nodes with
+    | [] -> acc
+    | x :: tail ->
+        let res = f state acc x in
+        aux (fst res) (snd res)
+  in
+  match get_init_state doc p with
+  | Some (Ok state) -> Ok (aux state.st acc)
+  | _ -> Error "Unable to retrieve initial state"
