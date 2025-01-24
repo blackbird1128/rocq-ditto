@@ -23,22 +23,27 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let first_proof_tree = List.nth proof_trees 0 in
   print_tree first_proof_tree " ";
 
-  let new_proof_err =
-    Transformations.fold_replace_assumption_with_apply doc first_proof_tree
+  let modifed_doc =
+    List.fold_left
+      (fun doc_acc proof ->
+        let new_proof_res =
+          Transformations.fold_replace_assumption_with_apply doc proof
+        in
+        match new_proof_res with
+        | Ok new_proof -> (
+            match Coq_document.replace_proof new_proof doc_acc with
+            | Ok new_doc ->
+                print_endline "replaced successfully";
+                (* List.iter (fun node -> print_endline node.repr) new_doc.elements; *)
+                print_endline "-------------------------------";
+                new_doc
+            | Error _ -> doc_acc)
+        | Error _ -> doc_acc)
+      parsed_document proof_trees
   in
-  match new_proof_err with
-  | Ok new_proof -> (
-      (* let bulleted = Result.get_ok (fold_replace_by_lia doc first_proof_tree) in *)
-      let modified = Coq_document.replace_proof new_proof parsed_document in
 
-      match modified with
-      | Ok res ->
-          let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-          output_string out (Coq_document.dump_to_string res)
-      | Error msg ->
-          print_endline "error";
-          print_endline msg)
-  | Error err -> print_endline "err"
+  let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
+  output_string out (Coq_document.dump_to_string modifed_doc)
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()

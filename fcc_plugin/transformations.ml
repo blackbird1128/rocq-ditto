@@ -62,6 +62,7 @@ let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
       (node : annotatedASTNode nary_tree) : annotatedASTNode list =
     match node with
     | Node (x, childrens) -> (
+        print_endline ("treating node: " ^ x.repr);
         let lia_node =
           Result.get_ok (Annotated_ast_node.ast_node_of_string "lia." x.range)
         in
@@ -97,9 +98,13 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
   let res =
     Proof.depth_first_fold_with_state doc token
       (fun state acc node ->
-        let previous_goals, steps_acc = acc in
-        if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
-          (state, (previous_goals, node :: steps_acc))
+        let previous_goals, steps_acc, ignore_step = acc in
+        print_endline ("treating node : " ^ node.repr);
+        if ignore_step then (
+          print_endline "ignoring !";
+          (state, (previous_goals, steps_acc, ignore_step)))
+        else if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
+          (state, (previous_goals, node :: steps_acc, ignore_step))
         else
           let state_node =
             Proof.get_proof_state
@@ -109,7 +114,6 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
             Result.get_ok
               (Annotated_ast_node.ast_node_of_string "lia." node.range)
           in
-
           let new_goals = count_goals token state in
           let state_lia =
             Petanque.Agent.run ~token ~st:state ~tac:lia_node.repr ()
@@ -124,14 +128,19 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
                       [
                         lia_node; qed_ast_node (shift_range 1 0 lia_node.range);
                       ]
-                      @ steps_acc ) )
-                else (state_uw.st, (goals_with_lia, lia_node :: steps_acc))
-              else (state_node, (new_goals, node :: steps_acc))
-          | Error err -> (state_node, (new_goals, node :: steps_acc)))
-      (1, []) proof_tree
+                      @ steps_acc,
+                      true ) )
+                else (state_uw.st, (new_goals, node :: steps_acc, true))
+              else (state_node, (new_goals, node :: steps_acc, ignore_step))
+          | Error err ->
+              let res =
+                (state_node, (new_goals, node :: steps_acc, ignore_step))
+              in
+              res)
+      (1, [], false) proof_tree
   in
   match res with
-  | Ok (goals, steps) -> Ok (Proof.proof_from_nodes (List.rev steps))
+  | Ok (goals, steps, _) -> Ok (Proof.proof_from_nodes (List.rev steps))
   | Error err -> Error err
 
 let pp_goal (goal : string Coq.Goals.Reified_goal.t) : unit =
@@ -247,3 +256,73 @@ let fold_replace_assumption_with_apply (doc : Doc.t)
   match res with
   | Ok steps -> Ok (Proof.proof_from_nodes (List.rev steps))
   | Error err -> Error err
+
+let can_reduce_to_zero_goals (doc : Doc.t) (init_state : Petanque.Agent.State.t)
+    (nodes : annotatedASTNode list) =
+  let token = Coq.Limits.Token.create () in
+  let rec aux state acc nodes =
+    match nodes with
+    | [] -> Ok acc
+    | x :: tail -> (
+        if Annotated_ast_node.is_doc_node_proof_intro_or_end x then
+          aux state state tail
+        else
+          let state_node_res =
+            Petanque.Agent.run ~token ~st:state ~tac:x.repr ()
+          in
+          match state_node_res with
+          | Ok state_node -> aux state_node.st state_node.st tail
+          | Error err -> Error "")
+  in
+  match aux init_state init_state nodes with
+  | Ok state -> Proof.count_goals token state = 0
+  | Error _ -> false
+
+let remove_empty_lines (proof : proof) : proof =
+  let nodes = proof_nodes proof in
+  let first_node_opt = List.nth_opt nodes 0 in
+  match first_node_opt with
+  | Some first_node ->
+      let res =
+        List.fold_left
+          (fun acc node ->
+            let prev_node, acc_nodes, shift = acc in
+            if prev_node = node then (node, node :: acc_nodes, shift)
+            else
+              let shift_value =
+                prev_node.range.end_.line - node.range.start.line + 1 + shift
+              in
+              let shifted = shift_node shift_value 0 node in
+              (node, shifted :: acc_nodes, shift_value))
+          (first_node, [], 0) nodes
+      in
+      let _, res_func, _ = res in
+      proof_from_nodes (List.rev res_func)
+  | None -> proof
+
+let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
+    (proof, string) result =
+  let token = Coq.Limits.Token.create () in
+  let rec aux state acc nodes =
+    match nodes with
+    | [] -> acc
+    | x :: tail ->
+        if Annotated_ast_node.is_doc_node_proof_intro_or_end x then
+          aux state (x :: acc) tail
+        else if can_reduce_to_zero_goals doc state tail then aux state acc tail
+        else
+          let state_node =
+            Proof.get_proof_state
+              (Petanque.Agent.run ~token ~st:state ~tac:x.repr ())
+          in
+          aux state_node (x :: acc) tail
+  in
+  match get_init_state doc proof with
+  | Some (Ok state) ->
+      let proof =
+        remove_empty_lines
+          (proof_from_nodes (List.rev (aux state.st [] (proof_nodes proof))))
+      in
+
+      Ok proof
+  | _ -> Error "Unable to retrieve initial state"
