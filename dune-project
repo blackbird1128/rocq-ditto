@@ -18,7 +18,7 @@
 (package
  (name coq-ditto)
  (synopsis "Coq ditto lib")
- (description "A longer description")
+ (description "libraries used by the plugins")
  (depends ocaml dune coq-lsp base-unix re alcotest)
  (tags
   (topics "to describe" your project)))

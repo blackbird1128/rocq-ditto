@@ -4,3 +4,13 @@
  (libraries coq-ditto coq-core.plugins.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche)
  )
 
+(install
+  (section lib)
+  (files
+    ditto_plugin.cmxs
+    main.ml
+    ditto_plugin.ml))
+    
+(install
+ (section bin)
+ (files fcc.exe))

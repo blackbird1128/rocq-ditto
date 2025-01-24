@@ -1,3 +1,4 @@
+
 all:
 	dune build lib --profile=release
 	dune build fcc_plugin --profile=release
@@ -7,3 +8,14 @@ test:
 	dune build lib --profile=release
 	dune build fcc_plugin --profile=release
 	dune runtest --profile=release
+
+PREFIX := $(HOME)/.local
+
+install:
+	dune install --prefix="$(PREFIX)"
+
+uninstall:
+	dune uninstall --prefix="$(PREFIX)"
+
+clean:
+	dune clean

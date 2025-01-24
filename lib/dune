@@ -2,3 +2,9 @@
  (name ditto)
  (public_name coq-ditto)
  (libraries coq-lsp.fleche coq-core.plugins.ltac coq-lsp.serlib coq-lsp.coq coq-lsp.lsp coq-lsp.petanque unix )) 
+
+(install
+  (section lib)
+  (files
+    ditto.cma
+    ditto.cmxa))
