@@ -130,7 +130,10 @@ let element_before_id_opt (target_id : int) (doc : t) : annotatedASTNode option
   match List.find_index (fun elem -> elem.id = target_id) doc.elements with
   | Some elem_id ->
       if elem_id - 1 < 0 then None
-      else List.find_opt (fun elem -> elem.id = elem_id - 1) doc.elements
+      else
+        List.find_mapi
+          (fun i elem -> if i = elem_id - 1 then Some elem else None)
+          doc.elements
   | None -> None
 
 let element_with_id_opt (element_id : int) (doc : t) : annotatedASTNode option =
