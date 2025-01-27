@@ -12,10 +12,12 @@ test:
 PREFIX := $(HOME)/.local
 
 install:
+	cp ./_opam/bin/fcc vendor/fcc
 	dune install --prefix="$(PREFIX)"
 
 uninstall:
 	dune uninstall --prefix="$(PREFIX)"
+	rm vendor/fcc
 
 clean:
 	dune clean
