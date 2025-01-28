@@ -32,11 +32,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         match new_proof_res with
         | Ok new_proof -> (
             match Coq_document.replace_proof new_proof doc_acc with
-            | Ok new_doc ->
-                print_endline "replaced successfully";
-                (* List.iter (fun node -> print_endline node.repr) new_doc.elements; *)
-                print_endline "-------------------------------";
-                new_doc
+            | Ok new_doc -> new_doc
             | Error _ -> doc_acc)
         | Error _ -> doc_acc)
       parsed_document proof_trees

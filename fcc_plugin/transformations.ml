@@ -51,7 +51,7 @@ let add_bullets (proof_tree : annotatedASTNode nary_tree) : Ditto.Proof.proof =
     (* each bullet need a different id *)
   in
   let res = aux 0 proof_tree in
-  { proposition = List.hd res; proof_steps = List.tl res }
+  { proposition = List.hd res; proof_steps = List.tl res; status = Proved }
 
 let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
     (Ditto.Proof.proof, string) result =
@@ -89,7 +89,7 @@ let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
       let tail_tree = List.hd (bottom_n 2 proof_tree) in
       let list = aux state.st 1 tail_tree in
       let list_head_tail = flatten head_tree @ list in
-      Ok (Proof.proof_from_nodes list_head_tail)
+      Proof.proof_from_nodes list_head_tail
   | _ -> Error "can't create an initial state for the proof "
 
 let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
@@ -140,7 +140,7 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
       (1, [], false) proof_tree
   in
   match res with
-  | Ok (goals, steps, _) -> Ok (Proof.proof_from_nodes (List.rev steps))
+  | Ok (goals, steps, _) -> Proof.proof_from_nodes (List.rev steps)
   | Error err -> Error err
 
 let pp_goal (goal : string Coq.Goals.Reified_goal.t) : unit =
@@ -254,7 +254,7 @@ let fold_replace_assumption_with_apply (doc : Doc.t)
       [] proof_tree
   in
   match res with
-  | Ok steps -> Ok (Proof.proof_from_nodes (List.rev steps))
+  | Ok steps -> Proof.proof_from_nodes (List.rev steps)
   | Error err -> Error err
 
 let can_reduce_to_zero_goals (doc : Doc.t) (init_state : Petanque.Agent.State.t)
@@ -297,7 +297,7 @@ let remove_empty_lines (proof : proof) : proof =
           (first_node, [], 0) nodes
       in
       let _, res_func, _ = res in
-      proof_from_nodes (List.rev res_func)
+      Result.get_ok (proof_from_nodes (List.rev res_func))
   | None -> proof
 
 let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
@@ -321,7 +321,8 @@ let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
   | Some (Ok state) ->
       let proof =
         remove_empty_lines
-          (proof_from_nodes (List.rev (aux state.st [] (proof_nodes proof))))
+          (Result.get_ok
+             (proof_from_nodes (List.rev (aux state.st [] (proof_nodes proof)))))
       in
 
       Ok proof

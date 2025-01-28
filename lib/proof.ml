@@ -4,9 +4,12 @@ open Annotated_ast_node
 open Vernacexpr
 open Proof_tree
 
+type proof_status = Admitted | Proved | Aborted
+
 type proof = {
   proposition : annotatedASTNode;
   proof_steps : annotatedASTNode list;
+  status : proof_status;
 }
 (* proposition can also be a type, better name ? *)
 
@@ -19,6 +22,18 @@ let get_names (node : annotatedASTNode) : string list =
           match info.name.v with None -> [] | Some s -> [ s ])
         infos
   | None -> []
+
+let proof_status_from_last_node (node : annotatedASTNode) :
+    (proof_status, string) result =
+  match (Coq.Ast.to_coq node.ast.v).CAst.v.expr with
+  | VernacSynterp _ -> Error "not a valid closing node"
+  | VernacSynPure expr -> (
+      match expr with
+      | Vernacexpr.VernacEndProof proof_end -> (
+          match proof_end with Admitted -> Ok Admitted | Proved _ -> Ok Proved)
+      | Vernacexpr.VernacAbort -> Ok Aborted
+      | Vernacexpr.VernacAbortAll -> Ok Aborted
+      | _ -> Error "not a valid closing node")
 
 let get_proof_name (p : proof) : string option =
   List.nth_opt (get_names p.proposition) 0
@@ -167,7 +182,14 @@ let rec proof_tree_to_node_list (Node (value, children)) : annotatedASTNode list
 
 let tree_to_proof (tree : annotatedASTNode nary_tree) : proof =
   let nodes = proof_tree_to_node_list tree in
-  { proposition = List.hd nodes; proof_steps = List.tl nodes }
+  let last_node_status =
+    List.hd (List.rev nodes) |> proof_status_from_last_node
+  in
+  {
+    proposition = List.hd nodes;
+    proof_steps = List.tl nodes;
+    status = Result.get_ok last_node_status;
+  }
 
 let previous_steps_from_tree (node : annotatedASTNode)
     (tree : annotatedASTNode nary_tree) =
@@ -191,8 +213,17 @@ let last_offset (p : proof) : int =
 let proof_nodes (p : proof) : annotatedASTNode list =
   p.proposition :: p.proof_steps
 
-let proof_from_nodes (nodes : annotatedASTNode list) : proof =
-  { proposition = List.hd nodes; proof_steps = List.tl nodes }
+let proof_from_nodes (nodes : annotatedASTNode list) : (proof, string) result =
+  if List.length nodes < 3 then
+    Error "Not enough elements to create a proof from the nodes ."
+  else
+    let last_node_status =
+      List.hd (List.rev nodes) |> proof_status_from_last_node
+    in
+    match last_node_status with
+    | Ok status ->
+        Ok { proposition = List.hd nodes; proof_steps = List.tl nodes; status }
+    | Error err -> Error err
 
 let get_current_goal (token : Coq.Limits.Token.t) (state : Agent.State.t) :
     (string Coq.Goals.Reified_goal.t, string) result =

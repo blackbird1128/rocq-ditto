@@ -27,14 +27,21 @@ let get_proofs (doc : t) : proof list =
                   { proof with proof_steps = elem :: proof.proof_steps }
                   map_acc
             | None ->
-                (IntMap.add id { proposition = elem; proof_steps = [] }) map_acc
-            )
+                (IntMap.add id
+                   { proposition = elem; proof_steps = []; status = Proved })
+                  map_acc)
         | None -> map_acc)
       map_acc doc.elements
   in
   let proofs_rev = snd (List.split (IntMap.to_list map_proofs)) in
-  List.map
-    (fun proof -> { proof with proof_steps = List.rev proof.proof_steps })
+  List.filter_map
+    (fun proof ->
+      let last_step = List.hd proof.proof_steps in
+      let proof_status = Proof.proof_status_from_last_node last_step in
+      match proof_status with
+      | Ok status ->
+          Some { proof with proof_steps = List.rev proof.proof_steps; status }
+      | Error err -> None)
     proofs_rev
 
 let node_representation (node : Doc.Node.t) (document : string) : string =
@@ -70,10 +77,11 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     | [] -> (
         match proof_state with
         | ProofOpened ->
+            print_endline "no more nodes, what ?? ";
             raise (Invalid_argument "proof started but ended at document end")
         | NoProof -> List.rev document)
     | span :: rest -> (
-        let annotated_span =
+        let annotated_span : annotatedASTNode =
           {
             ast = Option.get span.ast;
             range = span.range;
@@ -82,18 +90,24 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
             proof_id = None;
           }
         in
-        if is_doc_node_ast_proof_start annotated_span then
+        print_endline ("parsing " ^ annotated_span.repr);
+        if is_doc_node_ast_proof_start annotated_span then (
+          print_endline (annotated_span.repr ^ "can open a proof ");
           let cur_id = Option.default 0 proof_id in
+          print_endline ("proof id" ^ string_of_int cur_id);
+
           let span_with_id = { annotated_span with proof_id = Some cur_id } in
-          aux rest ProofOpened proof_id (span_with_id :: document)
-        else if is_doc_node_ast_proof_end annotated_span then
+          print_endline "opening a proof ! ";
+          aux rest ProofOpened proof_id (span_with_id :: document))
+        else if node_can_close_proof annotated_span then (
+          print_endline (annotated_span.repr ^ "can close a proof");
           let cur_id = Option.default 0 proof_id in
           let span_with_id = { annotated_span with proof_id = Some cur_id } in
 
           match proof_state with
           | ProofOpened ->
               aux rest NoProof (Some (cur_id + 1)) (span_with_id :: document)
-          | NoProof -> raise (Invalid_argument "proof ended but never started")
+          | NoProof -> raise (Invalid_argument "proof ended but never started"))
         else
           match proof_state with
           | ProofOpened ->

@@ -3,9 +3,12 @@ open Petanque
 open Annotated_ast_node
 open Proof_tree
 
+type proof_status = Admitted | Proved | Aborted
+
 type proof = {
   proposition : annotatedASTNode;
   proof_steps : annotatedASTNode list;
+  status : proof_status;
 }
 (** Represents a proof in a Coq document. [proof] contains the initial
     proposition and a list of proof steps. *)
@@ -21,6 +24,9 @@ val get_proof_name : proof -> string option
     with a name, otherwise it returns [None]. *)
 
 (* val get_tactics : proof -> string list *)
+
+val proof_status_from_last_node :
+  annotatedASTNode -> (proof_status, string) result
 
 val get_proof_state :
   Agent.State.t Agent.Run_result.t Agent.R.t -> Agent.State.t
@@ -81,11 +87,12 @@ val proof_nodes : proof -> annotatedASTNode list
 (** Extracts the nodes from a proof. [proof_nodes p] returns a list containing
     the proposition of the proof [p] followed by its proof steps. *)
 
-val proof_from_nodes : annotatedASTNode list -> proof
+val proof_from_nodes : annotatedASTNode list -> (proof, string) result
 (** Create a proof from a list of annotated AST nodes. [proof_from_nodes nodes]
     takes a list of nodes and returns a proof where the first node in the list
-    is used as the proposition, and the remaining nodes are the proof steps.
-    Assumes that the list is non-empty. *)
+    is used as the proposition, and the remaining nodes are the proof steps. If
+    the list made of less than three nodes or the last node isn't a valid proof
+    end, return an error. *)
 (* TODO fix to return an error if the list is empty *)
 
 val get_hypothesis_names : string Coq.Goals.Reified_goal.t -> string list
