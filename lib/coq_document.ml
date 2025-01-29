@@ -7,6 +7,7 @@ type proofState = NoProof | ProofOpened
 type t = {
   filename : string;
   elements : annotatedASTNode list;
+  comments : (string * Lang.Range.t) list;
   document_repr : string;
 }
 
@@ -54,6 +55,8 @@ let doc_to_yojson (doc : t) : Yojson.Safe.t =
       ("filename", `String doc.filename);
       ("elements", `List (List.map Annotated_ast_node.to_yojson doc.elements));
       ("document_repr", `String doc.document_repr);
+      ("comments", `List []);
+      (*don't treat comments for now, i'm too tired for this *)
     ]
 
 let doc_of_yojson (json : Yojson.Safe.t) : t =
@@ -64,20 +67,55 @@ let doc_of_yojson (json : Yojson.Safe.t) : t =
     elements =
       json |> member "elements" |> to_list
       |> List.map Annotated_ast_node.of_yojson;
+    comments = [];
+    (* forget about comments for now *)
   }
+
+let get_line_col_positions text pos : Lang.Point.t =
+  let rec aux line col index =
+    if index = pos then (line, col, index)
+    else if index >= String.length text then (line, col, index)
+    else if text.[index] = '\n' then aux (line + 1) 0 (index + 1)
+    else aux line (col + 1) (index + 1)
+  in
+  let line, character, offset = aux 0 0 0 in
+  (* Start from line 0, column 0, character 0 *)
+  { line; character; offset }
+
+let matches_with_line_col content pattern : (string * Lang.Range.t) list =
+  let re =
+    Re.Perl.compile_pat
+      ~opts:[ Re.Perl.(`Multiline); Re.Perl.(`Dotall); Re.Perl.(`Ungreedy) ]
+      pattern
+  in
+  let matches =
+    Re.all re content
+    |> List.map (fun g ->
+           let start_pos = Re.Group.start g 0 in
+           let end_pos = Re.Group.stop g 0 in
+           let start_point = get_line_col_positions content start_pos in
+           let end_point = get_line_col_positions content end_pos in
+           let range : Lang.Range.t =
+             { start = start_point; end_ = end_point }
+           in
+           (Re.Group.get g 0, range))
+  in
+  matches
 
 let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     (filename : string) : t =
   let nodes_with_ast =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
+  let comments = matches_with_line_col document_repr "\\(\\*.*\\*\\)$" in
+  List.iter (fun comment -> print_endline (fst comment)) comments;
+  print_endline "*********************";
   let rec aux (spans : Doc.Node.t list) (proof_state : proofState)
       (proof_id : int option) document =
     match spans with
     | [] -> (
         match proof_state with
         | ProofOpened ->
-            print_endline "no more nodes, what ?? ";
             raise (Invalid_argument "proof started but ended at document end")
         | NoProof -> List.rev document)
     | span :: rest -> (
@@ -121,23 +159,42 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     (* Skip spans not part of any proof *)
   in
 
-  { elements = aux nodes_with_ast NoProof None []; document_repr; filename }
+  {
+    elements = aux nodes_with_ast NoProof None [];
+    document_repr;
+    filename;
+    comments;
+  }
 
 let rec dump_to_string (doc : t) : string =
-  let rec aux (annotated_nodes : annotatedASTNode list) (doc_repr : string)
+  let rec aux (repr_nodes : (string * Lang.Range.t) list) (doc_repr : string)
       (previous_line : int) =
-    match annotated_nodes with
+    match repr_nodes with
     | [] -> doc_repr
     | node :: tail ->
+        let node_repr, node_range = node in
+        print_endline ("treating node : " ^ node_repr);
         let repr =
           doc_repr
-          ^ String.make (node.range.start.line - previous_line) '\n'
-          ^ String.make node.range.start.character ' '
-          ^ node.repr
+          ^ String.make (node_range.start.line - previous_line) '\n'
+          ^ String.make node_range.start.character ' '
+          ^ node_repr
         in
-        aux tail repr node.range.end_.line
+        aux tail repr node_range.end_.line
   in
-  aux doc.elements "" 0
+  let ast_nodes_repr =
+    List.map (fun elem -> (elem.repr, elem.range)) doc.elements
+  in
+  let all_nodes = ast_nodes_repr @ doc.comments in
+  let sorted_nodes =
+    List.sort
+      (fun (node_a : string * Lang.Range.t) (node_b : string * Lang.Range.t) ->
+        let node_a_range = snd node_a in
+        let node_b_range = snd node_b in
+        node_a_range.start.line - node_b_range.start.line)
+      all_nodes
+  in
+  aux sorted_nodes "" 0
 
 let element_before_id_opt (target_id : int) (doc : t) : annotatedASTNode option
     =
