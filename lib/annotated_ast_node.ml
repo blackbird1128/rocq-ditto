@@ -145,6 +145,16 @@ let is_doc_node_ast_proof_command (x : annotatedASTNode) : bool =
   | VernacSynPure expr -> (
       match expr with Vernacexpr.VernacProof _ -> true | _ -> false)
 
+let is_doc_node_goal_start (x : annotatedASTNode) : bool =
+  match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
+  | VernacSynterp _ -> false
+  | VernacSynPure expr -> (
+      match expr with
+      | Vernacexpr.VernacDefinition
+          ((discharge, object_kind), name_decl, definition_expr) -> (
+          match definition_expr with ProveBody _ -> true | _ -> false)
+      | _ -> false)
+
 let is_doc_node_ast_proof_start (x : annotatedASTNode) : bool =
   match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
   | VernacSynterp _ -> false
@@ -169,6 +179,9 @@ let is_doc_node_ast_proof_abort (x : annotatedASTNode) : bool =
           true
           (*not sure what is the fundamental difference between abort and abort all *)
       | _ -> false)
+
+let node_can_open_proof (x : annotatedASTNode) : bool =
+  is_doc_node_ast_proof_start x || is_doc_node_goal_start x
 
 let node_can_close_proof (x : annotatedASTNode) : bool =
   is_doc_node_ast_proof_abort x || is_doc_node_ast_proof_end x

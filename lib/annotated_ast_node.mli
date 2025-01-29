@@ -59,4 +59,5 @@ val is_doc_node_ast_proof_end : annotatedASTNode -> bool
 val is_doc_node_ast_proof_command : annotatedASTNode -> bool
 val is_doc_node_proof_intro_or_end : annotatedASTNode -> bool
 val is_doc_node_ast_proof_abort : annotatedASTNode -> bool
+val node_can_open_proof : annotatedASTNode -> bool
 val node_can_close_proof : annotatedASTNode -> bool

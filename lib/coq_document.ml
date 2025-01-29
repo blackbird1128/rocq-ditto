@@ -91,7 +91,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           }
         in
         print_endline ("parsing " ^ annotated_span.repr);
-        if is_doc_node_ast_proof_start annotated_span then (
+        if node_can_open_proof annotated_span then (
           print_endline (annotated_span.repr ^ "can open a proof ");
           let cur_id = Option.default 0 proof_id in
           print_endline ("proof id" ^ string_of_int cur_id);
