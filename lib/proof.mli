@@ -65,12 +65,13 @@ val proof_steps_with_goalcount :
     after applying that step to the state. If [steps] is empty, it returns an
     empty list. *)
 
-val treeify_proof : Doc.t -> proof -> annotatedASTNode nary_tree
+val treeify_proof :
+  Doc.t -> proof -> (annotatedASTNode nary_tree, string) result
 (** Transform a proof into an n-ary tree representation. [treeify_proof doc p]
     takes a document [doc] and a proof [p], returning an
-    [annotatedASTNode nary_tree] that represents the structure of the proof
-    steps branch split are created when the number of goal stop increasing, and
-    match each goals. *)
+    [(annotatedASTNode nary_tree,string)] that represents the structure of the
+    proof or a string containing the reason of the error. steps branch split are
+    created when the number of goal stop increasing, and match each goals. *)
 
 val tree_to_proof : annotatedASTNode nary_tree -> proof
 (** Convert an annotated AST node n-ary tree to a proof. [tree_to_proof tree]

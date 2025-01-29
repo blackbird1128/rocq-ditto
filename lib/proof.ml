@@ -161,20 +161,26 @@ let get_init_state (doc : Doc.t) (p : proof) :
       Some (Agent.start ~token ~doc ~thm:name ())
   | None -> None
 
-let treeify_proof (doc : Doc.t) (p : proof) : annotatedASTNode nary_tree =
+let treeify_proof (doc : Doc.t) (p : proof) :
+    (annotatedASTNode nary_tree, string) result =
   let token = Coq.Limits.Token.create () in
-  let init_state = Option.get (get_init_state doc p) in
-  let proof_state = get_proof_state init_state in
-  let steps_with_goals =
-    proof_steps_with_goalcount token proof_state p.proof_steps
-  in
 
-  let parents = Hashtbl.create (List.length steps_with_goals) in
+  match get_init_state doc p with
+  | Some init_state ->
+      let init_state = Option.get (get_init_state doc p) in
+      let proof_state = get_proof_state init_state in
+      let steps_with_goals =
+        proof_steps_with_goalcount token proof_state p.proof_steps
+      in
 
-  let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
-  Node
-    ( p.proposition,
-      [ proof_tree_from_parents (0, List.hd p.proof_steps) parents ] )
+      let parents = Hashtbl.create (List.length steps_with_goals) in
+
+      let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
+      Ok
+        (Node
+           ( p.proposition,
+             [ proof_tree_from_parents (0, List.hd p.proof_steps) parents ] ))
+  | None -> Error "Unable to retrieve initial state"
 
 let rec proof_tree_to_node_list (Node (value, children)) : annotatedASTNode list
     =

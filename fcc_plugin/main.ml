@@ -18,11 +18,14 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
   let proofs = Coq_document.get_proofs parsed_document in
 
-  let proof_trees = List.map (Proof.treeify_proof doc) proofs in
+  let proof_trees =
+    List.filter_map
+      (fun proof -> Result.to_option (Proof.treeify_proof doc proof))
+      proofs
+  in
 
-  let first_proof_tree = List.nth proof_trees 0 in
-  print_tree first_proof_tree " ";
-
+  (* let first_proof_tree = List.nth proof_trees 0 in *)
+  (* print_tree first_proof_tree " "; *)
   let modifed_doc =
     List.fold_left
       (fun doc_acc proof ->
