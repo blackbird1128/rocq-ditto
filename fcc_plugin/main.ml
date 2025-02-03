@@ -5,44 +5,87 @@ open Ditto.Proof
 open Ditto.Annotated_ast_node
 open Vernacexpr
 
+let error_location_to_string (location : Lang.Range.t) =
+  if location.start.line = location.end_.line then
+    "line "
+    ^ string_of_int location.start.line
+    ^ ", characters: "
+    ^ string_of_int location.start.character
+    ^ "-"
+    ^ string_of_int location.end_.character
+  else
+    "line "
+    ^ string_of_int location.start.line
+    ^ "-"
+    ^ string_of_int location.end_.line
+    ^ ", characters: "
+    ^ string_of_int location.start.character
+    ^ "-"
+    ^ string_of_int location.end_.character
+
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
-  let document_text = doc.contents.raw in
-  let lvl = Io.Level.Info in
-  Io.Report.msg ~io ~lvl "[ast plugin] dumping ast for %s ..." uri_str;
-  let nodes = doc.nodes in
-  let parsed_document =
-    Coq_document.parse_document nodes document_text uri_str
-  in
+  match doc.completed with
+  | Doc.Completion.Yes _ ->
+      let nodes = doc.nodes in
+      let document_text = doc.contents.raw in
 
-  let proofs = Coq_document.get_proofs parsed_document in
+      let parsed_document =
+        Coq_document.parse_document nodes document_text uri_str
+      in
 
-  let proof_trees =
-    List.filter_map
-      (fun proof -> Result.to_option (Proof.treeify_proof doc proof))
-      proofs
-  in
+      let proofs = Coq_document.get_proofs parsed_document in
 
-  (* let first_proof_tree = List.nth proof_trees 0 in *)
-  (* print_tree first_proof_tree " "; *)
-  let modifed_doc =
-    List.fold_left
-      (fun doc_acc proof ->
-        let new_proof_res =
-          Transformations.fold_replace_assumption_with_apply doc proof
-        in
-        match new_proof_res with
-        | Ok new_proof -> (
-            match Coq_document.replace_proof new_proof doc_acc with
-            | Ok new_doc -> new_doc
+      let proof_trees =
+        List.filter_map
+          (fun proof -> Result.to_option (Proof.treeify_proof doc proof))
+          proofs
+      in
+
+      (* let first_proof = List.hd proofs in *)
+      (* let first_proof_name = List.hd (Proof.get_names first_proof.proposition) in *)
+      (* let init = Proof.get_init_state doc first_proof in *)
+      (* let init_state = Proof.get_proof_state (Option.get init) in *)
+      (* Petanque.Agent.(()) *)
+      let first_proof_tree = List.nth proof_trees 0 in
+      print_tree first_proof_tree " ";
+      let modified_doc =
+        List.fold_left
+          (fun doc_acc proof ->
+            let new_proof_res =
+              Transformations.fold_replace_assumption_with_apply doc proof
+            in
+            match new_proof_res with
+            | Ok new_proof -> (
+                match Coq_document.replace_proof new_proof doc_acc with
+                | Ok new_doc -> new_doc
+                | Error _ -> doc_acc)
             | Error _ -> doc_acc)
-        | Error _ -> doc_acc)
-      parsed_document proof_trees
-  in
+          parsed_document proof_trees
+      in
+      print_endline Fleche.Version.server;
+      let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
+      output_string out (Coq_document.dump_to_string parsed_document);
+      ()
+  | Doc.Completion.Stopped range ->
+      print_endline ("parsing stopped at : " ^ Lang.Range.to_string range)
+  | Doc.Completion.Failed range ->
+      print_endline ("parsing of " ^ uri_str ^ " failed");
+      print_endline "parsing failed at : ";
+      flush stderr;
+      let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
+      let first_errors = List.take 3 diags in
 
-  let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-  output_string out (Coq_document.dump_to_string modifed_doc)
+      List.iter
+        (fun (diag : Lang.Diagnostic.t) ->
+          prerr_endline
+            (error_location_to_string diag.range
+            ^ " "
+            ^ Pp.string_of_ppcmds diag.message))
+        first_errors;
+
+      ()
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()
