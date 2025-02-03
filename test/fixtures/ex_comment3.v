@@ -1,5 +1,5 @@
 
-Theorem modus_ponens:  (*comments*)
+Theorem modus_ponens:
   forall A B: Prop, A /\ (A -> B) -> B.
 Proof. (* some other comments *)
   intros. (* a comment *)

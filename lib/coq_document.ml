@@ -55,8 +55,12 @@ let doc_to_yojson (doc : t) : Yojson.Safe.t =
       ("filename", `String doc.filename);
       ("elements", `List (List.map Annotated_ast_node.to_yojson doc.elements));
       ("document_repr", `String doc.document_repr);
-      ("comments", `List []);
-      (*don't treat comments for now, i'm too tired for this *)
+      ( "comments",
+        `List
+          (List.map
+             (fun comment ->
+               `Tuple [ `String (fst comment); range_to_yojson (snd comment) ])
+             doc.comments) );
     ]
 
 let doc_of_yojson (json : Yojson.Safe.t) : t =
@@ -67,8 +71,11 @@ let doc_of_yojson (json : Yojson.Safe.t) : t =
     elements =
       json |> member "elements" |> to_list
       |> List.map Annotated_ast_node.of_yojson;
-    comments = [];
-    (* forget about comments for now *)
+    comments =
+      json |> member "comments" |> to_list
+      |> List.map (fun elem ->
+             let l = to_list elem in
+             (to_string (List.nth l 0), range_of_yojson (List.nth l 1)));
   }
 
 let get_line_col_positions text pos : Lang.Point.t =
@@ -108,8 +115,6 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
   let comments = matches_with_line_col document_repr "\\(\\*.*\\*\\)$" in
-  List.iter (fun comment -> print_endline (fst comment)) comments;
-  print_endline "*********************";
   let rec aux (spans : Doc.Node.t list) (proof_state : proofState)
       (proof_id : int option) document =
     match spans with
@@ -166,21 +171,46 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     comments;
   }
 
+let compare_range (a : Lang.Range.t) (b : Lang.Range.t) : int =
+  let comp = compare a.start.offset b.start.offset in
+  if comp = 0 then compare a.end_.offset b.start.offset else comp
+
 let rec dump_to_string (doc : t) : string =
   let rec aux (repr_nodes : (string * Lang.Range.t) list) (doc_repr : string)
-      (previous_line : int) =
+      (previous_node : string * Lang.Range.t) =
     match repr_nodes with
     | [] -> doc_repr
     | node :: tail ->
+        let previous_node_rep, previous_node_range = previous_node in
         let node_repr, node_range = node in
         print_endline ("treating node : " ^ node_repr);
         let repr =
-          doc_repr
-          ^ String.make (node_range.start.line - previous_line) '\n'
-          ^ String.make node_range.start.character ' '
-          ^ node_repr
+          if previous_node_range = node_range then
+            (* treating the first node as a special case to deal with eventual empty lines before *)
+            doc_repr
+            ^ String.make node_range.start.line '\n'
+            ^ String.make node_range.start.character ' '
+            ^ node_repr
+          else if node_range.start.line = previous_node_range.end_.line then (
+            print_endline "stuff";
+            doc_repr
+            ^ String.make
+                (node_range.start.line - previous_node_range.end_.line)
+                '\n'
+            ^ String.make
+                (node_range.start.character - previous_node_range.end_.character)
+                ' '
+            ^ node_repr)
+          else
+            doc_repr
+            ^ String.make
+                (max 0 (node_range.start.line - previous_node_range.end_.line))
+                '\n'
+            ^ String.make node_range.start.character ' '
+            ^ node_repr
         in
-        aux tail repr node_range.end_.line
+        print_endline "got repr";
+        aux tail repr node
   in
   let ast_nodes_repr =
     List.map (fun elem -> (elem.repr, elem.range)) doc.elements
@@ -188,13 +218,10 @@ let rec dump_to_string (doc : t) : string =
   let all_nodes = ast_nodes_repr @ doc.comments in
   let sorted_nodes =
     List.sort
-      (fun (node_a : string * Lang.Range.t) (node_b : string * Lang.Range.t) ->
-        let node_a_range = snd node_a in
-        let node_b_range = snd node_b in
-        node_a_range.start.line - node_b_range.start.line)
+      (fun node_a node_b -> compare_range (snd node_a) (snd node_b))
       all_nodes
   in
-  aux sorted_nodes "" 0
+  aux sorted_nodes "" (List.hd sorted_nodes)
 
 let element_before_id_opt (target_id : int) (doc : t) : annotatedASTNode option
     =

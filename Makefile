@@ -2,8 +2,7 @@
 all:
 	dune build lib --profile=release
 	dune build fcc_plugin --profile=release 
-	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_goal1.v
-
+	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_comment3.v
 
 test:
 	dune build lib --profile=release
@@ -24,7 +23,7 @@ uninstall:
 dump-json:
 	dune build lib --profile=release
 	dune build test/json_dump/ --profile=release 
-	dune exec fcc -- --plugin=dump-json-plugin ./test/fixtures/ex_goal1.v
+	dune exec fcc -- --plugin=dump-json-plugin ./test/fixtures/ex_comment3.v
 
 clean:
 	dune clean 
