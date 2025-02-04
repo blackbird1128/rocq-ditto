@@ -171,9 +171,36 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     comments;
   }
 
-let compare_range (a : Lang.Range.t) (b : Lang.Range.t) : int =
+let compare_nodes (a : string * Lang.Range.t) (b : string * Lang.Range.t) : int
+    =
+  let a = snd a in
+  let b = snd b in
   let comp = compare a.start.offset b.start.offset in
-  if comp = 0 then compare a.end_.offset b.start.offset else comp
+  if comp = 0 then compare a.end_.offset b.end_.offset else comp
+
+let second_node_included_in (a : string * Lang.Range.t)
+    (b : string * Lang.Range.t) : bool =
+  let a = snd a in
+  let b = snd b in
+  if a.start.offset < b.start.offset then
+    if b.start.offset < a.end_.offset && b.end_.offset < a.end_.offset then true
+    else false
+  else false
+
+let merge_nodes (nodes : (string * Lang.Range.t) list) :
+    (string * Lang.Range.t) list =
+  let rec merge_aux (acc : (string * Lang.Range.t) list)
+      (nodes : (string * Lang.Range.t) list) =
+    match nodes with
+    | [] -> List.rev acc
+    | curr_node :: rest -> (
+        match acc with
+        | acc_node :: acc_tail when second_node_included_in acc_node curr_node
+          ->
+            merge_aux acc rest
+        | _ -> merge_aux (curr_node :: acc) rest)
+  in
+  merge_aux [] nodes
 
 let rec dump_to_string (doc : t) : string =
   let rec aux (repr_nodes : (string * Lang.Range.t) list) (doc_repr : string)
@@ -216,12 +243,9 @@ let rec dump_to_string (doc : t) : string =
     List.map (fun elem -> (elem.repr, elem.range)) doc.elements
   in
   let all_nodes = ast_nodes_repr @ doc.comments in
-  let sorted_nodes =
-    List.sort
-      (fun node_a node_b -> compare_range (snd node_a) (snd node_b))
-      all_nodes
-  in
-  aux sorted_nodes "" (List.hd sorted_nodes)
+  let sorted_nodes = List.sort compare_nodes all_nodes in
+  let merged_nodes = merge_nodes sorted_nodes in
+  aux merged_nodes "" (List.hd merged_nodes)
 
 let element_before_id_opt (target_id : int) (doc : t) : annotatedASTNode option
     =
