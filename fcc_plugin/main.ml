@@ -75,7 +75,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       print_endline "parsing failed at : ";
       flush stderr;
       let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
-      let first_errors = List.take 3 diags in
+      let first_errors = List.filteri (fun i a -> i < 3) diags in
 
       List.iter
         (fun (diag : Lang.Diagnostic.t) ->

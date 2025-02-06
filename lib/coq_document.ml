@@ -126,7 +126,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     | span :: rest -> (
         let annotated_span : annotatedASTNode =
           {
-            ast = Option.get span.ast;
+            ast = span.ast;
             range = span.range;
             repr = node_representation span document_repr;
             id = Unique_id.next ();

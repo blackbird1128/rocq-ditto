@@ -1,7 +1,7 @@
 open Fleche
 
 type annotatedASTNode = {
-  ast : Doc.Node.Ast.t;
+  ast : Doc.Node.Ast.t option;
   range : Lang.Range.t;
   repr : string;
   id : int;
@@ -31,7 +31,7 @@ let ast_node_of_string (code : string) (range : Lang.Range.t) :
       in
       Ok
         {
-          ast = node_ast;
+          ast = Some node_ast;
           range;
           id = Unique_id.next ();
           repr = code;
@@ -43,7 +43,7 @@ let ast_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) :
     annotatedASTNode =
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
   {
-    ast = node_ast;
+    ast = Some node_ast;
     range;
     id = Unique_id.next ();
     repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds;
@@ -98,7 +98,9 @@ let range_of_yojson (json : Yojson.Safe.t) : Lang.Range.t =
 let to_yojson (node : annotatedASTNode) : Yojson.Safe.t =
   `Assoc
     [
-      ("ast", ast_node_to_yojson node.ast);
+      ( "ast",
+        match node.ast with Some ast -> ast_node_to_yojson ast | None -> `Null
+      );
       ("range", range_to_yojson node.range);
       ("repr", `String node.repr);
       ("id", `Int node.id);
@@ -108,7 +110,7 @@ let to_yojson (node : annotatedASTNode) : Yojson.Safe.t =
 let of_yojson (json : Yojson.Safe.t) : annotatedASTNode =
   let open Yojson.Safe.Util in
   {
-    ast = json |> member "ast" |> ast_node_of_yojson;
+    ast = json |> member "ast" |> to_option ast_node_of_yojson;
     range = json |> member "range" |> range_of_yojson;
     repr = json |> member "repr" |> to_string;
     id = json |> member "id" |> to_int;
@@ -131,54 +133,72 @@ let shift_node (n_line : int) (n_char : int) (x : annotatedASTNode) :
   { x with range = shift_range n_line n_char x.range }
 
 let is_doc_node_ast_tactic (x : annotatedASTNode) : bool =
-  match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
-  | VernacSynterp synterp_expr -> (
-      match synterp_expr with
-      | VernacExtend (ext, _) ->
-          if ext.ext_plugin = "coq-core.plugins.ltac" then true else false
-      | _ -> false)
-  | VernacSynPure _ -> false
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp synterp_expr -> (
+          match synterp_expr with
+          | VernacExtend (ext, _) ->
+              if ext.ext_plugin = "coq-core.plugins.ltac" then true else false
+          | _ -> false)
+      | VernacSynPure _ -> false)
+  | None -> false
 
 let is_doc_node_ast_proof_command (x : annotatedASTNode) : bool =
-  match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
-  | VernacSynterp _ -> false
-  | VernacSynPure expr -> (
-      match expr with Vernacexpr.VernacProof _ -> true | _ -> false)
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with Vernacexpr.VernacProof _ -> true | _ -> false))
+  | None -> false
 
 let is_doc_node_goal_start (x : annotatedASTNode) : bool =
-  match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
-  | VernacSynterp _ -> false
-  | VernacSynPure expr -> (
-      match expr with
-      | Vernacexpr.VernacDefinition
-          ((discharge, object_kind), name_decl, definition_expr) -> (
-          match definition_expr with ProveBody _ -> true | _ -> false)
-      | _ -> false)
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with
+          | Vernacexpr.VernacDefinition
+              ((discharge, object_kind), name_decl, definition_expr) -> (
+              match definition_expr with ProveBody _ -> true | _ -> false)
+          | _ -> false))
+  | None -> false
 
 let is_doc_node_ast_proof_start (x : annotatedASTNode) : bool =
-  match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
-  | VernacSynterp _ -> false
-  | VernacSynPure expr -> (
-      match expr with
-      | Vernacexpr.VernacStartTheoremProof _ -> true
-      | _ -> false)
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with
+          | Vernacexpr.VernacStartTheoremProof _ -> true
+          | _ -> false))
+  | None -> false
 
 let is_doc_node_ast_proof_end (x : annotatedASTNode) : bool =
-  match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
-  | VernacSynterp _ -> false
-  | VernacSynPure expr -> (
-      match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false)
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false))
+  | None -> false
 
 let is_doc_node_ast_proof_abort (x : annotatedASTNode) : bool =
-  match (Coq.Ast.to_coq x.ast.v).CAst.v.expr with
-  | VernacSynterp _ -> false
-  | VernacSynPure expr -> (
-      match expr with
-      | Vernacexpr.VernacAbort -> true
-      | Vernacexpr.VernacAbortAll ->
-          true
-          (*not sure what is the fundamental difference between abort and abort all *)
-      | _ -> false)
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with
+          | Vernacexpr.VernacAbort -> true
+          | Vernacexpr.VernacAbortAll ->
+              true
+              (*not sure what is the fundamental difference between abort and abort all *)
+          | _ -> false))
+  | None -> false
 
 let node_can_open_proof (x : annotatedASTNode) : bool =
   is_doc_node_ast_proof_start x || is_doc_node_goal_start x

@@ -1,7 +1,7 @@
 open Fleche
 
 type annotatedASTNode = {
-  ast : Doc.Node.Ast.t;
+  ast : Doc.Node.Ast.t option;
   range : Lang.Range.t;
   repr : string;
   id : int;

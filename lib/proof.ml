@@ -15,25 +15,33 @@ type proof = {
 
 (* A node can have multiple names (ie mutual recursive defs) *)
 let get_names (node : annotatedASTNode) : string list =
-  match node.ast.ast_info with
-  | Some infos ->
-      List.concat_map
-        (fun (info : Lang.Ast.Info.t) ->
-          match info.name.v with None -> [] | Some s -> [ s ])
-        infos
+  match node.ast with
+  | Some ast -> (
+      match ast.ast_info with
+      | Some infos ->
+          List.concat_map
+            (fun (info : Lang.Ast.Info.t) ->
+              match info.name.v with None -> [] | Some s -> [ s ])
+            infos
+      | None -> [])
   | None -> []
 
 let proof_status_from_last_node (node : annotatedASTNode) :
     (proof_status, string) result =
-  match (Coq.Ast.to_coq node.ast.v).CAst.v.expr with
-  | VernacSynterp _ -> Error "not a valid closing node"
-  | VernacSynPure expr -> (
-      match expr with
-      | Vernacexpr.VernacEndProof proof_end -> (
-          match proof_end with Admitted -> Ok Admitted | Proved _ -> Ok Proved)
-      | Vernacexpr.VernacAbort -> Ok Aborted
-      | Vernacexpr.VernacAbortAll -> Ok Aborted
-      | _ -> Error "not a valid closing node")
+  match node.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> Error "not a valid closing node"
+      | VernacSynPure expr -> (
+          match expr with
+          | Vernacexpr.VernacEndProof proof_end -> (
+              match proof_end with
+              | Admitted -> Ok Admitted
+              | Proved _ -> Ok Proved)
+          | Vernacexpr.VernacAbort -> Ok Aborted
+          | Vernacexpr.VernacAbortAll -> Ok Aborted
+          | _ -> Error "not a valid closing node"))
+  | None -> Error "not a valid closing node (no ast)"
 
 let get_proof_name (p : proof) : string option =
   List.nth_opt (get_names p.proposition) 0
@@ -44,12 +52,6 @@ let get_tree_name (Node (x, children)) : string option =
 let doc_node_to_string (d : Doc.Node.Ast.t) : string =
   let pp_expr = Ppvernac.pr_vernac_expr (Coq.Ast.to_coq d.v).CAst.v.expr in
   Pp.string_of_ppcmds pp_expr
-
-let proof_to_coq_script_string (p : proof) : string =
-  doc_node_to_string p.proposition.ast
-  ^ "\n"
-  ^ String.concat "\n"
-      (List.map (fun n -> doc_node_to_string n.ast) p.proof_steps)
 
 let get_proof_state (start_result : Agent.State.t Agent.Run_result.t Agent.R.t)
     : Agent.State.t =

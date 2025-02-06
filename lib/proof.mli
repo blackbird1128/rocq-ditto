@@ -16,8 +16,6 @@ type proof = {
 val get_names : annotatedASTNode -> string list
 (** A node can have multiple names (i.e., mutual recursive definitions) *)
 
-val proof_to_coq_script_string : proof -> string
-
 val get_proof_name : proof -> string option
 (** Retrieve the name of the proof's proposition if available.
     [get_proof_name p] returns [Some name] if the proof [p] has a proposition
