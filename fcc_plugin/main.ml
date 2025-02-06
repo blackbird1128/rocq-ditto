@@ -66,7 +66,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       in
       print_endline Fleche.Version.server;
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-      output_string out (Coq_document.dump_to_string parsed_document);
+      output_string out (Coq_document.dump_to_string modified_doc);
       ()
   | Doc.Completion.Stopped range ->
       print_endline ("parsing stopped at : " ^ Lang.Range.to_string range)

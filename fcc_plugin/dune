@@ -3,4 +3,9 @@
  (name ditto_plugin)
  (libraries coq-ditto coq-core.plugins.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche )
  )
- 
+
+
+(install
+ (package coq-ditto)
+ (files "../vendor/fcc")
+ (section bin))

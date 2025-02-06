@@ -11,16 +11,19 @@ test:
 	dune build fcc_plugin --profile=release
 	dune runtest --profile=release
 
-PREFIX := $(HOME)/.local
+PREFIX := $$HOME/.local
 
 install:
 	mkdir -p vendor/
 	rm -f vendor/fcc 
 	cp ./_opam/bin/fcc vendor/fcc
-	dune install --prefix="$(PREFIX)"
+	dune build lib --profile=release
+	dune build fcc_plugin --profile=release
+	dune build . @install --profile=release
+	dune install --prefix=$(PREFIX)
 
 uninstall:
-	dune uninstall --prefix="$(PREFIX)"
+	dune uninstall --prefix=$(PREFIX)
 	rm -f vendor/fcc
 
 dump-json:
