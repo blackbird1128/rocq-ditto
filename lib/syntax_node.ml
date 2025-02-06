@@ -1,6 +1,6 @@
 open Fleche
 
-type annotatedASTNode = {
+type syntaxNode = {
   ast : Doc.Node.Ast.t option;
   range : Lang.Range.t;
   repr : string;
@@ -22,7 +22,7 @@ let generate_ast code =
   f init_parser
 
 let ast_node_of_string (code : string) (range : Lang.Range.t) :
-    (annotatedASTNode, string) result =
+    (syntaxNode, string) result =
   match generate_ast code with
   | [] -> Error ("node node found in string " ^ code)
   | [ x ] ->
@@ -39,8 +39,7 @@ let ast_node_of_string (code : string) (range : Lang.Range.t) :
         }
   | _ -> Error ("more than one node found in string " ^ code)
 
-let ast_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) :
-    annotatedASTNode =
+let ast_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode =
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
   {
     ast = Some node_ast;
@@ -50,7 +49,7 @@ let ast_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) :
     proof_id = None;
   }
 
-let qed_ast_node (range : Lang.Range.t) : annotatedASTNode =
+let qed_ast_node (range : Lang.Range.t) : syntaxNode =
   Result.get_ok (ast_node_of_string "Qed." range)
 
 let ast_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
@@ -95,7 +94,7 @@ let range_of_yojson (json : Yojson.Safe.t) : Lang.Range.t =
     end_ = json |> member "end_" |> point_of_yojson;
   }
 
-let to_yojson (node : annotatedASTNode) : Yojson.Safe.t =
+let to_yojson (node : syntaxNode) : Yojson.Safe.t =
   `Assoc
     [
       ( "ast",
@@ -107,7 +106,7 @@ let to_yojson (node : annotatedASTNode) : Yojson.Safe.t =
       ("proof_id", match node.proof_id with Some id -> `Int id | None -> `Null);
     ]
 
-let of_yojson (json : Yojson.Safe.t) : annotatedASTNode =
+let of_yojson (json : Yojson.Safe.t) : syntaxNode =
   let open Yojson.Safe.Util in
   {
     ast = json |> member "ast" |> to_option ast_node_of_yojson;
@@ -128,11 +127,10 @@ let shift_range (n_line : int) (n_char : int) (x : Lang.Range.t) : Lang.Range.t
     end_ = shift_point n_line n_char x.end_;
   }
 
-let shift_node (n_line : int) (n_char : int) (x : annotatedASTNode) :
-    annotatedASTNode =
+let shift_node (n_line : int) (n_char : int) (x : syntaxNode) : syntaxNode =
   { x with range = shift_range n_line n_char x.range }
 
-let is_doc_node_ast_tactic (x : annotatedASTNode) : bool =
+let is_doc_node_ast_tactic (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -144,7 +142,7 @@ let is_doc_node_ast_tactic (x : annotatedASTNode) : bool =
       | VernacSynPure _ -> false)
   | None -> false
 
-let is_doc_node_ast_proof_command (x : annotatedASTNode) : bool =
+let is_doc_node_ast_proof_command (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -153,7 +151,7 @@ let is_doc_node_ast_proof_command (x : annotatedASTNode) : bool =
           match expr with Vernacexpr.VernacProof _ -> true | _ -> false))
   | None -> false
 
-let is_doc_node_goal_start (x : annotatedASTNode) : bool =
+let is_doc_node_goal_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -166,7 +164,7 @@ let is_doc_node_goal_start (x : annotatedASTNode) : bool =
           | _ -> false))
   | None -> false
 
-let is_doc_node_ast_proof_start (x : annotatedASTNode) : bool =
+let is_doc_node_ast_proof_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -177,7 +175,7 @@ let is_doc_node_ast_proof_start (x : annotatedASTNode) : bool =
           | _ -> false))
   | None -> false
 
-let is_doc_node_ast_proof_end (x : annotatedASTNode) : bool =
+let is_doc_node_ast_proof_end (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -186,7 +184,7 @@ let is_doc_node_ast_proof_end (x : annotatedASTNode) : bool =
           match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false))
   | None -> false
 
-let is_doc_node_ast_proof_abort (x : annotatedASTNode) : bool =
+let is_doc_node_ast_proof_abort (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -200,13 +198,13 @@ let is_doc_node_ast_proof_abort (x : annotatedASTNode) : bool =
           | _ -> false))
   | None -> false
 
-let node_can_open_proof (x : annotatedASTNode) : bool =
+let node_can_open_proof (x : syntaxNode) : bool =
   is_doc_node_ast_proof_start x || is_doc_node_goal_start x
 
-let node_can_close_proof (x : annotatedASTNode) : bool =
+let node_can_close_proof (x : syntaxNode) : bool =
   is_doc_node_ast_proof_abort x || is_doc_node_ast_proof_end x
 
-let is_doc_node_proof_intro_or_end (x : annotatedASTNode) : bool =
+let is_doc_node_proof_intro_or_end (x : syntaxNode) : bool =
   is_doc_node_ast_proof_start x
   || is_doc_node_ast_proof_command x
   || is_doc_node_ast_proof_end x

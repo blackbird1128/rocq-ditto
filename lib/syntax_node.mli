@@ -1,6 +1,6 @@
 open Fleche
 
-type annotatedASTNode = {
+type syntaxNode = {
   ast : Doc.Node.Ast.t option;
   range : Lang.Range.t;
   repr : string;
@@ -8,12 +8,9 @@ type annotatedASTNode = {
   proof_id : int option;
 }
 
-val ast_node_of_coq_ast : Coq.Ast.t -> Lang.Range.t -> annotatedASTNode
-
-val ast_node_of_string :
-  string -> Lang.Range.t -> (annotatedASTNode, string) result
-
-val qed_ast_node : Lang.Range.t -> annotatedASTNode
+val ast_node_of_coq_ast : Coq.Ast.t -> Lang.Range.t -> syntaxNode
+val ast_node_of_string : string -> Lang.Range.t -> (syntaxNode, string) result
+val qed_ast_node : Lang.Range.t -> syntaxNode
 
 val ast_node_to_yojson : Doc.Node.Ast.t -> Yojson.Safe.t
 (** [ast_node_to_yojson ast_node] converts an AST node of type [Doc.Node.Ast.t]
@@ -33,31 +30,31 @@ val range_to_yojson : Lang.Range.t -> Yojson.Safe.t
 
 val range_of_yojson : Yojson.Safe.t -> Lang.Range.t
 
-val to_yojson : annotatedASTNode -> Yojson.Safe.t
-(** [to_yojson node] converts an annotated AST node of type [annotatedASTNode]
-    into a Yojson.Safe.t representation. *)
+val to_yojson : syntaxNode -> Yojson.Safe.t
+(** [to_yojson node] converts an annotated AST node of type [syntaxNode] into a
+    Yojson.Safe.t representation. *)
 
-val of_yojson : Yojson.Safe.t -> annotatedASTNode
+val of_yojson : Yojson.Safe.t -> syntaxNode
 val shift_point : int -> int -> Lang.Point.t -> Lang.Point.t
 val shift_range : int -> int -> Lang.Range.t -> Lang.Range.t
-val shift_node : int -> int -> annotatedASTNode -> annotatedASTNode
+val shift_node : int -> int -> syntaxNode -> syntaxNode
 
-val is_doc_node_ast_proof_command : annotatedASTNode -> bool
+val is_doc_node_ast_proof_command : syntaxNode -> bool
 (** [is_doc_node_ast_proof_command x] checks if [x] represents the command
     Proof. *)
 
-val is_doc_node_ast_tactic : annotatedASTNode -> bool
+val is_doc_node_ast_tactic : syntaxNode -> bool
 (** [is_doc_node_ast_tactic x] checks if [x] represents a tactic. *)
 
-val is_doc_node_ast_proof_start : annotatedASTNode -> bool
+val is_doc_node_ast_proof_start : syntaxNode -> bool
 (** [is_doc_node_ast_proof_start x] checks if [x] marks the start of a proof. *)
 
-val is_doc_node_ast_proof_end : annotatedASTNode -> bool
+val is_doc_node_ast_proof_end : syntaxNode -> bool
 (** [is_doc_node_ast_proof_end x] checks if [x] marks the end of a proof in the
     Coq document. *)
 
-val is_doc_node_ast_proof_command : annotatedASTNode -> bool
-val is_doc_node_proof_intro_or_end : annotatedASTNode -> bool
-val is_doc_node_ast_proof_abort : annotatedASTNode -> bool
-val node_can_open_proof : annotatedASTNode -> bool
-val node_can_close_proof : annotatedASTNode -> bool
+val is_doc_node_ast_proof_command : syntaxNode -> bool
+val is_doc_node_proof_intro_or_end : syntaxNode -> bool
+val is_doc_node_ast_proof_abort : syntaxNode -> bool
+val node_can_open_proof : syntaxNode -> bool
+val node_can_close_proof : syntaxNode -> bool

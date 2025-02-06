@@ -2,7 +2,7 @@ open Fleche
 open Ditto
 open Ditto.Proof_tree
 open Ditto.Proof
-open Ditto.Annotated_ast_node
+open Ditto.Syntax_node
 open Vernacexpr
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =

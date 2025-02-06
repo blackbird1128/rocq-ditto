@@ -2,7 +2,7 @@ open Fleche
 open Ditto
 open Ditto.Proof_tree
 open Ditto.Proof
-open Ditto.Annotated_ast_node
+open Ditto.Syntax_node
 open Vernacexpr
 
 let depth_to_bullet_type (depth : int) =
@@ -14,7 +14,7 @@ let depth_to_bullet_type (depth : int) =
   | _ -> VernacBullet (Proof_bullet.Dash bullet_number)
 
 let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) :
-    annotatedASTNode =
+    syntaxNode =
   let example_without_dirpath : Loc.source =
     InFile { dirpath = None; file = "main.ml" }
   in
@@ -34,8 +34,8 @@ let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) :
   let ast_node = Coq.Ast.of_coq vernac_control in
   ast_node_of_coq_ast ast_node range
 
-let add_bullets (proof_tree : annotatedASTNode nary_tree) : Ditto.Proof.proof =
-  let rec aux (depth : int) (node : annotatedASTNode nary_tree) =
+let add_bullets (proof_tree : syntaxNode nary_tree) : Ditto.Proof.proof =
+  let rec aux (depth : int) (node : syntaxNode nary_tree) =
     match node with
     | Node (x, []) -> [ x ]
     | Node (x, [ child ]) -> x :: aux depth child
@@ -53,18 +53,18 @@ let add_bullets (proof_tree : annotatedASTNode nary_tree) : Ditto.Proof.proof =
   let res = aux 0 proof_tree in
   { proposition = List.hd res; proof_steps = List.tl res; status = Proved }
 
-let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
+let replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
     (Ditto.Proof.proof, string) result =
   let token = Coq.Limits.Token.create () in
   let proof = Proof.tree_to_proof proof_tree in
   let init_state = Proof.get_init_state doc proof in
   let rec aux (st : Petanque.Agent.State.t) (previous_goals : int)
-      (node : annotatedASTNode nary_tree) : annotatedASTNode list =
+      (node : syntaxNode nary_tree) : syntaxNode list =
     match node with
     | Node (x, childrens) -> (
         print_endline ("treating node: " ^ x.repr);
         let lia_node =
-          Result.get_ok (Annotated_ast_node.ast_node_of_string "lia." x.range)
+          Result.get_ok (Syntax_node.ast_node_of_string "lia." x.range)
         in
         let state_x = Petanque.Agent.run ~token ~st ~tac:x.repr () in
         let proof_state_x = Proof.get_proof_state state_x in
@@ -92,8 +92,8 @@ let replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) :
       Proof.proof_from_nodes list_head_tail
   | _ -> Error "can't create an initial state for the proof "
 
-let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
-    : (Ditto.Proof.proof, string) result =
+let fold_replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
+    (Ditto.Proof.proof, string) result =
   let token = Coq.Limits.Token.create () in
   let res =
     Proof.depth_first_fold_with_state doc token
@@ -103,7 +103,7 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
         if ignore_step then (
           print_endline "ignoring !";
           (state, (previous_goals, steps_acc, ignore_step)))
-        else if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
+        else if Syntax_node.is_doc_node_proof_intro_or_end node then
           (state, (previous_goals, node :: steps_acc, ignore_step))
         else
           let state_node =
@@ -111,8 +111,7 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree)
               (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
           in
           let lia_node =
-            Result.get_ok
-              (Annotated_ast_node.ast_node_of_string "lia." node.range)
+            Result.get_ok (Syntax_node.ast_node_of_string "lia." node.range)
           in
           let new_goals = count_goals token state in
           let state_lia =
@@ -168,13 +167,13 @@ let pp_goal_stack
     stack;
   ()
 
-let fold_inspect (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) =
+let fold_inspect (doc : Doc.t) (proof_tree : syntaxNode nary_tree) =
   let token = Coq.Limits.Token.create () in
 
   let _ =
     Proof.depth_first_fold_with_state doc token
       (fun state acc node ->
-        if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
+        if Syntax_node.is_doc_node_proof_intro_or_end node then
           (state, node :: acc)
         else
           let state_node =
@@ -196,13 +195,12 @@ let fold_inspect (doc : Doc.t) (proof_tree : annotatedASTNode nary_tree) =
   ()
 
 let fold_replace_assumption_with_apply (doc : Doc.t)
-    (proof_tree : annotatedASTNode nary_tree) :
-    (Ditto.Proof.proof, string) result =
+    (proof_tree : syntaxNode nary_tree) : (Ditto.Proof.proof, string) result =
   let token = Coq.Limits.Token.create () in
   let res =
     Proof.depth_first_fold_with_state doc token
       (fun state acc node ->
-        if Annotated_ast_node.is_doc_node_proof_intro_or_end node then
+        if Syntax_node.is_doc_node_proof_intro_or_end node then
           (state, node :: acc)
         else
           let state_node =
@@ -244,8 +242,7 @@ let fold_replace_assumption_with_apply (doc : Doc.t)
                 in
                 let new_node =
                   Result.get_ok
-                    (Annotated_ast_node.ast_node_of_string (fst replacement)
-                       node.range)
+                    (Syntax_node.ast_node_of_string (fst replacement) node.range)
                 in
 
                 (state_node, new_node :: acc)
@@ -258,13 +255,13 @@ let fold_replace_assumption_with_apply (doc : Doc.t)
   | Error err -> Error err
 
 let can_reduce_to_zero_goals (doc : Doc.t) (init_state : Petanque.Agent.State.t)
-    (nodes : annotatedASTNode list) =
+    (nodes : syntaxNode list) =
   let token = Coq.Limits.Token.create () in
   let rec aux state acc nodes =
     match nodes with
     | [] -> Ok acc
     | x :: tail -> (
-        if Annotated_ast_node.is_doc_node_proof_intro_or_end x then
+        if Syntax_node.is_doc_node_proof_intro_or_end x then
           aux state state tail
         else
           let state_node_res =
@@ -307,7 +304,7 @@ let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
     match nodes with
     | [] -> acc
     | x :: tail ->
-        if Annotated_ast_node.is_doc_node_proof_intro_or_end x then
+        if Syntax_node.is_doc_node_proof_intro_or_end x then
           aux state (x :: acc) tail
         else if can_reduce_to_zero_goals doc state tail then aux state acc tail
         else

@@ -1,20 +1,20 @@
 open Fleche
 open Petanque
-open Annotated_ast_node
+open Syntax_node
 open Vernacexpr
 open Proof_tree
 
 type proof_status = Admitted | Proved | Aborted
 
 type proof = {
-  proposition : annotatedASTNode;
-  proof_steps : annotatedASTNode list;
+  proposition : syntaxNode;
+  proof_steps : syntaxNode list;
   status : proof_status;
 }
 (* proposition can also be a type, better name ? *)
 
 (* A node can have multiple names (ie mutual recursive defs) *)
-let get_names (node : annotatedASTNode) : string list =
+let get_names (node : syntaxNode) : string list =
   match node.ast with
   | Some ast -> (
       match ast.ast_info with
@@ -26,7 +26,7 @@ let get_names (node : annotatedASTNode) : string list =
       | None -> [])
   | None -> []
 
-let proof_status_from_last_node (node : annotatedASTNode) :
+let proof_status_from_last_node (node : syntaxNode) :
     (proof_status, string) result =
   match node.ast with
   | Some ast -> (
@@ -68,16 +68,14 @@ let count_goals (token : Coq.Limits.Token.t) (st : Agent.State.t) : int =
   | Ok None -> 0
   | Error _ -> 0
 
-let rec print_tree (tree : annotatedASTNode nary_tree) (indent : string) : unit
-    =
+let rec print_tree (tree : syntaxNode nary_tree) (indent : string) : unit =
   match tree with
   | Node (value, children) ->
       Printf.printf "%sNode(%s)\n" indent value.repr;
       List.iter (fun child -> print_tree child (indent ^ "  ")) children
 
 let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
-    (st : Agent.State.t) (steps : annotatedASTNode list) :
-    (annotatedASTNode * int) list =
+    (st : Agent.State.t) (steps : syntaxNode list) : (syntaxNode * int) list =
   match steps with
   | [] -> []
   | step :: tail ->
@@ -86,8 +84,7 @@ let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
       let goal_count = count_goals token agent_state in
       (step, goal_count) :: proof_steps_with_goalcount token agent_state tail
 
-let print_parents
-    (parents : (int * annotatedASTNode, int * annotatedASTNode) Hashtbl.t) :
+let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
     unit =
   Hashtbl.iter
     (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
@@ -98,18 +95,16 @@ let print_parents
 
 type parent_category = Fork | Linear
 
-let rec pop_until_fork
-    (prev_pars : (int * annotatedASTNode * parent_category) list) :
-    (int * annotatedASTNode * parent_category) list =
+let rec pop_until_fork (prev_pars : (int * syntaxNode * parent_category) list) :
+    (int * syntaxNode * parent_category) list =
   match prev_pars with
   | [] -> []
   | (_, _, cat_par) :: tail_par -> (
       match cat_par with Fork -> prev_pars | Linear -> pop_until_fork tail_par)
 
-let rec get_parents_rec (steps_with_goals : (annotatedASTNode * int) list)
-    (prev_goals : int)
-    (prev_pars : (int * annotatedASTNode * parent_category) list) (idx : int)
-    (parents : (int * annotatedASTNode, int * annotatedASTNode) Hashtbl.t) =
+let rec get_parents_rec (steps_with_goals : (syntaxNode * int) list)
+    (prev_goals : int) (prev_pars : (int * syntaxNode * parent_category) list)
+    (idx : int) (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) =
   match steps_with_goals with
   | [] -> parents
   | (step, new_goals) :: tail -> (
@@ -145,9 +140,9 @@ let rec get_parents_rec (steps_with_goals : (annotatedASTNode * int) list)
               ((idx, step, Fork) :: prev_pars)
               (idx + 1) parents))
 
-let rec proof_tree_from_parents (cur_node : int * annotatedASTNode)
-    (parents : (int * annotatedASTNode, int * annotatedASTNode) Hashtbl.t) :
-    annotatedASTNode nary_tree =
+let rec proof_tree_from_parents (cur_node : int * syntaxNode)
+    (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
+    syntaxNode nary_tree =
   let _, tactic = cur_node in
 
   let childs = Hashtbl.find_all parents cur_node in
@@ -164,7 +159,7 @@ let get_init_state (doc : Doc.t) (p : proof) :
   | None -> None
 
 let treeify_proof (doc : Doc.t) (p : proof) :
-    (annotatedASTNode nary_tree, string) result =
+    (syntaxNode nary_tree, string) result =
   let token = Coq.Limits.Token.create () in
 
   match get_init_state doc p with
@@ -184,11 +179,10 @@ let treeify_proof (doc : Doc.t) (p : proof) :
              [ proof_tree_from_parents (0, List.hd p.proof_steps) parents ] ))
   | None -> Error "Unable to retrieve initial state"
 
-let rec proof_tree_to_node_list (Node (value, children)) : annotatedASTNode list
-    =
+let rec proof_tree_to_node_list (Node (value, children)) : syntaxNode list =
   value :: List.concat (List.map proof_tree_to_node_list children)
 
-let tree_to_proof (tree : annotatedASTNode nary_tree) : proof =
+let tree_to_proof (tree : syntaxNode nary_tree) : proof =
   let nodes = proof_tree_to_node_list tree in
   let last_node_status =
     List.hd (List.rev nodes) |> proof_status_from_last_node
@@ -199,8 +193,7 @@ let tree_to_proof (tree : annotatedASTNode nary_tree) : proof =
     status = Result.get_ok last_node_status;
   }
 
-let previous_steps_from_tree (node : annotatedASTNode)
-    (tree : annotatedASTNode nary_tree) =
+let previous_steps_from_tree (node : syntaxNode) (tree : syntaxNode nary_tree) =
   let nodes = proof_tree_to_node_list tree in
   let steps = List.tl nodes in
   let rec sublist_before_id lst target_id =
@@ -218,10 +211,9 @@ let last_offset (p : proof) : int =
     0
     (p.proposition :: p.proof_steps)
 
-let proof_nodes (p : proof) : annotatedASTNode list =
-  p.proposition :: p.proof_steps
+let proof_nodes (p : proof) : syntaxNode list = p.proposition :: p.proof_steps
 
-let proof_from_nodes (nodes : annotatedASTNode list) : (proof, string) result =
+let proof_from_nodes (nodes : syntaxNode list) : (proof, string) result =
   if List.length nodes < 3 then
     Error "Not enough elements to create a proof from the nodes ."
   else
@@ -256,9 +248,9 @@ let rec depth_first_fold_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
     (f :
       Petanque.Agent.State.t ->
       'acc ->
-      annotatedASTNode ->
-      Petanque.Agent.State.t * 'acc) (acc : 'acc)
-    (tree : annotatedASTNode nary_tree) : ('acc, string) result =
+      syntaxNode ->
+      Petanque.Agent.State.t * 'acc) (acc : 'acc) (tree : syntaxNode nary_tree)
+    : ('acc, string) result =
   let rec aux
       (f :
         Petanque.Agent.State.t -> 'acc -> 'a -> Petanque.Agent.State.t * 'acc)
@@ -286,9 +278,9 @@ let rec fold_nodes_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
     (f :
       Petanque.Agent.State.t ->
       'acc ->
-      annotatedASTNode ->
+      syntaxNode ->
       Petanque.Agent.State.t * 'acc) (init_state : Petanque.Agent.State.t)
-    (acc : 'acc) (l : annotatedASTNode list) : 'acc =
+    (acc : 'acc) (l : syntaxNode list) : 'acc =
   let rec aux (state : Petanque.Agent.State.t) (acc : 'acc) =
     match l with
     | [] -> acc
@@ -302,7 +294,7 @@ let rec fold_proof_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
     (f :
       Petanque.Agent.State.t ->
       'acc ->
-      annotatedASTNode ->
+      syntaxNode ->
       Petanque.Agent.State.t * 'acc) (acc : 'acc) (p : proof) :
     ('acc, string) result =
   let proof_nodes = proof_nodes p in

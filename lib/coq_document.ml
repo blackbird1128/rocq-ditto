@@ -1,12 +1,12 @@
 open Proof
 open Fleche
-open Annotated_ast_node
+open Syntax_node
 
 type proofState = NoProof | ProofOpened
 
 type t = {
   filename : string;
-  elements : annotatedASTNode list;
+  elements : syntaxNode list;
   comments : (string * Lang.Range.t) list;
   document_repr : string;
 }
@@ -53,7 +53,7 @@ let doc_to_yojson (doc : t) : Yojson.Safe.t =
   `Assoc
     [
       ("filename", `String doc.filename);
-      ("elements", `List (List.map Annotated_ast_node.to_yojson doc.elements));
+      ("elements", `List (List.map Syntax_node.to_yojson doc.elements));
       ("document_repr", `String doc.document_repr);
       ( "comments",
         `List
@@ -69,8 +69,7 @@ let doc_of_yojson (json : Yojson.Safe.t) : t =
     filename = json |> member "filename" |> to_string;
     document_repr = json |> member "document_repr" |> to_string;
     elements =
-      json |> member "elements" |> to_list
-      |> List.map Annotated_ast_node.of_yojson;
+      json |> member "elements" |> to_list |> List.map Syntax_node.of_yojson;
     comments =
       json |> member "comments" |> to_list
       |> List.map (fun elem ->
@@ -124,7 +123,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
             raise (Invalid_argument "proof started but ended at document end")
         | NoProof -> List.rev document)
     | span :: rest -> (
-        let annotated_span : annotatedASTNode =
+        let annotated_span : syntaxNode =
           {
             ast = span.ast;
             range = span.range;
@@ -247,8 +246,7 @@ let rec dump_to_string (doc : t) : string =
   let merged_nodes = merge_nodes sorted_nodes in
   aux merged_nodes "" (List.hd merged_nodes)
 
-let element_before_id_opt (target_id : int) (doc : t) : annotatedASTNode option
-    =
+let element_before_id_opt (target_id : int) (doc : t) : syntaxNode option =
   match List.find_index (fun elem -> elem.id = target_id) doc.elements with
   | Some elem_id ->
       if elem_id - 1 < 0 then None
@@ -258,16 +256,16 @@ let element_before_id_opt (target_id : int) (doc : t) : annotatedASTNode option
           doc.elements
   | None -> None
 
-let element_with_id_opt (element_id : int) (doc : t) : annotatedASTNode option =
+let element_with_id_opt (element_id : int) (doc : t) : syntaxNode option =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
 
 let proof_with_id_opt (proof_id : int) (doc : t) : proof option =
   let proofs = get_proofs doc in
   List.find_opt (fun elem -> elem.proposition.id = proof_id) proofs
 
-let split_at_id (target_id : int) (doc : t) :
-    annotatedASTNode list * annotatedASTNode list =
-  let rec aux (elements : annotatedASTNode list) (acc : annotatedASTNode list) =
+let split_at_id (target_id : int) (doc : t) : syntaxNode list * syntaxNode list
+    =
+  let rec aux (elements : syntaxNode list) (acc : syntaxNode list) =
     match elements with
     | [] -> (acc, [])
     | x :: tail ->
@@ -275,13 +273,12 @@ let split_at_id (target_id : int) (doc : t) :
   in
   aux doc.elements []
 
-let elements_starting_at_line (line_number : int) (doc : t) :
-    annotatedASTNode list =
+let elements_starting_at_line (line_number : int) (doc : t) : syntaxNode list =
   List.filter (fun elem -> elem.range.start.line = line_number) doc.elements
 
-let shift_nodes (n_line : int) (n_char : int) (nodes : annotatedASTNode list) :
-    annotatedASTNode list =
-  List.map (Annotated_ast_node.shift_node n_line n_char) nodes
+let shift_nodes (n_line : int) (n_char : int) (nodes : syntaxNode list) :
+    syntaxNode list =
+  List.map (Syntax_node.shift_node n_line n_char) nodes
 
 let remove_node_with_id (target_id : int) (doc : t) : t =
   match element_with_id_opt target_id doc with
@@ -299,8 +296,8 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
       (* Shift n char off the line if more than one element   *)
   | None -> doc
 
-let insert_node (new_node : annotatedASTNode) (doc : t)
-    (insert_pos : insertPosition) : (t, string) result =
+let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
+    : (t, string) result =
   match insert_pos with
   | Before id -> (
       let target_node = element_with_id_opt id doc in
@@ -355,8 +352,8 @@ let remove_proof (target : proof) (doc : t) : t =
 let insert_proof (target : proof) (doc : t) (insert_pos : insertPosition) :
     (t, string) result =
   let proof_nodes = target.proposition :: target.proof_steps in
-  let rec aux (nodes : annotatedASTNode list) (doc_acc : t)
-      (pos : insertPosition) : (t, string) result =
+  let rec aux (nodes : syntaxNode list) (doc_acc : t) (pos : insertPosition) :
+      (t, string) result =
     match nodes with
     | [] -> Ok doc_acc
     | node :: tail -> (

@@ -1,10 +1,10 @@
 open Proof
 open Fleche
-open Annotated_ast_node
+open Syntax_node
 
 type t = {
   filename : string;
-  elements : annotatedASTNode list;
+  elements : syntaxNode list;
   comments : (string * Lang.Range.t) list;
   document_repr : string;
 }
@@ -27,7 +27,7 @@ val doc_to_yojson : t -> Yojson.Safe.t
 val doc_of_yojson : Yojson.Safe.t -> t
 (** Convert a JSON representation into a document of type [t]. *)
 
-val element_with_id_opt : int -> t -> annotatedASTNode option
+val element_with_id_opt : int -> t -> syntaxNode option
 (** Find an element with a specific ID in a document.
     [element_with_id_opt element_id doc] returns [Some element] if an element
     with the given [element_id] exists in the document [doc], otherwise it
@@ -41,7 +41,7 @@ val remove_node_with_id : int -> t -> t
     numbers of subsequent elements. If the element is not found, it returns the
     original document. *)
 
-val insert_node : annotatedASTNode -> t -> insertPosition -> (t, string) result
+val insert_node : syntaxNode -> t -> insertPosition -> (t, string) result
 (** [insert_node new_node doc insert_pos] attempts to insert [new_node] into the
     document [doc] at the position specified by [insert_pos]. The insertion can
     occur before or after a node identified by [id], or at the start or end of
