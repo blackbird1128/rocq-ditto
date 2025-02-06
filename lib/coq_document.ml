@@ -7,7 +7,6 @@ type proofState = NoProof | ProofOpened
 type t = {
   filename : string;
   elements : syntaxNode list;
-  comments : (string * Lang.Range.t) list;
   document_repr : string;
 }
 
@@ -55,12 +54,6 @@ let doc_to_yojson (doc : t) : Yojson.Safe.t =
       ("filename", `String doc.filename);
       ("elements", `List (List.map Syntax_node.to_yojson doc.elements));
       ("document_repr", `String doc.document_repr);
-      ( "comments",
-        `List
-          (List.map
-             (fun comment ->
-               `Tuple [ `String (fst comment); range_to_yojson (snd comment) ])
-             doc.comments) );
     ]
 
 let doc_of_yojson (json : Yojson.Safe.t) : t =
@@ -70,11 +63,6 @@ let doc_of_yojson (json : Yojson.Safe.t) : t =
     document_repr = json |> member "document_repr" |> to_string;
     elements =
       json |> member "elements" |> to_list |> List.map Syntax_node.of_yojson;
-    comments =
-      json |> member "comments" |> to_list
-      |> List.map (fun elem ->
-             let l = to_list elem in
-             (to_string (List.nth l 0), range_of_yojson (List.nth l 1)));
   }
 
 let get_line_col_positions text pos : Lang.Point.t =
@@ -114,6 +102,18 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
   let comments = matches_with_line_col document_repr "\\(\\*.*\\*\\)$" in
+  let comments_nodes =
+    List.map
+      (fun comment ->
+        {
+          ast = None;
+          range = snd comment;
+          repr = fst comment;
+          id = Unique_id.next ();
+          proof_id = None;
+        })
+      comments
+  in
   let rec aux (spans : Doc.Node.t list) (proof_state : proofState)
       (proof_id : int option) document =
     match spans with
@@ -162,13 +162,19 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
         )
     (* Skip spans not part of any proof *)
   in
-
-  {
-    elements = aux nodes_with_ast NoProof None [];
-    document_repr;
-    filename;
-    comments;
-  }
+  let ast_nodes = aux nodes_with_ast NoProof None [] in
+  let all_nodes =
+    List.sort
+      (fun node_a node_b ->
+        let comp =
+          compare node_a.range.start.offset node_b.range.start.offset
+        in
+        if comp = 0 then
+          compare node_a.range.end_.offset node_b.range.end_.offset
+        else comp)
+      (ast_nodes @ comments_nodes)
+  in
+  { elements = all_nodes; document_repr; filename }
 
 let compare_nodes (a : string * Lang.Range.t) (b : string * Lang.Range.t) : int
     =
@@ -241,7 +247,7 @@ let rec dump_to_string (doc : t) : string =
   let ast_nodes_repr =
     List.map (fun elem -> (elem.repr, elem.range)) doc.elements
   in
-  let all_nodes = ast_nodes_repr @ doc.comments in
+  let all_nodes = ast_nodes_repr in
   let sorted_nodes = List.sort compare_nodes all_nodes in
   let merged_nodes = merge_nodes sorted_nodes in
   aux merged_nodes "" (List.hd merged_nodes)

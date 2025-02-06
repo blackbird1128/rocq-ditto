@@ -14,6 +14,7 @@ test:
 PREFIX := $(HOME)/.local
 
 install:
+	mkdir -p vendor/
 	rm -f vendor/fcc 
 	cp ./_opam/bin/fcc vendor/fcc
 	dune install --prefix="$(PREFIX)"

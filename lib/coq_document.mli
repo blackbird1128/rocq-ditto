@@ -5,7 +5,6 @@ open Syntax_node
 type t = {
   filename : string;
   elements : syntaxNode list;
-  comments : (string * Lang.Range.t) list;
   document_repr : string;
 }
 
