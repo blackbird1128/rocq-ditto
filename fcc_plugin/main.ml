@@ -29,6 +29,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   match doc.completed with
   | Doc.Completion.Yes _ ->
       let nodes = doc.nodes in
+
       let document_text = doc.contents.raw in
 
       let parsed_document =
@@ -54,7 +55,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         List.fold_left
           (fun doc_acc proof ->
             let new_proof_res =
-              Transformations.fold_replace_assumption_with_apply doc proof
+              Transformations.remove_unecessary_steps doc proof
             in
             match new_proof_res with
             | Ok new_proof -> (
@@ -62,7 +63,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                 | Ok new_doc -> new_doc
                 | Error _ -> doc_acc)
             | Error _ -> doc_acc)
-          parsed_document proof_trees
+          parsed_document proofs
       in
       print_endline Fleche.Version.server;
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in

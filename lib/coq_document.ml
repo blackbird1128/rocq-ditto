@@ -96,10 +96,48 @@ let matches_with_line_col content pattern : (string * Lang.Range.t) list =
   in
   matches
 
+let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
+  let comp = compare a.range.start.offset b.range.start.offset in
+  if comp = 0 then compare a.range.end_.offset b.range.end_.offset else comp
+
+let second_node_included_in (a : syntaxNode) (b : syntaxNode) : bool =
+  if a.range.start.offset < b.range.start.offset then
+    if
+      b.range.start.offset < a.range.end_.offset
+      && b.range.end_.offset < a.range.end_.offset
+    then true
+    else false
+  else false
+
+let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
+  let rec merge_aux (acc : syntaxNode list) (nodes : syntaxNode list) =
+    match nodes with
+    | [] -> List.rev acc
+    | curr_node :: rest -> (
+        match acc with
+        | acc_node :: acc_tail when second_node_included_in acc_node curr_node
+          ->
+            merge_aux acc rest
+        | _ -> merge_aux (curr_node :: acc) rest)
+  in
+  merge_aux [] nodes
+
 let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     (filename : string) : t =
   let nodes_with_ast =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
+  in
+  let ast_nodes =
+    List.map
+      (fun (node : Doc.Node.t) ->
+        {
+          ast = node.ast;
+          range = node.range;
+          repr = node_representation node document_repr;
+          id = Unique_id.next ();
+          proof_id = None;
+        })
+      nodes_with_ast
   in
   let comments = matches_with_line_col document_repr "\\(\\*.*\\*\\)$" in
   let comments_nodes =
@@ -114,7 +152,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
         })
       comments
   in
-  let rec aux (spans : Doc.Node.t list) (proof_state : proofState)
+  let rec aux (spans : syntaxNode list) (proof_state : proofState)
       (proof_id : int option) document =
     match spans with
     | [] -> (
@@ -123,28 +161,19 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
             raise (Invalid_argument "proof started but ended at document end")
         | NoProof -> List.rev document)
     | span :: rest -> (
-        let annotated_span : syntaxNode =
-          {
-            ast = span.ast;
-            range = span.range;
-            repr = node_representation span document_repr;
-            id = Unique_id.next ();
-            proof_id = None;
-          }
-        in
-        print_endline ("parsing " ^ annotated_span.repr);
-        if node_can_open_proof annotated_span then (
-          print_endline (annotated_span.repr ^ "can open a proof ");
+        print_endline ("parsing " ^ span.repr);
+        if node_can_open_proof span then (
+          print_endline (span.repr ^ "can open a proof ");
           let cur_id = Option.default 0 proof_id in
           print_endline ("proof id" ^ string_of_int cur_id);
 
-          let span_with_id = { annotated_span with proof_id = Some cur_id } in
+          let span_with_id = { span with proof_id = Some cur_id } in
           print_endline "opening a proof ! ";
           aux rest ProofOpened proof_id (span_with_id :: document))
-        else if node_can_close_proof annotated_span then (
-          print_endline (annotated_span.repr ^ "can close a proof");
+        else if node_can_close_proof span then (
+          print_endline (span.repr ^ "can close a proof");
           let cur_id = Option.default 0 proof_id in
-          let span_with_id = { annotated_span with proof_id = Some cur_id } in
+          let span_with_id = { span with proof_id = Some cur_id } in
 
           match proof_state with
           | ProofOpened ->
@@ -154,67 +183,28 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           match proof_state with
           | ProofOpened ->
               let cur_id = Option.default 0 proof_id in
-              let span_with_id =
-                { annotated_span with proof_id = Some cur_id }
-              in
+              let span_with_id = { span with proof_id = Some cur_id } in
               aux rest proof_state proof_id (span_with_id :: document)
-          | NoProof -> aux rest proof_state proof_id (annotated_span :: document)
-        )
+          | NoProof -> aux rest proof_state proof_id (span :: document))
     (* Skip spans not part of any proof *)
   in
-  let ast_nodes = aux nodes_with_ast NoProof None [] in
+
   let all_nodes =
-    List.sort
-      (fun node_a node_b ->
-        let comp =
-          compare node_a.range.start.offset node_b.range.start.offset
-        in
-        if comp = 0 then
-          compare node_a.range.end_.offset node_b.range.end_.offset
-        else comp)
-      (ast_nodes @ comments_nodes)
+    merge_nodes (List.sort compare_nodes (ast_nodes @ comments_nodes))
   in
-  { elements = all_nodes; document_repr; filename }
-
-let compare_nodes (a : string * Lang.Range.t) (b : string * Lang.Range.t) : int
-    =
-  let a = snd a in
-  let b = snd b in
-  let comp = compare a.start.offset b.start.offset in
-  if comp = 0 then compare a.end_.offset b.end_.offset else comp
-
-let second_node_included_in (a : string * Lang.Range.t)
-    (b : string * Lang.Range.t) : bool =
-  let a = snd a in
-  let b = snd b in
-  if a.start.offset < b.start.offset then
-    if b.start.offset < a.end_.offset && b.end_.offset < a.end_.offset then true
-    else false
-  else false
-
-let merge_nodes (nodes : (string * Lang.Range.t) list) :
-    (string * Lang.Range.t) list =
-  let rec merge_aux (acc : (string * Lang.Range.t) list)
-      (nodes : (string * Lang.Range.t) list) =
-    match nodes with
-    | [] -> List.rev acc
-    | curr_node :: rest -> (
-        match acc with
-        | acc_node :: acc_tail when second_node_included_in acc_node curr_node
-          ->
-            merge_aux acc rest
-        | _ -> merge_aux (curr_node :: acc) rest)
-  in
-  merge_aux [] nodes
+  let res = aux all_nodes NoProof None [] in
+  List.iter (fun node -> print_endline node.repr) res;
+  { elements = res; document_repr; filename }
 
 let rec dump_to_string (doc : t) : string =
-  let rec aux (repr_nodes : (string * Lang.Range.t) list) (doc_repr : string)
-      (previous_node : string * Lang.Range.t) =
+  let rec aux (repr_nodes : syntaxNode list) (doc_repr : string)
+      (previous_node : syntaxNode) =
     match repr_nodes with
     | [] -> doc_repr
     | node :: tail ->
-        let previous_node_rep, previous_node_range = previous_node in
-        let node_repr, node_range = node in
+        let previous_node_range = previous_node.range in
+        let node_repr = node.repr in
+        let node_range = node.range in
         print_endline ("treating node : " ^ node_repr);
         let repr =
           if previous_node_range = node_range then
@@ -223,8 +213,7 @@ let rec dump_to_string (doc : t) : string =
             ^ String.make node_range.start.line '\n'
             ^ String.make node_range.start.character ' '
             ^ node_repr
-          else if node_range.start.line = previous_node_range.end_.line then (
-            print_endline "stuff";
+          else if node_range.start.line = previous_node_range.end_.line then
             doc_repr
             ^ String.make
                 (node_range.start.line - previous_node_range.end_.line)
@@ -232,7 +221,7 @@ let rec dump_to_string (doc : t) : string =
             ^ String.make
                 (node_range.start.character - previous_node_range.end_.character)
                 ' '
-            ^ node_repr)
+            ^ node_repr
           else
             doc_repr
             ^ String.make
@@ -241,16 +230,10 @@ let rec dump_to_string (doc : t) : string =
             ^ String.make node_range.start.character ' '
             ^ node_repr
         in
-        print_endline "got repr";
         aux tail repr node
   in
-  let ast_nodes_repr =
-    List.map (fun elem -> (elem.repr, elem.range)) doc.elements
-  in
-  let all_nodes = ast_nodes_repr in
-  let sorted_nodes = List.sort compare_nodes all_nodes in
-  let merged_nodes = merge_nodes sorted_nodes in
-  aux merged_nodes "" (List.hd merged_nodes)
+
+  aux doc.elements "" (List.hd doc.elements)
 
 let element_before_id_opt (target_id : int) (doc : t) : syntaxNode option =
   match List.find_index (fun elem -> elem.id = target_id) doc.elements with
