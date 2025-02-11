@@ -208,7 +208,10 @@ let fold_replace_assumption_with_apply (doc : Doc.t)
             Proof.get_proof_state
               (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
           in
-          if String.starts_with ~prefix:"assumption" node.repr then
+          if
+            String.starts_with ~prefix:"assumption" node.repr
+            && not (String.contains node.repr ';')
+          then
             let goal_count_after_assumption =
               Proof.count_goals token state_node
             in
@@ -336,7 +339,10 @@ let make_intros_explicit (doc : Doc.t) (proof : proof) : (proof, string) result
             Proof.get_proof_state
               (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
           in
-          if String.starts_with ~prefix:"intros" node.repr then
+          if
+            String.starts_with ~prefix:"intros" node.repr
+            && not (String.contains node.repr ';')
+          then
             let old_state_vars =
               Proof.get_current_goal token state
               |> Result.get_ok |> Proof.get_hypothesis_names
