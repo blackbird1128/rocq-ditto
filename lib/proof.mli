@@ -37,6 +37,8 @@ val count_goals : Coq.Limits.Token.t -> Agent.State.t -> int
     returns the number of goals in the agent's state [st] associated with the
     provided [token]. If there are no goals or an error occurs, it returns 0. *)
 
+val print_proof : proof -> unit
+
 val print_tree : syntaxNode nary_tree -> string -> unit
 (** Print a tree structure with indentation. [print_tree tree indent] prints a
     tree, where [tree] is an [syntaxNode nary_tree] and [indent] is a string

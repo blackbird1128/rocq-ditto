@@ -68,6 +68,10 @@ let count_goals (token : Coq.Limits.Token.t) (st : Agent.State.t) : int =
   | Ok None -> 0
   | Error _ -> 0
 
+let print_proof (proof : proof) : unit =
+  print_endline proof.proposition.repr;
+  List.iter (fun p -> print_endline ("  " ^ p.repr)) proof.proof_steps
+
 let rec print_tree (tree : syntaxNode nary_tree) (indent : string) : unit =
   match tree with
   | Node (value, children) ->
@@ -281,14 +285,15 @@ let rec fold_nodes_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
       syntaxNode ->
       Petanque.Agent.State.t * 'acc) (init_state : Petanque.Agent.State.t)
     (acc : 'acc) (l : syntaxNode list) : 'acc =
-  let rec aux (state : Petanque.Agent.State.t) (acc : 'acc) =
+  let rec aux (l : syntaxNode list) (state : Petanque.Agent.State.t)
+      (acc : 'acc) =
     match l with
     | [] -> acc
     | x :: tail ->
         let res = f state acc x in
-        aux (fst res) (snd res)
+        aux tail (fst res) (snd res)
   in
-  aux init_state acc
+  aux l init_state acc
 
 let rec fold_proof_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
     (f :
@@ -298,13 +303,14 @@ let rec fold_proof_with_state (doc : Doc.t) (token : Coq.Limits.Token.t)
       Petanque.Agent.State.t * 'acc) (acc : 'acc) (p : proof) :
     ('acc, string) result =
   let proof_nodes = proof_nodes p in
-  let rec aux (state : Petanque.Agent.State.t) (acc : 'acc) =
-    match proof_nodes with
+  let rec aux (l : syntaxNode list) (state : Petanque.Agent.State.t)
+      (acc : 'acc) =
+    match l with
     | [] -> acc
     | x :: tail ->
         let res = f state acc x in
-        aux (fst res) (snd res)
+        aux tail (fst res) (snd res)
   in
   match get_init_state doc p with
-  | Some (Ok state) -> Ok (aux state.st acc)
+  | Some (Ok state) -> Ok (aux proof_nodes state.st acc)
   | _ -> Error "Unable to retrieve initial state"
