@@ -75,7 +75,7 @@ let replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
             let goals_with_lia = count_goals token state_uw.st in
             if goals_with_lia < previous_goals then
               if goals_with_lia = 0 then
-                [ lia_node; qed_ast_node (shift_range 1 0 lia_node.range) ]
+                [ lia_node; qed_ast_node (shift_range 1 0 0 lia_node.range) ]
               else [ lia_node ]
             else
               x
@@ -125,7 +125,8 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
                   ( state_uw.st,
                     ( goals_with_lia,
                       [
-                        lia_node; qed_ast_node (shift_range 1 0 lia_node.range);
+                        lia_node;
+                        qed_ast_node (shift_range 1 0 0 lia_node.range);
                       ]
                       @ steps_acc,
                       true ) )
@@ -289,7 +290,7 @@ let remove_empty_lines (proof : proof) : proof =
               let shift_value =
                 prev_node.range.end_.line - node.range.start.line + 1 + shift
               in
-              let shifted = shift_node shift_value 0 node in
+              let shifted = shift_node shift_value 0 0 node in
               (node, shifted :: acc_nodes, shift_value))
           (first_node, [], 0) nodes
       in
@@ -304,8 +305,7 @@ let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
     match nodes with
     | [] -> acc
     | x :: tail ->
-        if Syntax_node.is_doc_node_proof_intro_or_end x then
-          aux state (x :: acc) tail
+        if is_doc_node_proof_intro_or_end x then aux state (x :: acc) tail
         else if can_reduce_to_zero_goals doc state tail then aux state acc tail
         else
           let state_node =
@@ -316,11 +316,48 @@ let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
   in
   match get_init_state doc proof with
   | Some (Ok state) ->
+      let nodes = aux state.st [] (proof_nodes proof) in
       let proof =
-        remove_empty_lines
-          (Result.get_ok
-             (proof_from_nodes (List.rev (aux state.st [] (proof_nodes proof)))))
+        remove_empty_lines (Result.get_ok (proof_from_nodes (List.rev nodes)))
       in
 
       Ok proof
   | _ -> Error "Unable to retrieve initial state"
+
+let make_intros_explicit (doc : Doc.t) (proof : proof) : (proof, string) result
+    =
+  let token = Coq.Limits.Token.create () in
+  match
+    Proof.fold_proof_with_state doc token
+      (fun state acc node ->
+        if is_doc_node_proof_intro_or_end node then (state, node :: acc)
+        else
+          let new_state =
+            Proof.get_proof_state
+              (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
+          in
+          if String.starts_with ~prefix:"intros" node.repr then
+            let old_state_vars =
+              Proof.get_current_goal token state
+              |> Result.get_ok |> Proof.get_hypothesis_names
+            in
+            let new_state_vars =
+              Proof.get_current_goal token new_state
+              |> Result.get_ok |> Proof.get_hypothesis_names
+            in
+            let new_vars =
+              List.filter
+                (fun x -> not (List.mem x old_state_vars))
+                new_state_vars
+            in
+            let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
+            let explicit_intro_node =
+              Result.get_ok
+                (Syntax_node.ast_node_of_string explicit_intro node.range)
+            in
+            (new_state, explicit_intro_node :: acc)
+          else (new_state, node :: acc))
+      [] proof
+  with
+  | Ok nodes -> proof_from_nodes (List.rev nodes)
+  | Error err -> Error err
