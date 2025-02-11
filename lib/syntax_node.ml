@@ -116,19 +116,24 @@ let of_yojson (json : Yojson.Safe.t) : syntaxNode =
     proof_id = json |> member "proof_id" |> to_option to_int;
   }
 
-let shift_point (n_line : int) (n_char : int) (x : Lang.Point.t) : Lang.Point.t
-    =
-  { x with line = x.line + n_line; offset = x.offset + n_char }
-
-let shift_range (n_line : int) (n_char : int) (x : Lang.Range.t) : Lang.Range.t
-    =
+let shift_point (n_line : int) (n_char : int) (n_offset : int)
+    (x : Lang.Point.t) : Lang.Point.t =
   {
-    start = shift_point n_line n_char x.start;
-    end_ = shift_point n_line n_char x.end_;
+    line = x.line + n_line;
+    character = x.character + n_char;
+    offset = x.offset + n_char + n_offset;
   }
 
-let shift_node (n_line : int) (n_char : int) (x : syntaxNode) : syntaxNode =
-  { x with range = shift_range n_line n_char x.range }
+let shift_range (n_line : int) (n_char : int) (n_offset : int)
+    (x : Lang.Range.t) : Lang.Range.t =
+  {
+    start = shift_point n_line n_char n_offset x.start;
+    end_ = shift_point n_line n_char n_offset x.end_;
+  }
+
+let shift_node (n_line : int) (n_char : int) (n_offset : int) (x : syntaxNode) :
+    syntaxNode =
+  { x with range = shift_range n_line n_char n_offset x.range }
 
 let is_doc_node_ast_tactic (x : syntaxNode) : bool =
   match x.ast with

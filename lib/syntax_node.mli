@@ -35,9 +35,9 @@ val to_yojson : syntaxNode -> Yojson.Safe.t
     Yojson.Safe.t representation. *)
 
 val of_yojson : Yojson.Safe.t -> syntaxNode
-val shift_point : int -> int -> Lang.Point.t -> Lang.Point.t
-val shift_range : int -> int -> Lang.Range.t -> Lang.Range.t
-val shift_node : int -> int -> syntaxNode -> syntaxNode
+val shift_point : int -> int -> int -> Lang.Point.t -> Lang.Point.t
+val shift_range : int -> int -> int -> Lang.Range.t -> Lang.Range.t
+val shift_node : int -> int -> int -> syntaxNode -> syntaxNode
 
 val is_doc_node_ast_proof_command : syntaxNode -> bool
 (** [is_doc_node_ast_proof_command x] checks if [x] represents the command

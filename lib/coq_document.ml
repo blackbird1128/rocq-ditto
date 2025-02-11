@@ -161,24 +161,18 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
             raise (Invalid_argument "proof started but ended at document end")
         | NoProof -> List.rev document)
     | span :: rest -> (
-        print_endline ("parsing " ^ span.repr);
-        if node_can_open_proof span then (
-          print_endline (span.repr ^ "can open a proof ");
+        if node_can_open_proof span then
           let cur_id = Option.default 0 proof_id in
-          print_endline ("proof id" ^ string_of_int cur_id);
-
           let span_with_id = { span with proof_id = Some cur_id } in
-          print_endline "opening a proof ! ";
-          aux rest ProofOpened proof_id (span_with_id :: document))
-        else if node_can_close_proof span then (
-          print_endline (span.repr ^ "can close a proof");
+          aux rest ProofOpened proof_id (span_with_id :: document)
+        else if node_can_close_proof span then
           let cur_id = Option.default 0 proof_id in
           let span_with_id = { span with proof_id = Some cur_id } in
 
           match proof_state with
           | ProofOpened ->
               aux rest NoProof (Some (cur_id + 1)) (span_with_id :: document)
-          | NoProof -> raise (Invalid_argument "proof ended but never started"))
+          | NoProof -> raise (Invalid_argument "proof ended but never started")
         else
           match proof_state with
           | ProofOpened ->
@@ -193,7 +187,6 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     merge_nodes (List.sort compare_nodes (ast_nodes @ comments_nodes))
   in
   let res = aux all_nodes NoProof None [] in
-  List.iter (fun node -> print_endline node.repr) res;
   { elements = res; document_repr; filename }
 
 let rec dump_to_string (doc : t) : string =
@@ -205,7 +198,6 @@ let rec dump_to_string (doc : t) : string =
         let previous_node_range = previous_node.range in
         let node_repr = node.repr in
         let node_range = node.range in
-        print_endline ("treating node : " ^ node_repr);
         let repr =
           if previous_node_range = node_range then
             (* treating the first node as a special case to deal with eventual empty lines before *)
@@ -214,18 +206,29 @@ let rec dump_to_string (doc : t) : string =
             ^ String.make node_range.start.character ' '
             ^ node_repr
           else if node_range.start.line = previous_node_range.end_.line then
-            doc_repr
-            ^ String.make
-                (node_range.start.line - previous_node_range.end_.line)
-                '\n'
-            ^ String.make
-                (node_range.start.character - previous_node_range.end_.character)
-                ' '
-            ^ node_repr
+            if
+              node_range.start.character - previous_node_range.end_.character
+              < 0
+            then (
+              print_endline node_repr;
+              print_endline previous_node.repr;
+              print_endline (Lang.Range.to_string previous_node.range);
+              print_endline "AAAAAAA";
+              "AAA")
+            else
+              doc_repr
+              ^ String.make
+                  (node_range.start.line - previous_node_range.end_.line)
+                  '\n'
+              ^ String.make
+                  (node_range.start.character
+                 - previous_node_range.end_.character)
+                  ' '
+              ^ node_repr
           else
             doc_repr
             ^ String.make
-                (max 0 (node_range.start.line - previous_node_range.end_.line))
+                (node_range.start.line - previous_node_range.end_.line)
                 '\n'
             ^ String.make node_range.start.character ' '
             ^ node_repr
@@ -265,9 +268,9 @@ let split_at_id (target_id : int) (doc : t) : syntaxNode list * syntaxNode list
 let elements_starting_at_line (line_number : int) (doc : t) : syntaxNode list =
   List.filter (fun elem -> elem.range.start.line = line_number) doc.elements
 
-let shift_nodes (n_line : int) (n_char : int) (nodes : syntaxNode list) :
-    syntaxNode list =
-  List.map (Syntax_node.shift_node n_line n_char) nodes
+let shift_nodes (n_line : int) (n_char : int) (n_offset : int)
+    (nodes : syntaxNode list) : syntaxNode list =
+  List.map (Syntax_node.shift_node n_line n_char n_offset) nodes
 
 let remove_node_with_id (target_id : int) (doc : t) : t =
   match element_with_id_opt target_id doc with
@@ -280,7 +283,7 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
       in
       {
         doc with
-        elements = List.concat [ before; shift_nodes line_shift 0 after ];
+        elements = List.concat [ before; shift_nodes line_shift 0 0 after ];
       }
       (* Shift n char off the line if more than one element   *)
   | None -> doc
@@ -301,7 +304,9 @@ let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
                   [
                     before;
                     [ new_node ];
-                    shift_nodes 1 (String.length new_node.repr) (target :: after);
+                    shift_nodes 1
+                      (String.length new_node.repr)
+                      0 (target :: after);
                   ];
             }
       | None -> Error ("node with id " ^ string_of_int id ^ "doesn't exist"))
@@ -319,7 +324,7 @@ let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
                     before;
                     [ target ];
                     [ new_node ];
-                    shift_nodes 1 (String.length new_node.repr) after;
+                    shift_nodes 1 (String.length new_node.repr) 0 after;
                   ];
             }
       | None -> Error ("node with id " ^ string_of_int id ^ " doesn't exist"))
@@ -328,7 +333,8 @@ let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
         {
           doc with
           elements =
-            new_node :: shift_nodes 1 (String.length new_node.repr) doc.elements;
+            new_node
+            :: shift_nodes 1 (String.length new_node.repr) 0 doc.elements;
         }
   | End -> Ok { doc with elements = doc.elements @ [ new_node ] }
 
