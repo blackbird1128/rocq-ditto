@@ -12,6 +12,13 @@ type t = {
 
 type insertPosition = Before of int | After of int | Start | End
 
+let insert_position_to_string (x : insertPosition) : string =
+  match x with
+  | Before y -> "before " ^ string_of_int y
+  | After y -> "after " ^ string_of_int y
+  | Start -> "start"
+  | End -> "end"
+
 module IntMap = Map.Make (Int)
 
 let get_proofs (doc : t) : proof list =
@@ -275,12 +282,14 @@ let shift_nodes (n_line : int) (n_char : int) (n_offset : int)
 let remove_node_with_id (target_id : int) (doc : t) : t =
   match element_with_id_opt target_id doc with
   | Some elem ->
+      print_endline ("removing : " ^ elem.repr);
       let before, after = split_at_id target_id doc in
       let line_shift =
         if List.length (elements_starting_at_line elem.range.start.line doc) > 1
         then 0
         else -1
       in
+      print_endline ("shifting of " ^ string_of_int line_shift);
       {
         doc with
         elements = List.concat [ before; shift_nodes line_shift 0 0 after ];
@@ -290,11 +299,17 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
 
 let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
     : (t, string) result =
+  print_endline
+    ("inserting " ^ new_node.repr ^ " at "
+    ^ insert_position_to_string insert_pos);
   match insert_pos with
   | Before id -> (
       let target_node = element_with_id_opt id doc in
       match target_node with
       | Some target ->
+          print_endline ("target node : " ^ target.repr);
+          let line_shift = new_node.range.end_.line - target.range.start.line in
+          print_endline ("line_shift : " ^ string_of_int line_shift);
           let before, after = split_at_id id doc in
           Ok
             {
@@ -304,9 +319,9 @@ let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
                   [
                     before;
                     [ new_node ];
-                    shift_nodes 1
+                    shift_nodes line_shift 0
                       (String.length new_node.repr)
-                      0 (target :: after);
+                      (target :: after);
                   ];
             }
       | None -> Error ("node with id " ^ string_of_int id ^ "doesn't exist"))
@@ -314,7 +329,10 @@ let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
       let target_node = element_with_id_opt id doc in
       match target_node with
       | Some target ->
+          print_endline ("target node : " ^ target.repr);
           let before, after = split_at_id id doc in
+          let line_shift = new_node.range.end_.line - target.range.start.line in
+          print_endline ("line_shift : " ^ string_of_int line_shift);
           Ok
             {
               doc with
@@ -324,25 +342,34 @@ let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
                     before;
                     [ target ];
                     [ new_node ];
-                    shift_nodes 1 (String.length new_node.repr) 0 after;
+                    shift_nodes line_shift 0 (String.length new_node.repr) after;
                   ];
             }
       | None -> Error ("node with id " ^ string_of_int id ^ " doesn't exist"))
   | Start ->
+      print_endline ("start for node : " ^ new_node.repr);
       Ok
         {
           doc with
           elements =
             new_node
-            :: shift_nodes 1 (String.length new_node.repr) 0 doc.elements;
+            :: shift_nodes 1 0 (String.length new_node.repr) doc.elements;
         }
   | End -> Ok { doc with elements = doc.elements @ [ new_node ] }
 
 let remove_proof (target : proof) (doc : t) : t =
   let proof_nodes = target.proposition :: target.proof_steps in
-  List.fold_left
-    (fun doc_acc node -> remove_node_with_id node.id doc_acc)
-    doc proof_nodes
+  List.iter (fun node -> print_endline ("X: " ^ node.repr)) proof_nodes;
+  let res =
+    List.fold_left
+      (fun doc_acc node -> remove_node_with_id node.id doc_acc)
+      doc proof_nodes
+  in
+  List.iter
+    (fun node ->
+      print_endline ("Y: " ^ node.repr ^ " " ^ Lang.Range.to_string node.range))
+    res.elements;
+  res
 
 let insert_proof (target : proof) (doc : t) (insert_pos : insertPosition) :
     (t, string) result =

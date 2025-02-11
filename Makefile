@@ -4,7 +4,7 @@
 all:
 	dune build lib --profile=release
 	dune build fcc_plugin --profile=release
-	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_comment4.v
+	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_move_bug.v
 
 test:
 	dune build lib --profile=release
@@ -15,16 +15,15 @@ PREFIX := $$HOME/.local
 
 install:
 	mkdir -p vendor/
-	rm -f vendor/fcc 
+	rm -rf vendor/fcc 
 	cp ./_opam/bin/fcc vendor/fcc
-	dune build lib --profile=release
-	dune build fcc_plugin --profile=release
+	dune build . --profile=release
 	dune build . @install --profile=release
 	dune install --prefix=$(PREFIX)
 
 uninstall:
 	dune uninstall --prefix=$(PREFIX)
-	rm -f vendor/fcc
+	rm -rf vendor/fcc
 
 dump-json:
 	dune build test/json_dump/ --profile=release
