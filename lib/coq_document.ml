@@ -213,25 +213,14 @@ let rec dump_to_string (doc : t) : string =
             ^ String.make node_range.start.character ' '
             ^ node_repr
           else if node_range.start.line = previous_node_range.end_.line then
-            if
-              node_range.start.character - previous_node_range.end_.character
-              < 0
-            then (
-              print_endline node_repr;
-              print_endline previous_node.repr;
-              print_endline (Lang.Range.to_string previous_node.range);
-              print_endline "AAAAAAA";
-              "AAA")
-            else
-              doc_repr
-              ^ String.make
-                  (node_range.start.line - previous_node_range.end_.line)
-                  '\n'
-              ^ String.make
-                  (node_range.start.character
-                 - previous_node_range.end_.character)
-                  ' '
-              ^ node_repr
+            doc_repr
+            ^ String.make
+                (node_range.start.line - previous_node_range.end_.line)
+                '\n'
+            ^ String.make
+                (node_range.start.character - previous_node_range.end_.character)
+                ' '
+            ^ node_repr
           else
             doc_repr
             ^ String.make
@@ -282,14 +271,12 @@ let shift_nodes (n_line : int) (n_char : int) (n_offset : int)
 let remove_node_with_id (target_id : int) (doc : t) : t =
   match element_with_id_opt target_id doc with
   | Some elem ->
-      print_endline ("removing : " ^ elem.repr);
       let before, after = split_at_id target_id doc in
       let line_shift =
         if List.length (elements_starting_at_line elem.range.start.line doc) > 1
         then 0
-        else -1
+        else -(elem.range.end_.line - elem.range.start.line + 1)
       in
-      print_endline ("shifting of " ^ string_of_int line_shift);
       {
         doc with
         elements = List.concat [ before; shift_nodes line_shift 0 0 after ];
@@ -299,17 +286,19 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
 
 let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
     : (t, string) result =
-  print_endline
-    ("inserting " ^ new_node.repr ^ " at "
-    ^ insert_position_to_string insert_pos);
   match insert_pos with
   | Before id -> (
-      let target_node = element_with_id_opt id doc in
+      let target_node : syntaxNode option = element_with_id_opt id doc in
       match target_node with
       | Some target ->
-          print_endline ("target node : " ^ target.repr);
-          let line_shift = new_node.range.end_.line - target.range.start.line in
-          print_endline ("line_shift : " ^ string_of_int line_shift);
+          let node_size =
+            new_node.range.end_.line - new_node.range.start.line
+          in
+          let line_shift =
+            node_size
+            +
+            if new_node.range.start.line = target.range.end_.line then 0 else 1
+          in
           let before, after = split_at_id id doc in
           Ok
             {
@@ -329,10 +318,15 @@ let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
       let target_node = element_with_id_opt id doc in
       match target_node with
       | Some target ->
-          print_endline ("target node : " ^ target.repr);
           let before, after = split_at_id id doc in
-          let line_shift = new_node.range.end_.line - target.range.start.line in
-          print_endline ("line_shift : " ^ string_of_int line_shift);
+          let node_size =
+            new_node.range.end_.line - new_node.range.start.line
+          in
+          let line_shift =
+            node_size
+            +
+            if new_node.range.start.line = target.range.end_.line then 0 else 1
+          in
           Ok
             {
               doc with
@@ -347,7 +341,6 @@ let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
             }
       | None -> Error ("node with id " ^ string_of_int id ^ " doesn't exist"))
   | Start ->
-      print_endline ("start for node : " ^ new_node.repr);
       Ok
         {
           doc with
@@ -359,17 +352,9 @@ let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
 
 let remove_proof (target : proof) (doc : t) : t =
   let proof_nodes = target.proposition :: target.proof_steps in
-  List.iter (fun node -> print_endline ("X: " ^ node.repr)) proof_nodes;
-  let res =
-    List.fold_left
-      (fun doc_acc node -> remove_node_with_id node.id doc_acc)
-      doc proof_nodes
-  in
-  List.iter
-    (fun node ->
-      print_endline ("Y: " ^ node.repr ^ " " ^ Lang.Range.to_string node.range))
-    res.elements;
-  res
+  List.fold_left
+    (fun doc_acc node -> remove_node_with_id node.id doc_acc)
+    doc proof_nodes
 
 let insert_proof (target : proof) (doc : t) (insert_pos : insertPosition) :
     (t, string) result =

@@ -38,6 +38,8 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
       let proofs = Coq_document.get_proofs parsed_document in
 
+      print_endline ("number of proofs : " ^ string_of_int (List.length proofs));
+
       let proof_trees =
         List.filter_map
           (fun proof -> Result.to_option (Proof.treeify_proof doc proof))
@@ -47,21 +49,13 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       let modified_doc =
         List.fold_left
           (fun doc_acc proof ->
-            print_endline ("treating proof : " ^ proof.proposition.repr);
             let new_proof_res =
               Transformations.make_intros_explicit doc proof
             in
             match new_proof_res with
             | Ok new_proof -> (
                 match Coq_document.replace_proof new_proof doc_acc with
-                | Ok new_doc ->
-                    List.iter
-                      (fun elem ->
-                        print_endline
-                          (elem.repr ^ " " ^ Lang.Range.to_string elem.range))
-                      new_doc.elements;
-                    print_endline "BBBBBBBBBBBBBBB";
-                    new_doc
+                | Ok new_doc -> new_doc
                 | Error err ->
                     print_endline err;
                     print_endline "error here !";
@@ -72,11 +66,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                 doc_acc)
           parsed_document proofs
       in
-      print_endline "FINAL DOC:";
-      List.iter
-        (fun elem ->
-          print_endline (elem.repr ^ " " ^ Lang.Range.to_string elem.range))
-        modified_doc.elements;
+
       print_endline Fleche.Version.server;
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
       output_string out (Coq_document.dump_to_string modified_doc);
