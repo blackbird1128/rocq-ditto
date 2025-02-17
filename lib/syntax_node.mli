@@ -8,15 +8,18 @@ type syntaxNode = {
   proof_id : int option;
 }
 
-val ast_node_of_coq_ast : Coq.Ast.t -> Lang.Range.t -> syntaxNode
-val ast_node_of_string : string -> Lang.Range.t -> (syntaxNode, string) result
+val syntax_node_of_coq_ast : Coq.Ast.t -> Lang.Range.t -> syntaxNode
+
+val syntax_node_of_string :
+  string -> Lang.Range.t -> (syntaxNode, string) result
+
 val qed_ast_node : Lang.Range.t -> syntaxNode
 
-val ast_node_to_yojson : Doc.Node.Ast.t -> Yojson.Safe.t
-(** [ast_node_to_yojson ast_node] converts an AST node of type [Doc.Node.Ast.t]
-    into a Yojson.Safe.t representation. *)
+val syntax_node_to_yojson : Doc.Node.Ast.t -> Yojson.Safe.t
+(** [syntax_node_to_yojson ast_node] converts a syntax node of type
+    [Doc.Node.Ast.t] into a Yojson.Safe.t representation. *)
 
-val ast_node_of_yojson : Yojson.Safe.t -> Doc.Node.Ast.t
+val syntax_node_of_yojson : Yojson.Safe.t -> Doc.Node.Ast.t
 
 val point_to_yojson : Lang.Point.t -> Yojson.Safe.t
 (** [point_to_yojson point] converts a point of type [Lang.Point.t] into a
@@ -31,7 +34,7 @@ val range_to_yojson : Lang.Range.t -> Yojson.Safe.t
 val range_of_yojson : Yojson.Safe.t -> Lang.Range.t
 
 val to_yojson : syntaxNode -> Yojson.Safe.t
-(** [to_yojson node] converts an annotated AST node of type [syntaxNode] into a
+(** [to_yojson node] converts a syntax node of type [syntaxNode] into a
     Yojson.Safe.t representation. *)
 
 val of_yojson : Yojson.Safe.t -> syntaxNode

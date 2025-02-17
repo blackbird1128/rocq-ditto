@@ -32,7 +32,7 @@ let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) :
   let loc = Loc.create example_without_dirpath 0 0 0 0 in
   let vernac_control = CAst.make ~loc control_r in
   let ast_node = Coq.Ast.of_coq vernac_control in
-  ast_node_of_coq_ast ast_node range
+  syntax_node_of_coq_ast ast_node range
 
 let add_bullets (proof_tree : syntaxNode nary_tree) : Ditto.Proof.proof =
   let rec aux (depth : int) (node : syntaxNode nary_tree) =
@@ -64,7 +64,7 @@ let replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
     | Node (x, childrens) -> (
         print_endline ("treating node: " ^ x.repr);
         let lia_node =
-          Result.get_ok (Syntax_node.ast_node_of_string "lia." x.range)
+          Result.get_ok (Syntax_node.syntax_node_of_string "lia." x.range)
         in
         let state_x = Petanque.Agent.run ~token ~st ~tac:x.repr () in
         let proof_state_x = Proof.get_proof_state state_x in
@@ -111,7 +111,7 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
               (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
           in
           let lia_node =
-            Result.get_ok (Syntax_node.ast_node_of_string "lia." node.range)
+            Result.get_ok (Syntax_node.syntax_node_of_string "lia." node.range)
           in
           let new_goals = count_goals token state in
           let state_lia =
@@ -246,7 +246,8 @@ let fold_replace_assumption_with_apply (doc : Doc.t)
                 in
                 let new_node =
                   Result.get_ok
-                    (Syntax_node.ast_node_of_string (fst replacement) node.range)
+                    (Syntax_node.syntax_node_of_string (fst replacement)
+                       node.range)
                 in
 
                 (state_node, new_node :: acc)
@@ -359,7 +360,7 @@ let make_intros_explicit (doc : Doc.t) (proof : proof) : (proof, string) result
             let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
             let explicit_intro_node =
               Result.get_ok
-                (Syntax_node.ast_node_of_string explicit_intro node.range)
+                (Syntax_node.syntax_node_of_string explicit_intro node.range)
             in
             (new_state, explicit_intro_node :: acc)
           else (new_state, node :: acc))

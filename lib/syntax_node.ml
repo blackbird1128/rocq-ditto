@@ -21,7 +21,7 @@ let generate_ast code =
   in
   f init_parser
 
-let ast_node_of_string (code : string) (range : Lang.Range.t) :
+let syntax_node_of_string (code : string) (range : Lang.Range.t) :
     (syntaxNode, string) result =
   match generate_ast code with
   | [] -> Error ("node node found in string " ^ code)
@@ -39,7 +39,8 @@ let ast_node_of_string (code : string) (range : Lang.Range.t) :
         }
   | _ -> Error ("more than one node found in string " ^ code)
 
-let ast_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode =
+let syntax_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode
+    =
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
   {
     ast = Some node_ast;
@@ -50,13 +51,13 @@ let ast_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode =
   }
 
 let qed_ast_node (range : Lang.Range.t) : syntaxNode =
-  Result.get_ok (ast_node_of_string "Qed." range)
+  Result.get_ok (syntax_node_of_string "Qed." range)
 
-let ast_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
+let syntax_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
   `Assoc [ ("v", Lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
 (* TODO treat info *)
 
-let ast_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
+let syntax_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
   let open Yojson.Safe.Util in
   {
     v = json |> member "v" |> Lsp.JCoq.Ast.of_yojson |> Result.get_ok;
@@ -98,8 +99,9 @@ let to_yojson (node : syntaxNode) : Yojson.Safe.t =
   `Assoc
     [
       ( "ast",
-        match node.ast with Some ast -> ast_node_to_yojson ast | None -> `Null
-      );
+        match node.ast with
+        | Some ast -> syntax_node_to_yojson ast
+        | None -> `Null );
       ("range", range_to_yojson node.range);
       ("repr", `String node.repr);
       ("id", `Int node.id);
@@ -109,7 +111,7 @@ let to_yojson (node : syntaxNode) : Yojson.Safe.t =
 let of_yojson (json : Yojson.Safe.t) : syntaxNode =
   let open Yojson.Safe.Util in
   {
-    ast = json |> member "ast" |> to_option ast_node_of_yojson;
+    ast = json |> member "ast" |> to_option syntax_node_of_yojson;
     range = json |> member "range" |> range_of_yojson;
     repr = json |> member "repr" |> to_string;
     id = json |> member "id" |> to_int;
