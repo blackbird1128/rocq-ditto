@@ -34,3 +34,9 @@
  (allow_empty)
  (depends ocaml dune lsp coq-lsp base-unix re coq-ditto))
 
+(package
+ (name ditto-test-plugin)
+ (allow_empty)
+ (depends ocaml dune lsp coq-lsp base-unix re coq-ditto))
+
+

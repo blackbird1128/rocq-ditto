@@ -7,16 +7,19 @@ all:
 	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_move_bug.v
 
 test:
+	dune build . --profile=release
 	dune build lib --profile=release
-	dune build fcc_plugin --profile=release
-	dune runtest --profile=release
+	dune build test/test_plugin/ --profile=release
+	dune exec fcc -- --plugin=ditto-test-plugin ./test/fixtures/ex_parsing1.v
+	find test/fixtures -name '*.v' -exec dune exec fcc -- --plugin=ditto-test-plugin {} \;	
+	dune runtest --profile=release	
 
 PREFIX := $$HOME/.local
 
 install:
 	mkdir -p vendor/
 	rm -rf vendor/fcc 
-	cp ./_opam/bin/fcc vendor/fcc
+	cp ./_opam/bin/fcc ./vendor/fcc
 	dune build . --profile=release
 	dune build . @install --profile=release
 	dune install --prefix=$(PREFIX)
