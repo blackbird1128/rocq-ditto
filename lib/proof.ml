@@ -6,6 +6,13 @@ open Proof_tree
 
 type proof_status = Admitted | Proved | Aborted
 
+let rec pp_proof_status (fmt : Format.formatter) (status : proof_status) : unit
+    =
+  match status with
+  | Admitted -> Format.fprintf fmt "Admitted"
+  | Proved -> Format.fprintf fmt "Proved"
+  | Aborted -> Format.fprintf fmt "Aborted"
+
 type proof = {
   proposition : syntaxNode;
   proof_steps : syntaxNode list;

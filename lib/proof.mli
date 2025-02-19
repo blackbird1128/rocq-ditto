@@ -5,6 +5,8 @@ open Proof_tree
 
 type proof_status = Admitted | Proved | Aborted
 
+val pp_proof_status : Format.formatter -> proof_status -> unit
+
 type proof = {
   proposition : syntaxNode;
   proof_steps : syntaxNode list;
