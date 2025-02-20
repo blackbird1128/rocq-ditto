@@ -14,6 +14,7 @@ let testable_nary_tree pp_a equal_a =
 let pp_int fmt x = Format.fprintf fmt "%d" x
 let int_tree = testable_nary_tree pp_int ( = )
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
+let range_testable = Alcotest.testable Lang.Range.pp ( = )
 
 let test_equality () =
   let tree1 = Node (1, [ Node (2, []); Node (3, [ Node (4, []) ]) ]) in
@@ -62,7 +63,40 @@ let test_proof_parsing_ex2 (nodes : Doc.Node.t list) (document_text : string)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
   Alcotest.(check proof_status_testable)
-    "The proof should be proved." proof.status Proof.Proved
+    "The proof should be proved." Proof.Proved proof.status
+
+let test_parsing_admit (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let proofs = Coq_document.get_proofs doc in
+  Alcotest.(check int)
+    "The wrong number of proofs was parsed." 1 (List.length proofs);
+  let proof = List.hd proofs in
+  Alcotest.check proof_status_testable "The proof should be admitted."
+    Proof.Admitted proof.status
+
+let test_parsing_abort1 (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let proofs = Coq_document.get_proofs doc in
+  Alcotest.(check int)
+    "The wrong number of proofs was parsed." 1 (List.length proofs);
+  let proof = List.hd proofs in
+  Alcotest.check proof_status_testable "The proof should be aborted."
+    Proof.Aborted proof.status
+
+let test_parsing_abort2 (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let proofs = Coq_document.get_proofs doc in
+  Alcotest.(check int)
+    "The wrong number of proofs was parsed." 2 (List.length proofs);
+  let first_proof = List.hd proofs in
+  let second_proof = List.nth proofs 1 in
+  Alcotest.check proof_status_testable "The first proof should be aborted"
+    Proof.Aborted first_proof.status;
+  Alcotest.check proof_status_testable "The second proof is proved" Proof.Proved
+    second_proof.status
 
 let test_proof_parsing_name_and_steps_ex2 (nodes : Doc.Node.t list)
     (document_text : string) (uri_str : string) () : unit =
@@ -144,6 +178,70 @@ let test_parsing_embedded_comments_ex6 (nodes : Doc.Node.t list)
     [ "(* in the same line comment *)"; "(* classical comment *)" ]
     comment_nodes_repr
 
+let test_creating_node (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let _ = Coq_document.parse_document nodes document_text uri_str in
+  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let end_point : Lang.Point.t = { line = 0; character = 14; offset = 14 } in
+  let range : Lang.Range.t = { start = start_point; end_ = end_point } in
+  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." range in
+  let node_res_repr = Result.map (fun node -> node.repr) node in
+  Alcotest.(check (result string string))
+    "The syntax node should have the same representation" (Ok "Compute 1 + 1.")
+    node_res_repr
+
+let test_searching_node (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let node_compute = Coq_document.element_with_id_opt 1 doc in
+  let node_compute_id = Option.map (fun node -> node.id) node_compute in
+  Alcotest.(check (option int))
+    "Item with the wrong id was retrieved" (Some 1) node_compute_id;
+  Alcotest.(check (option string))
+    "The wrong repr was retrieved" (Some "Compute 1 + 1.")
+    (Option.map Syntax_nod node_compute)
+
+let test_adding_node_empty_line_ex7 (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let doc_ranges = List.map (fun elem -> elem.range) doc.elements in
+
+  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let end_point : Lang.Point.t = { line = 0; character = 14; offset = 14 } in
+  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+  let node =
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string "Compute 2 + 2." node_range)
+  in
+  let expected =
+    node_range
+    :: List.map
+         (fun (range : Lang.Range.t) -> shift_range 0 0 14 range)
+         doc_ranges
+  in
+  let new_doc = Coq_document.insert_node node doc (Before 0) in
+  let new_doc_ranges =
+    Result.map
+      (fun (doc : Coq_document.t) ->
+        List.map (fun elem -> elem.range) doc.elements)
+      new_doc
+  in
+  Alcotest.(check (result (list range_testable) string))
+    "The two ranges list should be the same " (Ok expected) new_doc_ranges
+
+let test_adding_node_busy_line_ex8 (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+
+  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let end_point : Lang.Point.t = { line = 0; character = 14; offset = 14 } in
+  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+  let node =
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string "Compute 2 + 2." node_range)
+  in
+  ()
+
 let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
     (uri_str : string) =
   Hashtbl.add table "ex_parsing1.v"
@@ -155,6 +253,15 @@ let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
   Hashtbl.add table "ex_parsing2.v"
     (create_fixed_test "test parsing basic proof properties ex 2"
        test_parsing_ex2 nodes document_text uri_str);
+  Hashtbl.add table "ex_admit.v"
+    (create_fixed_test "test parsing admitted proof" test_parsing_admit nodes
+       document_text uri_str);
+  Hashtbl.add table "ex_abort1.v"
+    (create_fixed_test "test parsing aborted proof 1" test_parsing_abort1 nodes
+       document_text uri_str);
+  Hashtbl.add table "ex_abort2.v"
+    (create_fixed_test "test parsing aborted proof 2" test_parsing_abort2 nodes
+       document_text uri_str);
   Hashtbl.add table "ex_parsing2.v"
     (create_fixed_test "test names and steps retrival ex 2"
        test_proof_parsing_name_and_steps_ex2 nodes document_text uri_str);
@@ -170,7 +277,15 @@ let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
   Hashtbl.add table "ex_parsing6.v"
     (create_fixed_test "test parsing embedded comments"
        test_parsing_embedded_comments_ex6 nodes document_text uri_str);
-
+  Hashtbl.add table "ex_modification1.v"
+    (create_fixed_test "test searching node" test_searching_node nodes
+       document_text uri_str);
+  Hashtbl.add table "ex_modification1.v"
+    (create_fixed_test "test creating new node" test_creating_node nodes
+       document_text uri_str);
+  Hashtbl.add table "ex_modification1.v"
+    (create_fixed_test "test adding new nodes" test_adding_node_empty_line_ex7
+       nodes document_text uri_str);
   ()
 
 let test_runner ~io ~token:_ ~(doc : Doc.t) =
