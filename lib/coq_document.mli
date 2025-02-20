@@ -8,6 +8,8 @@ type t = {
   document_repr : string;
 }
 
+val pp_coq_document : Format.formatter -> t -> unit
+
 type insertPosition = Before of int | After of int | Start | End
 
 val parse_document : Doc.Node.t list -> string -> string -> t

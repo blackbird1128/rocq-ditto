@@ -10,14 +10,25 @@ type t = {
   document_repr : string;
 }
 
+let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
+  Format.fprintf fmt "filename: %s@ " doc.filename;
+  Format.fprintf fmt "elements:@ ";
+  List.iter
+    (fun node ->
+      Format.fprintf fmt "%a %s@ " Lang.Range.pp node.range node.repr)
+      (* see to add id maybe ? *)
+    doc.elements;
+  Format.fprintf fmt "document repr: %s" doc.document_repr
+
 type insertPosition = Before of int | After of int | Start | End
 
-let insert_position_to_string (x : insertPosition) : string =
-  match x with
-  | Before y -> "before " ^ string_of_int y
-  | After y -> "after " ^ string_of_int y
-  | Start -> "start"
-  | End -> "end"
+let pp_insert_position (fmt : Format.formatter)
+    (insert_position : insertPosition) : unit =
+  match insert_position with
+  | Before y -> Format.fprintf fmt "Before %d" y
+  | After y -> Format.fprintf fmt "After %d" y
+  | Start -> Format.fprintf fmt "Start"
+  | End -> Format.fprintf fmt "End"
 
 module IntMap = Map.Make (Int)
 
