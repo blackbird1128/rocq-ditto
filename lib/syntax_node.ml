@@ -9,6 +9,22 @@ type syntaxNode = {
       (* the id of the proof associated with the node if there is one *)
 }
 
+let pp_doc_ast (fmt : Format.formatter) (ast : Doc.Node.Ast.t) : unit =
+  Pp.pp_with fmt (Coq.Ast.print ast.v)
+
+let pp_syntax_node (fmt : Format.formatter) (node : syntaxNode) : unit =
+  Format.fprintf fmt "{@ ";
+  Format.fprintf fmt "ast: %a@ "
+    (fun fmt ast -> Format.pp_print_option pp_doc_ast fmt ast)
+    node.ast;
+  Format.fprintf fmt "range: %a@ " Lang.Range.pp node.range;
+  Format.fprintf fmt "repr: %s@ " node.repr;
+  Format.fprintf fmt "id: %d@ " node.id;
+  Format.fprintf fmt "proof id: %a@ "
+    (fun fmt id -> Format.pp_print_option Format.pp_print_int fmt id)
+    node.proof_id;
+  Format.fprintf fmt "}"
+
 let generate_ast code =
   let mode = Ltac_plugin.G_ltac.classic_proof_mode in
   let entry = Pvernac.main_entry (Some mode) in
@@ -24,7 +40,7 @@ let generate_ast code =
 let syntax_node_of_string (code : string) (range : Lang.Range.t) :
     (syntaxNode, string) result =
   match generate_ast code with
-  | [] -> Error ("node node found in string " ^ code)
+  | [] -> Error ("no node found in string " ^ code)
   | [ x ] ->
       let node_ast : Doc.Node.Ast.t =
         { v = Coq.Ast.of_coq x; ast_info = None }
@@ -38,6 +54,37 @@ let syntax_node_of_string (code : string) (range : Lang.Range.t) :
           proof_id = None;
         }
   | _ -> Error ("more than one node found in string " ^ code)
+
+let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
+    (syntaxNode list, string) result =
+  match generate_ast code with
+  | [] -> Ok []
+  | l ->
+      let length_l = List.length l in
+      let num_ranges = List.length ranges in
+
+      if length_l != num_ranges then
+        Error
+          (Printf.sprintf
+             "The number of generated AST nodes (%d) does not match the number \
+              of provided ranges (%d)."
+             length_l num_ranges)
+      else
+        Ok
+          (List.map2
+             (fun x range ->
+               let node_ast : Doc.Node.Ast.t =
+                 { v = Coq.Ast.of_coq x; ast_info = None }
+               in
+
+               {
+                 ast = Some node_ast;
+                 range;
+                 id = Unique_id.next ();
+                 repr = code;
+                 proof_id = None;
+               })
+             l ranges)
 
 let syntax_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode
     =
