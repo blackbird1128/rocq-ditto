@@ -1,5 +1,4 @@
-Require Import Arith.
-
+x
 Lemma and_split:
   forall A B : Prop, A /\ B ->  B /\ A.
 Proof.
