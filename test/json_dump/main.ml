@@ -17,10 +17,19 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
     Coq_document.parse_document nodes document_text uri_str
   in
 
-  let out_file_j = Lang.LUri.File.to_string_file uri ^ ".astdump.json" in
+  let repr_and_ranges =
+    List.map
+      (fun node ->
+        `Assoc
+          [ ("repr", `String node.repr); ("range", range_to_yojson node.range) ])
+      parsed_document.elements
+  in
+  let json_repr = `List repr_and_ranges in
+
+  let out_file_j = Lang.LUri.File.to_string_file uri ^ ".target.json" in
   let out_chan = open_out out_file_j in
-  Yojson.Safe.pretty_to_channel out_chan
-    (Coq_document.doc_to_yojson parsed_document)
+
+  Yojson.Safe.pretty_to_channel out_chan json_repr
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()
