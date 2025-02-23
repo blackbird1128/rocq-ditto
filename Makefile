@@ -11,6 +11,7 @@ test:
 	dune build lib --profile=release
 	dune build test/test_plugin/ --profile=release
 	dune exec fcc -- --plugin=ditto-test-plugin ./test/fixtures/ex_parsing1.v
+	find test/fixtures/ -name "*_target.v"	-exec dune exec fcc -- --plugin=dump-json-plugin {} \;
 	find test/fixtures -name '*.v' -exec dune exec fcc -- --plugin=ditto-test-plugin {} \;	
 	dune runtest --profile=release	
 
