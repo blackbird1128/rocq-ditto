@@ -220,6 +220,37 @@ let test_searching_node (nodes : Doc.Node.t list) (document_text : string)
     "No element should be retrieved" None
     (Option.map (fun x -> x.id) absurd_node)
 
+let test_removing_only_node_on_line (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let parsed_target = get_target uri_str in
+
+  let new_doc = Coq_document.remove_node_with_id 1 doc in
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (list (pair string range_testable)))
+    "The two lists should be the same" parsed_target new_doc_res
+
+let test_removing_multiple_line_node (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let parsed_target = get_target uri_str in
+
+  let new_doc = Coq_document.remove_node_with_id 2 doc in
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (list (pair string range_testable)))
+    "The two lists should be the same" parsed_target new_doc_res
+
+let test_removing_node_same_line_as_other (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let parsed_target = get_target uri_str in
+  let new_doc = Coq_document.remove_node_with_id 2 doc in
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+  Alcotest.(check (list (pair string range_testable)))
+    "The two lists should be the same" parsed_target new_doc_res
+
 let test_adding_node_before_empty_line (nodes : Doc.Node.t list)
     (document_text : string) (uri_str : string) () : unit =
   let doc = Coq_document.parse_document nodes document_text uri_str in
@@ -263,7 +294,48 @@ let test_adding_multiple_line_node (nodes : Doc.Node.t list)
   let start_point : Lang.Point.t = { line = 1; character = 0; offset = 11 } in
   let end_point : Lang.Point.t = { line = 2; character = 42; offset = 53 } in
   let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
-  let node = Result.get_ok (Syntax_node.syntax_node_of_string "" node_range) in
+  let node =
+    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
+  in
+
+  let new_doc = Coq_document.insert_node node doc (After 2) in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
+
+let test_adding_node_between (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let parsed_target = get_target uri_str in
+
+  let start_point : Lang.Point.t = { line = 1; character = 0; offset = 11 } in
+  let end_point : Lang.Point.t = { line = 2; character = 42; offset = 53 } in
+  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+  let node =
+    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
+  in
+
+  let new_doc = Coq_document.insert_node node doc (After 2) in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
+
+let test_adding_collision_next_line (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let parsed_target = get_target uri_str in
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let parsed_target = get_target uri_str in
+
+  let start_point : Lang.Point.t = { line = 1; character = 0; offset = 11 } in
+  let end_point : Lang.Point.t = { line = 2; character = 42; offset = 53 } in
+  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+  let node =
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string "Compute 1\n+\n1" node_range)
+  in
 
   let new_doc = Coq_document.insert_node node doc (After 2) in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -306,7 +378,17 @@ let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
   Hashtbl.add table "ex_parsing6.v"
     (create_fixed_test "test parsing embedded comments"
        test_parsing_embedded_comments_ex6 nodes document_text uri_str);
-  Hashtbl.add table "ex_modification1.v"
+
+  Hashtbl.add table "ex_removing1.v"
+    (create_fixed_test "test removing only node on a line"
+       test_removing_only_node_on_line nodes document_text uri_str);
+  Hashtbl.add table "ex_removing2.v"
+    (create_fixed_test "test removing a node spanning multiple lines"
+       test_removing_multiple_line_node nodes document_text uri_str);
+  Hashtbl.add table "ex_removing3.v"
+    (create_fixed_test "test removing a node on the same line as another one"
+       test_removing_node_same_line_as_other nodes document_text uri_str);
+  Hashtbl.add table "ex_adding1.v"
     (create_fixed_test "test searching node" test_searching_node nodes
        document_text uri_str);
   Hashtbl.add table "ex_adding1.v"
@@ -318,6 +400,15 @@ let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
   Hashtbl.add table "ex_adding2.v"
     (create_fixed_test "test adding new node on a filled line"
        test_adding_node_before_busy_line nodes document_text uri_str);
+  Hashtbl.add table "ex_adding3.v"
+    (create_fixed_test "test adding a new node spanning multiple lines"
+       test_adding_multiple_line_node nodes document_text uri_str);
+  Hashtbl.add table "ex_adding4.v"
+    (create_fixed_test "test adding a node between two nodes on the same line"
+       test_adding_node_between nodes document_text uri_str);
+  Hashtbl.add table "ex_adding5.v"
+    (create_fixed_test "test adding a node that will collide on another line"
+       test_adding_collision_next_line nodes document_text uri_str);
   ()
 
 let test_runner ~io ~token:_ ~(doc : Doc.t) =
@@ -339,7 +430,7 @@ let test_runner ~io ~token:_ ~(doc : Doc.t) =
     ^ " file test for: " ^ uri_name_str);
   flush_all ();
   Alcotest.run ~and_exit:true
-    ~argv:[| "ignored"; "--color=never" |]
+    ~argv:[| "ignored"; "--color=always" |]
     "document parsing and modification tests" tests;
   ()
 
