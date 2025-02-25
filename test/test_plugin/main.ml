@@ -39,6 +39,57 @@ let create_fixed_test (test_text : string)
     (nodes : Doc.Node.t list) (document_text : string) (uri_str : string) =
   Alcotest.test_case test_text `Quick (f nodes document_text uri_str)
 
+let test_creating_simple_node (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let end_point : Lang.Point.t = { line = 0; character = 14; offset = 14 } in
+  let range : Lang.Range.t = { start = start_point; end_ = end_point } in
+  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." range in
+  let node_res_repr = Result.map (fun node -> node.repr) node in
+  Alcotest.(check (result string string))
+    "The syntax node should have the same representation" (Ok "Compute 1 + 1.")
+    node_res_repr
+
+let test_creating_node_with_incorrect_range_char (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let end_point : Lang.Point.t = { line = 0; character = 8; offset = 14 } in
+  let range : Lang.Range.t = { start = start_point; end_ = end_point } in
+  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." range in
+  let node_res_repr = Result.map (fun node -> node.repr) node in
+  Alcotest.(check (result string string))
+    "The syntax node should have the same representation"
+    (Error
+       "Incorrect range: range end character minus range start character \
+        smaller than node character size")
+    node_res_repr
+
+let test_creating_node_with_incorrect_range_offset (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let end_point : Lang.Point.t = { line = 0; character = 14; offset = 8 } in
+  let range : Lang.Range.t = { start = start_point; end_ = end_point } in
+  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." range in
+  let node_res_repr = Result.map (fun node -> node.repr) node in
+  Alcotest.(check (result string string))
+    "The syntax node should have the same representation"
+    (Error
+       "Incorrect range: range end offset minus range start offset smaller \
+        than node character size")
+    node_res_repr
+
+let test_parsing_logical_id_assignement (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let _ =
+    List.fold_left
+      (fun id_acc node ->
+        Alcotest.(check int) "Id doesn't match the " id_acc node.id;
+        id_acc + 1)
+      0 doc.elements
+  in
+  ()
+
 let test_parsing_ex1 (nodes : Doc.Node.t list) (document_text : string)
     (uri_str : string) () : unit =
   let doc = Coq_document.parse_document nodes document_text uri_str in
@@ -190,30 +241,18 @@ let test_parsing_embedded_comments_ex6 (nodes : Doc.Node.t list)
     [ "(* in the same line comment *)"; "(* classical comment *)" ]
     comment_nodes_repr
 
-let test_creating_node (nodes : Doc.Node.t list) (document_text : string)
-    (uri_str : string) () : unit =
-  let _ = Coq_document.parse_document nodes document_text uri_str in
-  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
-  let end_point : Lang.Point.t = { line = 0; character = 14; offset = 14 } in
-  let range : Lang.Range.t = { start = start_point; end_ = end_point } in
-  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." range in
-  let node_res_repr = Result.map (fun node -> node.repr) node in
-  Alcotest.(check (result string string))
-    "The syntax node should have the same representation" (Ok "Compute 1 + 1.")
-    node_res_repr
-
 let test_searching_node (nodes : Doc.Node.t list) (document_text : string)
     (uri_str : string) () : unit =
   let doc = Coq_document.parse_document nodes document_text uri_str in
   List.iter
     (fun elem -> Format.printf "id:%d repr:%s @ " elem.id elem.repr)
     doc.elements;
-  let node_compute = Coq_document.element_with_id_opt 12 doc in
+  let node_compute = Coq_document.element_with_id_opt 0 doc in
   let node_compute_id = Option.map (fun node -> node.id) node_compute in
   Alcotest.(check (option int))
-    "Item with the wrong id was retrieved" (Some 12) node_compute_id;
+    "Item with the wrong id was retrieved" (Some 0) node_compute_id;
   Alcotest.(check (option string))
-    "The wrong repr was retrieved" (Some "Compute 1 + 1.")
+    "The wrong repr was retrieved" (Some "Compute 1.")
     (Option.map (fun node -> node.repr) node_compute);
   let absurd_node = Coq_document.element_with_id_opt (-1) doc in
   Alcotest.(check (option int))
@@ -225,7 +264,7 @@ let test_removing_only_node_on_line (nodes : Doc.Node.t list)
   let doc = Coq_document.parse_document nodes document_text uri_str in
   let parsed_target = get_target uri_str in
 
-  let new_doc = Coq_document.remove_node_with_id 1 doc in
+  let new_doc = Coq_document.remove_node_with_id 0 doc in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (list (pair string range_testable)))
@@ -246,7 +285,7 @@ let test_removing_node_same_line_as_other (nodes : Doc.Node.t list)
     (document_text : string) (uri_str : string) () : unit =
   let doc = Coq_document.parse_document nodes document_text uri_str in
   let parsed_target = get_target uri_str in
-  let new_doc = Coq_document.remove_node_with_id 2 doc in
+  let new_doc = Coq_document.remove_node_with_id 1 doc in
   let new_doc_res = document_to_range_representation_pairs new_doc in
   Alcotest.(check (list (pair string range_testable)))
     "The two lists should be the same" parsed_target new_doc_res
@@ -262,7 +301,7 @@ let test_adding_node_before_empty_line (nodes : Doc.Node.t list)
   let node =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
   in
-  let new_doc = Coq_document.insert_node node doc (Before 1) in
+  let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -280,7 +319,7 @@ let test_adding_node_before_busy_line (nodes : Doc.Node.t list)
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
   in
 
-  let new_doc = Coq_document.insert_node node doc (Before 2) in
+  let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -298,7 +337,7 @@ let test_adding_multiple_line_node (nodes : Doc.Node.t list)
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
   in
 
-  let new_doc = Coq_document.insert_node node doc (After 2) in
+  let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -316,7 +355,7 @@ let test_adding_node_between (nodes : Doc.Node.t list) (document_text : string)
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
   in
 
-  let new_doc = Coq_document.insert_node node doc (After 2) in
+  let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -334,17 +373,51 @@ let test_adding_collision_next_line (nodes : Doc.Node.t list)
   let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
   let node =
     Result.get_ok
-      (Syntax_node.syntax_node_of_string "Compute 1\n+\n1" node_range)
+      (Syntax_node.syntax_node_of_string "Compute 1\n+\n1." node_range)
   in
 
-  let new_doc = Coq_document.insert_node node doc (After 2) in
+  let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
+let test_adding_removing_nodes_simple (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let parsed_target = document_to_range_representation_pairs doc in
+
+  let empty_doc =
+    List.fold_left
+      (fun doc_acc node -> Coq_document.remove_node_with_id node.id doc)
+      doc doc.elements
+  in
+  ()
+(* abort for now as we still rely on the old definition of insert *)
+(* TODO complete *)
+
 let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
     (uri_str : string) =
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "Check if a simple test is created normally"
+       test_creating_simple_node nodes document_text uri_str);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "Check if a wrong character range trigger an error"
+       test_creating_node_with_incorrect_range_char nodes document_text uri_str);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "Check if a wrong offset range trigger an error"
+       test_creating_node_with_incorrect_range_offset nodes document_text
+       uri_str);
+  Hashtbl.add table "ex_id_assign1.v"
+    (create_fixed_test "check if id are assigned logically 1"
+       test_parsing_logical_id_assignement nodes document_text uri_str);
+  Hashtbl.add table "ex_id_assign2.v"
+    (create_fixed_test "check if id are assigned logically 2"
+       test_parsing_logical_id_assignement nodes document_text uri_str);
+  Hashtbl.add table "ex_id_assign3.v"
+    (create_fixed_test "check if id are assigned logically 3"
+       test_parsing_logical_id_assignement nodes document_text uri_str);
+
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 nodes document_text
        uri_str);
@@ -390,9 +463,6 @@ let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
        test_removing_node_same_line_as_other nodes document_text uri_str);
   Hashtbl.add table "ex_adding1.v"
     (create_fixed_test "test searching node" test_searching_node nodes
-       document_text uri_str);
-  Hashtbl.add table "ex_adding1.v"
-    (create_fixed_test "test creating new node" test_creating_node nodes
        document_text uri_str);
   Hashtbl.add table "ex_adding1.v"
     (create_fixed_test "test adding new nodes on an empty line"
