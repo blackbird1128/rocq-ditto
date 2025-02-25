@@ -5,10 +5,13 @@ open Syntax_node
 type proofState = NoProof | ProofOpened
 
 type t = {
+  id_counter: Unique_id.counter;
   filename : string;
   elements : syntaxNode list;
   document_repr : string;
 }
+
+type shiftMethod = ShiftVertically | ShiftHorizontally
 
 let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
   Format.fprintf fmt "filename: %s@ " doc.filename;
@@ -19,16 +22,6 @@ let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
       (* see to add id maybe ? *)
     doc.elements;
   Format.fprintf fmt "document repr: %s" doc.document_repr
-
-type insertPosition = Before of int | After of int | Start | End
-
-let pp_insert_position (fmt : Format.formatter)
-    (insert_position : insertPosition) : unit =
-  match insert_position with
-  | Before y -> Format.fprintf fmt "Before %d" y
-  | After y -> Format.fprintf fmt "After %d" y
-  | Start -> Format.fprintf fmt "Start"
-  | End -> Format.fprintf fmt "End"
 
 module IntMap = Map.Make (Int)
 
@@ -141,7 +134,8 @@ let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
   merge_aux [] nodes
 
 let parse_document (nodes : Doc.Node.t list) (document_repr : string)
-    (filename : string) : t =
+      (filename : string) : t =
+  let coq_document_counter = Unique_id.create () 
   let nodes_with_ast =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
@@ -152,7 +146,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           ast = node.ast;
           range = node.range;
           repr = node_representation node document_repr;
-          id = Unique_id.next ();
+          id = -1;
           proof_id = None;
         })
       nodes_with_ast
@@ -165,7 +159,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           ast = None;
           range = snd comment;
           repr = fst comment;
-          id = Unique_id.next ();
+          id = -1;
           proof_id = None;
         })
       comments
@@ -204,7 +198,12 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
   let all_nodes =
     merge_nodes (List.sort compare_nodes (ast_nodes @ comments_nodes))
   in
-  let res = aux all_nodes NoProof None [] in
+  let numbered_all_nodes =
+    List.map
+      (fun node -> { node with id = coq_document_counter.next () })
+      all_nodes
+  in
+  let res = aux numbered_all_nodes NoProof None [] in
   { elements = res; document_repr; filename }
 
 let rec dump_to_string (doc : t) : string =
@@ -290,76 +289,98 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
       in
       {
         doc with
-        elements = List.concat [ before; shift_nodes line_shift 0 0 after ];
+        elements =
+          List.concat
+            [
+              before;
+              shift_nodes line_shift 0
+                (elem.range.start.offset - elem.range.end_.offset)
+                after;
+            ];
       }
       (* Shift n char off the line if more than one element   *)
   | None -> doc
 
-let insert_node (new_node : syntaxNode) (doc : t) (insert_pos : insertPosition)
-    : (t, string) result =
-  match insert_pos with
-  | Before id -> (
-      let target_node : syntaxNode option = element_with_id_opt id doc in
-      match target_node with
-      | Some target ->
-          let node_size =
-            new_node.range.end_.line - new_node.range.start.line
+(*return the nodes colliding with target node*)
+let colliding_nodes (target : syntaxNode) (doc : t) : syntaxNode list =
+  let target_range_start = target.range.start.offset in
+  let target_range_end = target.range.end_.offset in
+  List.filter
+    (fun node ->
+      let node_range_start = node.range.start.offset in
+      let node_range_end = node.range.end_.offset in
+      if
+        node_range_start >= target_range_start
+        && node_range_start <= target_range_end
+      then true
+      else if
+        node_range_end >= target_range_start
+        && node_range_end <= target_range_end
+      then true
+      else false)
+    doc.elements
+
+let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
+    (doc : t) : (t, string) result =
+  if
+    shift_method = ShiftHorizontally
+    && new_node.range.start.line != new_node.range.end_.line
+  then Error "Shifting horizontally is only possible with 1 line wide node"
+  else
+    match colliding_nodes new_node doc with
+    | [] ->
+        let nodes_sorted = List.sort compare_nodes (new_node :: doc.elements) in
+        Ok { doc with elements = nodes_sorted }
+    | collision ->
+        let element_before_new_node_start =
+          List.filter
+            (fun node -> node.range.start < new_node.range.start)
+            doc.elements
+        in
+        let element_after_new_node_start =
+          List.filter
+            (fun node -> node.range.start >= new_node.range.start)
+            doc.elements
+        in
+        if shift_method = ShiftVertically then
+          let shifted =
+            shift_nodes
+              (new_node.range.end_.line - new_node.range.start.line)
+              0
+              (new_node.range.end_.offset - new_node.range.start.offset)
+              element_after_new_node_start
           in
-          let line_shift =
-            node_size
-            +
-            if new_node.range.start.line = target.range.end_.line then 0 else 1
-          in
-          let before, after = split_at_id id doc in
           Ok
             {
               doc with
-              elements =
-                List.concat
-                  [
-                    before;
-                    [ new_node ];
-                    shift_nodes line_shift 0
-                      (String.length new_node.repr)
-                      (target :: after);
-                  ];
+              elements = element_before_new_node_start @ (new_node :: shifted);
             }
-      | None -> Error ("node with id " ^ string_of_int id ^ "doesn't exist"))
-  | After id -> (
-      let target_node = element_with_id_opt id doc in
-      match target_node with
-      | Some target ->
-          let before, after = split_at_id id doc in
-          let node_size =
-            new_node.range.end_.line - new_node.range.start.line
-          in
-          let line_shift =
-            node_size
-            +
-            if new_node.range.start.line = target.range.end_.line then 0 else 1
+        else
+          let shifted =
+            List.map
+              (fun node ->
+                if
+                  node.range.start.line = node.range.end_.line
+                  && node.range.start.line = new_node.range.start.line
+                then
+                  shift_node 0
+                    (new_node.range.end_.character
+                   - new_node.range.start.character)
+                    (new_node.range.end_.offset - new_node.range.start.offset)
+                    node
+                else
+                  shift_node
+                    (new_node.range.end_.line - new_node.range.start.line)
+                    0
+                    (new_node.range.end_.offset - new_node.range.start.offset)
+                    node)
+              element_after_new_node_start
           in
           Ok
             {
               doc with
-              elements =
-                List.concat
-                  [
-                    before;
-                    [ target ];
-                    [ new_node ];
-                    shift_nodes line_shift 0 (String.length new_node.repr) after;
-                  ];
+              elements = element_before_new_node_start @ (new_node :: shifted);
             }
-      | None -> Error ("node with id " ^ string_of_int id ^ " doesn't exist"))
-  | Start ->
-      Ok
-        {
-          doc with
-          elements =
-            new_node
-            :: shift_nodes 1 0 (String.length new_node.repr) doc.elements;
-        }
-  | End -> Ok { doc with elements = doc.elements @ [ new_node ] }
 
 let remove_proof (target : proof) (doc : t) : t =
   let proof_nodes = target.proposition :: target.proof_steps in
@@ -367,19 +388,17 @@ let remove_proof (target : proof) (doc : t) : t =
     (fun doc_acc node -> remove_node_with_id node.id doc_acc)
     doc proof_nodes
 
-let insert_proof (target : proof) (doc : t) (insert_pos : insertPosition) :
-    (t, string) result =
+let insert_proof (target : proof) (doc : t) : (t, string) result =
   let proof_nodes = target.proposition :: target.proof_steps in
-  let rec aux (nodes : syntaxNode list) (doc_acc : t) (pos : insertPosition) :
-      (t, string) result =
+  let rec aux (nodes : syntaxNode list) (doc_acc : t) : (t, string) result =
     match nodes with
     | [] -> Ok doc_acc
     | node :: tail -> (
-        match insert_node node doc_acc pos with
-        | Ok new_doc -> aux tail new_doc (After node.id)
+        match insert_node node doc_acc with
+        | Ok new_doc -> aux tail new_doc
         | Error msg -> Error msg)
   in
-  aux proof_nodes doc insert_pos
+  aux proof_nodes doc
 
 let replace_proof (target : proof) (doc : t) : (t, string) result =
   match proof_with_id_opt target.proposition.id doc with
@@ -387,9 +406,8 @@ let replace_proof (target : proof) (doc : t) : (t, string) result =
       let proof_id = target.proposition.id in
       let doc_removed = remove_proof elem doc in
       match element_before_id_opt proof_id doc with
-      | Some element_before ->
-          insert_proof target doc_removed (After element_before.id)
-      | None -> insert_proof target doc_removed Start)
+      | Some element_before -> insert_proof target doc_removed
+      | None -> insert_proof target doc_removed)
   | None ->
       Error
         ("proof with id "

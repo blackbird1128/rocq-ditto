@@ -8,9 +8,9 @@ type t = {
   document_repr : string;
 }
 
-val pp_coq_document : Format.formatter -> t -> unit
+type shiftMethod = ShiftVertically | ShiftHorizontally
 
-type insertPosition = Before of int | After of int | Start | End
+val pp_coq_document : Format.formatter -> t -> unit
 
 val parse_document : Doc.Node.t list -> string -> string -> t
 (** Parse a document represented as a list of nodes and a string.
@@ -42,7 +42,11 @@ val remove_node_with_id : int -> t -> t
     numbers of subsequent elements. If the element is not found, it returns the
     original document. *)
 
-val insert_node : syntaxNode -> t -> insertPosition -> (t, string) result
+val colliding_nodes : syntaxNode -> t -> syntaxNode list
+(** return the nodes colliding with target node *)
+
+val insert_node :
+  syntaxNode -> ?shift_method:shiftMethod -> t -> (t, string) result
 (** [insert_node new_node doc insert_pos] attempts to insert [new_node] into the
     document [doc] at the position specified by [insert_pos]. The insertion can
     occur before or after a node identified by [id], or at the start or end of
@@ -74,7 +78,7 @@ val remove_proof : proof -> t -> t
 (** Remove a proof from the document. [remove_proof target doc] removes all
     nodes associated with the given [target] proof from the [doc]. *)
 
-val insert_proof : proof -> t -> insertPosition -> (t, string) result
+val insert_proof : proof -> t -> (t, string) result
 (** Insert a proof into a document at a specified position.
     [insert_proof target doc insert_pos] takes a [target] proof, a document
     [doc], and an insertion position [insert_pos]. It returns [Ok doc_acc] with
