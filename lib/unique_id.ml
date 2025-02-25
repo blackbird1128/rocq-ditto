@@ -1,6 +1,8 @@
-let counter = ref 0
+type counter = { count : int ref }
 
-let next () =
-  let id = !counter in
-  counter := id + 1;
+let create () = { count = ref 0 }
+
+let next c =
+  let id = !(c.count) in
+  c.count := id + 1;
   id
