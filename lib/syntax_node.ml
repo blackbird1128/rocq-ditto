@@ -26,6 +26,7 @@ let pp_syntax_node (fmt : Format.formatter) (node : syntaxNode) : unit =
   Format.fprintf fmt "}"
 
 let generate_ast code =
+  print_endline ("Code : " ^ code);
   let mode = Ltac_plugin.G_ltac.classic_proof_mode in
   let entry = Pvernac.main_entry (Some mode) in
   let code_stream = Gramlib.Stream.of_string code in
@@ -49,7 +50,8 @@ let syntax_node_of_string (code : string) (range : Lang.Range.t) :
         {
           ast = Some node_ast;
           range;
-          id = Unique_id.next ();
+          id = 0;
+          (*id is set during insertion in a document*)
           repr = code;
           proof_id = None;
         }
@@ -80,7 +82,8 @@ let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
                {
                  ast = Some node_ast;
                  range;
-                 id = Unique_id.next ();
+                 id = 0;
+                 (* id is set during document insertion *)
                  repr = code;
                  proof_id = None;
                })
@@ -92,7 +95,8 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode
   {
     ast = Some node_ast;
     range;
-    id = Unique_id.next ();
+    id = 0;
+    (* id is set during document insertion *)
     repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds;
     proof_id = None;
   }

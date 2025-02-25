@@ -3,6 +3,7 @@ open Fleche
 open Syntax_node
 
 type t = {
+  id_counter : Unique_id.counter;
   filename : string;
   elements : syntaxNode list;
   document_repr : string;

@@ -5,7 +5,7 @@ open Syntax_node
 type proofState = NoProof | ProofOpened
 
 type t = {
-  id_counter: Unique_id.counter;
+  id_counter : Unique_id.counter;
   filename : string;
   elements : syntaxNode list;
   document_repr : string;
@@ -70,6 +70,7 @@ let doc_to_yojson (doc : t) : Yojson.Safe.t =
 let doc_of_yojson (json : Yojson.Safe.t) : t =
   let open Yojson.Safe.Util in
   {
+    id_counter = Unique_id.create ();
     filename = json |> member "filename" |> to_string;
     document_repr = json |> member "document_repr" |> to_string;
     elements =
@@ -134,8 +135,7 @@ let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
   merge_aux [] nodes
 
 let parse_document (nodes : Doc.Node.t list) (document_repr : string)
-      (filename : string) : t =
-  let coq_document_counter = Unique_id.create () 
+    (filename : string) : t =
   let nodes_with_ast =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
@@ -198,13 +198,14 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
   let all_nodes =
     merge_nodes (List.sort compare_nodes (ast_nodes @ comments_nodes))
   in
+  let doc_counter = Unique_id.create () in
   let numbered_all_nodes =
     List.map
-      (fun node -> { node with id = coq_document_counter.next () })
+      (fun node -> { node with id = Unique_id.next doc_counter })
       all_nodes
   in
   let res = aux numbered_all_nodes NoProof None [] in
-  { elements = res; document_repr; filename }
+  { id_counter = doc_counter; elements = res; document_repr; filename }
 
 let rec dump_to_string (doc : t) : string =
   let rec aux (repr_nodes : syntaxNode list) (doc_repr : string)
@@ -282,22 +283,41 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
   match element_with_id_opt target_id doc with
   | Some elem ->
       let before, after = split_at_id target_id doc in
-      let line_shift =
-        if List.length (elements_starting_at_line elem.range.start.line doc) > 1
-        then 0
-        else -(elem.range.end_.line - elem.range.start.line + 1)
-      in
-      {
-        doc with
-        elements =
-          List.concat
-            [
-              before;
-              shift_nodes line_shift 0
-                (elem.range.start.offset - elem.range.end_.offset)
-                after;
-            ];
-      }
+      if List.length (elements_starting_at_line elem.range.start.line doc) > 1
+      then
+        {
+          doc with
+          elements =
+            List.concat
+              [
+                before;
+                List.map
+                  (fun node ->
+                    if node.range.start.line = elem.range.start.line then
+                      shift_node 0
+                        (elem.range.start.offset - elem.range.end_.offset)
+                        0 node
+                    else
+                      shift_node 0 0
+                        (elem.range.start.offset - elem.range.end_.offset)
+                        node)
+                  after;
+              ];
+        }
+      else
+        {
+          doc with
+          elements =
+            List.concat
+              [
+                before;
+                shift_nodes
+                  (-(elem.range.end_.line - elem.range.start.line + 1))
+                  0
+                  (elem.range.start.offset - elem.range.end_.offset)
+                  after;
+              ];
+        }
       (* Shift n char off the line if more than one element   *)
   | None -> doc
 
@@ -327,6 +347,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     && new_node.range.start.line != new_node.range.end_.line
   then Error "Shifting horizontally is only possible with 1 line wide node"
   else
+    let node_with_id = { new_node with id = Unique_id.next doc.id_counter } in
     match colliding_nodes new_node doc with
     | [] ->
         let nodes_sorted = List.sort compare_nodes (new_node :: doc.elements) in
@@ -353,7 +374,8 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
           Ok
             {
               doc with
-              elements = element_before_new_node_start @ (new_node :: shifted);
+              elements =
+                element_before_new_node_start @ (node_with_id :: shifted);
             }
         else
           let shifted =
@@ -379,7 +401,8 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
           Ok
             {
               doc with
-              elements = element_before_new_node_start @ (new_node :: shifted);
+              elements =
+                element_before_new_node_start @ (node_with_id :: shifted);
             }
 
 let remove_proof (target : proof) (doc : t) : t =
