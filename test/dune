@@ -12,7 +12,3 @@
  (name test_coq_document)
  (package coq-ditto)
  (libraries ditto alcotest))
-
-(rule
- (alias runtest)
- (action (progn (run ./test_nary_tree.exe) (run ./test_syntax_node.exe) (run ./test_coq_document.exe) )))

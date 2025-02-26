@@ -330,8 +330,8 @@ let test_adding_multiple_line_node (nodes : Doc.Node.t list)
   let doc = Coq_document.parse_document nodes document_text uri_str in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 1; character = 0; offset = 11 } in
-  let end_point : Lang.Point.t = { line = 2; character = 42; offset = 53 } in
+  let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
+  let end_point : Lang.Point.t = { line = 4; character = 10; offset = 42 } in
   let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
   let node =
     Result.get_ok
@@ -350,14 +350,16 @@ let test_adding_node_between (nodes : Doc.Node.t list) (document_text : string)
   let doc = Coq_document.parse_document nodes document_text uri_str in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
-  let end_point : Lang.Point.t = { line = 4; character = 10; offset = 42 } in
+  let start_point : Lang.Point.t = { line = 1; character = 11; offset = 12 } in
+  let end_point : Lang.Point.t = { line = 1; character = 21; offset = 22 } in
   let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
   let node =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
   in
 
-  let new_doc = Coq_document.insert_node node doc in
+  let new_doc =
+    Coq_document.insert_node ~shift_method:ShiftHorizontally node doc
+  in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
