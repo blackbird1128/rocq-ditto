@@ -40,22 +40,35 @@ let generate_ast code =
 
 let syntax_node_of_string (code : string) (range : Lang.Range.t) :
     (syntaxNode, string) result =
-  match generate_ast code with
-  | [] -> Error ("no node found in string " ^ code)
-  | [ x ] ->
-      let node_ast : Doc.Node.Ast.t =
-        { v = Coq.Ast.of_coq x; ast_info = None }
-      in
-      Ok
-        {
-          ast = Some node_ast;
-          range;
-          id = 0;
-          (*id is set during insertion in a document*)
-          repr = code;
-          proof_id = None;
-        }
-  | _ -> Error ("more than one node found in string " ^ code)
+  if String.length code > range.end_.offset - range.start.offset then
+    Error
+      "Incorrect range: range end offset minus range start offset smaller than \
+       node character size"
+  else if
+    range.start.line = range.end_.line
+    && String.length code > range.end_.character - range.start.character
+  then
+    Error
+      "Incorrect range: range end character minus range start character \
+       smaller than node character size"
+  else
+    match generate_ast code with
+    | [] -> Error ("no node found in string " ^ code)
+    | [ x ] ->
+        let node_ast : Doc.Node.Ast.t =
+          { v = Coq.Ast.of_coq x; ast_info = None }
+        in
+
+        Ok
+          {
+            ast = Some node_ast;
+            range;
+            id = 0;
+            (*id is set during insertion in a document*)
+            repr = code;
+            proof_id = None;
+          }
+    | _ -> Error ("more than one node found in string " ^ code)
 
 let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
     (syntaxNode list, string) result =
