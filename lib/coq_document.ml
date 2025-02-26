@@ -368,7 +368,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
         if shift_method = ShiftVertically then
           let shifted =
             shift_nodes
-              (new_node.range.end_.line - new_node.range.start.line)
+              (new_node.range.end_.line - new_node.range.start.line + 1)
               0
               (new_node.range.end_.offset - new_node.range.start.offset + 1)
               element_after_new_node_start
@@ -383,21 +383,11 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
           let shifted =
             List.map
               (fun node ->
-                if
-                  node.range.start.line = node.range.end_.line
-                  && node.range.start.line = new_node.range.start.line
-                then
-                  shift_node 0
-                    (new_node.range.end_.character
-                   - new_node.range.start.character)
-                    (new_node.range.end_.offset - new_node.range.start.offset)
-                    node
-                else
-                  shift_node
-                    (new_node.range.end_.line - new_node.range.start.line)
-                    0
-                    (new_node.range.end_.offset - new_node.range.start.offset)
-                    node)
+                shift_node
+                  (new_node.range.end_.line - new_node.range.start.line)
+                  0
+                  (new_node.range.end_.offset - new_node.range.start.offset)
+                  node)
               element_after_new_node_start
           in
           Ok
