@@ -296,7 +296,9 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
                     if node.range.start.line = elem.range.start.line then
                       shift_node 0
                         (elem.range.start.offset - elem.range.end_.offset)
-                        0 node
+                        (*newline ?*)
+                        0
+                        node
                     else
                       shift_node 0 0
                         (elem.range.start.offset - elem.range.end_.offset)
@@ -314,7 +316,7 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
                 shift_nodes
                   (-(elem.range.end_.line - elem.range.start.line + 1))
                   0
-                  (elem.range.start.offset - elem.range.end_.offset)
+                  (elem.range.start.offset - elem.range.end_.offset - 1)
                   after;
               ];
         }
@@ -368,7 +370,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
             shift_nodes
               (new_node.range.end_.line - new_node.range.start.line)
               0
-              (new_node.range.end_.offset - new_node.range.start.offset)
+              (new_node.range.end_.offset - new_node.range.start.offset + 1)
               element_after_new_node_start
           in
           Ok
