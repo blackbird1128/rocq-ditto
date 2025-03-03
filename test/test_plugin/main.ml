@@ -290,7 +290,7 @@ let test_removing_node_same_line_as_other (nodes : Doc.Node.t list)
   Alcotest.(check (list (pair string range_testable)))
     "The two lists should be the same" parsed_target new_doc_res
 
-let test_adding_node_before_empty_line (nodes : Doc.Node.t list)
+let test_adding_node_on_empty_line (nodes : Doc.Node.t list)
     (document_text : string) (uri_str : string) () : unit =
   let doc = Coq_document.parse_document nodes document_text uri_str in
   let parsed_target = get_target uri_str in
@@ -470,7 +470,7 @@ let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
        document_text uri_str);
   Hashtbl.add table "ex_adding1.v"
     (create_fixed_test "test adding new nodes on an empty line"
-       test_adding_node_before_empty_line nodes document_text uri_str);
+       test_adding_node_on_empty_line nodes document_text uri_str);
   Hashtbl.add table "ex_adding2.v"
     (create_fixed_test "test adding new node on a filled line"
        test_adding_node_before_busy_line nodes document_text uri_str);

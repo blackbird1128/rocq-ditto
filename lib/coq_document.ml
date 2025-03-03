@@ -323,48 +323,158 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
       (* Shift n char off the line if more than one element   *)
   | None -> doc
 
+let range_iterator (start, end_) =
+  List.init (end_ - start + 1) (fun i -> start + i)
+
+let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
+  let a_start, a_end = a in
+  let b_start, b_end = b in
+  if
+    (a_start >= b_start && a_start <= b_end)
+    || (a_end >= b_start && a_end <= b_end)
+  then true
+  else false
+
+let get_range_intersection (a : int * int) (b : int * int) : (int * int) option
+    =
+  if are_flat_ranges_colliding a b then
+    let a_start, a_end = a in
+    let b_start, b_end = b in
+    Some (max a_start b_start, min a_end b_end)
+  else None
+
 (*return the nodes colliding with target node*)
 let colliding_nodes (target : syntaxNode) (doc : t) : syntaxNode list =
-  let target_range_start = target.range.start.offset in
-  let target_range_end = target.range.end_.offset in
+  let target_line_range = (target.range.start.line, target.range.end_.line) in
+  let target_offset_range =
+    (target.range.start.offset, target.range.end_.offset)
+  in
   List.filter
     (fun node ->
-      let node_range_start = node.range.start.offset in
-      let node_range_end = node.range.end_.offset in
-      if
-        node_range_start >= target_range_start
-        && node_range_start <= target_range_end
-      then true
-      else if
-        node_range_end >= target_range_start
-        && node_range_end <= target_range_end
-      then true
+      let node_line_range = (node.range.start.line, node.range.end_.line) in
+      if are_flat_ranges_colliding target_line_range node_line_range then
+        let node_offset_range =
+          (target.range.start.offset, target.range.end_.offset)
+        in
+        are_flat_ranges_colliding target_offset_range node_offset_range
       else false)
     doc.elements
 
 let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     (doc : t) : (t, string) result =
+  let first_range : Lang.Range.t =
+    {
+      start = { offset = 0; line = 0; character = 0 };
+      end_ = { offset = 0; line = 0; character = 0 };
+    }
+  in
+  let element_before_new_node_start =
+    List.filter
+      (fun node -> node.range.start.offset < new_node.range.start.offset)
+      doc.elements
+  in
+  let element_after_new_node_start =
+    List.filter
+      (fun node -> node.range.start.offset >= new_node.range.start.offset)
+      doc.elements
+  in
+  let element_before_range =
+    List.nth_opt element_before_new_node_start
+      (List.length element_before_new_node_start - 1)
+    |> Option.map (fun x -> x.range)
+    |> Option.default first_range
+  in
+  let element_after_range = (List.nth element_after_new_node_start 0).range in
   if
     shift_method = ShiftHorizontally
     && new_node.range.start.line != new_node.range.end_.line
   then Error "Shifting horizontally is only possible with 1 line wide node"
   else
     let node_with_id = { new_node with id = Unique_id.next doc.id_counter } in
-    match colliding_nodes new_node doc with
+    match shift_method with
+    | ShiftHorizontally ->
+        let collisions = colliding_nodes node_with_id doc in
+        let middle_new_node =
+          (node_with_id.range.end_.offset - node_with_id.range.start.offset) / 2
+        in
+        let nodes_before_middle =
+          List.filter
+            (fun node -> node.range.start.offset < middle_new_node)
+            collisions
+        in
+        let nodes_after_middle =
+          List.filter
+            (fun node -> node.range.start.offset >= middle_new_node)
+            collisions
+        in
+
+        Error "Not handled yet"
+    | ShiftVertically -> (
+        let node_offset_size =
+          node_with_id.range.end_.offset - node_with_id.range.start.offset + 1
+        in
+        let node_line_size =
+          node_with_id.range.end_.line - node_with_id.range.start.line + 1
+        in
+
+        match colliding_nodes node_with_id doc with
+        | [] ->
+            (*there can be less offset but still space *)
+            Ok
+              {
+                doc with
+                elements =
+                  element_before_new_node_start
+                  @ node_with_id
+                    :: List.map
+                         (fun node ->
+                           print_endline
+                             ("element_before range : "
+                             ^ Lang.Range.to_string element_before_range);
+                           print_endline
+                             ("element after range : "
+                             ^ Lang.Range.to_string element_after_range);
+                           let offset_space =
+                             element_after_range.start.offset
+                             - element_before_range.end_.offset - 1
+                           in
+
+                           shift_node 0 0 (node_offset_size - offset_space) node)
+                         element_after_new_node_start;
+              }
+        | collision ->
+            Ok
+              {
+                doc with
+                elements =
+                  element_before_new_node_start
+                  @ node_with_id
+                    :: List.map
+                         (fun node ->
+                           print_endline "collision ! ";
+                           print_endline
+                             ("element_before range : "
+                             ^ Lang.Range.to_string element_before_range);
+                           print_endline
+                             ("element after range : "
+                             ^ Lang.Range.to_string element_after_range);
+                           let offset_space =
+                             element_after_range.start.offset
+                             - element_before_range.end_.offset - 1
+                           in
+                           print_endline
+                             ("node line size :" ^ string_of_int node_line_size);
+                           print_endline
+                             ("offset space : " ^ string_of_int offset_space);
+                           shift_node node_line_size 0 node_offset_size node)
+                         element_after_new_node_start;
+              })
+
+(*  match colliding_nodes new_node doc with
     | [] ->
         let nodes_sorted = List.sort compare_nodes (new_node :: doc.elements) in
         Ok { doc with elements = nodes_sorted }
     | collision ->
-        let element_before_new_node_start =
-          List.filter
-            (fun node -> node.range.start < new_node.range.start)
-            doc.elements
-        in
-        let element_after_new_node_start =
-          List.filter
-            (fun node -> node.range.start >= new_node.range.start)
-            doc.elements
-        in
         if shift_method = ShiftVertically then
           let shifted =
             shift_nodes
@@ -395,7 +505,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
               doc with
               elements =
                 element_before_new_node_start @ (node_with_id :: shifted);
-            }
+            } *)
 
 let remove_proof (target : proof) (doc : t) : t =
   let proof_nodes = target.proposition :: target.proof_steps in
