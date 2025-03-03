@@ -391,28 +391,41 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
   then Error "Shifting horizontally is only possible with 1 line wide node"
   else
     let node_with_id = { new_node with id = Unique_id.next doc.id_counter } in
+    let node_offset_size =
+      node_with_id.range.end_.offset - node_with_id.range.start.offset + 1
+    in
     match shift_method with
     | ShiftHorizontally ->
         let collisions = colliding_nodes node_with_id doc in
         let middle_new_node =
           (node_with_id.range.end_.offset - node_with_id.range.start.offset) / 2
         in
+        (* TODO shift nodes before middle as well  *)
         let nodes_before_middle =
           List.filter
             (fun node -> node.range.start.offset < middle_new_node)
-            collisions
+            doc.elements
         in
         let nodes_after_middle =
           List.filter
             (fun node -> node.range.start.offset >= middle_new_node)
-            collisions
+            doc.elements
         in
 
-        Error "Not handled yet"
+        Ok
+          {
+            doc with
+            elements =
+              nodes_before_middle
+              @ node_with_id
+                :: List.map
+                     (fun node ->
+                       if node.range.start.line = node_with_id.range.start.line
+                       then shift_node 0 node_offset_size 0 node
+                       else shift_node 0 0 node_offset_size node)
+                     nodes_after_middle;
+          }
     | ShiftVertically -> (
-        let node_offset_size =
-          node_with_id.range.end_.offset - node_with_id.range.start.offset + 1
-        in
         let node_line_size =
           node_with_id.range.end_.line - node_with_id.range.start.line + 1
         in
@@ -470,43 +483,6 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
                          element_after_new_node_start;
               })
 
-(*  match colliding_nodes new_node doc with
-    | [] ->
-        let nodes_sorted = List.sort compare_nodes (new_node :: doc.elements) in
-        Ok { doc with elements = nodes_sorted }
-    | collision ->
-        if shift_method = ShiftVertically then
-          let shifted =
-            shift_nodes
-              (new_node.range.end_.line - new_node.range.start.line + 1)
-              0
-              (new_node.range.end_.offset - new_node.range.start.offset + 1)
-              element_after_new_node_start
-          in
-          Ok
-            {
-              doc with
-              elements =
-                element_before_new_node_start @ (node_with_id :: shifted);
-            }
-        else
-          let shifted =
-            List.map
-              (fun node ->
-                shift_node
-                  (new_node.range.end_.line - new_node.range.start.line)
-                  0
-                  (new_node.range.end_.offset - new_node.range.start.offset)
-                  node)
-              element_after_new_node_start
-          in
-          Ok
-            {
-              doc with
-              elements =
-                element_before_new_node_start @ (node_with_id :: shifted);
-            } *)
-
 let remove_proof (target : proof) (doc : t) : t =
   let proof_nodes = target.proposition :: target.proof_steps in
   List.fold_left
@@ -527,12 +503,10 @@ let insert_proof (target : proof) (doc : t) : (t, string) result =
 
 let replace_proof (target : proof) (doc : t) : (t, string) result =
   match proof_with_id_opt target.proposition.id doc with
-  | Some elem -> (
-      let proof_id = target.proposition.id in
+  | Some elem ->
+      print_endline "found a proof";
       let doc_removed = remove_proof elem doc in
-      match element_before_id_opt proof_id doc with
-      | Some element_before -> insert_proof target doc_removed
-      | None -> insert_proof target doc_removed)
+      insert_proof target doc_removed
   | None ->
       Error
         ("proof with id "
