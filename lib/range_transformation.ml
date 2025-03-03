@@ -14,3 +14,25 @@ let push_range_n_char (n_char : int) (range : Lang.Range.t) : Lang.Range.t =
     }
   in
   { start = new_start; end_ = new_end }
+
+let range_from_starting_point_and_repr (starting_point : Lang.Point.t)
+    (repr : string) : Lang.Range.t =
+  let number_line_jump =
+    String.fold_left
+      (fun count char -> if char = '\n' then count + 1 else count)
+      0 repr
+  in
+  let last_jump = String.rindex_opt repr '\n' in
+  let offset_length = String.length repr - number_line_jump in
+  {
+    start = starting_point;
+    end_ =
+      {
+        line = starting_point.line + number_line_jump + 1;
+        character =
+          (if number_line_jump > 0 then
+             String.length repr - Option.get last_jump - 1
+           else starting_point.character + offset_length);
+        offset = starting_point.offset + offset_length;
+      };
+  }
