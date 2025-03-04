@@ -55,14 +55,18 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             print_endline "removed !";
             match transformation_steps with
             | Ok steps -> (
-                match Coq_document.replace_proof new_proof doc_acc with
-                | Ok new_doc ->
-                    print_endline "replaced !";
-                    new_doc
-                | Error err ->
-                    print_endline err;
-                    print_endline doc_acc.filename;
-                    doc_acc)
+                let doc_with_steps_applied =
+                  List.fold_left
+                    (fun doc_acc_err step ->
+                      match doc_acc_err with
+                      | Ok doc ->
+                          Coq_document.apply_transformation_step step doc
+                      | Error err -> Error err)
+                    (Ok doc_acc) steps
+                in
+                match doc_with_steps_applied with
+                | Ok new_doc -> new_doc
+                | Error err -> doc_acc)
             | Error err -> doc_acc)
           parsed_document proofs
       in

@@ -196,13 +196,13 @@ let fold_inspect (doc : Doc.t) (proof_tree : syntaxNode nary_tree) =
   ()
 
 let fold_replace_assumption_with_apply (doc : Doc.t)
-    (proof_tree : syntaxNode nary_tree) : (Ditto.Proof.proof, string) result =
+    (proof_tree : syntaxNode nary_tree) :
+    (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
   let res =
     Proof.depth_first_fold_with_state doc token
       (fun state acc node ->
-        if Syntax_node.is_doc_node_proof_intro_or_end node then
-          (state, node :: acc)
+        if Syntax_node.is_doc_node_proof_intro_or_end node then (state, acc)
         else
           let state_node =
             Proof.get_proof_state
@@ -250,14 +250,12 @@ let fold_replace_assumption_with_apply (doc : Doc.t)
                        node.range)
                 in
 
-                (state_node, new_node :: acc)
-            | Error _ -> (state_node, node :: acc)
-          else (state_node, node :: acc))
+                (state_node, Replace (node.id, new_node) :: acc)
+            | Error _ -> (state_node, acc)
+          else (state_node, acc))
       [] proof_tree
   in
-  match res with
-  | Ok steps -> Proof.proof_from_nodes (List.rev steps)
-  | Error err -> Error err
+  res
 
 let can_reduce_to_zero_goals (doc : Doc.t) (init_state : Petanque.Agent.State.t)
     (nodes : syntaxNode list) =
@@ -303,29 +301,26 @@ let remove_empty_lines (proof : proof) : proof =
   | None -> proof
 
 let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
-    (proof, string) result =
+    (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
   let rec aux state acc nodes =
     match nodes with
     | [] -> acc
     | x :: tail ->
-        if is_doc_node_proof_intro_or_end x then aux state (x :: acc) tail
-        else if can_reduce_to_zero_goals doc state tail then aux state acc tail
+        if is_doc_node_proof_intro_or_end x then aux state acc tail
+        else if can_reduce_to_zero_goals doc state tail then
+          aux state (Remove x.id :: acc) tail
         else
           let state_node =
             Proof.get_proof_state
               (Petanque.Agent.run ~token ~st:state ~tac:x.repr ())
           in
-          aux state_node (x :: acc) tail
+          aux state_node acc tail
   in
   match get_init_state doc proof with
   | Some (Ok state) ->
-      let nodes = aux state.st [] (proof_nodes proof) in
-      let proof =
-        remove_empty_lines (Result.get_ok (proof_from_nodes (List.rev nodes)))
-      in
-
-      Ok proof
+      let steps = aux state.st [] (proof_nodes proof) in
+      Ok steps
   | _ -> Error "Unable to retrieve initial state"
 
 let make_intros_explicit (doc : Doc.t) (proof : proof) :
