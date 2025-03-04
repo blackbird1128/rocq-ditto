@@ -4,7 +4,7 @@
 all:
 	dune build lib --profile=release
 	dune build fcc_plugin --profile=release
-	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_move_bug.v
+	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_intros_trans.v
 
 test:
 	dune build . --profile=release
@@ -34,4 +34,3 @@ dump-json:
 
 clean:
 	dune clean
-

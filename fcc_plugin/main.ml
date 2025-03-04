@@ -50,23 +50,29 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         List.fold_left
           (fun doc_acc proof ->
             let new_proof_res =
-              Transformations.make_intros_explicit doc proof
+              Transformations.remove_unecessary_steps doc proof
             in
+            print_endline "removed !";
             match new_proof_res with
             | Ok new_proof -> (
                 match Coq_document.replace_proof new_proof doc_acc with
-                | Ok new_doc -> new_doc
+                | Ok new_doc ->
+                    print_endline "replaced !";
+                    new_doc
                 | Error err ->
                     print_endline err;
-                    print_endline "error here !";
                     print_endline doc_acc.filename;
                     doc_acc)
-            | Error err ->
-                print_endline "error there ";
-                doc_acc)
+            | Error err -> doc_acc)
           parsed_document proofs
       in
-
+      List.iter
+        (fun node ->
+          print_endline
+            ("id : " ^ string_of_int node.id ^ " range : "
+            ^ Lang.Range.to_string node.range
+            ^ " repr: " ^ node.repr))
+        modified_doc.elements;
       print_endline Fleche.Version.server;
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
       output_string out (Coq_document.dump_to_string modified_doc);

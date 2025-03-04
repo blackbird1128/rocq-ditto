@@ -28,7 +28,7 @@ let range_from_starting_point_and_repr (starting_point : Lang.Point.t)
     start = starting_point;
     end_ =
       {
-        line = starting_point.line + number_line_jump + 1;
+        line = starting_point.line + number_line_jump;
         character =
           (if number_line_jump > 0 then
              String.length repr - Option.get last_jump - 1

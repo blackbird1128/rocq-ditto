@@ -357,10 +357,13 @@ let make_intros_explicit (doc : Doc.t) (proof : proof) : (proof, string) result
                 (fun x -> not (List.mem x old_state_vars))
                 new_state_vars
             in
+
             let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
             let explicit_intro_node =
               Result.get_ok
-                (Syntax_node.syntax_node_of_string explicit_intro node.range)
+                (Syntax_node.syntax_node_of_string explicit_intro
+                   (Range_transformation.range_from_starting_point_and_repr
+                      node.range.start explicit_intro))
             in
             (new_state, explicit_intro_node :: acc)
           else (new_state, node :: acc))

@@ -323,9 +323,6 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
       (* Shift n char off the line if more than one element   *)
   | None -> doc
 
-let range_iterator (start, end_) =
-  List.init (end_ - start + 1) (fun i -> start + i)
-
 let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
   let a_start, a_end = a in
   let b_start, b_end = b in
@@ -334,14 +331,6 @@ let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
     || (a_end >= b_start && a_end <= b_end)
   then true
   else false
-
-let get_range_intersection (a : int * int) (b : int * int) : (int * int) option
-    =
-  if are_flat_ranges_colliding a b then
-    let a_start, a_end = a in
-    let b_start, b_end = b in
-    Some (max a_start b_start, min a_end b_end)
-  else None
 
 (*return the nodes colliding with target node*)
 let colliding_nodes (target : syntaxNode) (doc : t) : syntaxNode list =
@@ -379,59 +368,67 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
       doc.elements
   in
   let element_before_range =
-    List.nth_opt element_before_new_node_start
-      (List.length element_before_new_node_start - 1)
-    |> Option.map (fun x -> x.range)
-    |> Option.default first_range
+    if List.length element_before_new_node_start > 0 then
+      List.nth_opt element_before_new_node_start
+        (List.length element_before_new_node_start - 1)
+      |> Option.map (fun x -> x.range)
+      |> Option.default first_range
+    else first_range
   in
-  let element_after_range = (List.nth element_after_new_node_start 0).range in
+
+  let element_after_range_opt =
+    Option.map (fun x -> x.range) (List.nth_opt element_after_new_node_start 0)
+  in
+  let node_with_id = { new_node with id = Unique_id.next doc.id_counter } in
   if
     shift_method = ShiftHorizontally
     && new_node.range.start.line != new_node.range.end_.line
   then Error "Shifting horizontally is only possible with 1 line wide node"
   else
-    let node_with_id = { new_node with id = Unique_id.next doc.id_counter } in
-    let node_offset_size =
-      node_with_id.range.end_.offset - node_with_id.range.start.offset + 1
-    in
-    match shift_method with
-    | ShiftHorizontally ->
-        let collisions = colliding_nodes node_with_id doc in
-        let middle_new_node =
-          (node_with_id.range.end_.offset - node_with_id.range.start.offset) / 2
+    match element_after_range_opt with
+    | Some element_after_range -> (
+        let node_offset_size =
+          node_with_id.range.end_.offset - node_with_id.range.start.offset + 1
         in
-        (* TODO shift nodes before middle as well  *)
-        let nodes_before_middle =
-          List.filter
-            (fun node -> node.range.start.offset < middle_new_node)
-            doc.elements
-        in
-        let nodes_after_middle =
-          List.filter
-            (fun node -> node.range.start.offset >= middle_new_node)
-            doc.elements
-        in
+        match shift_method with
+        | ShiftHorizontally ->
+            let middle_new_node =
+              (node_with_id.range.end_.offset - node_with_id.range.start.offset)
+              / 2
+            in
+            (* TODO shift nodes before middle as well  *)
+            let nodes_before_middle =
+              List.filter
+                (fun node -> node.range.start.offset < middle_new_node)
+                doc.elements
+            in
+            let nodes_after_middle =
+              List.filter
+                (fun node -> node.range.start.offset >= middle_new_node)
+                doc.elements
+            in
 
-        Ok
-          {
-            doc with
-            elements =
-              nodes_before_middle
-              @ node_with_id
-                :: List.map
-                     (fun node ->
-                       if node.range.start.line = node_with_id.range.start.line
-                       then shift_node 0 node_offset_size 0 node
-                       else shift_node 0 0 node_offset_size node)
-                     nodes_after_middle;
-          }
-    | ShiftVertically -> (
-        let node_line_size =
-          node_with_id.range.end_.line - node_with_id.range.start.line + 1
-        in
-
-        match colliding_nodes node_with_id doc with
-        | [] ->
+            Ok
+              {
+                doc with
+                elements =
+                  nodes_before_middle
+                  @ node_with_id
+                    :: List.map
+                         (fun node ->
+                           if
+                             node.range.start.line
+                             = node_with_id.range.start.line
+                           then shift_node 0 node_offset_size 0 node
+                           else shift_node 0 0 node_offset_size node)
+                         nodes_after_middle;
+              }
+        | ShiftVertically ->
+            let line_shift =
+              if List.length (colliding_nodes node_with_id doc) = 0 then 0
+              else
+                node_with_id.range.end_.line - node_with_id.range.start.line + 1
+            in
             (*there can be less offset but still space *)
             Ok
               {
@@ -441,47 +438,22 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
                   @ node_with_id
                     :: List.map
                          (fun node ->
-                           print_endline
-                             ("element_before range : "
-                             ^ Lang.Range.to_string element_before_range);
-                           print_endline
-                             ("element after range : "
-                             ^ Lang.Range.to_string element_after_range);
                            let offset_space =
                              element_after_range.start.offset
                              - element_before_range.end_.offset - 1
                            in
 
-                           shift_node 0 0 (node_offset_size - offset_space) node)
-                         element_after_new_node_start;
-              }
-        | collision ->
-            Ok
-              {
-                doc with
-                elements =
-                  element_before_new_node_start
-                  @ node_with_id
-                    :: List.map
-                         (fun node ->
-                           print_endline "collision ! ";
-                           print_endline
-                             ("element_before range : "
-                             ^ Lang.Range.to_string element_before_range);
-                           print_endline
-                             ("element after range : "
-                             ^ Lang.Range.to_string element_after_range);
-                           let offset_space =
-                             element_after_range.start.offset
-                             - element_before_range.end_.offset - 1
-                           in
-                           print_endline
-                             ("node line size :" ^ string_of_int node_line_size);
-                           print_endline
-                             ("offset space : " ^ string_of_int offset_space);
-                           shift_node node_line_size 0 node_offset_size node)
+                           shift_node line_shift 0
+                             (node_offset_size - offset_space)
+                             node)
                          element_after_new_node_start;
               })
+    | None ->
+        Ok
+          {
+            doc with
+            elements = element_before_new_node_start @ [ node_with_id ];
+          }
 
 let remove_proof (target : proof) (doc : t) : t =
   let proof_nodes = target.proposition :: target.proof_steps in
@@ -491,12 +463,31 @@ let remove_proof (target : proof) (doc : t) : t =
 
 let insert_proof (target : proof) (doc : t) : (t, string) result =
   let proof_nodes = target.proposition :: target.proof_steps in
+  print_endline "inserting proof";
+  print_endline "proof nodes: ";
+  List.iter
+    (fun node ->
+      print_endline
+        ("id : " ^ string_of_int node.id ^ " range : "
+        ^ Lang.Range.to_string node.range
+        ^ " repr: " ^ node.repr))
+    doc.elements;
   let rec aux (nodes : syntaxNode list) (doc_acc : t) : (t, string) result =
     match nodes with
     | [] -> Ok doc_acc
     | node :: tail -> (
         match insert_node node doc_acc with
-        | Ok new_doc -> aux tail new_doc
+        | Ok new_doc ->
+            print_endline "new doc :";
+            List.iter
+              (fun node ->
+                print_endline
+                  ("id : " ^ string_of_int node.id ^ " range : "
+                  ^ Lang.Range.to_string node.range
+                  ^ " repr: " ^ node.repr))
+              new_doc.elements;
+            print_endline "";
+            aux tail new_doc
         | Error msg -> Error msg)
   in
   aux proof_nodes doc
@@ -504,8 +495,14 @@ let insert_proof (target : proof) (doc : t) : (t, string) result =
 let replace_proof (target : proof) (doc : t) : (t, string) result =
   match proof_with_id_opt target.proposition.id doc with
   | Some elem ->
-      print_endline "found a proof";
       let doc_removed = remove_proof elem doc in
+      List.iter
+        (fun node ->
+          print_endline
+            ("id : " ^ string_of_int node.id ^ " range : "
+            ^ Lang.Range.to_string node.range
+            ^ " repr: " ^ node.repr))
+        doc_removed.elements;
       insert_proof target doc_removed
   | None ->
       Error
