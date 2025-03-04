@@ -12,6 +12,8 @@ type transformation_step =
   | Replace of int * syntaxNode
   | Add of syntaxNode
 
+val pp_transformation_step : Format.formatter -> transformation_step -> unit
+
 type proof = {
   proposition : syntaxNode;
   proof_steps : syntaxNode list;

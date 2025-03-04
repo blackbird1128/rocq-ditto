@@ -6,16 +6,30 @@ open Proof_tree
 
 type proof_status = Admitted | Proved | Aborted
 
-type transformation_step =
-  | Remove of int
-  | Replace of int * syntaxNode
-  | Add of syntaxNode
-
 let pp_proof_status (fmt : Format.formatter) (status : proof_status) : unit =
   match status with
   | Admitted -> Format.fprintf fmt "Admitted"
   | Proved -> Format.fprintf fmt "Proved"
   | Aborted -> Format.fprintf fmt "Aborted"
+
+type transformation_step =
+  | Remove of int
+  | Replace of int * syntaxNode
+  | Add of syntaxNode
+
+let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
+    : unit =
+  match step with
+  | Remove id -> Format.fprintf fmt "Removing node with id : %d." id
+  | Replace (id, new_node) ->
+      if new_node.range.start.line != new_node.range.end_.line then
+        print_endline "HHAHAHAHAHAH";
+      Format.fprintf fmt "Replacing node with id: %d by node: %s at %s" id
+        new_node.repr
+        (Lang.Range.to_string new_node.range)
+  | Add new_node ->
+      Format.fprintf fmt "Adding new node: %s at %s" new_node.repr
+        (Lang.Range.to_string new_node.range)
 
 type proof = {
   proposition : syntaxNode;
