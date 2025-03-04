@@ -23,10 +23,9 @@ let pp_syntax_node (fmt : Format.formatter) (node : syntaxNode) : unit =
   Format.fprintf fmt "proof id: %a@ "
     (fun fmt id -> Format.pp_print_option Format.pp_print_int fmt id)
     node.proof_id;
-  Format.fprintf fmt "}"
+  Format.fprintf fmt "@ }"
 
 let generate_ast code =
-  print_endline ("Code : " ^ code);
   let mode = Ltac_plugin.G_ltac.classic_proof_mode in
   let entry = Pvernac.main_entry (Some mode) in
   let code_stream = Gramlib.Stream.of_string code in
@@ -37,6 +36,30 @@ let generate_ast code =
     | Some ast -> ast :: f parser
   in
   f init_parser
+
+let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
+    (syntaxNode, string) result =
+  if String.length content > range.end_.offset - range.start.offset then
+    Error
+      "Incorrect range: range end offset minus range start offset smaller than \
+       node character size"
+  else if
+    range.start.line = range.end_.line
+    && String.length content > range.end_.character - range.start.character
+  then
+    Error
+      "Incorrect range: range end character minus range start character \
+       smaller than node character size"
+  else
+    Ok
+      {
+        ast = None;
+        repr = "(* " ^ content ^ " *)";
+        (* TODO handle multiple line comments *)
+        range;
+        id = 0;
+        proof_id = None;
+      }
 
 let syntax_node_of_string (code : string) (range : Lang.Range.t) :
     (syntaxNode, string) result =

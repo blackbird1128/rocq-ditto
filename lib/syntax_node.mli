@@ -11,6 +11,9 @@ type syntaxNode = {
 val pp_syntax_node : Format.formatter -> syntaxNode -> unit
 val syntax_node_of_coq_ast : Coq.Ast.t -> Lang.Range.t -> syntaxNode
 
+val comment_syntax_node_of_string :
+  string -> Lang.Range.t -> (syntaxNode, string) result
+
 val syntax_node_of_string :
   string -> Lang.Range.t -> (syntaxNode, string) result
 
