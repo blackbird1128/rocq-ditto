@@ -63,6 +63,8 @@ val insert_node :
     - [Start]: inserts [new_node] at the start of the document.
     - [End]: appends [new_node] to the end of the document. *)
 
+val replace_node : int -> syntaxNode -> t -> (t, string) result
+
 val get_proofs : t -> proof list
 (** Extract proofs from a document. [get_proofs doc] takes a document [doc] of
     type [t] and returns a list of proofs. Each proof is constructed by
@@ -92,3 +94,5 @@ val replace_proof : proof -> t -> (t, string) result
     removes this proof and inserts [target] at the appropriate position. If the
     proof is not found, it returns an error indicating that the proof with the
     specified id is not in the document. *)
+
+val apply_transformation_step : transformation_step -> t -> (t, string) result

@@ -455,6 +455,17 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
             elements = element_before_new_node_start @ [ node_with_id ];
           }
 
+let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
+    (t, string) result =
+  match element_with_id_opt target_id doc with
+  | Some node ->
+      let removed_node_doc = remove_node_with_id node.id doc in
+      insert_node replacement removed_node_doc
+  | None ->
+      Error
+        ("The target node with id : " ^ string_of_int target_id
+       ^ " doesn't exists")
+
 let remove_proof (target : proof) (doc : t) : t =
   let proof_nodes = target.proposition :: target.proof_steps in
   List.fold_left
@@ -509,3 +520,9 @@ let replace_proof (target : proof) (doc : t) : (t, string) result =
         ("proof with id "
         ^ string_of_int target.proposition.id
         ^ "isn't in the document")
+
+let apply_transformation_step (step : transformation_step) (doc : t) =
+  match step with
+  | Remove id -> Ok (remove_node_with_id id doc)
+  | Replace (id, new_node) -> replace_node id new_node doc
+  | Add new_node -> insert_node new_node doc
