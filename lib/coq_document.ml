@@ -108,9 +108,51 @@ let matches_with_line_col content pattern : (string * Lang.Range.t) list =
   in
   matches
 
+let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
+  let a_start, a_end = a in
+  let b_start, b_end = b in
+  if
+    (a_start >= b_start && a_start <= b_end)
+    || (a_end >= b_start && a_end <= b_end)
+  then true
+  else false
+
+let common_range (a : int * int) (b : int * int) : (int * int) option =
+  if are_flat_ranges_colliding a b then
+    let a_start, a_end = a in
+    let b_start, b_end = b in
+    Some (max a_start b_start, min a_end b_end)
+  else None
+
+(*return the nodes colliding with target node*)
+let colliding_nodes (target : syntaxNode) (doc : t) : syntaxNode list =
+  let target_line_range = (target.range.start.line, target.range.end_.line) in
+  let target_offset_range =
+    (target.range.start.offset, target.range.end_.offset)
+  in
+  List.filter
+    (fun node ->
+      let node_line_range = (node.range.start.line, node.range.end_.line) in
+      if are_flat_ranges_colliding target_line_range node_line_range then
+        let node_offset_range =
+          (node.range.start.offset, node.range.end_.offset)
+        in
+        are_flat_ranges_colliding target_offset_range node_offset_range
+      else false)
+    doc.elements
+
 let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
-  let comp = compare a.range.start.offset b.range.start.offset in
-  if comp = 0 then compare a.range.end_.offset b.range.end_.offset else comp
+  match
+    common_range
+      (a.range.start.line, a.range.end_.line)
+      (b.range.start.line, b.range.end_.line)
+  with
+  | Some common_line_range ->
+      let smallest_common = fst common_line_range in
+      if a.range.start.line < smallest_common then -1
+      else if b.range.start.line < smallest_common then 1
+      else compare a.range.start.character b.range.start.character
+  | None -> compare a.range.start.line b.range.start.line
 
 let second_node_included_in (a : syntaxNode) (b : syntaxNode) : bool =
   if a.range.start.offset < b.range.start.offset then
@@ -243,7 +285,16 @@ let rec dump_to_string (doc : t) : string =
         aux tail repr node
   in
 
-  aux doc.elements "" (List.hd doc.elements)
+  let sorted_elements = List.sort compare_nodes doc.elements in
+  print_endline "sorted : ";
+  List.iter
+    (fun node ->
+      print_endline
+        ("id : " ^ string_of_int node.id ^ " range : "
+        ^ Lang.Range.to_string node.range
+        ^ " repr: " ^ node.repr))
+    sorted_elements;
+  aux sorted_elements "" (List.hd sorted_elements)
 
 let element_before_id_opt (target_id : int) (doc : t) : syntaxNode option =
   match List.find_index (fun elem -> elem.id = target_id) doc.elements with
@@ -323,34 +374,9 @@ let remove_node_with_id (target_id : int) (doc : t) : t =
       (* Shift n char off the line if more than one element   *)
   | None -> doc
 
-let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
-  let a_start, a_end = a in
-  let b_start, b_end = b in
-  if
-    (a_start >= b_start && a_start <= b_end)
-    || (a_end >= b_start && a_end <= b_end)
-  then true
-  else false
-
-(*return the nodes colliding with target node*)
-let colliding_nodes (target : syntaxNode) (doc : t) : syntaxNode list =
-  let target_line_range = (target.range.start.line, target.range.end_.line) in
-  let target_offset_range =
-    (target.range.start.offset, target.range.end_.offset)
-  in
-  List.filter
-    (fun node ->
-      let node_line_range = (node.range.start.line, node.range.end_.line) in
-      if are_flat_ranges_colliding target_line_range node_line_range then
-        let node_offset_range =
-          (target.range.start.offset, target.range.end_.offset)
-        in
-        are_flat_ranges_colliding target_offset_range node_offset_range
-      else false)
-    doc.elements
-
 let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     (doc : t) : (t, string) result =
+  print_endline ("inserting : " ^ new_node.repr);
   let first_range : Lang.Range.t =
     {
       start = { offset = 0; line = 0; character = 0 };
