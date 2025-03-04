@@ -50,14 +50,15 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         List.fold_left
           (fun doc_acc proof ->
             let transformation_steps =
-              Transformations.make_intros_explicit doc proof
+              Transformations.remove_unecessary_steps doc proof
             in
-            print_endline "removed !";
             match transformation_steps with
             | Ok steps -> (
                 let doc_with_steps_applied =
                   List.fold_left
                     (fun doc_acc_err step ->
+                      pp_transformation_step Format.std_formatter step;
+                      print_newline ();
                       match doc_acc_err with
                       | Ok doc ->
                           Coq_document.apply_transformation_step step doc
@@ -82,7 +83,8 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       output_string out (Coq_document.dump_to_string modified_doc);
       ()
   | Doc.Completion.Stopped range ->
-      print_endline ("parsing stopped at : " ^ Lang.Range.to_string range)
+      print_endline ("parsing stopped at : " ^ Lang.Range.to_string range);
+      ()
   | Doc.Completion.Failed range ->
       print_endline ("parsing of " ^ uri_str ^ " failed");
       print_endline "parsing failed at : ";

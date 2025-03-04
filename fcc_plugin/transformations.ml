@@ -323,6 +323,61 @@ let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
       Ok steps
   | _ -> Error "Unable to retrieve initial state"
 
+let fold_add_time_taken (doc : Doc.t) (proof : proof) :
+    (transformation_step list, string) result =
+  let token = Coq.Limits.Token.create () in
+  match
+    Proof.fold_proof_with_state doc token
+      (fun state acc node ->
+        if is_doc_node_proof_intro_or_end node then (state, acc)
+        else
+          let t1 = Unix.gettimeofday () in
+          let new_state_run =
+            Petanque.Agent.run ~token ~st:state ~tac:node.repr ()
+          in
+          let t2 = Unix.gettimeofday () in
+          let time_to_run = t2 -. t1 in
+          let new_state = Proof.get_proof_state new_state_run in
+          if time_to_run > 1.0 then (
+            let comment_content =
+              "Time spent on this step: " ^ string_of_float time_to_run
+            in
+            let comment_repr =
+              "(* Time spent on this step: "
+              ^ string_of_float time_to_run
+              ^ " *)"
+            in
+            let nodes_on_same_line =
+              List.filter
+                (fun x ->
+                  x != node && x.range.start.line = node.range.start.line)
+                (proof_nodes proof)
+            in
+            let furthest_char_node =
+              List.fold_left
+                (fun max_char_node elem ->
+                  if
+                    elem.range.start.character
+                    > max_char_node.range.start.character
+                  then elem
+                  else max_char_node)
+                node nodes_on_same_line
+            in
+            print_endline ("adding comment to : " ^ node.repr);
+            let comment_node_res =
+              Syntax_node.comment_syntax_node_of_string comment_content
+                (Range_transformation.range_from_starting_point_and_repr
+                   (shift_node 0 5 0 furthest_char_node).range.end_ comment_repr)
+            in
+            match comment_node_res with
+            | Ok comment_node -> (new_state, Add comment_node :: acc)
+            | Error _ -> (new_state, acc))
+          else (new_state, acc))
+      [] proof
+  with
+  | Ok acc -> Ok acc
+  | Error err -> Error err
+
 let make_intros_explicit (doc : Doc.t) (proof : proof) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
