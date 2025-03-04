@@ -7,6 +7,11 @@ type proof_status = Admitted | Proved | Aborted
 
 val pp_proof_status : Format.formatter -> proof_status -> unit
 
+type transformation_step =
+  | Remove of int
+  | Replace of int * syntaxNode
+  | Add of syntaxNode
+
 type proof = {
   proposition : syntaxNode;
   proof_steps : syntaxNode list;

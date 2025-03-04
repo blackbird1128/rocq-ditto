@@ -6,6 +6,11 @@ open Proof_tree
 
 type proof_status = Admitted | Proved | Aborted
 
+type transformation_step =
+  | Remove of int
+  | Replace of int * syntaxNode
+  | Add of syntaxNode
+
 let pp_proof_status (fmt : Format.formatter) (status : proof_status) : unit =
   match status with
   | Admitted -> Format.fprintf fmt "Admitted"
