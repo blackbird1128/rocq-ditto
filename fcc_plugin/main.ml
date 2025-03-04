@@ -49,12 +49,12 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       let modified_doc =
         List.fold_left
           (fun doc_acc proof ->
-            let new_proof_res =
-              Transformations.remove_unecessary_steps doc proof
+            let transformation_steps =
+              Transformations.make_intros_explicit doc proof
             in
             print_endline "removed !";
-            match new_proof_res with
-            | Ok new_proof -> (
+            match transformation_steps with
+            | Ok steps -> (
                 match Coq_document.replace_proof new_proof doc_acc with
                 | Ok new_doc ->
                     print_endline "replaced !";

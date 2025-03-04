@@ -328,13 +328,13 @@ let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
       Ok proof
   | _ -> Error "Unable to retrieve initial state"
 
-let make_intros_explicit (doc : Doc.t) (proof : proof) : (proof, string) result
-    =
+let make_intros_explicit (doc : Doc.t) (proof : proof) :
+    (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
   match
     Proof.fold_proof_with_state doc token
       (fun state acc node ->
-        if is_doc_node_proof_intro_or_end node then (state, node :: acc)
+        if is_doc_node_proof_intro_or_end node then (state, acc)
         else
           let new_state =
             Proof.get_proof_state
@@ -365,9 +365,10 @@ let make_intros_explicit (doc : Doc.t) (proof : proof) : (proof, string) result
                    (Range_transformation.range_from_starting_point_and_repr
                       node.range.start explicit_intro))
             in
-            (new_state, explicit_intro_node :: acc)
-          else (new_state, node :: acc))
+            let r = Replace (node.id, explicit_intro_node) in
+            (new_state, r :: acc)
+          else (new_state, acc))
       [] proof
   with
-  | Ok nodes -> proof_from_nodes (List.rev nodes)
+  | Ok steps -> Ok steps
   | Error err -> Error err
