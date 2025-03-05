@@ -10,7 +10,7 @@ test:
 	dune build . --profile=release
 	dune build lib --profile=release
 	dune build test/test_plugin/ --profile=release
-	find test/fixtures/ -name "*_target.v"	-exec dune exec fcc -- --plugin=dump-json-plugin {} 2>/dev/null \;
+	find test/fixtures/ -name "*_target.v"	-exec dune exec fcc -- --plugin=target-generator-plugin {} 2>/dev/null \;
 	find test/fixtures -not -name "*_target.v"  -not -path '*/ignore/*'  -name '*.v' -exec  dune exec fcc -- --plugin=ditto-test-plugin {} 2>/dev/null \;
 	dune runtest --profile=release	
 
@@ -29,8 +29,10 @@ uninstall:
 	rm -rf vendor/fcc
 
 dump-json:
-	dune build test/json_dump/ --profile=release
-	dune exec fcc -- --plugin=dump-json-plugin ./test/fixtures/ex_comment3.v
+	dune build . --profile=release
+	dune build lib --profile=release
+	dune build test/json_dump_plugin/ --profile=release
+	dune exec fcc -- --plugin=json-dump-plugin ./test/fixtures/ex_this_or_that.v
 
 clean:
 	dune clean
