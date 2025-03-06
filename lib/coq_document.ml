@@ -11,6 +11,7 @@ type t = {
   document_repr : string;
 }
 
+type removeMethod = LeaveBlank | ShiftNode
 type shiftMethod = ShiftVertically | ShiftHorizontally
 
 let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
@@ -330,48 +331,54 @@ let shift_nodes (n_line : int) (n_char : int) (n_offset : int)
     (nodes : syntaxNode list) : syntaxNode list =
   List.map (Syntax_node.shift_node n_line n_char n_offset) nodes
 
-let remove_node_with_id (target_id : int) (doc : t) : t =
+let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
+    : t =
   match element_with_id_opt target_id doc with
-  | Some elem ->
+  | Some elem -> (
       let before, after = split_at_id target_id doc in
-      if List.length (elements_starting_at_line elem.range.start.line doc) > 1
-      then
-        {
-          doc with
-          elements =
-            List.concat
-              [
-                before;
-                List.map
-                  (fun node ->
-                    if node.range.start.line = elem.range.start.line then
-                      shift_node 0
-                        (elem.range.start.offset - elem.range.end_.offset)
-                        (*newline ?*)
-                        0
-                        node
-                    else
-                      shift_node 0 0
-                        (elem.range.start.offset - elem.range.end_.offset)
-                        node)
-                  after;
-              ];
-        }
-      else
-        {
-          doc with
-          elements =
-            List.concat
-              [
-                before;
-                shift_nodes
-                  (-(elem.range.end_.line - elem.range.start.line + 1))
-                  0
-                  (elem.range.start.offset - elem.range.end_.offset - 1)
-                  after;
-              ];
-        }
-      (* Shift n char off the line if more than one element   *)
+      match remove_method with
+      | ShiftNode ->
+          if
+            List.length (elements_starting_at_line elem.range.start.line doc)
+            > 1
+          then
+            {
+              doc with
+              elements =
+                List.concat
+                  [
+                    before;
+                    List.map
+                      (fun node ->
+                        if node.range.start.line = elem.range.start.line then
+                          shift_node 0
+                            (elem.range.start.offset - elem.range.end_.offset)
+                            (*newline ?*)
+                            0
+                            node
+                        else
+                          shift_node 0 0
+                            (elem.range.start.offset - elem.range.end_.offset)
+                            node)
+                      after;
+                  ];
+            }
+          else
+            {
+              doc with
+              elements =
+                List.concat
+                  [
+                    before;
+                    shift_nodes
+                      (-(elem.range.end_.line - elem.range.start.line + 1))
+                      0
+                      (elem.range.start.offset - elem.range.end_.offset - 1)
+                      after;
+                  ];
+            }
+      | LeaveBlank -> { doc with elements = before @ after }
+      (* Shift n char off the line if more than one element   *))
   | None -> doc
 
 let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
@@ -384,26 +391,17 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     }
   in
   let element_before_new_node_start =
-    List.filter
-      (fun node -> node.range.start.offset < new_node.range.start.offset)
-      doc.elements
+    List.filter (fun node -> compare_nodes node new_node < 0) doc.elements
   in
   let element_after_new_node_start =
-    List.filter
-      (fun node -> node.range.start.offset >= new_node.range.start.offset)
-      doc.elements
-  in
-  let element_before_range =
-    if List.length element_before_new_node_start > 0 then
-      List.nth_opt element_before_new_node_start
-        (List.length element_before_new_node_start - 1)
-      |> Option.map (fun x -> x.range)
-      |> Option.default first_range
-    else first_range
+    List.filter (fun node -> compare_nodes node new_node >= 0) doc.elements
   in
 
   let element_after_range_opt =
     Option.map (fun x -> x.range) (List.nth_opt element_after_new_node_start 0)
+  in
+  let element_after_repr_opt =
+    Option.map (fun x -> x.repr) (List.nth_opt element_after_new_node_start 0)
   in
   let node_with_id = { new_node with id = Unique_id.next doc.id_counter } in
   if
@@ -414,40 +412,41 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     match element_after_range_opt with
     | Some element_after_range -> (
         let node_offset_size =
-          node_with_id.range.end_.offset - node_with_id.range.start.offset + 1
+          node_with_id.range.end_.offset - node_with_id.range.start.offset
         in
+        let offset_space =
+          element_after_range.start.offset - node_with_id.range.start.offset - 1
+        in
+
+        Format.printf "node with id range: %s\n"
+          (Lang.Range.to_string node_with_id.range);
+        Format.printf "element after repr: %s\n"
+          (Option.get element_after_repr_opt);
+        Format.printf "element after range: %s\n"
+          (Lang.Range.to_string element_after_range);
+        Format.printf "offset space %d\n" offset_space;
         match shift_method with
         | ShiftHorizontally ->
-            let middle_new_node =
-              (node_with_id.range.end_.offset - node_with_id.range.start.offset)
-              / 2
-            in
-            (* TODO shift nodes before middle as well  *)
-            let nodes_before_middle =
-              List.filter
-                (fun node -> node.range.start.offset < middle_new_node)
-                doc.elements
-            in
-            let nodes_after_middle =
-              List.filter
-                (fun node -> node.range.start.offset >= middle_new_node)
-                doc.elements
-            in
-
             Ok
               {
                 doc with
                 elements =
-                  nodes_before_middle
+                  element_before_new_node_start
                   @ node_with_id
                     :: List.map
                          (fun node ->
                            if
                              node.range.start.line
                              = node_with_id.range.start.line
-                           then shift_node 0 node_offset_size 0 node
-                           else shift_node 0 0 node_offset_size node)
-                         nodes_after_middle;
+                           then
+                             shift_node 0
+                               (node_offset_size - offset_space)
+                               0 node
+                           else
+                             shift_node 0 0
+                               (node_offset_size - offset_space)
+                               node)
+                         element_after_new_node_start;
               }
         | ShiftVertically ->
             let line_shift =
@@ -455,6 +454,8 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
               else
                 node_with_id.range.end_.line - node_with_id.range.start.line + 1
             in
+            Format.printf "line shift: %d\n" line_shift;
+
             (*there can be less offset but still space *)
             Ok
               {
@@ -464,11 +465,6 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
                   @ node_with_id
                     :: List.map
                          (fun node ->
-                           let offset_space =
-                             element_after_range.start.offset
-                             - element_before_range.end_.offset - 1
-                           in
-
                            shift_node line_shift 0
                              (node_offset_size - offset_space)
                              node)
@@ -485,8 +481,10 @@ let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
     (t, string) result =
   match element_with_id_opt target_id doc with
   | Some node ->
-      let removed_node_doc = remove_node_with_id node.id doc in
-      insert_node replacement removed_node_doc
+      let removed_node_doc =
+        remove_node_with_id ~remove_method:LeaveBlank node.id doc
+      in
+      insert_node replacement ~shift_method:ShiftHorizontally removed_node_doc
   | None ->
       Error
         ("The target node with id : " ^ string_of_int target_id

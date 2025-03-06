@@ -9,6 +9,7 @@ type t = {
   document_repr : string;
 }
 
+type removeMethod = LeaveBlank | ShiftNode
 type shiftMethod = ShiftVertically | ShiftHorizontally
 
 val pp_coq_document : Format.formatter -> t -> unit
@@ -35,7 +36,7 @@ val element_with_id_opt : int -> t -> syntaxNode option
     with the given [element_id] exists in the document [doc], otherwise it
     returns [None]. *)
 
-val remove_node_with_id : int -> t -> t
+val remove_node_with_id : int -> ?remove_method:removeMethod -> t -> t
 (** Remove a node with a specific ID from the document.
     [remove_node_with_id target_id doc] removes the element with the given
     [target_id] from the document [doc]. If the element is found, it returns a

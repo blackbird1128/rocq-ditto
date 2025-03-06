@@ -50,7 +50,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         List.fold_left
           (fun doc_acc proof ->
             let transformation_steps =
-              Transformations.remove_unecessary_steps doc proof
+              Transformations.fold_add_time_taken doc proof
             in
             match transformation_steps with
             | Ok steps -> (

@@ -338,7 +338,7 @@ let fold_add_time_taken (doc : Doc.t) (proof : proof) :
           let t2 = Unix.gettimeofday () in
           let time_to_run = t2 -. t1 in
           let new_state = Proof.get_proof_state new_state_run in
-          if time_to_run > 1.0 then (
+          if time_to_run > 0.0 then (
             let comment_content =
               "Time spent on this step: " ^ string_of_float time_to_run
             in
