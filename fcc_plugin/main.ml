@@ -37,6 +37,31 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       in
 
       let proofs = Coq_document.get_proofs parsed_document in
+      let first_proof : Proof.proof = List.hd proofs in
+      let expr = first_proof.proposition in
+      let expr_ast = Option.get expr.ast in
+      let coq_ast = Coq.Ast.to_coq expr_ast.v in
+      let x =
+        match coq_ast.CAst.v.expr with
+        | VernacSynterp _ -> false
+        | VernacSynPure expr -> (
+            match expr with
+            | Vernacexpr.VernacStartTheoremProof (theorem_kind, expr_list) ->
+                List.iter
+                  (fun (expr : proof_expr) ->
+                    let ident_dcl, t_data = expr in
+                    let ident_name, univ = ident_dcl in
+                    Format.printf "loc: %s\n"
+                      (Option.default "not found"
+                         (Option.map Coq.Ast.loc_to_string ident_name.loc)))
+                  expr_list;
+                true
+            | _ -> false)
+      in
+
+      (*
+
+      
 
       print_endline ("number of proofs : " ^ string_of_int (List.length proofs));
 
@@ -80,7 +105,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         modified_doc.elements;
       print_endline Fleche.Version.server;
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-      output_string out (Coq_document.dump_to_string modified_doc);
+      output_string out (Coq_document.dump_to_string modified_doc);  *)
       ()
   | Doc.Completion.Stopped range ->
       print_endline ("parsing stopped at : " ^ Lang.Range.to_string range);

@@ -4,7 +4,7 @@
 all:
 	dune build lib --profile=release
 	dune build fcc_plugin --profile=release
-	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_intros_trans.v
+	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_this_or_that.v
 
 test:
 	dune build . --profile=release
