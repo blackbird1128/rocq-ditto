@@ -241,6 +241,23 @@ let test_parsing_embedded_comments_ex6 (nodes : Doc.Node.t list)
     [ "(* in the same line comment *)"; "(* classical comment *)" ]
     comment_nodes_repr
 
+let test_parsing_weird_comments_ex7 (nodes : Doc.Node.t list)
+    (document_text : string) (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let comment_nodes =
+    List.filter (fun node -> Option.is_empty node.ast) doc.elements
+  in
+  let comment_nodes_repr = List.map (fun node -> node.repr) comment_nodes in
+  print_endline
+    ("comment nodes length : " ^ string_of_int (List.length comment_nodes));
+  Alcotest.(check int)
+    "The wrong number of comment nodes was parsed" 2
+    (List.length comment_nodes);
+  Alcotest.(check (list string))
+    "Comments badly parsed"
+    [ "(*in the same line comment*)"; "(**weird comment*)" ]
+    comment_nodes_repr
+
 let test_searching_node (nodes : Doc.Node.t list) (document_text : string)
     (uri_str : string) () : unit =
   let doc = Coq_document.parse_document nodes document_text uri_str in
@@ -528,6 +545,9 @@ let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
   Hashtbl.add table "ex_parsing6.v"
     (create_fixed_test "test parsing embedded comments"
        test_parsing_embedded_comments_ex6 nodes document_text uri_str);
+  Hashtbl.add table "ex_parsing7.v"
+    (create_fixed_test "test parsing weird comments"
+       test_parsing_weird_comments_ex7 nodes document_text uri_str);
 
   Hashtbl.add table "ex_removing1.v"
     (create_fixed_test "test removing only node on a line"
