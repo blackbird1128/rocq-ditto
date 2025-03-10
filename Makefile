@@ -4,7 +4,9 @@
 all:
 	dune build lib --profile=release
 	dune build fcc_plugin --profile=release
-	dune exec fcc -- --plugin=ditto-plugin ./test/fixtures/ex_this_or_that.v
+	dune exec fcc -- --plugin=ditto-plugin --debug --diags_level=2 ./test/fixtures/ex_auto1.v
+#	find ./test_parsing_geocoq/GeoCoq/theories/Main/Highschool/ -not -name "*_bis.v" -name '*.v' -exec  dune exec fcc -- --plugin=ditto-plugin {}  \;
+
 
 test:
 	dune build . --profile=release

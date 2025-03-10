@@ -37,34 +37,39 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       in
 
       let proofs = Coq_document.get_proofs parsed_document in
-      let first_proof : Proof.proof = List.hd proofs in
-      let expr = first_proof.proposition in
-      let expr_ast = Option.get expr.ast in
-      let coq_ast = Coq.Ast.to_coq expr_ast.v in
-      let x =
-        match coq_ast.CAst.v.expr with
-        | VernacSynterp _ -> false
-        | VernacSynPure expr -> (
-            match expr with
-            | Vernacexpr.VernacStartTheoremProof (theorem_kind, expr_list) ->
-                List.iter
-                  (fun (expr : proof_expr) ->
-                    let ident_dcl, t_data = expr in
-                    let ident_name, univ = ident_dcl in
-                    Format.printf "loc: %s\n"
-                      (Option.default "not found"
-                         (Option.map Coq.Ast.loc_to_string ident_name.loc)))
-                  expr_list;
-                true
-            | _ -> false)
-      in
-
-      (*
-
-      
+      (* let first_proof : Proof.proof = List.hd proofs in *)
+      (* let expr = first_proof.proposition in *)
+      (* let expr_ast = Option.get expr.ast in *)
+      (* let coq_ast = Coq.Ast.to_coq expr_ast.v in *)
+      (* let x = *)
+      (*   match coq_ast.CAst.v.expr with *)
+      (*   | VernacSynterp _ -> false *)
+      (*   | VernacSynPure expr -> ( *)
+      (*       match expr with *)
+      (*       | Vernacexpr.VernacStartTheoremProof (theorem_kind, expr_list) -> *)
+      (*           List.iter *)
+      (*             (fun (expr : proof_expr) -> *)
+      (*               let ident_dcl, t_data = expr in *)
+      (*               let ident_name, univ = ident_dcl in *)
+      (*               Format.printf "loc: %s\n" *)
+      (*                 (Option.default "not found" *)
+      (*                    (Option.map Coq.Ast.loc_to_string ident_name.loc))) *)
+      (*             expr_list; *)
+      (*           true *)
+      (*       | _ -> false) *)
+      (* in *)
 
       print_endline ("number of proofs : " ^ string_of_int (List.length proofs));
 
+      let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
+
+      List.iter
+        (fun (diag : Lang.Diagnostic.t) ->
+          prerr_endline
+            (error_location_to_string diag.range
+            ^ " "
+            ^ Pp.string_of_ppcmds diag.message))
+        diags;
       let proof_trees =
         List.filter_map
           (fun proof -> Result.to_option (Proof.treeify_proof doc proof))
@@ -75,15 +80,13 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         List.fold_left
           (fun doc_acc proof ->
             let transformation_steps =
-              Transformations.fold_add_time_taken doc proof
+              Transformations.make_intros_explicit doc proof
             in
             match transformation_steps with
             | Ok steps -> (
                 let doc_with_steps_applied =
                   List.fold_left
                     (fun doc_acc_err step ->
-                      pp_transformation_step Format.std_formatter step;
-                      print_newline ();
                       match doc_acc_err with
                       | Ok doc ->
                           Coq_document.apply_transformation_step step doc
@@ -96,16 +99,9 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             | Error err -> doc_acc)
           parsed_document proofs
       in
-      List.iter
-        (fun node ->
-          print_endline
-            ("id : " ^ string_of_int node.id ^ " range : "
-            ^ Lang.Range.to_string node.range
-            ^ " repr: " ^ node.repr))
-        modified_doc.elements;
       print_endline Fleche.Version.server;
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-      output_string out (Coq_document.dump_to_string modified_doc);  *)
+      output_string out (Coq_document.dump_to_string modified_doc);
       ()
   | Doc.Completion.Stopped range ->
       print_endline ("parsing stopped at : " ^ Lang.Range.to_string range);
