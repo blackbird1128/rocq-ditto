@@ -62,7 +62,6 @@ let replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
       (node : syntaxNode nary_tree) : syntaxNode list =
     match node with
     | Node (x, childrens) -> (
-        print_endline ("treating node: " ^ x.repr);
         let lia_node =
           Result.get_ok (Syntax_node.syntax_node_of_string "lia." x.range)
         in
@@ -99,10 +98,7 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
     Proof.depth_first_fold_with_state doc token
       (fun state acc node ->
         let previous_goals, steps_acc, ignore_step = acc in
-        print_endline ("treating node : " ^ node.repr);
-        if ignore_step then (
-          print_endline "ignoring !";
-          (state, (previous_goals, steps_acc, ignore_step)))
+        if ignore_step then (state, (previous_goals, steps_acc, ignore_step))
         else if Syntax_node.is_doc_node_proof_intro_or_end node then
           (state, (previous_goals, node :: steps_acc, ignore_step))
         else
@@ -181,7 +177,6 @@ let fold_inspect (doc : Doc.t) (proof_tree : syntaxNode nary_tree) =
             Proof.get_proof_state
               (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
           in
-          print_endline ("Treating node : " ^ node.repr);
           let goals_err_opt = Petanque.Agent.goals ~token ~st:state_node in
           match goals_err_opt with
           | Ok (Some goals) ->
@@ -338,7 +333,7 @@ let fold_add_time_taken (doc : Doc.t) (proof : proof) :
           let t2 = Unix.gettimeofday () in
           let time_to_run = t2 -. t1 in
           let new_state = Proof.get_proof_state new_state_run in
-          if time_to_run > 0.0 then (
+          if time_to_run > 0.0 then
             let comment_content =
               "Time spent on this step: " ^ string_of_float time_to_run
             in
@@ -363,7 +358,6 @@ let fold_add_time_taken (doc : Doc.t) (proof : proof) :
                   else max_char_node)
                 node nodes_on_same_line
             in
-            print_endline ("adding comment to : " ^ node.repr);
             let comment_node_res =
               Syntax_node.comment_syntax_node_of_string comment_content
                 (Range_transformation.range_from_starting_point_and_repr
@@ -371,7 +365,7 @@ let fold_add_time_taken (doc : Doc.t) (proof : proof) :
             in
             match comment_node_res with
             | Ok comment_node -> (new_state, Add comment_node :: acc)
-            | Error _ -> (new_state, acc))
+            | Error _ -> (new_state, acc)
           else (new_state, acc))
       [] proof
   with

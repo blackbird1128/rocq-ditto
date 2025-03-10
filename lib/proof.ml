@@ -23,10 +23,9 @@ let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
   | Remove id -> Format.fprintf fmt "Removing node with id : %d." id
   | Replace (id, new_node) ->
       if new_node.range.start.line != new_node.range.end_.line then
-        print_endline "HHAHAHAHAHAH";
-      Format.fprintf fmt "Replacing node with id: %d by node: %s at %s" id
-        new_node.repr
-        (Lang.Range.to_string new_node.range)
+        Format.fprintf fmt "Replacing node with id: %d by node: %s at %s" id
+          new_node.repr
+          (Lang.Range.to_string new_node.range)
   | Add new_node ->
       Format.fprintf fmt "Adding new node: %s at %s" new_node.repr
         (Lang.Range.to_string new_node.range)

@@ -95,6 +95,7 @@ let matches_with_line_col content pattern : (string * Lang.Range.t) list =
       ~opts:[ Re.Perl.(`Multiline); Re.Perl.(`Dotall); Re.Perl.(`Ungreedy) ]
       pattern
   in
+
   let matches =
     Re.all re content
     |> List.map (fun g ->
@@ -179,6 +180,9 @@ let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
 
 let parse_document (nodes : Doc.Node.t list) (document_repr : string)
     (filename : string) : t =
+  let split_lines = String.split_on_char '\n' document_repr in
+  let document_repr = String.concat "\n" split_lines in
+
   let nodes_with_ast =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
@@ -256,45 +260,34 @@ let rec dump_to_string (doc : t) : string =
     match repr_nodes with
     | [] -> doc_repr
     | node :: tail ->
-        let previous_node_range = previous_node.range in
-        let node_repr = node.repr in
-        let node_range = node.range in
         let repr =
-          if previous_node_range = node_range then
+          if previous_node.range = node.range then
             (* treating the first node as a special case to deal with eventual empty lines before *)
             doc_repr
-            ^ String.make node_range.start.line '\n'
-            ^ String.make node_range.start.character ' '
-            ^ node_repr
-          else if node_range.start.line = previous_node_range.end_.line then
+            ^ String.make node.range.start.line '\n'
+            ^ String.make node.range.start.character ' '
+            ^ node.repr
+          else if node.range.start.line = previous_node.range.end_.line then
             doc_repr
             ^ String.make
-                (node_range.start.line - previous_node_range.end_.line)
+                (node.range.start.line - previous_node.range.end_.line)
                 '\n'
             ^ String.make
-                (node_range.start.character - previous_node_range.end_.character)
+                (node.range.start.character - previous_node.range.end_.character)
                 ' '
-            ^ node_repr
+            ^ node.repr
           else
             doc_repr
             ^ String.make
-                (node_range.start.line - previous_node_range.end_.line)
+                (node.range.start.line - previous_node.range.end_.line)
                 '\n'
-            ^ String.make node_range.start.character ' '
-            ^ node_repr
+            ^ String.make node.range.start.character ' '
+            ^ node.repr
         in
         aux tail repr node
   in
 
   let sorted_elements = List.sort compare_nodes doc.elements in
-  print_endline "sorted : ";
-  List.iter
-    (fun node ->
-      print_endline
-        ("id : " ^ string_of_int node.id ^ " range : "
-        ^ Lang.Range.to_string node.range
-        ^ " repr: " ^ node.repr))
-    sorted_elements;
   aux sorted_elements "" (List.hd sorted_elements)
 
 let element_before_id_opt (target_id : int) (doc : t) : syntaxNode option =
@@ -383,13 +376,6 @@ let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
 
 let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     (doc : t) : (t, string) result =
-  print_endline ("inserting : " ^ new_node.repr);
-  let first_range : Lang.Range.t =
-    {
-      start = { offset = 0; line = 0; character = 0 };
-      end_ = { offset = 0; line = 0; character = 0 };
-    }
-  in
   let element_before_new_node_start =
     List.filter (fun node -> compare_nodes node new_node < 0) doc.elements
   in
@@ -400,9 +386,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
   let element_after_range_opt =
     Option.map (fun x -> x.range) (List.nth_opt element_after_new_node_start 0)
   in
-  let element_after_repr_opt =
-    Option.map (fun x -> x.repr) (List.nth_opt element_after_new_node_start 0)
-  in
+
   let node_with_id = { new_node with id = Unique_id.next doc.id_counter } in
   if
     shift_method = ShiftHorizontally
@@ -418,13 +402,6 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
           element_after_range.start.offset - node_with_id.range.start.offset - 1
         in
 
-        Format.printf "node with id range: %s\n"
-          (Lang.Range.to_string node_with_id.range);
-        Format.printf "element after repr: %s\n"
-          (Option.get element_after_repr_opt);
-        Format.printf "element after range: %s\n"
-          (Lang.Range.to_string element_after_range);
-        Format.printf "offset space %d\n" offset_space;
         match shift_method with
         | ShiftHorizontally ->
             Ok
@@ -454,7 +431,6 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
               else
                 node_with_id.range.end_.line - node_with_id.range.start.line + 1
             in
-            Format.printf "line shift: %d\n" line_shift;
 
             (*there can be less offset but still space *)
             Ok
@@ -498,31 +474,12 @@ let remove_proof (target : proof) (doc : t) : t =
 
 let insert_proof (target : proof) (doc : t) : (t, string) result =
   let proof_nodes = target.proposition :: target.proof_steps in
-  print_endline "inserting proof";
-  print_endline "proof nodes: ";
-  List.iter
-    (fun node ->
-      print_endline
-        ("id : " ^ string_of_int node.id ^ " range : "
-        ^ Lang.Range.to_string node.range
-        ^ " repr: " ^ node.repr))
-    doc.elements;
   let rec aux (nodes : syntaxNode list) (doc_acc : t) : (t, string) result =
     match nodes with
     | [] -> Ok doc_acc
     | node :: tail -> (
         match insert_node node doc_acc with
-        | Ok new_doc ->
-            print_endline "new doc :";
-            List.iter
-              (fun node ->
-                print_endline
-                  ("id : " ^ string_of_int node.id ^ " range : "
-                  ^ Lang.Range.to_string node.range
-                  ^ " repr: " ^ node.repr))
-              new_doc.elements;
-            print_endline "";
-            aux tail new_doc
+        | Ok new_doc -> aux tail new_doc
         | Error msg -> Error msg)
   in
   aux proof_nodes doc
@@ -531,13 +488,6 @@ let replace_proof (target : proof) (doc : t) : (t, string) result =
   match proof_with_id_opt target.proposition.id doc with
   | Some elem ->
       let doc_removed = remove_proof elem doc in
-      List.iter
-        (fun node ->
-          print_endline
-            ("id : " ^ string_of_int node.id ^ " range : "
-            ^ Lang.Range.to_string node.range
-            ^ " repr: " ^ node.repr))
-        doc_removed.elements;
       insert_proof target doc_removed
   | None ->
       Error

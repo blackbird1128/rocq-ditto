@@ -131,7 +131,7 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode
   {
     ast = Some node_ast;
     range;
-    id = 0;
+    id = -1;
     (* id is set during document insertion *)
     repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds;
     proof_id = None;
