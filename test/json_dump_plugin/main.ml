@@ -10,15 +10,10 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri_str = Lang.LUri.File.to_string_uri uri in
   let document_text = doc.contents.raw in
   let lvl = Io.Level.Info in
-  Io.Report.msg ~io ~lvl "[ast plugin] dumping ast for %s ..." uri_str;
-  let nodes = doc.nodes in
-
-  let parsed_document =
-    Coq_document.parse_document nodes document_text uri_str
-  in
+  Io.Report.msg ~io ~lvl "[json dump plugin] dumping ast for %s ..." uri_str;
 
   let parsed_asts =
-    List.filter_map (fun node -> node.ast) parsed_document.elements
+    List.filter_map (fun (node : Doc.Node.t) -> node.ast) doc.nodes
   in
   let parsed_asts_json =
     List.map

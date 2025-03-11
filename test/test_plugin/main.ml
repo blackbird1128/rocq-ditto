@@ -258,6 +258,17 @@ let test_parsing_weird_comments_ex7 (nodes : Doc.Node.t list)
     [ "(*in the same line comment*)"; "(**weird comment*)" ]
     comment_nodes_repr
 
+let test_parsing_instance (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+
+  let proofs = Coq_document.get_proofs doc in
+  Alcotest.(check int)
+    "The wrong number of proofs was parsed." 1 (List.length proofs);
+  let first_proof = List.hd proofs in
+  Alcotest.check proof_status_testable "The proof should be proved" Proof.Proved
+    first_proof.status
+
 let test_searching_node (nodes : Doc.Node.t list) (document_text : string)
     (uri_str : string) () : unit =
   let doc = Coq_document.parse_document nodes document_text uri_str in
@@ -530,6 +541,9 @@ let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
   Hashtbl.add table "ex_abort2.v"
     (create_fixed_test "test parsing aborted proof 2" test_parsing_abort2 nodes
        document_text uri_str);
+  Hashtbl.add table "ex_instance1.v"
+    (create_fixed_test "test parsing an instance proof" test_parsing_instance
+       nodes document_text uri_str);
   Hashtbl.add table "ex_parsing2.v"
     (create_fixed_test "test names and steps retrival ex 2"
        test_proof_parsing_name_and_steps_ex2 nodes document_text uri_str);
