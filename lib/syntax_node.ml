@@ -245,6 +245,19 @@ let is_doc_node_ast_proof_command (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacProof _ -> true | _ -> false))
   | None -> false
 
+let is_doc_node_function_start (x : syntaxNode) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp synterp_expr -> (
+          match synterp_expr with
+          | VernacExtend (ext, _) ->
+              ext.ext_plugin = "coq-core.plugins.funind"
+              && ext.ext_entry = "Function"
+          | _ -> false)
+      | VernacSynPure _ -> false)
+  | None -> false
+
 let is_doc_node_instance_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
@@ -305,6 +318,7 @@ let node_can_open_proof (x : syntaxNode) : bool =
   is_doc_node_ast_proof_start x
   || is_doc_node_goal_start x
   || is_doc_node_instance_start x
+  || is_doc_node_function_start x
 
 let node_can_close_proof (x : syntaxNode) : bool =
   is_doc_node_ast_proof_abort x || is_doc_node_ast_proof_end x

@@ -70,6 +70,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             ^ " "
             ^ Pp.string_of_ppcmds diag.message))
         diags;
+
       let proof_trees =
         List.filter_map
           (fun proof -> Result.to_option (Proof.treeify_proof doc proof))

@@ -138,6 +138,26 @@ let test_parsing_admit (nodes : Doc.Node.t list) (document_text : string)
   Alcotest.check proof_status_testable "The proof should be admitted."
     Proof.Admitted proof.status
 
+let test_parsing_defined (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let proofs = Coq_document.get_proofs doc in
+  Alcotest.(check int)
+    "The wrong number of proofs was parsed." 1 (List.length proofs);
+  let proof = List.hd proofs in
+  Alcotest.check proof_status_testable "The proof should be proved."
+    Proof.Proved proof.status
+
+let test_parsing_function (nodes : Doc.Node.t list) (document_text : string)
+    (uri_str : string) () : unit =
+  let doc = Coq_document.parse_document nodes document_text uri_str in
+  let proofs = Coq_document.get_proofs doc in
+  Alcotest.(check int)
+    "The wrong number of proofs was parsed." 1 (List.length proofs);
+  let proof = List.hd proofs in
+  Alcotest.check proof_status_testable "The proof should be proved."
+    Proof.Proved proof.status
+
 let test_parsing_abort1 (nodes : Doc.Node.t list) (document_text : string)
     (uri_str : string) () : unit =
   let doc = Coq_document.parse_document nodes document_text uri_str in
@@ -534,6 +554,12 @@ let setup_test_table table (nodes : Doc.Node.t list) (document_text : string)
        test_parsing_ex2 nodes document_text uri_str);
   Hashtbl.add table "ex_admit.v"
     (create_fixed_test "test parsing admitted proof" test_parsing_admit nodes
+       document_text uri_str);
+  Hashtbl.add table "ex_defined1.v"
+    (create_fixed_test "test parsing defined proof" test_parsing_defined nodes
+       document_text uri_str);
+  Hashtbl.add table "ex_function1.v"
+    (create_fixed_test "test parsing function proof" test_parsing_function nodes
        document_text uri_str);
   Hashtbl.add table "ex_abort1.v"
     (create_fixed_test "test parsing aborted proof 1" test_parsing_abort1 nodes
