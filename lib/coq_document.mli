@@ -24,12 +24,6 @@ val parse_document : Doc.Node.t list -> string -> string -> t
     without a corresponding start or if a proof starts but ends at the end of
     the document. *)
 
-val doc_to_yojson : t -> Yojson.Safe.t
-(** Convert a document of type [t] into a [Yojson.Safe.t] object. *)
-
-val doc_of_yojson : Yojson.Safe.t -> t
-(** Convert a JSON representation into a document of type [t]. *)
-
 val element_with_id_opt : int -> t -> syntaxNode option
 (** Find an element with a specific ID in a document.
     [element_with_id_opt element_id doc] returns [Some element] if an element

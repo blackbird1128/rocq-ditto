@@ -60,24 +60,6 @@ let node_representation (node : Doc.Node.t) (document : string) : string =
   String.sub document node.range.start.offset
     (node.range.end_.offset - node.range.start.offset)
 
-let doc_to_yojson (doc : t) : Yojson.Safe.t =
-  `Assoc
-    [
-      ("filename", `String doc.filename);
-      ("elements", `List (List.map Syntax_node.to_yojson doc.elements));
-      ("document_repr", `String doc.document_repr);
-    ]
-
-let doc_of_yojson (json : Yojson.Safe.t) : t =
-  let open Yojson.Safe.Util in
-  {
-    id_counter = Unique_id.create ();
-    filename = json |> member "filename" |> to_string;
-    document_repr = json |> member "document_repr" |> to_string;
-    elements =
-      json |> member "elements" |> to_list |> List.map Syntax_node.of_yojson;
-  }
-
 let get_line_col_positions text pos : Lang.Point.t =
   let rec aux line col index =
     if index = pos then (line, col, index)
@@ -195,6 +177,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           repr = node_representation node document_repr;
           id = -1;
           proof_id = None;
+          diagnostics = node.diags;
         })
       nodes_with_ast
   in
@@ -208,6 +191,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           repr = fst comment;
           id = -1;
           proof_id = None;
+          diagnostics = [];
         })
       comments
   in
