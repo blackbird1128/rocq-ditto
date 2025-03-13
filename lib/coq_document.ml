@@ -178,6 +178,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           id = -1;
           proof_id = None;
           diagnostics = node.diags;
+          state = Some node.state;
         })
       nodes_with_ast
   in
@@ -192,6 +193,7 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           id = -1;
           proof_id = None;
           diagnostics = [];
+          state = None;
         })
       comments
   in

@@ -6,6 +6,8 @@ type syntaxNode = {
   repr : string;
   id : int;
   proof_id : int option;
+  diagnostics : Lang.Diagnostic.t list;
+  state : Coq.State.t option;
       (* the id of the proof associated with the node if there is one *)
 }
 
@@ -59,6 +61,8 @@ let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
         range;
         id = 0;
         proof_id = None;
+        diagnostics = [];
+        state = None;
       }
 
 let syntax_node_of_string (code : string) (range : Lang.Range.t) :
@@ -90,6 +94,8 @@ let syntax_node_of_string (code : string) (range : Lang.Range.t) :
             (*id is set during insertion in a document*)
             repr = code;
             proof_id = None;
+            diagnostics = [];
+            state = None;
           }
     | _ -> Error ("more than one node found in string " ^ code)
 
@@ -122,6 +128,8 @@ let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
                  (* id is set during document insertion *)
                  repr = code;
                  proof_id = None;
+                 diagnostics = [];
+                 state = None;
                })
              l ranges)
 
@@ -135,6 +143,8 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode
     (* id is set during document insertion *)
     repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds;
     proof_id = None;
+    diagnostics = [];
+    state = None;
   }
 
 let qed_ast_node (range : Lang.Range.t) : syntaxNode =
@@ -180,29 +190,6 @@ let range_of_yojson (json : Yojson.Safe.t) : Lang.Range.t =
   {
     start = json |> member "start" |> point_of_yojson;
     end_ = json |> member "end_" |> point_of_yojson;
-  }
-
-let to_yojson (node : syntaxNode) : Yojson.Safe.t =
-  `Assoc
-    [
-      ( "ast",
-        match node.ast with
-        | Some ast -> syntax_node_to_yojson ast
-        | None -> `Null );
-      ("range", range_to_yojson node.range);
-      ("repr", `String node.repr);
-      ("id", `Int node.id);
-      ("proof_id", match node.proof_id with Some id -> `Int id | None -> `Null);
-    ]
-
-let of_yojson (json : Yojson.Safe.t) : syntaxNode =
-  let open Yojson.Safe.Util in
-  {
-    ast = json |> member "ast" |> to_option syntax_node_of_yojson;
-    range = json |> member "range" |> range_of_yojson;
-    repr = json |> member "repr" |> to_string;
-    id = json |> member "id" |> to_int;
-    proof_id = json |> member "proof_id" |> to_option to_int;
   }
 
 let shift_point (n_line : int) (n_char : int) (n_offset : int)

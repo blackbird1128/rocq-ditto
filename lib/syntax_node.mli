@@ -6,6 +6,8 @@ type syntaxNode = {
   repr : string;
   id : int;
   proof_id : int option;
+  diagnostics : Lang.Diagnostic.t list;
+  state : Coq.State.t option;
 }
 
 val pp_syntax_node : Format.formatter -> syntaxNode -> unit
@@ -36,12 +38,6 @@ val range_to_yojson : Lang.Range.t -> Yojson.Safe.t
     Yojson.Safe.t representation. *)
 
 val range_of_yojson : Yojson.Safe.t -> Lang.Range.t
-
-val to_yojson : syntaxNode -> Yojson.Safe.t
-(** [to_yojson node] converts a syntax node of type [syntaxNode] into a
-    Yojson.Safe.t representation. *)
-
-val of_yojson : Yojson.Safe.t -> syntaxNode
 val shift_point : int -> int -> int -> Lang.Point.t -> Lang.Point.t
 val shift_range : int -> int -> int -> Lang.Range.t -> Lang.Range.t
 val shift_node : int -> int -> int -> syntaxNode -> syntaxNode
