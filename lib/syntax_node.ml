@@ -7,7 +7,6 @@ type syntaxNode = {
   id : int;
   proof_id : int option;
   diagnostics : Lang.Diagnostic.t list;
-  state : Coq.State.t option;
       (* the id of the proof associated with the node if there is one *)
 }
 
@@ -62,7 +61,6 @@ let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
         id = 0;
         proof_id = None;
         diagnostics = [];
-        state = None;
       }
 
 let syntax_node_of_string (code : string) (range : Lang.Range.t) :
@@ -95,7 +93,6 @@ let syntax_node_of_string (code : string) (range : Lang.Range.t) :
             repr = code;
             proof_id = None;
             diagnostics = [];
-            state = None;
           }
     | _ -> Error ("more than one node found in string " ^ code)
 
@@ -129,7 +126,6 @@ let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
                  repr = code;
                  proof_id = None;
                  diagnostics = [];
-                 state = None;
                })
              l ranges)
 
@@ -144,7 +140,6 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode
     repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds;
     proof_id = None;
     diagnostics = [];
-    state = None;
   }
 
 let qed_ast_node (range : Lang.Range.t) : syntaxNode =

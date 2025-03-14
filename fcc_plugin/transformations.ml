@@ -4,6 +4,7 @@ open Ditto.Proof_tree
 open Ditto.Proof
 open Ditto.Syntax_node
 open Vernacexpr
+open Runner
 
 let depth_to_bullet_type (depth : int) =
   let bullet_number = 1 + (depth / 3) in
@@ -53,72 +54,64 @@ let add_bullets (proof_tree : syntaxNode nary_tree) : Ditto.Proof.proof =
   let res = aux 0 proof_tree in
   { proposition = List.hd res; proof_steps = List.tl res; status = Proved }
 
-let replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
+let replace_by_lia (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) :
     (Ditto.Proof.proof, string) result =
   let token = Coq.Limits.Token.create () in
-  let proof = Proof.tree_to_proof proof_tree in
-  let init_state = Proof.get_init_state doc proof in
-  let rec aux (st : Petanque.Agent.State.t) (previous_goals : int)
+  let proof = Runner.tree_to_proof proof_tree in
+  let init_state = Runner.get_init_state doc proof.proposition token in
+  let rec aux (st : Coq.State.t) (previous_goals : int)
       (node : syntaxNode nary_tree) : syntaxNode list =
     match node with
     | Node (x, childrens) -> (
         let lia_node =
           Result.get_ok (Syntax_node.syntax_node_of_string "lia." x.range)
         in
-        let state_x = Petanque.Agent.run ~token ~st ~tac:x.repr () in
-        let proof_state_x = Proof.get_proof_state state_x in
-        let new_goals = count_goals token proof_state_x in
-        let state_lia = Petanque.Agent.run ~token ~st ~tac:lia_node.repr () in
+        let state_x = Result.get_ok (Runner.run_node token st x) in
+        let new_goals = Runner.count_goals token state_x in
+        let state_lia = Runner.run_node token st lia_node in
         match state_lia with
         | Ok state_uw ->
-            let goals_with_lia = count_goals token state_uw.st in
+            let goals_with_lia = count_goals token state_uw in
             if goals_with_lia < previous_goals then
               if goals_with_lia = 0 then
                 [ lia_node; qed_ast_node (shift_range 1 0 0 lia_node.range) ]
               else [ lia_node ]
-            else
-              x
-              :: List.concat (List.map (aux proof_state_x new_goals) childrens)
+            else x :: List.concat (List.map (aux state_x new_goals) childrens)
         | Error err ->
-            x :: List.concat (List.map (aux proof_state_x new_goals) childrens))
+            x :: List.concat (List.map (aux state_x new_goals) childrens))
   in
   match init_state with
-  | Some (Ok state) ->
+  | Ok state ->
       let head_tree = top_n 1 proof_tree in
       let tail_tree = List.hd (bottom_n 2 proof_tree) in
-      let list = aux state.st 1 tail_tree in
+      let list = aux state 1 tail_tree in
       let list_head_tail = flatten head_tree @ list in
       Proof.proof_from_nodes list_head_tail
   | _ -> Error "can't create an initial state for the proof "
 
-let fold_replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
-    (Ditto.Proof.proof, string) result =
+let fold_replace_by_lia (doc : Coq_document.t)
+    (proof_tree : syntaxNode nary_tree) : (Ditto.Proof.proof, string) result =
   let token = Coq.Limits.Token.create () in
   let res =
-    Proof.depth_first_fold_with_state doc token
+    Runner.depth_first_fold_with_state doc token
       (fun state acc node ->
         let previous_goals, steps_acc, ignore_step = acc in
         if ignore_step then (state, (previous_goals, steps_acc, ignore_step))
         else if Syntax_node.is_doc_node_proof_intro_or_end node then
           (state, (previous_goals, node :: steps_acc, ignore_step))
         else
-          let state_node =
-            Proof.get_proof_state
-              (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
-          in
+          let state_node = Result.get_ok (Runner.run_node token state node) in
           let lia_node =
             Result.get_ok (Syntax_node.syntax_node_of_string "lia." node.range)
           in
           let new_goals = count_goals token state in
-          let state_lia =
-            Petanque.Agent.run ~token ~st:state ~tac:lia_node.repr ()
-          in
+          let state_lia = Runner.run_node token state lia_node in
           match state_lia with
           | Ok state_uw ->
-              let goals_with_lia = count_goals token state_uw.st in
+              let goals_with_lia = count_goals token state_uw in
               if goals_with_lia < previous_goals then
                 if goals_with_lia = 0 then
-                  ( state_uw.st,
+                  ( state_uw,
                     ( goals_with_lia,
                       [
                         lia_node;
@@ -126,7 +119,7 @@ let fold_replace_by_lia (doc : Doc.t) (proof_tree : syntaxNode nary_tree) :
                       ]
                       @ steps_acc,
                       true ) )
-                else (state_uw.st, (new_goals, node :: steps_acc, true))
+                else (state_uw, (new_goals, node :: steps_acc, true))
               else (state_node, (new_goals, node :: steps_acc, ignore_step))
           | Error err ->
               let res =
@@ -164,20 +157,17 @@ let pp_goal_stack
     stack;
   ()
 
-let fold_inspect (doc : Doc.t) (proof_tree : syntaxNode nary_tree) =
+let fold_inspect (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) =
   let token = Coq.Limits.Token.create () in
 
   let _ =
-    Proof.depth_first_fold_with_state doc token
+    Runner.depth_first_fold_with_state doc token
       (fun state acc node ->
         if Syntax_node.is_doc_node_proof_intro_or_end node then
           (state, node :: acc)
         else
-          let state_node =
-            Proof.get_proof_state
-              (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
-          in
-          let goals_err_opt = Petanque.Agent.goals ~token ~st:state_node in
+          let state_node = Result.get_ok (Runner.run_node token state node) in
+          let goals_err_opt = Runner.goals ~token ~st:state_node in
           match goals_err_opt with
           | Ok (Some goals) ->
               List.iter pp_goal goals.goals;
@@ -190,60 +180,58 @@ let fold_inspect (doc : Doc.t) (proof_tree : syntaxNode nary_tree) =
   in
   ()
 
-let fold_replace_assumption_with_apply (doc : Doc.t)
+let fold_replace_assumption_with_apply (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
   let res =
-    Proof.depth_first_fold_with_state doc token
+    Runner.depth_first_fold_with_state doc token
       (fun state acc node ->
         if Syntax_node.is_doc_node_proof_intro_or_end node then (state, acc)
         else
-          let state_node =
-            Proof.get_proof_state
-              (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
-          in
+          let state_node = Result.get_ok (Runner.run_node token state node) in
           if
             String.starts_with ~prefix:"assumption" node.repr
             && not (String.contains node.repr ';')
           then
             let goal_count_after_assumption =
-              Proof.count_goals token state_node
+              Runner.count_goals token state_node
             in
 
-            let curr_goal_err = Proof.get_current_goal token state in
+            let curr_goal_err = Runner.get_current_goal token state in
             match curr_goal_err with
             | Ok curr_goal ->
                 let hypothesis_apply_repr =
                   List.map
                     (fun name -> "apply " ^ name ^ ".")
-                    (Proof.get_hypothesis_names curr_goal)
+                    (Runner.get_hypothesis_names curr_goal)
+                in
+                let apply_nodes =
+                  List.map
+                    (fun repr ->
+                      Result.get_ok
+                        (Syntax_node.syntax_node_of_string repr node.range))
+                    hypothesis_apply_repr
                 in
 
                 let apply_states =
                   List.filter_map
-                    (fun repr ->
-                      let r =
-                        Petanque.Agent.run ~token ~st:state ~tac:repr ()
-                      in
+                    (fun node ->
+                      let r = Runner.run_node token state node in
                       match r with
-                      | Ok state_uw -> Some (repr, state_uw.st)
+                      | Ok state_uw -> Some (node, state_uw)
                       | Error _ -> None)
-                    hypothesis_apply_repr
+                    apply_nodes
                 in
 
                 let replacement =
                   List.find
                     (fun tuple_n_r ->
-                      Proof.count_goals token (snd tuple_n_r)
+                      Runner.count_goals token (snd tuple_n_r)
                       = goal_count_after_assumption)
                     apply_states
                 in
-                let new_node =
-                  Result.get_ok
-                    (Syntax_node.syntax_node_of_string (fst replacement)
-                       node.range)
-                in
+                let new_node = fst replacement in
 
                 (state_node, Replace (node.id, new_node) :: acc)
             | Error _ -> (state_node, acc)
@@ -251,27 +239,6 @@ let fold_replace_assumption_with_apply (doc : Doc.t)
       [] proof_tree
   in
   res
-
-let can_reduce_to_zero_goals (doc : Doc.t) (init_state : Petanque.Agent.State.t)
-    (nodes : syntaxNode list) =
-  let token = Coq.Limits.Token.create () in
-  let rec aux state acc nodes =
-    match nodes with
-    | [] -> Ok acc
-    | x :: tail -> (
-        if Syntax_node.is_doc_node_proof_intro_or_end x then
-          aux state state tail
-        else
-          let state_node_res =
-            Petanque.Agent.run ~token ~st:state ~tac:x.repr ()
-          in
-          match state_node_res with
-          | Ok state_node -> aux state_node.st state_node.st tail
-          | Error err -> Error "")
-  in
-  match aux init_state init_state nodes with
-  | Ok state -> Proof.count_goals token state = 0
-  | Error _ -> false
 
 let remove_empty_lines (proof : proof) : proof =
   let nodes = proof_nodes proof in
@@ -295,7 +262,7 @@ let remove_empty_lines (proof : proof) : proof =
       Result.get_ok (proof_from_nodes (List.rev res_func))
   | None -> proof
 
-let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
+let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
   let rec aux state acc nodes =
@@ -303,36 +270,31 @@ let remove_unecessary_steps (doc : Doc.t) (proof : proof) :
     | [] -> acc
     | x :: tail ->
         if is_doc_node_proof_intro_or_end x then aux state acc tail
-        else if can_reduce_to_zero_goals doc state tail then
+        else if Runner.can_reduce_to_zero_goals state tail then
           aux state (Remove x.id :: acc) tail
         else
-          let state_node =
-            Proof.get_proof_state
-              (Petanque.Agent.run ~token ~st:state ~tac:x.repr ())
-          in
+          let state_node = Result.get_ok (Runner.run_node token state x) in
           aux state_node acc tail
   in
-  match get_init_state doc proof with
-  | Some (Ok state) ->
-      let steps = aux state.st [] (proof_nodes proof) in
+  match get_init_state doc proof.proposition token with
+  | Ok state ->
+      let steps = aux state [] (proof_nodes proof) in
       Ok steps
   | _ -> Error "Unable to retrieve initial state"
 
-let fold_add_time_taken (doc : Doc.t) (proof : proof) :
+let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
   match
-    Proof.fold_proof_with_state doc token
+    Runner.fold_proof_with_state doc token
       (fun state acc node ->
         if is_doc_node_proof_intro_or_end node then (state, acc)
         else
           let t1 = Unix.gettimeofday () in
-          let new_state_run =
-            Petanque.Agent.run ~token ~st:state ~tac:node.repr ()
-          in
+          let new_state_run = Runner.run_node token state node in
           let t2 = Unix.gettimeofday () in
           let time_to_run = t2 -. t1 in
-          let new_state = Proof.get_proof_state new_state_run in
+          let new_state = Result.get_ok new_state_run in
           if time_to_run > 0.0 then
             let comment_content =
               "Time spent on this step: " ^ string_of_float time_to_run
@@ -372,29 +334,26 @@ let fold_add_time_taken (doc : Doc.t) (proof : proof) :
   | Ok acc -> Ok acc
   | Error err -> Error err
 
-let make_intros_explicit (doc : Doc.t) (proof : proof) :
+let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
   match
-    Proof.fold_proof_with_state doc token
+    Runner.fold_proof_with_state doc token
       (fun state acc node ->
         if is_doc_node_proof_intro_or_end node then (state, acc)
         else
-          let new_state =
-            Proof.get_proof_state
-              (Petanque.Agent.run ~token ~st:state ~tac:node.repr ())
-          in
+          let new_state = Result.get_ok (Runner.run_node token state node) in
           if
             String.starts_with ~prefix:"intros" node.repr
             && not (String.contains node.repr ';')
           then
             let old_state_vars =
-              Proof.get_current_goal token state
-              |> Result.get_ok |> Proof.get_hypothesis_names
+              Runner.get_current_goal token state
+              |> Result.get_ok |> Runner.get_hypothesis_names
             in
             let new_state_vars =
-              Proof.get_current_goal token new_state
-              |> Result.get_ok |> Proof.get_hypothesis_names
+              Runner.get_current_goal token new_state
+              |> Result.get_ok |> Runner.get_hypothesis_names
             in
             let new_vars =
               List.filter

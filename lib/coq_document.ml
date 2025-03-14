@@ -9,6 +9,7 @@ type t = {
   filename : string;
   elements : syntaxNode list;
   document_repr : string;
+  initial_state : Coq.State.t;
 }
 
 type removeMethod = LeaveBlank | ShiftNode
@@ -160,8 +161,11 @@ let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
   in
   merge_aux [] nodes
 
-let parse_document (nodes : Doc.Node.t list) (document_repr : string)
-    (filename : string) : t =
+let parse_document (doc : Doc.t) : t =
+  let nodes = doc.nodes in
+  let document_repr = doc.contents.raw in
+  let filename = Lang.LUri.File.to_string_uri doc.uri in
+
   let split_lines = String.split_on_char '\n' document_repr in
   let document_repr = String.concat "\n" split_lines in
 
@@ -178,7 +182,6 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           id = -1;
           proof_id = None;
           diagnostics = node.diags;
-          state = Some node.state;
         })
       nodes_with_ast
   in
@@ -193,7 +196,6 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
           id = -1;
           proof_id = None;
           diagnostics = [];
-          state = None;
         })
       comments
   in
@@ -238,7 +240,13 @@ let parse_document (nodes : Doc.Node.t list) (document_repr : string)
       all_nodes
   in
   let res = aux numbered_all_nodes NoProof None [] in
-  { id_counter = doc_counter; elements = res; document_repr; filename }
+  {
+    id_counter = doc_counter;
+    elements = res;
+    document_repr;
+    filename;
+    initial_state = doc.root;
+  }
 
 let rec dump_to_string (doc : t) : string =
   let rec aux (repr_nodes : syntaxNode list) (doc_repr : string)

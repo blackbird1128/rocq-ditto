@@ -32,9 +32,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
       let document_text = doc.contents.raw in
 
-      let parsed_document =
-        Coq_document.parse_document nodes document_text uri_str
-      in
+      let parsed_document = Coq_document.parse_document doc in
 
       let proofs = Coq_document.get_proofs parsed_document in
       (* let first_proof : Proof.proof = List.hd proofs in *)
@@ -73,7 +71,8 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
       let proof_trees =
         List.filter_map
-          (fun proof -> Result.to_option (Proof.treeify_proof doc proof))
+          (fun proof ->
+            Result.to_option (Runner.treeify_proof parsed_document proof))
           proofs
       in
 
@@ -81,7 +80,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         List.fold_left
           (fun doc_acc proof ->
             let transformation_steps =
-              Transformations.make_intros_explicit doc proof
+              Transformations.make_intros_explicit parsed_document proof
             in
             match transformation_steps with
             | Ok steps -> (

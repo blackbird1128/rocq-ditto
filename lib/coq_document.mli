@@ -7,22 +7,14 @@ type t = {
   filename : string;
   elements : syntaxNode list;
   document_repr : string;
+  initial_state : Coq.State.t;
 }
 
 type removeMethod = LeaveBlank | ShiftNode
 type shiftMethod = ShiftVertically | ShiftHorizontally
 
 val pp_coq_document : Format.formatter -> t -> unit
-
-val parse_document : Doc.Node.t list -> string -> string -> t
-(** Parse a document represented as a list of nodes and a string.
-    [parse_document nodes document_repr filename] returns a parsed
-    representation of the document, annotating proof with an unique id for each
-    proofs.
-
-    The function raises an [Invalid_argument] exception if a proof span ends
-    without a corresponding start or if a proof starts but ends at the end of
-    the document. *)
+val parse_document : Doc.t -> t
 
 val element_with_id_opt : int -> t -> syntaxNode option
 (** Find an element with a specific ID in a document.
@@ -40,6 +32,8 @@ val remove_node_with_id : int -> ?remove_method:removeMethod -> t -> t
 
 val colliding_nodes : syntaxNode -> t -> syntaxNode list
 (** return the nodes colliding with target node *)
+
+val split_at_id : int -> t -> syntaxNode list * syntaxNode list
 
 val insert_node :
   syntaxNode -> ?shift_method:shiftMethod -> t -> (t, string) result

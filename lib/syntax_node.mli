@@ -7,7 +7,6 @@ type syntaxNode = {
   id : int;
   proof_id : int option;
   diagnostics : Lang.Diagnostic.t list;
-  state : Coq.State.t option;
 }
 
 val pp_syntax_node : Format.formatter -> syntaxNode -> unit
