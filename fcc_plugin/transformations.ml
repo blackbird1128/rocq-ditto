@@ -6,6 +6,24 @@ open Ditto.Syntax_node
 open Vernacexpr
 open Runner
 
+let error_location_to_string (location : Lang.Range.t) =
+  if location.start.line = location.end_.line then
+    "line "
+    ^ string_of_int location.start.line
+    ^ ", characters: "
+    ^ string_of_int location.start.character
+    ^ "-"
+    ^ string_of_int location.end_.character
+  else
+    "line "
+    ^ string_of_int location.start.line
+    ^ "-"
+    ^ string_of_int location.end_.line
+    ^ ", characters: "
+    ^ string_of_int location.start.character
+    ^ "-"
+    ^ string_of_int location.end_.character
+
 let depth_to_bullet_type (depth : int) =
   let bullet_number = 1 + (depth / 3) in
   match depth mod 3 with
@@ -334,6 +352,62 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
   | Ok acc -> Ok acc
   | Error err -> Error err
 
+let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
+    (transformation_step list, string) result =
+  let token = Coq.Limits.Token.create () in
+  let re =
+    Re.Perl.compile_pat "auto(.*?)\\."
+      ~opts:[ Re.Perl.(`Multiline); Re.Perl.(`Dotall); Re.Perl.(`Ungreedy) ]
+  in
+
+  let extract text =
+    match Re.exec_opt re text with
+    | Some group -> Re.Group.get group 1
+    | None -> "No match"
+  in
+
+  match
+    Runner.fold_proof_with_state doc token
+      (fun state acc node ->
+        if is_doc_node_proof_intro_or_end node then (state, acc)
+        else
+          let new_state = Result.get_ok (Runner.run_node token state node) in
+          print_endline ("running node: " ^ node.repr);
+          if
+            String.starts_with ~prefix:"auto" node.repr
+            && not (String.contains node.repr ';')
+          then (
+            let node_args = extract node.repr in
+            let info_auto = "Compute 2 + 2" ^ node_args ^ "." in
+            let info_auto_node =
+              Result.get_ok
+                (Syntax_node.syntax_node_of_string info_auto
+                   (Range_transformation.range_from_starting_point_and_repr
+                      node.range.start info_auto))
+            in
+            let info_auto_state =
+              Result.get_ok
+                (Runner.run_node_with_diagnostics token state info_auto_node)
+            in
+            let state, diagnostics = info_auto_state in
+            print_endline
+              ("number of diagnostics : "
+              ^ string_of_int (List.length diagnostics));
+            List.iter
+              (fun (diag : Lang.Diagnostic.t) ->
+                prerr_endline
+                  (error_location_to_string diag.range
+                  ^ " "
+                  ^ Pp.string_of_ppcmds diag.message))
+              diagnostics;
+            let r = Replace (node.id, info_auto_node) in
+            (new_state, r :: acc))
+          else (new_state, acc))
+      [] proof
+  with
+  | Ok steps -> Ok steps
+  | Error err -> Error err
+
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
@@ -360,7 +434,6 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
                 (fun x -> not (List.mem x old_state_vars))
                 new_state_vars
             in
-
             let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
             let explicit_intro_node =
               Result.get_ok

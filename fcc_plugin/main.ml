@@ -5,24 +5,6 @@ open Ditto.Proof
 open Ditto.Syntax_node
 open Vernacexpr
 
-let error_location_to_string (location : Lang.Range.t) =
-  if location.start.line = location.end_.line then
-    "line "
-    ^ string_of_int location.start.line
-    ^ ", characters: "
-    ^ string_of_int location.start.character
-    ^ "-"
-    ^ string_of_int location.end_.character
-  else
-    "line "
-    ^ string_of_int location.start.line
-    ^ "-"
-    ^ string_of_int location.end_.line
-    ^ ", characters: "
-    ^ string_of_int location.start.character
-    ^ "-"
-    ^ string_of_int location.end_.character
-
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
@@ -64,7 +46,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       List.iter
         (fun (diag : Lang.Diagnostic.t) ->
           prerr_endline
-            (error_location_to_string diag.range
+            (Transformations.error_location_to_string diag.range
             ^ " "
             ^ Pp.string_of_ppcmds diag.message))
         diags;
@@ -80,7 +62,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         List.fold_left
           (fun doc_acc proof ->
             let transformation_steps =
-              Transformations.make_intros_explicit parsed_document proof
+              Transformations.replace_auto_with_info_auto doc_acc proof
             in
             match transformation_steps with
             | Ok steps -> (
@@ -116,7 +98,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       List.iter
         (fun (diag : Lang.Diagnostic.t) ->
           prerr_endline
-            (error_location_to_string diag.range
+            (Transformations.error_location_to_string diag.range
             ^ " "
             ^ Pp.string_of_ppcmds diag.message))
         first_errors;
