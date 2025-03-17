@@ -4,7 +4,7 @@
 all:
 	dune build lib --profile=release
 	dune build fcc_plugin --profile=release
-	dune exec fcc -- --plugin=ditto-plugin --diags_level=2 ./test/fixtures/ex_auto1.v
+	dune exec fcc -- --plugin=ditto-plugin --diags_level=2 ./test/fixtures/ex_auto2.v
 
 test: all
 	dune build test/test_plugin/ --profile=release

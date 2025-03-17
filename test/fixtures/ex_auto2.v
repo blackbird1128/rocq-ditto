@@ -11,11 +11,10 @@ Lemma use_hyp_auto : forall (P Q R : Prop), (P -> (P -> Q) -> (Q -> R) -> (R/\Q)
 Proof.
   intros.
   split.
-  info_auto.
-  info_auto.
+  auto.
+  intros.
+  auto.
 Qed.
-
-
 
 Lemma filter_idempotent: forall A: Type, forall l: list A, forall f: A -> bool, filter (filter l f) f = filter l f.
 Proof.

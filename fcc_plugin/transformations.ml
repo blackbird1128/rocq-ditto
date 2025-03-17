@@ -372,6 +372,8 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
       ~opts:[ Re.Perl.(`Multiline); Re.Perl.(`Dotall); Re.Perl.(`Ungreedy) ]
   in
 
+  let re_in_remove = Str.regexp "(in.*)" in
+
   let extract text =
     match Re.exec_opt re text with
     | Some group -> Re.Group.get group 1
@@ -460,25 +462,48 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                 (fun i repr ->
                   print_endline ("i : " ^ string_of_int i);
                   print_endline repr;
-                  Syntax_node.syntax_node_of_string repr
-                    (shift_range i 0 0
-                       (Range_transformation.range_from_starting_point_and_repr
-                          node.range.start repr)))
+                  let cleaned_repr = Str.global_replace re_in_remove "" repr in
+                  print_endline ("cleaned repr : " ^ cleaned_repr);
+                  let _ =
+                    match
+                      Syntax_node.syntax_node_of_string cleaned_repr
+                        (shift_range i 0 0
+                           (Range_transformation
+                            .range_from_starting_point_and_repr node.range.start
+                              cleaned_repr))
+                    with
+                    | Ok node -> print_endline node.repr
+                    | Error err -> print_endline err
+                  in
+
+                  Result.get_ok
+                    (Syntax_node.syntax_node_of_string cleaned_repr
+                       (shift_range i 0 0
+                          (Range_transformation
+                           .range_from_starting_point_and_repr node.range.start
+                             cleaned_repr))))
                 tactics
             in
+            let shifted_nodes =
+              snd
+                (List.fold_left_map
+                   (fun acc node ->
+                     ( acc + String.length node.repr + 1,
+                       (shift_node 0 0 acc) node ))
+                   0 tactic_nodes)
+            in
+
+            let add_steps = List.map (fun node -> Add node) shifted_nodes in
+
             List.iter
-              (fun elem ->
-                match elem with
-                | Ok node -> pp_syntax_node Format.std_formatter node
-                | Error err -> print_endline err)
-              tactic_nodes;
+              (fun node -> pp_syntax_node Format.std_formatter node)
+              shifted_nodes;
 
             List.iter (fun tac -> Format.printf "(%s)\n" tac) tactics;
             Format.printf "max depth: %d\n" max_depth;
             Format.print_flush ();
 
-            let r = Replace (node.id, info_auto_node) in
-            (new_state, r :: acc))
+            (new_state, add_steps @ (Remove node.id :: acc)))
           else (new_state, acc))
       [] proof
   with

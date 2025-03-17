@@ -64,8 +64,15 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             let transformation_steps =
               Transformations.replace_auto_with_info_auto doc_acc proof
             in
+
             match transformation_steps with
             | Ok steps -> (
+                List.iter
+                  (fun step ->
+                    pp_transformation_step Format.std_formatter step;
+                    print_newline ();
+                    Format.print_flush ())
+                  steps;
                 let doc_with_steps_applied =
                   List.fold_left
                     (fun doc_acc_err step ->
@@ -81,6 +88,11 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             | Error err -> doc_acc)
           parsed_document proofs
       in
+      List.iter
+        (fun node ->
+          pp_syntax_node Format.std_formatter node;
+          Format.pp_print_newline Format.std_formatter ())
+        modified_doc.elements;
       print_endline Fleche.Version.server;
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
       output_string out (Coq_document.dump_to_string modified_doc);
