@@ -55,6 +55,36 @@ let message_to_diagnostic (range : Lang.Range.t) (msg : Loc.t Coq.Message.t) :
   let severity, payload = msg in
   { severity; message = payload.msg; data = None; range }
 
+(* Adaptor, should be supported in memo directly *)
+let eval_no_memo ~token (st, cmd) =
+  Coq.Interp.interp ~token ~intern:Vernacinterp.fs_intern ~st cmd
+
+(* TODO, what to do with feedback, what to do with errors *)
+let rec parse_execute_loop ~token ~memo pa ~msg_acc st =
+  let open Coq.Protect.E.O in
+  let eval = if memo then Fleche.Memo.Interp.eval else eval_no_memo in
+  let* ast = Coq.Parsing.parse ~token ~st pa in
+  match ast with
+  | Some ast -> (
+      match eval ~token (st, ast) with
+      | Coq.Protect.E.
+          { r = Coq.Protect.R.Completed (Ok st); feedback = messages } ->
+          parse_execute_loop ~token ~memo pa ~msg_acc:(msg_acc @ messages) st
+      | res -> Coq.Protect.E.map ~f:(fun x -> (x, msg_acc)) res)
+  (* On EOF we return the previous state, the command was the empty string or a
+     comment *)
+  | None -> Coq.Protect.E.ok (st, msg_acc)
+
+let parse_and_execute_in ~token ~loc tac st =
+  let str = Gramlib.Stream.of_string tac in
+  let pa = Coq.Parsing.Parsable.make ?loc str in
+  parse_execute_loop ~token pa st
+
+let run_with_diagnostics ~token ?loc ?(memo = true) ~st cmds =
+  Coq.State.in_stateM ~token ~st
+    ~f:(parse_and_execute_in ~token ~loc ~memo ~msg_acc:[] cmds)
+    st
+
 let run_node (token : Coq.Limits.Token.t) (prev_state : Coq.State.t)
     (node : syntaxNode) : (Coq.State.t, runningError) result =
   let execution =
@@ -76,7 +106,7 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
   let execution =
     let open Coq.Protect.E.O in
     let st =
-      Fleche.Doc.run ~token ~memo:true ?loc:None ~st:prev_state node.repr
+      run_with_diagnostics ~token ~memo:true ?loc:None ~st:prev_state node.repr
     in
     st
   in
@@ -84,11 +114,13 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
   let res = protect_to_result_with_feedback execution in
   match res with
   | Ok x ->
-      let state, messages = x in
+      let state_msgs, messages = x in
+      let state = fst state_msgs in
+      let all_msgs = snd state_msgs @ messages in
       print_endline "in ok ";
       print_endline
         ("number of message: " ^ string_of_int (List.length messages));
-      Ok (state, List.map (message_to_diagnostic node.range) messages)
+      Ok (state, List.map (message_to_diagnostic node.range) all_msgs)
   | Error err ->
       let err, messages = err in
       Error (err, List.map (message_to_diagnostic node.range) messages)
