@@ -352,6 +352,18 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
   | Ok acc -> Ok acc
   | Error err -> Error err
 
+(* TODO move this somewhere sensible *)
+let take_while p l =
+  let[@tail_mod_cons] rec aux = function
+    | x :: l when p x -> x :: aux l
+    | _rest -> []
+  in
+  aux l
+
+let rec drop_while p = function
+  | x :: l when p x -> drop_while p l
+  | rest -> rest
+
 let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
@@ -366,6 +378,20 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
     | None -> "No match"
   in
 
+  let count_leading_spaces s =
+    let re = Str.regexp "^ *" in
+    if Str.string_match re s 0 then String.length (Str.matched_string s) else 0
+  in
+
+  let find_last_opt (f : 'a -> bool) (l : 'a list) : 'a option =
+    let rec aux (f : 'a -> bool) (l : 'a list) (acc : 'a option) =
+      match l with
+      | [] -> acc
+      | x :: tail -> if f x then aux f tail (Some x) else aux f tail acc
+    in
+    aux f l None
+  in
+
   match
     Runner.fold_proof_with_state doc token
       (fun state acc node ->
@@ -378,7 +404,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             && not (String.contains node.repr ';')
           then (
             let node_args = extract node.repr in
-            let info_auto = "Compute 2 + 2" ^ node_args ^ "." in
+            let info_auto = "info_auto" ^ node_args ^ "." in
             let info_auto_node =
               Result.get_ok
                 (Syntax_node.syntax_node_of_string info_auto
@@ -393,13 +419,64 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             print_endline
               ("number of diagnostics : "
               ^ string_of_int (List.length diagnostics));
+            let tactic_diagnostic = List.nth diagnostics 1 in
+            let tactic_diagnostic_repr =
+              Pp.string_of_ppcmds tactic_diagnostic.message
+            in
+            let auto_tactics =
+              String.split_on_char '\n' tactic_diagnostic_repr
+            in
+            let intros = take_while (fun tac -> tac = "intro.") auto_tactics in
+            let rest = drop_while (fun tac -> tac = "intro.") auto_tactics in
+
+            let depth_tuples =
+              List.map (fun tac -> (count_leading_spaces tac, tac)) rest
+            in
             List.iter
-              (fun (diag : Lang.Diagnostic.t) ->
-                prerr_endline
-                  (error_location_to_string diag.range
-                  ^ " "
-                  ^ Pp.string_of_ppcmds diag.message))
-              diagnostics;
+              (fun (depth, tac) -> Format.printf "(%d,%s)\n" depth tac)
+              depth_tuples;
+            let max_depth =
+              List.fold_left
+                (fun acc_max (depth, _) -> max acc_max depth)
+                (Option.default 0
+                   (Option.map fst (List.nth_opt depth_tuples 0)))
+                depth_tuples
+            in
+            let rec loop i acc =
+              if i > max_depth then acc
+              else
+                loop (i + 1)
+                  (Option.get
+                     (find_last_opt (fun (depth, _) -> depth = i) depth_tuples)
+                  :: acc)
+            in
+            let tactics_tuple = loop 0 [] in
+            let tactics =
+              intros
+              @ List.rev_map (fun (depth, tac) -> String.trim tac) tactics_tuple
+            in
+            let tactic_nodes =
+              List.mapi
+                (fun i repr ->
+                  print_endline ("i : " ^ string_of_int i);
+                  print_endline repr;
+                  Syntax_node.syntax_node_of_string repr
+                    (shift_range i 0 0
+                       (Range_transformation.range_from_starting_point_and_repr
+                          node.range.start repr)))
+                tactics
+            in
+            List.iter
+              (fun elem ->
+                match elem with
+                | Ok node -> pp_syntax_node Format.std_formatter node
+                | Error err -> print_endline err)
+              tactic_nodes;
+
+            List.iter (fun tac -> Format.printf "(%s)\n" tac) tactics;
+            Format.printf "max depth: %d\n" max_depth;
+            Format.print_flush ();
+
             let r = Replace (node.id, info_auto_node) in
             (new_state, r :: acc))
           else (new_state, acc))
