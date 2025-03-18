@@ -48,6 +48,7 @@ let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
     let g = Pp.string_of_ppcmds in
     Option.map (Coq.Goals.map ~f ~g) goals
   in
+
   Coq.Protect.E.map ~f (Fleche.Info.Goals.goals ~token ~st) |> protect_to_result
 
 let message_to_diagnostic (range : Lang.Range.t) (msg : Loc.t Coq.Message.t) :
@@ -117,9 +118,6 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
       let state_msgs, messages = x in
       let state = fst state_msgs in
       let all_msgs = snd state_msgs @ messages in
-      print_endline "in ok ";
-      print_endline
-        ("number of message: " ^ string_of_int (List.length messages));
       Ok (state, List.map (message_to_diagnostic node.range) all_msgs)
   | Error err ->
       let err, messages = err in
@@ -274,8 +272,8 @@ let treeify_proof (doc : Coq_document.t) (p : proof) :
       in
 
       let parents = Hashtbl.create (List.length steps_with_goals) in
-
       let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
+
       Ok
         (Node
            ( p.proposition,

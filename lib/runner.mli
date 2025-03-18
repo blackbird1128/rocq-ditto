@@ -63,6 +63,11 @@ val get_current_goal :
 val can_reduce_to_zero_goals : Coq.State.t -> syntaxNode list -> bool
 val tree_to_proof : syntaxNode nary_tree -> proof
 
+val proof_tree_from_parents :
+  int * syntaxNode ->
+  (int * syntaxNode, int * syntaxNode) Hashtbl.t ->
+  syntaxNode nary_tree
+
 val treeify_proof :
   Coq_document.t -> proof -> (syntaxNode nary_tree, string) result
 
