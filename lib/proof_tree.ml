@@ -38,6 +38,12 @@ let remove_all_nonmatching (f : 'a -> bool) (tree : 'a nary_tree) :
 let add_child (tree : 'a nary_tree) (child : 'a nary_tree) : 'a nary_tree =
   match tree with Node (x, children) -> Node (x, child :: children)
 
+let rec iter (f : 'a -> unit) (tree : 'a nary_tree) : unit =
+  match tree with
+  | Node (x, children) ->
+      f x;
+      List.iter (iter f) children
+
 let rec map (f : 'a -> 'b) (tree : 'a nary_tree) : 'b nary_tree =
   match tree with Node (x, children) -> Node (f x, List.map (map f) children)
 
@@ -47,6 +53,33 @@ let rec depth_first_fold (f : 'acc -> 'a -> 'acc) (acc : 'acc)
   | Node (x, children) ->
       let new_acc = f acc x in
       List.fold_left (depth_first_fold f) new_acc children
+
+let rec depth_first_fold_with_children (f : 'acc -> 'a -> 'a list -> 'acc)
+    (acc : 'acc) (tree : 'a nary_tree) : 'acc =
+  match tree with
+  | Node (x, children) ->
+      let children_nodes =
+        List.map (fun t -> match t with Node (x, children) -> x) children
+      in
+      let new_acc = f acc x children_nodes in
+      List.fold_left (depth_first_fold_with_children f) new_acc children
+
+let rec depth_first_fold_map (f : 'acc -> 'a -> 'acc * 'b) (acc : 'acc)
+    (tree : 'a nary_tree) : 'acc * 'b nary_tree =
+  match tree with
+  | Node (x, children) ->
+      let new_acc, new_x = f acc x in
+      let final_acc, new_children =
+        List.fold_left
+          (fun (cur_acc, mapped_children) child ->
+            let updated_acc, new_child = depth_first_fold_map f cur_acc child in
+            (updated_acc, new_child :: mapped_children))
+          (new_acc, []) (List.rev children)
+      in
+      (final_acc, Node (new_x, List.rev new_children))
+
+let mapi (f : int -> 'a -> 'b) (tree : 'a nary_tree) : 'b nary_tree =
+  snd (depth_first_fold_map (fun i x -> (i + 1, f i x)) 0 tree)
 
 let rec flatten (tree : 'a nary_tree) : 'a list =
   match tree with

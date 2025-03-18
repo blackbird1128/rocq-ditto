@@ -13,36 +13,47 @@ val pp_nary_tree :
     value [a] and [children] using the printer [pp_a] *)
 
 val add_child : 'a nary_tree -> 'a nary_tree -> 'a nary_tree
-(** Add a child node to an n-ary tree. 
-    [add_child tree child] returns a new n-ary tree where [child] has been added 
-    to the list of children of [tree]. *)
+(** Add a child node to an n-ary tree. [add_child tree child] returns a new
+    n-ary tree where [child] has been added to the list of children of [tree].
+*)
+
+val iter : ('a -> unit) -> 'a nary_tree -> unit
 
 val map : ('a -> 'b) -> 'a nary_tree -> 'b nary_tree
-(** Map a function over an n-ary tree. 
-    [map f tree] applies the function [f] to each node in the tree, producing a new tree with the results. *)
+(** Map a function over an n-ary tree. [map f tree] applies the function [f] to
+    each node in the tree, producing a new tree with the results. *)
+
+val mapi : (int -> 'a -> 'b) -> 'a nary_tree -> 'b nary_tree
 
 val depth_first_fold : ('acc -> 'a -> 'acc) -> 'acc -> 'a nary_tree -> 'acc
-(** Perform a depth-first fold over an n-ary tree. 
-    [depth_first_fold f acc tree] recursively applies the function [f] to each node 
-    in the tree, keeping an accumulator [acc] through the operations. 
-    It takes an initial accumulator and applies [f] to the accumulator and the 
-    value of each node in a depth-first order. *)
+(** Perform a depth-first fold over an n-ary tree. [depth_first_fold f acc tree]
+    recursively applies the function [f] to each node in the tree, keeping an
+    accumulator [acc] through the operations. It takes an initial accumulator
+    and applies [f] to the accumulator and the value of each node in a
+    depth-first order. *)
+
+val depth_first_fold_with_children :
+  ('acc -> 'a -> 'a list -> 'acc) -> 'acc -> 'a nary_tree -> 'acc
+
+val depth_first_fold_map :
+  ('acc -> 'a -> 'acc * 'b) -> 'acc -> 'a nary_tree -> 'acc * 'b nary_tree
 
 val flatten : 'a nary_tree -> 'a list
-(** Flatten an n-ary tree into a list. [flatten tree] returns a list of all the elements in [tree] 
-    in a depth-first order. *)
+(** Flatten an n-ary tree into a list. [flatten tree] returns a list of all the
+    elements in [tree] in a depth-first order. *)
 
 val flatten_map : ('a -> 'b) -> 'a nary_tree -> 'b list
-(** Transform an n-ary tree into a list by applying a function [f] to each element. 
-    [flatten_map f tree] returns a list of results from applying [f] to each node in the 
-    given tree [tree] in a depth first order. *)
+(** Transform an n-ary tree into a list by applying a function [f] to each
+    element. [flatten_map f tree] returns a list of results from applying [f] to
+    each node in the given tree [tree] in a depth first order. *)
 
 val top_n : int -> 'a nary_tree -> 'a nary_tree
-(** Extract the top n levels of an n-ary tree. [top_n n tree] returns a new n-ary tree
-    containing the root of [tree] and the first [n] levels of its children. If [n] is 
-    less than or equal to 0, only the root is returned with no children. *)
+(** Extract the top n levels of an n-ary tree. [top_n n tree] returns a new
+    n-ary tree containing the root of [tree] and the first [n] levels of its
+    children. If [n] is less than or equal to 0, only the root is returned with
+    no children. *)
 
 val bottom_n : int -> 'a nary_tree -> 'a nary_tree list
 (** Obtain the list of sub-trees at depth [n] from the n-ary tree [tree].
-    [bottom_n n tree] returns a list of sub-trees that are [n] levels below the root.
-    If [n] is 0, it returns the root node in a list. *)
+    [bottom_n n tree] returns a list of sub-trees that are [n] levels below the
+    root. If [n] is 0, it returns the root node in a list. *)
