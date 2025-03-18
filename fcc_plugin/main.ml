@@ -17,6 +17,13 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       let parsed_document = Coq_document.parse_document doc in
 
       let proofs = Coq_document.get_proofs parsed_document in
+
+      let proof_trees =
+        List.filter_map
+          (fun proof ->
+            Result.to_option (Runner.treeify_proof parsed_document proof))
+          proofs
+      in
       (* let first_proof : Proof.proof = List.hd proofs in *)
       (* let expr = first_proof.proposition in *)
       (* let expr_ast = Option.get expr.ast in *)
@@ -50,13 +57,6 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             ^ " "
             ^ Pp.string_of_ppcmds diag.message))
         diags;
-
-      let proof_trees =
-        List.filter_map
-          (fun proof ->
-            Result.to_option (Runner.treeify_proof parsed_document proof))
-          proofs
-      in
 
       let modified_doc =
         List.fold_left

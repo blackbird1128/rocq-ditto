@@ -364,6 +364,15 @@ let rec drop_while p = function
   | x :: l when p x -> drop_while p l
   | rest -> rest
 
+let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
+    unit =
+  Hashtbl.iter
+    (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
+      Printf.printf
+        "Parent: (idx: %d, tactic: %s) -> Child: (idx: %d, tactic: %s)\n" k_idx
+        k_tactic.repr v_idx v_tactic.repr)
+    parents
+
 let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
@@ -385,13 +394,18 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
     if Str.string_match re s 0 then String.length (Str.matched_string s) else 0
   in
 
-  let find_last_opt (f : 'a -> bool) (l : 'a list) : 'a option =
-    let rec aux (f : 'a -> bool) (l : 'a list) (acc : 'a option) =
-      match l with
-      | [] -> acc
-      | x :: tail -> if f x then aux f tail (Some x) else aux f tail acc
-    in
-    aux f l None
+  let rec pop_until_same_depth stack target_depth =
+    match stack with
+    | [] -> []
+    | (node, state, depth) :: tail ->
+        if depth >= target_depth then pop_until_same_depth tail target_depth
+        else stack
+  in
+
+  let print_stack =
+    List.iter (fun (node, state, depth) ->
+        print_endline
+          ("stack node : " ^ node.repr ^ "depth : " ^ string_of_int depth))
   in
 
   match
@@ -417,71 +431,177 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
               Result.get_ok
                 (Runner.run_node_with_diagnostics token state info_auto_node)
             in
-            let state, diagnostics = info_auto_state in
-            print_endline
-              ("number of diagnostics : "
-              ^ string_of_int (List.length diagnostics));
-            let tactic_diagnostic = List.nth diagnostics 1 in
+            let _, diagnostics = info_auto_state in
+
             let tactic_diagnostic_repr =
-              Pp.string_of_ppcmds tactic_diagnostic.message
+              Pp.string_of_ppcmds (List.nth diagnostics 1).message
             in
+            print_endline tactic_diagnostic_repr;
             let auto_tactics =
               String.split_on_char '\n' tactic_diagnostic_repr
             in
             let intros = take_while (fun tac -> tac = "intro.") auto_tactics in
-            let rest = drop_while (fun tac -> tac = "intro.") auto_tactics in
+            let intros_nodes =
+              List.map
+                (fun repr ->
+                  Result.get_ok
+                    (Syntax_node.syntax_node_of_string repr
+                       (Range_transformation.range_from_starting_point_and_repr
+                          node.range.start repr)))
+                intros
+            in
+            let after_intros =
+              drop_while (fun tac -> tac = "intro.") auto_tactics
+            in
+            let rest_cleaned =
+              List.map
+                (fun repr -> Str.global_replace re_in_remove "" repr)
+                after_intros
+            in
 
             let depth_tuples =
-              List.map (fun tac -> (count_leading_spaces tac, tac)) rest
+              List.map (fun tac -> (count_leading_spaces tac, tac)) rest_cleaned
             in
-            List.iter
-              (fun (depth, tac) -> Format.printf "(%d,%s)\n" depth tac)
-              depth_tuples;
-            let max_depth =
-              List.fold_left
-                (fun acc_max (depth, _) -> max acc_max depth)
-                (Option.default 0
-                   (Option.map fst (List.nth_opt depth_tuples 0)))
+
+            let depth_tuples_nodes_rev =
+              List.rev_map
+                (fun (depth, tac) ->
+                  ( depth,
+                    Result.get_ok
+                      (Syntax_node.syntax_node_of_string tac
+                         (Range_transformation
+                          .range_from_starting_point_and_repr node.range.start
+                            tac)) ))
                 depth_tuples
             in
-            let rec loop i acc =
-              if i > max_depth then acc
-              else
-                loop (i + 1)
-                  (Option.get
-                     (find_last_opt (fun (depth, _) -> depth = i) depth_tuples)
-                  :: acc)
+            let depth_tuple_nodes_rev_indexed =
+              List.mapi
+                (fun i (depth, node) -> (depth, node, i))
+                depth_tuples_nodes_rev
             in
-            let tactics_tuple = loop 0 [] in
+
+            let parents = Hashtbl.create (List.length depth_tuples_nodes_rev) in
+            let default_node_depth = -1 in
+            let default_node =
+              Result.get_ok
+                (Syntax_node.syntax_node_of_string "idtac."
+                   (Range_transformation.range_from_starting_point_and_repr
+                      node.range.start "idtac."))
+            in
+            let default_node_tuple =
+              ( default_node_depth,
+                default_node,
+                List.length depth_tuples_nodes_rev )
+            in
+
+            List.iteri
+              (fun i (current_depth, current_node) ->
+                let next_nodes = List.drop i depth_tuple_nodes_rev_indexed in
+
+                let prev_node_tuple =
+                  Option.default default_node_tuple
+                    (List.find_opt
+                       (fun (depth, _, _) -> depth < current_depth)
+                       next_nodes)
+                in
+                let prev_node_depth, prev_node, prev_node_index =
+                  prev_node_tuple
+                in
+
+                (* + 1 for prev as we are reversed avoid raising errors with nth_opt *)
+                if current_depth > prev_node_depth then
+                  Hashtbl.add parents
+                    (prev_node_index, prev_node)
+                    (i, current_node))
+              depth_tuples_nodes_rev;
+
+            let tree =
+              Runner.proof_tree_from_parents
+                (List.length depth_tuples_nodes_rev, default_node)
+                parents
+            in
+            let tree_with_depths =
+              Proof_tree.mapi
+                (fun i node ->
+                  let matching_tuple =
+                    List.nth ((-1, "idtac") :: depth_tuples) i
+                  in
+                  (node, fst matching_tuple + 1))
+                tree
+            in
+            Proof_tree.iter
+              (fun (node, depth) ->
+                print_endline
+                  ("node: " ^ node.repr ^ "depth : " ^ string_of_int depth))
+              tree_with_depths;
+
+            let before_state =
+              List.fold_left
+                (fun state_acc node ->
+                  match Runner.run_node token state_acc node with
+                  | Ok new_state -> new_state
+                  | Error err ->
+                      print_endline (Runner.running_error_to_string err);
+                      state_acc)
+                state intros_nodes
+            in
+
+            let _, auto_steps =
+              Proof_tree.depth_first_fold
+                (fun (state_acc, steps_stack) (node, depth) ->
+                  print_endline ("now running : " ^ node.repr);
+                  let new_state = Runner.run_node token state_acc node in
+                  match new_state with
+                  | Ok state -> (state, (node, state, depth) :: steps_stack)
+                  | Error err ->
+                      let new_stack = pop_until_same_depth steps_stack depth in
+                      let top_node, state, new_depth = List.hd new_stack in
+                      print_stack new_stack;
+                      print_endline
+                        ("popped  until :" ^ top_node.repr ^ "depth : "
+                       ^ string_of_int new_depth);
+                      let new_state =
+                        Result.get_ok (Runner.run_node token state node)
+                      in
+
+                      (new_state, (node, new_state, depth) :: new_stack))
+                (before_state, []) tree_with_depths
+            in
+            List.iter
+              (fun (node, _, _) -> print_endline ("result : " ^ node.repr))
+              (List.rev auto_steps);
+
             let tactics =
               intros
-              @ List.rev_map (fun (depth, tac) -> String.trim tac) tactics_tuple
+              @ List.rev_map
+                  (fun (node, _, _) -> String.trim node.repr)
+                  auto_steps
             in
+
             let tactic_nodes =
               List.mapi
                 (fun i repr ->
                   print_endline ("i : " ^ string_of_int i);
                   print_endline repr;
-                  let cleaned_repr = Str.global_replace re_in_remove "" repr in
-                  print_endline ("cleaned repr : " ^ cleaned_repr);
+
                   let _ =
                     match
-                      Syntax_node.syntax_node_of_string cleaned_repr
+                      Syntax_node.syntax_node_of_string repr
                         (shift_range i 0 0
                            (Range_transformation
                             .range_from_starting_point_and_repr node.range.start
-                              cleaned_repr))
+                              repr))
                     with
                     | Ok node -> print_endline node.repr
                     | Error err -> print_endline err
                   in
 
                   Result.get_ok
-                    (Syntax_node.syntax_node_of_string cleaned_repr
+                    (Syntax_node.syntax_node_of_string repr
                        (shift_range i 0 0
                           (Range_transformation
                            .range_from_starting_point_and_repr node.range.start
-                             cleaned_repr))))
+                             repr))))
                 tactics
             in
             let shifted_nodes =
@@ -495,14 +615,25 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
 
             let add_steps = List.map (fun node -> Add node) shifted_nodes in
 
-            List.iter
-              (fun node -> pp_syntax_node Format.std_formatter node)
-              shifted_nodes;
+            (* let tree_repr = *)
+            (*   Proof_tree.map *)
+            (*     (fun (node, count) -> (node.repr, count)) *)
+            (*     tree_with_goal_count *)
+            (* in *)
+            (* List.iter *)
+            (*   (fun (node, count) -> *)
+            (*     Format.printf "node : %s goals: %d\n" node count) *)
+            (*   (Proof_tree.flatten tree_repr); *)
 
-            List.iter (fun tac -> Format.printf "(%s)\n" tac) tactics;
-            Format.printf "max depth: %d\n" max_depth;
-            Format.print_flush ();
+            (* STOP !!!! *)
 
+            (* List.iter *)
+            (*   (fun node -> pp_syntax_node Format.std_formatter node) *)
+            (*   shifted_nodes; *)
+
+            (* List.iter (fun tac -> Format.printf "(%s)\n" tac) tactics; *)
+            (* Format.printf "max depth: %d\n" max_depth; *)
+            (* Format.print_flush (); *)
             (new_state, add_steps @ (Remove node.id :: acc)))
           else (new_state, acc))
       [] proof
