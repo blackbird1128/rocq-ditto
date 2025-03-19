@@ -14,7 +14,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let nodes = doc.nodes in
 
   let parsed_document =
-    Coq_document.parse_document nodes document_text uri_str
+    Coq_document.parse_document doc 
   in
 
   let repr_and_ranges =
