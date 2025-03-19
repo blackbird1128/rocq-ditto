@@ -470,13 +470,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             in
             let rest_cleaned =
               List.map
-                (fun repr ->
-                  let x = Str.string_match re_in_remove repr 0 in
-                  print_endline ("before : " ^ repr);
-                  (* print_endline ("matched: " ^ Str.matched_string repr); *)
-                  let x = Str.global_replace re_in_remove "." repr in
-                  print_endline ("after :  " ^ x);
-                  x)
+                (fun repr -> Str.global_replace re_in_remove "." repr)
                 after_intros
             in
 

@@ -10,10 +10,6 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri_str = Lang.LUri.File.to_string_uri uri in
   match doc.completed with
   | Doc.Completion.Yes _ ->
-      let nodes = doc.nodes in
-
-      let document_text = doc.contents.raw in
-
       let parsed_document = Coq_document.parse_document doc in
 
       let proofs = Coq_document.get_proofs parsed_document in
@@ -24,27 +20,6 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             Result.to_option (Runner.treeify_proof parsed_document proof))
           proofs
       in
-      (* let first_proof : Proof.proof = List.hd proofs in *)
-      (* let expr = first_proof.proposition in *)
-      (* let expr_ast = Option.get expr.ast in *)
-      (* let coq_ast = Coq.Ast.to_coq expr_ast.v in *)
-      (* let x = *)
-      (*   match coq_ast.CAst.v.expr with *)
-      (*   | VernacSynterp _ -> false *)
-      (*   | VernacSynPure expr -> ( *)
-      (*       match expr with *)
-      (*       | Vernacexpr.VernacStartTheoremProof (theorem_kind, expr_list) -> *)
-      (*           List.iter *)
-      (*             (fun (expr : proof_expr) -> *)
-      (*               let ident_dcl, t_data = expr in *)
-      (*               let ident_name, univ = ident_dcl in *)
-      (*               Format.printf "loc: %s\n" *)
-      (*                 (Option.default "not found" *)
-      (*                    (Option.map Coq.Ast.loc_to_string ident_name.loc))) *)
-      (*             expr_list; *)
-      (*           true *)
-      (*       | _ -> false) *)
-      (* in *)
 
       print_endline ("number of proofs : " ^ string_of_int (List.length proofs));
 
@@ -67,12 +42,6 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
             match transformation_steps with
             | Ok steps -> (
-                List.iter
-                  (fun step ->
-                    pp_transformation_step Format.std_formatter step;
-                    print_newline ();
-                    Format.print_flush ())
-                  steps;
                 let doc_with_steps_applied =
                   List.fold_left
                     (fun doc_acc_err step ->
@@ -88,12 +57,6 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             | Error err -> doc_acc)
           parsed_document proofs
       in
-      List.iter
-        (fun node ->
-          pp_syntax_node Format.std_formatter node;
-          Format.pp_print_newline Format.std_formatter ())
-        modified_doc.elements;
-      print_endline Fleche.Version.server;
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
       output_string out (Coq_document.dump_to_string modified_doc);
       ()

@@ -103,7 +103,6 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
     ( Coq.State.t * Lang.Diagnostic.t list,
       runningError * Lang.Diagnostic.t list )
     result =
-  print_endline ("node repr: " ^ node.repr);
   let execution =
     let open Coq.Protect.E.O in
     let st =
