@@ -501,6 +501,50 @@ let test_adding_removing_nodes_simple (doc : Doc.t) () : unit =
 (* abort for now as we still rely on the old definition of insert *)
 (* TODO complete *)
 
+let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+  let parsed_target = get_target uri_str in
+
+  let proofs = Coq_document.get_proofs doc in
+
+  let new_doc =
+    List.fold_left
+      (fun doc_acc proof ->
+        let doc_res =
+          Transformations.apply_proof_transformation
+            Transformations.replace_auto_with_info_auto doc_acc proof
+        in
+        match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
+      doc proofs
+  in
+
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+  Alcotest.(check (list (pair string range_testable)))
+    "The two list should be the same " parsed_target new_doc_res
+
+let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+  let parsed_target = get_target uri_str in
+
+  let proofs = Coq_document.get_proofs doc in
+
+  let new_doc =
+    List.fold_left
+      (fun doc_acc proof ->
+        let doc_res =
+          Transformations.apply_proof_transformation
+            Transformations.replace_auto_with_info_auto doc_acc proof
+        in
+        match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
+      doc proofs
+  in
+
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+  Alcotest.(check (list (pair string range_testable)))
+    "The two list should be the same " parsed_target new_doc_res
+
 let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if a simple test is created normally"
@@ -598,6 +642,13 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_replacing4.v"
     (create_fixed_test "test replacing a node with some spaces after"
        test_replacing_node_end_of_line doc);
+
+  Hashtbl.add table "ex_auto1.v"
+    (create_fixed_test "test replacing simple auto with all the taken steps"
+       test_replacing_simple_auto_by_steps doc);
+  Hashtbl.add table "ex_auto2.v"
+    (create_fixed_test "test replacing branching auto with all the taken steps"
+       test_replace_multiple_branch_auto_by_steps doc);
   ()
 
 let test_runner ~io ~token:_ ~(doc : Doc.t) =
@@ -605,8 +656,7 @@ let test_runner ~io ~token:_ ~(doc : Doc.t) =
 
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let uri_name_str = Filename.basename uri_str in
-  let document_text = doc.contents.raw in
-  let nodes = doc.nodes in
+
   setup_test_table test_hash_table doc;
   let global_tests = Hashtbl.find_all test_hash_table "global" in
   let file_tests = Hashtbl.find_all test_hash_table uri_name_str in
