@@ -1,12 +1,11 @@
 open Fleche
-open Ditto
-open Ditto.Proof_tree
-open Ditto.Proof
-open Ditto.Syntax_node
+open Proof_tree
+open Proof
+open Syntax_node
 open Vernacexpr
 open Runner
 
-let error_location_to_string (location : Lang.Range.t) =
+let error_location_to_string (location : Lang.Range.t) : string =
   if location.start.line = location.end_.line then
     "line "
     ^ string_of_int location.start.line
@@ -53,7 +52,7 @@ let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) :
   let ast_node = Coq.Ast.of_coq vernac_control in
   syntax_node_of_coq_ast ast_node range
 
-let add_bullets (proof_tree : syntaxNode nary_tree) : Ditto.Proof.proof =
+let add_bullets (proof_tree : syntaxNode nary_tree) : Proof.proof =
   let rec aux (depth : int) (node : syntaxNode nary_tree) =
     match node with
     | Node (x, []) -> [ x ]
@@ -73,7 +72,7 @@ let add_bullets (proof_tree : syntaxNode nary_tree) : Ditto.Proof.proof =
   { proposition = List.hd res; proof_steps = List.tl res; status = Proved }
 
 let replace_by_lia (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) :
-    (Ditto.Proof.proof, string) result =
+    (Proof.proof, string) result =
   let token = Coq.Limits.Token.create () in
   let proof = Runner.tree_to_proof proof_tree in
   let init_state = Runner.get_init_state doc proof.proposition token in
@@ -108,7 +107,7 @@ let replace_by_lia (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) :
   | _ -> Error "can't create an initial state for the proof "
 
 let fold_replace_by_lia (doc : Coq_document.t)
-    (proof_tree : syntaxNode nary_tree) : (Ditto.Proof.proof, string) result =
+    (proof_tree : syntaxNode nary_tree) : (Proof.proof, string) result =
   let token = Coq.Limits.Token.create () in
   let res =
     Runner.depth_first_fold_with_state doc token
@@ -353,6 +352,22 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
   | Error err -> Error err
 
 (* TODO move this somewhere sensible *)
+
+let take n l =
+  let[@tail_mod_cons] rec aux n l =
+    match (n, l) with 0, _ | _, [] -> [] | n, x :: l -> x :: aux (n - 1) l
+  in
+  if n < 0 then invalid_arg "List.take";
+  aux n l
+
+let drop n l =
+  let rec aux i = function
+    | _x :: l when i < n -> aux (i + 1) l
+    | rest -> rest
+  in
+  if n < 0 then invalid_arg "List.drop";
+  aux 0 l
+
 let take_while p l =
   let[@tail_mod_cons] rec aux = function
     | x :: l when p x -> x :: aux l
@@ -381,7 +396,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
       ~opts:[ Re.Perl.(`Multiline); Re.Perl.(`Dotall); Re.Perl.(`Ungreedy) ]
   in
 
-  let re_in_remove = Str.regexp "(in.*)" in
+  let re_in_remove = Str.regexp " (in.*)\." in
 
   let extract text =
     match Re.exec_opt re text with
@@ -414,7 +429,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
         if is_doc_node_proof_intro_or_end node then (state, acc)
         else
           let new_state = Result.get_ok (Runner.run_node token state node) in
-          print_endline ("running node: " ^ node.repr);
+
           if
             String.starts_with ~prefix:"auto" node.repr
             && not (String.contains node.repr ';')
@@ -436,7 +451,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             let tactic_diagnostic_repr =
               Pp.string_of_ppcmds (List.nth diagnostics 1).message
             in
-            print_endline tactic_diagnostic_repr;
+
             let auto_tactics =
               String.split_on_char '\n' tactic_diagnostic_repr
             in
@@ -455,7 +470,13 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             in
             let rest_cleaned =
               List.map
-                (fun repr -> Str.global_replace re_in_remove "" repr)
+                (fun repr ->
+                  let x = Str.string_match re_in_remove repr 0 in
+                  print_endline ("before : " ^ repr);
+                  (* print_endline ("matched: " ^ Str.matched_string repr); *)
+                  let x = Str.global_replace re_in_remove "." repr in
+                  print_endline ("after :  " ^ x);
+                  x)
                 after_intros
             in
 
@@ -496,7 +517,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
 
             List.iteri
               (fun i (current_depth, current_node) ->
-                let next_nodes = List.drop i depth_tuple_nodes_rev_indexed in
+                let next_nodes = drop i depth_tuple_nodes_rev_indexed in
 
                 let prev_node_tuple =
                   Option.default default_node_tuple
@@ -508,7 +529,6 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                   prev_node_tuple
                 in
 
-                (* + 1 for prev as we are reversed avoid raising errors with nth_opt *)
                 if current_depth > prev_node_depth then
                   Hashtbl.add parents
                     (prev_node_index, prev_node)
@@ -529,11 +549,6 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                   (node, fst matching_tuple + 1))
                 tree
             in
-            Proof_tree.iter
-              (fun (node, depth) ->
-                print_endline
-                  ("node: " ^ node.repr ^ "depth : " ^ string_of_int depth))
-              tree_with_depths;
 
             let before_state =
               List.fold_left
@@ -549,17 +564,12 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             let _, auto_steps =
               Proof_tree.depth_first_fold
                 (fun (state_acc, steps_stack) (node, depth) ->
-                  print_endline ("now running : " ^ node.repr);
                   let new_state = Runner.run_node token state_acc node in
                   match new_state with
                   | Ok state -> (state, (node, state, depth) :: steps_stack)
                   | Error err ->
                       let new_stack = pop_until_same_depth steps_stack depth in
                       let top_node, state, new_depth = List.hd new_stack in
-                      print_stack new_stack;
-                      print_endline
-                        ("popped  until :" ^ top_node.repr ^ "depth : "
-                       ^ string_of_int new_depth);
                       let new_state =
                         Result.get_ok (Runner.run_node token state node)
                       in
@@ -567,9 +577,6 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                       (new_state, (node, new_state, depth) :: new_stack))
                 (before_state, []) tree_with_depths
             in
-            List.iter
-              (fun (node, _, _) -> print_endline ("result : " ^ node.repr))
-              (List.rev auto_steps);
 
             let tactics =
               intros
@@ -577,63 +584,35 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                   (fun (node, _, _) -> String.trim node.repr)
                   auto_steps
             in
+            let filtered_tactics =
+              List.filter (fun repr -> repr != "idtac.") tactics
+            in
 
             let tactic_nodes =
               List.mapi
                 (fun i repr ->
-                  print_endline ("i : " ^ string_of_int i);
-                  print_endline repr;
-
-                  let _ =
-                    match
-                      Syntax_node.syntax_node_of_string repr
-                        (shift_range i 0 0
-                           (Range_transformation
-                            .range_from_starting_point_and_repr node.range.start
-                              repr))
-                    with
-                    | Ok node -> print_endline node.repr
-                    | Error err -> print_endline err
-                  in
-
                   Result.get_ok
                     (Syntax_node.syntax_node_of_string repr
                        (shift_range i 0 0
                           (Range_transformation
                            .range_from_starting_point_and_repr node.range.start
                              repr))))
-                tactics
+                filtered_tactics
             in
             let shifted_nodes =
               snd
                 (List.fold_left_map
                    (fun acc node ->
-                     ( acc + String.length node.repr + 1,
-                       (shift_node 0 0 acc) node ))
+                     let char_shift =
+                       if acc != 0 then node.range.start.character else 0
+                     in
+                     ( acc + char_shift + String.length node.repr + 1,
+                       (shift_node 0 0 (acc + char_shift)) node ))
                    0 tactic_nodes)
             in
 
             let add_steps = List.map (fun node -> Add node) shifted_nodes in
 
-            (* let tree_repr = *)
-            (*   Proof_tree.map *)
-            (*     (fun (node, count) -> (node.repr, count)) *)
-            (*     tree_with_goal_count *)
-            (* in *)
-            (* List.iter *)
-            (*   (fun (node, count) -> *)
-            (*     Format.printf "node : %s goals: %d\n" node count) *)
-            (*   (Proof_tree.flatten tree_repr); *)
-
-            (* STOP !!!! *)
-
-            (* List.iter *)
-            (*   (fun node -> pp_syntax_node Format.std_formatter node) *)
-            (*   shifted_nodes; *)
-
-            (* List.iter (fun tac -> Format.printf "(%s)\n" tac) tactics; *)
-            (* Format.printf "max depth: %d\n" max_depth; *)
-            (* Format.print_flush (); *)
             (new_state, add_steps @ (Remove node.id :: acc)))
           else (new_state, acc))
       [] proof
@@ -681,3 +660,26 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
   with
   | Ok steps -> Ok steps
   | Error err -> Error err
+
+let apply_proof_transformation
+    (transformation :
+      Coq_document.t -> Proof.proof -> (transformation_step list, string) result)
+    (doc : Coq_document.t) (proof : Proof.proof) :
+    (Coq_document.t, string) result =
+  let proofs = Coq_document.get_proofs doc in
+  List.fold_left
+    (fun (doc_acc : (Coq_document.t, string) result) (proof : Proof.proof) ->
+      match doc_acc with
+      | Ok acc -> (
+          let transformation_steps = transformation acc proof in
+          match transformation_steps with
+          | Ok steps ->
+              List.fold_left
+                (fun doc_acc_err step ->
+                  match doc_acc_err with
+                  | Ok doc -> Coq_document.apply_transformation_step step doc
+                  | Error err -> Error err)
+                doc_acc steps
+          | Error err -> Error err)
+      | Error err -> Error err)
+    (Ok doc) proofs
