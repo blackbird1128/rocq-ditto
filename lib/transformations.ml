@@ -114,8 +114,6 @@ let fold_replace_by_lia (doc : Coq_document.t)
       (fun state acc node ->
         let previous_goals, steps_acc, ignore_step = acc in
         if ignore_step then (state, (previous_goals, steps_acc, ignore_step))
-        else if Syntax_node.is_doc_node_proof_intro_or_end node then
-          (state, (previous_goals, node :: steps_acc, ignore_step))
         else
           let state_node = Result.get_ok (Runner.run_node token state node) in
           let lia_node =
@@ -180,19 +178,16 @@ let fold_inspect (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) =
   let _ =
     Runner.depth_first_fold_with_state doc token
       (fun state acc node ->
-        if Syntax_node.is_doc_node_proof_intro_or_end node then
-          (state, node :: acc)
-        else
-          let state_node = Result.get_ok (Runner.run_node token state node) in
-          let goals_err_opt = Runner.goals ~token ~st:state_node in
-          match goals_err_opt with
-          | Ok (Some goals) ->
-              List.iter pp_goal goals.goals;
-              print_endline "\n";
-              (state_node, node :: acc)
-          | _ ->
-              print_endline "error getting goals";
-              (state_node, node :: acc))
+        let state_node = Result.get_ok (Runner.run_node token state node) in
+        let goals_err_opt = Runner.goals ~token ~st:state_node in
+        match goals_err_opt with
+        | Ok (Some goals) ->
+            List.iter pp_goal goals.goals;
+            print_endline "\n";
+            (state_node, node :: acc)
+        | _ ->
+            print_endline "error getting goals";
+            (state_node, node :: acc))
       [] proof_tree
   in
   ()
@@ -204,55 +199,53 @@ let fold_replace_assumption_with_apply (doc : Coq_document.t)
   let res =
     Runner.depth_first_fold_with_state doc token
       (fun state acc node ->
-        if Syntax_node.is_doc_node_proof_intro_or_end node then (state, acc)
-        else
-          let state_node = Result.get_ok (Runner.run_node token state node) in
-          if
-            String.starts_with ~prefix:"assumption" node.repr
-            && not (String.contains node.repr ';')
-          then
-            let goal_count_after_assumption =
-              Runner.count_goals token state_node
-            in
+        let state_node = Result.get_ok (Runner.run_node token state node) in
+        if
+          String.starts_with ~prefix:"assumption" node.repr
+          && not (String.contains node.repr ';')
+        then
+          let goal_count_after_assumption =
+            Runner.count_goals token state_node
+          in
 
-            let curr_goal_err = Runner.get_current_goal token state in
-            match curr_goal_err with
-            | Ok curr_goal ->
-                let hypothesis_apply_repr =
-                  List.map
-                    (fun name -> "apply " ^ name ^ ".")
-                    (Runner.get_hypothesis_names curr_goal)
-                in
-                let apply_nodes =
-                  List.map
-                    (fun repr ->
-                      Result.get_ok
-                        (Syntax_node.syntax_node_of_string repr node.range))
-                    hypothesis_apply_repr
-                in
+          let curr_goal_err = Runner.get_current_goal token state in
+          match curr_goal_err with
+          | Ok curr_goal ->
+              let hypothesis_apply_repr =
+                List.map
+                  (fun name -> "apply " ^ name ^ ".")
+                  (Runner.get_hypothesis_names curr_goal)
+              in
+              let apply_nodes =
+                List.map
+                  (fun repr ->
+                    Result.get_ok
+                      (Syntax_node.syntax_node_of_string repr node.range))
+                  hypothesis_apply_repr
+              in
 
-                let apply_states =
-                  List.filter_map
-                    (fun node ->
-                      let r = Runner.run_node token state node in
-                      match r with
-                      | Ok state_uw -> Some (node, state_uw)
-                      | Error _ -> None)
-                    apply_nodes
-                in
+              let apply_states =
+                List.filter_map
+                  (fun node ->
+                    let r = Runner.run_node token state node in
+                    match r with
+                    | Ok state_uw -> Some (node, state_uw)
+                    | Error _ -> None)
+                  apply_nodes
+              in
 
-                let replacement =
-                  List.find
-                    (fun tuple_n_r ->
-                      Runner.count_goals token (snd tuple_n_r)
-                      = goal_count_after_assumption)
-                    apply_states
-                in
-                let new_node = fst replacement in
+              let replacement =
+                List.find
+                  (fun tuple_n_r ->
+                    Runner.count_goals token (snd tuple_n_r)
+                    = goal_count_after_assumption)
+                  apply_states
+              in
+              let new_node = fst replacement in
 
-                (state_node, Replace (node.id, new_node) :: acc)
-            | Error _ -> (state_node, acc)
-          else (state_node, acc))
+              (state_node, Replace (node.id, new_node) :: acc)
+          | Error _ -> (state_node, acc)
+        else (state_node, acc))
       [] proof_tree
   in
   res
@@ -305,47 +298,42 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
   match
     Runner.fold_proof_with_state doc token
       (fun state acc node ->
-        if is_doc_node_proof_intro_or_end node then (state, acc)
-        else
-          let t1 = Unix.gettimeofday () in
-          let new_state_run = Runner.run_node token state node in
-          let t2 = Unix.gettimeofday () in
-          let time_to_run = t2 -. t1 in
-          let new_state = Result.get_ok new_state_run in
-          if time_to_run > 0.0 then
-            let comment_content =
-              "Time spent on this step: " ^ string_of_float time_to_run
-            in
-            let comment_repr =
-              "(* Time spent on this step: "
-              ^ string_of_float time_to_run
-              ^ " *)"
-            in
-            let nodes_on_same_line =
-              List.filter
-                (fun x ->
-                  x != node && x.range.start.line = node.range.start.line)
-                (proof_nodes proof)
-            in
-            let furthest_char_node =
-              List.fold_left
-                (fun max_char_node elem ->
-                  if
-                    elem.range.start.character
-                    > max_char_node.range.start.character
-                  then elem
-                  else max_char_node)
-                node nodes_on_same_line
-            in
-            let comment_node_res =
-              Syntax_node.comment_syntax_node_of_string comment_content
-                (Range_transformation.range_from_starting_point_and_repr
-                   (shift_node 0 5 0 furthest_char_node).range.end_ comment_repr)
-            in
-            match comment_node_res with
-            | Ok comment_node -> (new_state, Add comment_node :: acc)
-            | Error _ -> (new_state, acc)
-          else (new_state, acc))
+        let t1 = Unix.gettimeofday () in
+        let new_state_run = Runner.run_node token state node in
+        let t2 = Unix.gettimeofday () in
+        let time_to_run = t2 -. t1 in
+        let new_state = Result.get_ok new_state_run in
+        if time_to_run > 0.0 then
+          let comment_content =
+            "Time spent on this step: " ^ string_of_float time_to_run
+          in
+          let comment_repr =
+            "(* Time spent on this step: " ^ string_of_float time_to_run ^ " *)"
+          in
+          let nodes_on_same_line =
+            List.filter
+              (fun x -> x != node && x.range.start.line = node.range.start.line)
+              (proof_nodes proof)
+          in
+          let furthest_char_node =
+            List.fold_left
+              (fun max_char_node elem ->
+                if
+                  elem.range.start.character
+                  > max_char_node.range.start.character
+                then elem
+                else max_char_node)
+              node nodes_on_same_line
+          in
+          let comment_node_res =
+            Syntax_node.comment_syntax_node_of_string comment_content
+              (Range_transformation.range_from_starting_point_and_repr
+                 (shift_node 0 5 0 furthest_char_node).range.end_ comment_repr)
+          in
+          match comment_node_res with
+          | Ok comment_node -> (new_state, Add comment_node :: acc)
+          | Error _ -> (new_state, acc)
+        else (new_state, acc))
       [] proof
   with
   | Ok acc -> Ok acc
@@ -396,7 +384,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
       ~opts:[ Re.Perl.(`Multiline); Re.Perl.(`Dotall); Re.Perl.(`Ungreedy) ]
   in
 
-  let re_in_remove = Str.regexp " (in.*)\." in
+  let re_in_remove = Str.regexp " (in.*)\\." in
 
   let extract text =
     match Re.exec_opt re text with
@@ -426,15 +414,20 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
   match
     Runner.fold_proof_with_state doc token
       (fun state acc node ->
-        if is_doc_node_proof_intro_or_end node then (state, acc)
+        if Option.is_empty node.ast then (state, acc)
         else
+          let _ = 0 in
+          print_endline ("treating : " ^ node.repr);
           let new_state = Result.get_ok (Runner.run_node token state node) in
-
+          print_endline "new state";
+          Result.map pp_goal (Runner.get_current_goal token new_state);
+          print_newline ();
           if
             String.starts_with ~prefix:"auto" node.repr
             && not (String.contains node.repr ';')
           then (
             let node_args = extract node.repr in
+
             let info_auto = "info_auto" ^ node_args ^ "." in
             let info_auto_node =
               Result.get_ok
@@ -442,10 +435,12 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                    (Range_transformation.range_from_starting_point_and_repr
                       node.range.start info_auto))
             in
+            print_endline "here";
             let info_auto_state =
               Result.get_ok
                 (Runner.run_node_with_diagnostics token state info_auto_node)
             in
+            print_endline "there";
             let _, diagnostics = info_auto_state in
 
             let tactic_diagnostic_repr =
@@ -455,6 +450,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             let auto_tactics =
               String.split_on_char '\n' tactic_diagnostic_repr
             in
+            print_endline "A";
             let intros = take_while (fun tac -> tac = "intro.") auto_tactics in
             let intros_nodes =
               List.map
@@ -465,6 +461,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                           node.range.start repr)))
                 intros
             in
+            print_endline "B";
             let after_intros =
               drop_while (fun tac -> tac = "intro.") auto_tactics
             in
@@ -489,6 +486,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                             tac)) ))
                 depth_tuples
             in
+            print_endline "C";
             let depth_tuple_nodes_rev_indexed =
               List.mapi
                 (fun i (depth, node) -> (depth, node, i))
@@ -503,6 +501,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                    (Range_transformation.range_from_starting_point_and_repr
                       node.range.start "idtac."))
             in
+            print_endline "D";
             let default_node_tuple =
               ( default_node_depth,
                 default_node,
@@ -534,6 +533,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                 (List.length depth_tuples_nodes_rev, default_node)
                 parents
             in
+            print_endline "E";
             let tree_with_depths =
               Proof_tree.mapi
                 (fun i node ->
@@ -555,15 +555,22 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                 state intros_nodes
             in
 
+            print_endline "D";
+
             let _, auto_steps =
               Proof_tree.depth_first_fold
                 (fun (state_acc, steps_stack) (node, depth) ->
+                  print_endline ("running " ^ node.repr);
                   let new_state = Runner.run_node token state_acc node in
+                  print_endline "X";
                   match new_state with
                   | Ok state -> (state, (node, state, depth) :: steps_stack)
                   | Error err ->
                       let new_stack = pop_until_same_depth steps_stack depth in
+
                       let top_node, state, new_depth = List.hd new_stack in
+                      print_endline ("popping til " ^ top_node.repr);
+                      print_stack new_stack;
                       let new_state =
                         Result.get_ok (Runner.run_node token state node)
                       in
@@ -571,6 +578,8 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                       (new_state, (node, new_state, depth) :: new_stack))
                 (before_state, []) tree_with_depths
             in
+
+            print_endline "F";
 
             let tactics =
               intros
@@ -620,36 +629,34 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
   match
     Runner.fold_proof_with_state doc token
       (fun state acc node ->
-        if is_doc_node_proof_intro_or_end node then (state, acc)
-        else
-          let new_state = Result.get_ok (Runner.run_node token state node) in
-          if
-            String.starts_with ~prefix:"intros" node.repr
-            && not (String.contains node.repr ';')
-          then
-            let old_state_vars =
-              Runner.get_current_goal token state
-              |> Result.get_ok |> Runner.get_hypothesis_names
-            in
-            let new_state_vars =
-              Runner.get_current_goal token new_state
-              |> Result.get_ok |> Runner.get_hypothesis_names
-            in
-            let new_vars =
-              List.filter
-                (fun x -> not (List.mem x old_state_vars))
-                new_state_vars
-            in
-            let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
-            let explicit_intro_node =
-              Result.get_ok
-                (Syntax_node.syntax_node_of_string explicit_intro
-                   (Range_transformation.range_from_starting_point_and_repr
-                      node.range.start explicit_intro))
-            in
-            let r = Replace (node.id, explicit_intro_node) in
-            (new_state, r :: acc)
-          else (new_state, acc))
+        let new_state = Result.get_ok (Runner.run_node token state node) in
+        if
+          String.starts_with ~prefix:"intros" node.repr
+          && not (String.contains node.repr ';')
+        then
+          let old_state_vars =
+            Runner.get_current_goal token state
+            |> Result.get_ok |> Runner.get_hypothesis_names
+          in
+          let new_state_vars =
+            Runner.get_current_goal token new_state
+            |> Result.get_ok |> Runner.get_hypothesis_names
+          in
+          let new_vars =
+            List.filter
+              (fun x -> not (List.mem x old_state_vars))
+              new_state_vars
+          in
+          let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
+          let explicit_intro_node =
+            Result.get_ok
+              (Syntax_node.syntax_node_of_string explicit_intro
+                 (Range_transformation.range_from_starting_point_and_repr
+                    node.range.start explicit_intro))
+          in
+          let r = Replace (node.id, explicit_intro_node) in
+          (new_state, r :: acc)
+        else (new_state, acc))
       [] proof
   with
   | Ok steps -> Ok steps

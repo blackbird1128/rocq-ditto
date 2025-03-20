@@ -23,7 +23,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
       print_endline ("number of proofs : " ^ string_of_int (List.length proofs));
 
-      let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
+      (* let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
 
       List.iter
         (fun (diag : Lang.Diagnostic.t) ->
@@ -31,8 +31,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             (Transformations.error_location_to_string diag.range
             ^ " "
             ^ Pp.string_of_ppcmds diag.message))
-        diags;
-
+        diags; *)
       let modified_doc =
         List.fold_left
           (fun doc_acc proof ->
