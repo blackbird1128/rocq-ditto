@@ -400,24 +400,27 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
   let rec pop_until_split stack =
     match stack with
     | [] -> []
-    | (_, _, _, num_children, _) :: tail ->
+    | (_, _, _, num_children, _, _) :: tail ->
         if num_children <= 1 then pop_until_split tail else stack
   in
 
   let rec pop_until_prev_depth stack target_depth =
     match stack with
     | [] -> []
-    | (_, _, depth, _, _) :: tail ->
-        if depth >= target_depth then pop_until_prev_depth tail target_depth
+    | (_, _, depth, _, _, reduced_goals) :: tail ->
+        if depth >= target_depth && not reduced_goals then
+          pop_until_prev_depth tail target_depth
         else stack
   in
   (* (node, cur_state, depth, number_children, goal_count) *)
   let print_stack =
-    List.iter (fun (node, state, depth, num_children, goal_count) ->
+    List.iter
+      (fun (node, state, depth, num_children, goal_count, reduced_goals) ->
         print_endline
           ("stack node: " ^ node.repr ^ " depth: " ^ string_of_int depth
          ^ " n_children: " ^ string_of_int num_children ^ " goal_count: "
-         ^ string_of_int goal_count))
+         ^ string_of_int goal_count ^ " reduced goals: "
+          ^ string_of_bool reduced_goals))
   in
 
   (*
@@ -598,14 +601,15 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                         prev_state,
                         prev_depth,
                         prev_num_children,
-                        prev_goal_count ) =
+                        prev_goal_count,
+                        prev_reduced_goals ) =
                     List.hd steps_stack
                   in
                   let steps_stack =
                     if prev_depth >= depth then (
                       print_stack steps_stack;
                       let s = pop_until_prev_depth steps_stack depth in
-                      let s_node, s_state, s_depth, _, _ = List.hd s in
+                      let s_node, s_state, s_depth, _, _, _ = List.hd s in
                       print_endline "popping previous useless instructions";
                       print_endline ("using state from " ^ s_node.repr);
                       print_endline ("depth : " ^ string_of_int s_depth);
@@ -616,7 +620,8 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                         prev_state,
                         prev_depth,
                         prev_num_children,
-                        prev_goal_count ) =
+                        prev_goal_count,
+                        prev_reduced_goals ) =
                     List.hd steps_stack
                   in
                   print_endline "";
@@ -639,20 +644,20 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                   if number_children = 0 then
                     if goal_count < prev_goal_count then (
                       print_endline "closed a goal";
-                      (node, cur_state, depth, number_children, goal_count)
+                      (node, cur_state, depth, number_children, goal_count, true)
                       :: steps_stack)
                     else (
                       print_stack steps_stack;
                       let s = pop_until_split steps_stack in
-                      let s_node, s_state, s_depth, _, _ = List.hd s in
+                      let s_node, s_state, s_depth, _, _, _ = List.hd s in
                       print_endline "useless branch";
                       print_endline ("using state from " ^ s_node.repr);
                       print_endline ("depth : " ^ string_of_int s_depth);
                       pop_until_split steps_stack)
                   else
-                    (node, cur_state, depth, number_children, goal_count)
+                    (node, cur_state, depth, number_children, goal_count, false)
                     :: steps_stack)
-                [ (default_node, before_state, -1, 0, 0) ]
+                [ (default_node, before_state, -1, 0, 0, false) ]
                 tree_with_depths
             in
 
@@ -661,7 +666,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             let tactics =
               intros
               @ List.rev_map
-                  (fun (node, _, _, _, _) -> String.trim node.repr)
+                  (fun (node, _, _, _, _, _) -> String.trim node.repr)
                   auto_steps
             in
             let filtered_tactics =
