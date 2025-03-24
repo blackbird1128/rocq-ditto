@@ -11,7 +11,15 @@ type runningError =
   | Theorem_not_found of string
 
 val running_error_to_string : runningError -> string
-val protect_to_result : ('a, 'b) Coq.Protect.E.t -> ('a, runningError) Result.t
+
+val run_with_timeout :
+  token:Coq.Limits.Token.t ->
+  timeout:int ->
+  f:('a -> ('b, runningError) result) ->
+  'a ->
+  ('b, runningError) result
+
+val protect_to_result : ('a, 'b) Coq.Protect.E.t -> ('a, runningError) result
 
 val protect_to_result_with_feedback :
   ('a, 'b) Coq.Protect.E.t ->

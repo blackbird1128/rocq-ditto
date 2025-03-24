@@ -39,6 +39,27 @@ let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
       Error (Anomaly (Pp.string_of_ppcmds msg), feedback)
   | { r = Completed (Ok r); feedback } -> Ok (r, feedback)
 
+let run_with_timeout ~token ~timeout ~f x =
+  (* Start a timeout thread *)
+  let completed = ref false in
+
+  let timeout_thread =
+    Thread.create
+      (fun () ->
+        Unix.sleep timeout;
+        if not !completed then Coq.Limits.Token.set token)
+      ()
+  in
+
+  if Coq.Limits.Token.is_set token then Error Interrupted
+  else
+    let () = Control.interrupt := false in
+    try
+      let y = f x in
+      completed := true;
+      y
+    with Sys.Break -> Error Interrupted
+
 let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
     ( (string Coq.Goals.Reified_goal.t, string) Coq.Goals.t option,
       runningError )
@@ -170,17 +191,17 @@ let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
 let can_reduce_to_zero_goals (init_state : Coq.State.t)
     (nodes : syntaxNode list) =
   let token = Coq.Limits.Token.create () in
+
   let rec aux state acc nodes =
     match nodes with
     | [] -> Ok acc
     | x :: tail -> (
-        if Syntax_node.is_doc_node_proof_intro_or_end x then
-          aux state state tail
-        else
-          let state_node_res = run_node token state x in
-          match state_node_res with
-          | Ok state_node -> aux state_node state_node tail
-          | Error err -> Error "")
+        let state_node_res =
+          run_with_timeout ~token ~timeout:5 ~f:(run_node token state) x
+        in
+        match state_node_res with
+        | Ok state_node -> aux state_node state_node tail
+        | Error err -> Error "")
   in
   match aux init_state init_state nodes with
   | Ok state -> count_goals token state = 0
