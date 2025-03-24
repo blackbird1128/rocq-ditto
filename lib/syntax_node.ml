@@ -267,6 +267,15 @@ let is_doc_node_goal_start (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
+let is_doc_node_bullet (x : syntaxNode) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with Vernacexpr.VernacBullet _ -> true | _ -> false))
+  | None -> false
+
 let is_doc_node_ast_proof_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (

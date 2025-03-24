@@ -48,6 +48,8 @@ val is_doc_node_ast_proof_command : syntaxNode -> bool
 val is_doc_node_ast_tactic : syntaxNode -> bool
 (** [is_doc_node_ast_tactic x] checks if [x] represents a tactic. *)
 
+val is_doc_node_bullet : syntaxNode -> bool
+
 val is_doc_node_ast_proof_start : syntaxNode -> bool
 (** [is_doc_node_ast_proof_start x] checks if [x] marks the start of a proof. *)
 
