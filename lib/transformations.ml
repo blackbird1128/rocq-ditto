@@ -52,101 +52,6 @@ let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) :
   let ast_node = Coq.Ast.of_coq vernac_control in
   syntax_node_of_coq_ast ast_node range
 
-let add_bullets (proof_tree : syntaxNode nary_tree) : Proof.proof =
-  let rec aux (depth : int) (node : syntaxNode nary_tree) =
-    match node with
-    | Node (x, []) -> [ x ]
-    | Node (x, [ child ]) -> x :: aux depth child
-    | Node (x, childrens) ->
-        x
-        :: List.concat
-             (List.map
-                (fun child ->
-                  (match child with
-                  | Node (y, _) -> create_annotated_ast_bullet depth y.range)
-                  :: aux (depth + 1) child)
-                childrens)
-    (* each bullet need a different id *)
-  in
-  let res = aux 0 proof_tree in
-  { proposition = List.hd res; proof_steps = List.tl res; status = Proved }
-
-let replace_by_lia (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) :
-    (Proof.proof, string) result =
-  let token = Coq.Limits.Token.create () in
-  let proof = Runner.tree_to_proof proof_tree in
-  let init_state = Runner.get_init_state doc proof.proposition token in
-  let rec aux (st : Coq.State.t) (previous_goals : int)
-      (node : syntaxNode nary_tree) : syntaxNode list =
-    match node with
-    | Node (x, childrens) -> (
-        let lia_node =
-          Result.get_ok (Syntax_node.syntax_node_of_string "lia." x.range)
-        in
-        let state_x = Result.get_ok (Runner.run_node token st x) in
-        let new_goals = Runner.count_goals token state_x in
-        let state_lia = Runner.run_node token st lia_node in
-        match state_lia with
-        | Ok state_uw ->
-            let goals_with_lia = count_goals token state_uw in
-            if goals_with_lia < previous_goals then
-              if goals_with_lia = 0 then
-                [ lia_node; qed_ast_node (shift_range 1 0 0 lia_node.range) ]
-              else [ lia_node ]
-            else x :: List.concat (List.map (aux state_x new_goals) childrens)
-        | Error err ->
-            x :: List.concat (List.map (aux state_x new_goals) childrens))
-  in
-  match init_state with
-  | Ok state ->
-      let head_tree = top_n 1 proof_tree in
-      let tail_tree = List.hd (bottom_n 2 proof_tree) in
-      let list = aux state 1 tail_tree in
-      let list_head_tail = flatten head_tree @ list in
-      Proof.proof_from_nodes list_head_tail
-  | _ -> Error "can't create an initial state for the proof "
-
-let fold_replace_by_lia (doc : Coq_document.t)
-    (proof_tree : syntaxNode nary_tree) : (Proof.proof, string) result =
-  let token = Coq.Limits.Token.create () in
-  let res =
-    Runner.depth_first_fold_with_state doc token
-      (fun state acc node ->
-        let previous_goals, steps_acc, ignore_step = acc in
-        if ignore_step then (state, (previous_goals, steps_acc, ignore_step))
-        else
-          let state_node = Result.get_ok (Runner.run_node token state node) in
-          let lia_node =
-            Result.get_ok (Syntax_node.syntax_node_of_string "lia." node.range)
-          in
-          let new_goals = count_goals token state in
-          let state_lia = Runner.run_node token state lia_node in
-          match state_lia with
-          | Ok state_uw ->
-              let goals_with_lia = count_goals token state_uw in
-              if goals_with_lia < previous_goals then
-                if goals_with_lia = 0 then
-                  ( state_uw,
-                    ( goals_with_lia,
-                      [
-                        lia_node;
-                        qed_ast_node (shift_range 1 0 0 lia_node.range);
-                      ]
-                      @ steps_acc,
-                      true ) )
-                else (state_uw, (new_goals, node :: steps_acc, true))
-              else (state_node, (new_goals, node :: steps_acc, ignore_step))
-          | Error err ->
-              let res =
-                (state_node, (new_goals, node :: steps_acc, ignore_step))
-              in
-              res)
-      (1, [], false) proof_tree
-  in
-  match res with
-  | Ok (goals, steps, _) -> Proof.proof_from_nodes (List.rev steps)
-  | Error err -> Error err
-
 let pp_goal (goal : string Coq.Goals.Reified_goal.t) : unit =
   print_endline ("Goal : " ^ goal.ty);
   print_endline "---------------------";
@@ -423,42 +328,13 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
           ^ string_of_bool reduced_goals))
   in
 
-  (*
-
-                let _, auto_steps =
-              Proof_tree.depth_first_fold
-                (fun (state_acc, steps_stack) (node, depth) ->
-                  print_endline ("running " ^ node.repr);
-                  let new_state = Runner.run_node token state_acc node in
-                  print_endline "X";
-                  match new_state with
-                  | Ok state -> (state, (node, state, depth) :: steps_stack)
-                  | Error err ->
-                      let new_stack = pop_until_same_depth steps_stack depth in
-
-                      let top_node, state, new_depth = List.hd new_stack in
-                      print_endline ("popping til " ^ top_node.repr);
-                      print_stack new_stack;
-                      let new_state =
-                        Result.get_ok (Runner.run_node token state node)
-                      in
-
-                      (new_state, (node, new_state, depth) :: new_stack))
-                (before_state, []) tree_with_depths
-                in
-
-   *)
   match
     Runner.fold_proof_with_state doc token
       (fun state acc node ->
         if Option.is_empty node.ast then (state, acc)
         else
-          let _ = 0 in
-          print_endline ("treating : " ^ node.repr);
           let new_state = Result.get_ok (Runner.run_node token state node) in
-          print_endline "new state";
-          Result.map pp_goal (Runner.get_current_goal token new_state);
-          print_newline ();
+
           if
             String.starts_with ~prefix:"auto" node.repr
             && not (String.contains node.repr ';')
@@ -472,13 +348,10 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                    (Range_transformation.range_from_starting_point_and_repr
                       node.range.start info_auto))
             in
-            print_endline "here";
-            let info_auto_state =
+            let _, diagnostics =
               Result.get_ok
                 (Runner.run_node_with_diagnostics token state info_auto_node)
             in
-            print_endline "there";
-            let _, diagnostics = info_auto_state in
 
             let tactic_diagnostic_repr =
               Pp.string_of_ppcmds (List.nth diagnostics 1).message
@@ -487,7 +360,6 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             let auto_tactics =
               String.split_on_char '\n' tactic_diagnostic_repr
             in
-            print_endline "A";
             let intros = take_while (fun tac -> tac = "intro.") auto_tactics in
             let intros_nodes =
               List.map
@@ -498,7 +370,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                           node.range.start repr)))
                 intros
             in
-            print_endline "B";
+
             let after_intros =
               drop_while (fun tac -> tac = "intro.") auto_tactics
             in
@@ -523,27 +395,25 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                             tac)) ))
                 depth_tuples
             in
-            print_endline "C";
+
             let depth_tuple_nodes_rev_indexed =
               List.mapi
                 (fun i (depth, node) -> (depth, node, i))
                 depth_tuples_nodes_rev
             in
 
-            let parents = Hashtbl.create (List.length depth_tuples_nodes_rev) in
-            let default_node_depth = -1 in
             let default_node =
               Result.get_ok
                 (Syntax_node.syntax_node_of_string "idtac."
                    (Range_transformation.range_from_starting_point_and_repr
                       node.range.start "idtac."))
             in
-            print_endline "D";
+
             let default_node_tuple =
-              ( default_node_depth,
-                default_node,
-                List.length depth_tuples_nodes_rev )
+              (-1, default_node, List.length depth_tuples_nodes_rev)
             in
+
+            let parents = Hashtbl.create (List.length depth_tuples_nodes_rev) in
 
             List.iteri
               (fun i (current_depth, current_node) ->
@@ -570,7 +440,6 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                 (List.length depth_tuples_nodes_rev, default_node)
                 parents
             in
-            print_endline "E";
 
             let tree_with_depths =
               Proof_tree.mapi
@@ -592,28 +461,13 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                 state intros_nodes
             in
 
-            print_endline "D";
-
             let auto_steps =
               Proof_tree.depth_first_fold_with_children
                 (fun steps_stack (node, depth) children ->
-                  let ( prev_node,
-                        prev_state,
-                        prev_depth,
-                        prev_num_children,
-                        prev_goal_count,
-                        prev_reduced_goals ) =
-                    List.hd steps_stack
-                  in
+                  let _, _, prev_depth, _, _, _ = List.hd steps_stack in
                   let steps_stack =
-                    if prev_depth >= depth then (
-                      print_stack steps_stack;
-                      let s = pop_until_prev_depth steps_stack depth in
-                      let s_node, s_state, s_depth, _, _, _ = List.hd s in
-                      print_endline "popping previous useless instructions";
-                      print_endline ("using state from " ^ s_node.repr);
-                      print_endline ("depth : " ^ string_of_int s_depth);
-                      s)
+                    if prev_depth >= depth then
+                      pop_until_prev_depth steps_stack depth
                     else steps_stack
                   in
                   let ( prev_node,
@@ -624,44 +478,24 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                         prev_reduced_goals ) =
                     List.hd steps_stack
                   in
-                  print_endline "";
-                  print_endline ("running node : " ^ node.repr);
-                  print_endline ("depth : " ^ string_of_int depth);
-                  print_endline "current stack : ";
-                  print_stack steps_stack;
-                  print_endline
-                    ("prev goal count " ^ string_of_int prev_goal_count);
-                  print_endline
-                    ("prev node : " ^ prev_node.repr ^ " depth: "
-                   ^ string_of_int prev_depth);
 
                   let number_children = List.length children in
                   let cur_state =
                     Result.get_ok (Runner.run_node token prev_state node)
                   in
-                  print_endline "got the cur state";
+
                   let goal_count = Runner.count_goals token cur_state in
                   if number_children = 0 then
-                    if goal_count < prev_goal_count then (
-                      print_endline "closed a goal";
+                    if goal_count < prev_goal_count then
                       (node, cur_state, depth, number_children, goal_count, true)
-                      :: steps_stack)
-                    else (
-                      print_stack steps_stack;
-                      let s = pop_until_split steps_stack in
-                      let s_node, s_state, s_depth, _, _, _ = List.hd s in
-                      print_endline "useless branch";
-                      print_endline ("using state from " ^ s_node.repr);
-                      print_endline ("depth : " ^ string_of_int s_depth);
-                      pop_until_split steps_stack)
+                      :: steps_stack
+                    else pop_until_split steps_stack
                   else
                     (node, cur_state, depth, number_children, goal_count, false)
                     :: steps_stack)
                 [ (default_node, before_state, -1, 0, 0, false) ]
                 tree_with_depths
             in
-
-            print_endline "F";
 
             let tactics =
               intros
