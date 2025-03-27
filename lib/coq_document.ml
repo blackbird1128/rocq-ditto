@@ -1,6 +1,7 @@
 open Proof
 open Fleche
 open Syntax_node
+open Sexplib
 
 type proofState = NoProof | ProofOpened
 
@@ -25,37 +26,28 @@ let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
     doc.elements;
   Format.fprintf fmt "document repr: %s" doc.document_repr
 
-module IntMap = Map.Make (Int)
-
-let get_proofs (doc : t) : proof list =
-  let map_acc = IntMap.empty in
-  let map_proofs =
-    List.fold_left
-      (fun map_acc elem ->
-        match elem.proof_id with
-        | Some id -> (
-            match IntMap.find_opt id map_acc with
-            | Some proof ->
-                IntMap.add id
-                  { proof with proof_steps = elem :: proof.proof_steps }
-                  map_acc
-            | None ->
-                (IntMap.add id
-                   { proposition = elem; proof_steps = []; status = Proved })
-                  map_acc)
-        | None -> map_acc)
-      map_acc doc.elements
+let get_proofs (doc : t) : (proof list, string) result =
+  let rec aux (nodes : syntaxNode list) (cur_proof_acc : syntaxNode list)
+      (proofs_acc : (proof, string) result list) (cur_state : proofState) :
+      (proof, string) result list =
+    match nodes with
+    | [] -> proofs_acc
+    | x :: tail -> (
+        if Syntax_node.node_can_open_proof x then
+          aux tail [ x ] proofs_acc ProofOpened
+        else if Syntax_node.node_can_close_proof x then
+          let proof = proof_from_nodes (List.rev (x :: cur_proof_acc)) in
+          aux tail [] (proof :: proofs_acc) NoProof
+        else
+          match cur_state with
+          | NoProof -> aux tail [] proofs_acc NoProof
+          | ProofOpened -> aux tail (x :: cur_proof_acc) proofs_acc ProofOpened)
   in
-  let proofs_rev = snd (List.split (IntMap.to_list map_proofs)) in
-  List.filter_map
-    (fun proof ->
-      let last_step = List.hd proof.proof_steps in
-      let proof_status = Proof.proof_status_from_last_node last_step in
-      match proof_status with
-      | Ok status ->
-          Some { proof with proof_steps = List.rev proof.proof_steps; status }
-      | Error err -> None)
-    proofs_rev
+  let res = aux doc.elements [] [] NoProof in
+
+  if List.exists Result.is_error res then
+    Error "One ore more proofs was badly parsed"
+  else Ok (List.map Result.get_ok res)
 
 let node_representation (node : Doc.Node.t) (document : string) : string =
   String.sub document node.range.start.offset
@@ -199,36 +191,6 @@ let parse_document (doc : Doc.t) : t =
         })
       comments
   in
-  let rec aux (spans : syntaxNode list) (proof_state : proofState)
-      (proof_id : int option) document =
-    match spans with
-    | [] -> (
-        match proof_state with
-        | ProofOpened ->
-            raise (Invalid_argument "proof started but ended at document end")
-        | NoProof -> List.rev document)
-    | span :: rest -> (
-        if node_can_open_proof span then
-          let cur_id = Option.default 0 proof_id in
-          let span_with_id = { span with proof_id = Some cur_id } in
-          aux rest ProofOpened proof_id (span_with_id :: document)
-        else if node_can_close_proof span then
-          let cur_id = Option.default 0 proof_id in
-          let span_with_id = { span with proof_id = Some cur_id } in
-
-          match proof_state with
-          | ProofOpened ->
-              aux rest NoProof (Some (cur_id + 1)) (span_with_id :: document)
-          | NoProof -> raise (Invalid_argument "proof ended but never started")
-        else
-          match proof_state with
-          | ProofOpened ->
-              let cur_id = Option.default 0 proof_id in
-              let span_with_id = { span with proof_id = Some cur_id } in
-              aux rest proof_state proof_id (span_with_id :: document)
-          | NoProof -> aux rest proof_state proof_id (span :: document))
-    (* Skip spans not part of any proof *)
-  in
 
   let all_nodes =
     merge_nodes (List.sort compare_nodes (ast_nodes @ comments_nodes))
@@ -239,10 +201,10 @@ let parse_document (doc : Doc.t) : t =
       (fun node -> { node with id = Unique_id.next doc_counter })
       all_nodes
   in
-  let res = aux numbered_all_nodes NoProof None [] in
+
   {
     id_counter = doc_counter;
-    elements = res;
+    elements = numbered_all_nodes;
     document_repr;
     filename;
     initial_state = doc.root;
@@ -298,8 +260,11 @@ let element_with_id_opt (element_id : int) (doc : t) : syntaxNode option =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
 
 let proof_with_id_opt (proof_id : int) (doc : t) : proof option =
-  let proofs = get_proofs doc in
-  List.find_opt (fun elem -> elem.proposition.id = proof_id) proofs
+  let proofs_res = get_proofs doc in
+  match proofs_res with
+  | Ok proofs ->
+      List.find_opt (fun elem -> elem.proposition.id = proof_id) proofs
+  | Error err -> None
 
 let split_at_id (target_id : int) (doc : t) : syntaxNode list * syntaxNode list
     =

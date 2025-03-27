@@ -54,7 +54,7 @@ val insert_node :
 
 val replace_node : int -> syntaxNode -> t -> (t, string) result
 
-val get_proofs : t -> proof list
+val get_proofs : t -> (proof list, string) result
 (** Extract proofs from a document. [get_proofs doc] takes a document [doc] of
     type [t] and returns a list of proofs. Each proof is constructed by
     aggregating elements of the document that share the same proof identifier.
