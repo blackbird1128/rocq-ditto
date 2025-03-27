@@ -18,6 +18,9 @@ val fold_add_time_taken :
 val replace_auto_with_info_auto :
   Coq_document.t -> proof -> (transformation_step list, string) result
 
+val compress_intro :
+  Coq_document.t -> proof -> (transformation_step list, string) result
+
 val make_intros_explicit :
   Coq_document.t -> proof -> (transformation_step list, string) result
 

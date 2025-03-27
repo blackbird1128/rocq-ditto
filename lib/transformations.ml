@@ -184,9 +184,10 @@ let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     match nodes with
     | [] -> acc
     | x :: tail ->
-        if is_doc_node_proof_intro_or_end x then aux state acc tail
-        else if Runner.can_reduce_to_zero_goals state tail then
-          aux state (Remove x.id :: acc) tail
+        if
+          (not (is_doc_node_proof_intro_or_end x))
+          && Runner.can_reduce_to_zero_goals state tail
+        then aux state (Remove x.id :: acc) tail
         else
           let state_node = Result.get_ok (Runner.run_node token state x) in
           aux state_node acc tail
@@ -194,6 +195,48 @@ let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
   match get_init_state doc proof.proposition token with
   | Ok state ->
       let steps = aux state [] (proof_nodes proof) in
+      Ok steps
+  | _ -> Error "Unable to retrieve initial state"
+
+let compress_intro (doc : Coq_document.t) (proof : proof) :
+    (transformation_step list, string) result =
+  let token = Coq.Limits.Token.create () in
+  let rec aux state (acc_intro, acc_steps) nodes =
+    match nodes with
+    | [] -> acc_steps
+    | x :: tail ->
+        let state_node = Result.get_ok (Runner.run_node token state x) in
+        if
+          String.starts_with ~prefix:"intro." x.repr
+          && not (String.contains x.repr ';')
+        then aux state_node (x :: acc_intro, acc_steps) tail
+        else if List.length acc_intro > 0 then (
+          print_endline
+            ("got "
+            ^ string_of_int (List.length acc_intro)
+            ^ " intro to compress");
+          let steps =
+            List.mapi
+              (fun i node ->
+                if i = 0 then
+                  let intros_node =
+                    Result.get_ok
+                      (Syntax_node.syntax_node_of_string "intros."
+                         (Range_transformation
+                          .range_from_starting_point_and_repr node.range.start
+                            "intros."))
+                  in
+                  Replace (node.id, intros_node)
+                else Remove node.id)
+              acc_intro
+          in
+          aux state_node ([], acc_steps @ steps) tail)
+        else aux state_node ([], acc_steps) tail
+  in
+
+  match get_init_state doc proof.proposition token with
+  | Ok state ->
+      let steps = aux state ([], []) (proof_nodes proof) in
       Ok steps
   | _ -> Error "Unable to retrieve initial state"
 
@@ -245,32 +288,6 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
   | Error err -> Error err
 
 (* TODO move this somewhere sensible *)
-
-let take n l =
-  let[@tail_mod_cons] rec aux n l =
-    match (n, l) with 0, _ | _, [] -> [] | n, x :: l -> x :: aux (n - 1) l
-  in
-  if n < 0 then invalid_arg "List.take";
-  aux n l
-
-let drop n l =
-  let rec aux i = function
-    | _x :: l when i < n -> aux (i + 1) l
-    | rest -> rest
-  in
-  if n < 0 then invalid_arg "List.drop";
-  aux 0 l
-
-let take_while p l =
-  let[@tail_mod_cons] rec aux = function
-    | x :: l when p x -> x :: aux l
-    | _rest -> []
-  in
-  aux l
-
-let rec drop_while p = function
-  | x :: l when p x -> drop_while p l
-  | rest -> rest
 
 let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
     unit =
@@ -360,7 +377,9 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             let auto_tactics =
               String.split_on_char '\n' tactic_diagnostic_repr
             in
-            let intros = take_while (fun tac -> tac = "intro.") auto_tactics in
+            let intros =
+              List_utils.take_while (fun tac -> tac = "intro.") auto_tactics
+            in
             let intros_nodes =
               List.map
                 (fun repr ->
@@ -372,7 +391,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
             in
 
             let after_intros =
-              drop_while (fun tac -> tac = "intro.") auto_tactics
+              List_utils.drop_while (fun tac -> tac = "intro.") auto_tactics
             in
             let rest_cleaned =
               List.map
@@ -417,7 +436,9 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
 
             List.iteri
               (fun i (current_depth, current_node) ->
-                let next_nodes = drop i depth_tuple_nodes_rev_indexed in
+                let next_nodes =
+                  List_utils.drop i depth_tuple_nodes_rev_indexed
+                in
 
                 let prev_node_tuple =
                   Option.default default_node_tuple
@@ -583,20 +604,25 @@ let apply_proof_transformation
       Coq_document.t -> Proof.proof -> (transformation_step list, string) result)
     (doc : Coq_document.t) (proof : Proof.proof) :
     (Coq_document.t, string) result =
-  let proofs = Coq_document.get_proofs doc in
-  List.fold_left
-    (fun (doc_acc : (Coq_document.t, string) result) (proof : Proof.proof) ->
-      match doc_acc with
-      | Ok acc -> (
-          let transformation_steps = transformation acc proof in
-          match transformation_steps with
-          | Ok steps ->
-              List.fold_left
-                (fun doc_acc_err step ->
-                  match doc_acc_err with
-                  | Ok doc -> Coq_document.apply_transformation_step step doc
-                  | Error err -> Error err)
-                doc_acc steps
+  let proofs_rec = Coq_document.get_proofs doc in
+  match proofs_rec with
+  | Ok proofs ->
+      List.fold_left
+        (fun (doc_acc : (Coq_document.t, string) result) (proof : Proof.proof)
+           ->
+          match doc_acc with
+          | Ok acc -> (
+              let transformation_steps = transformation acc proof in
+              match transformation_steps with
+              | Ok steps ->
+                  List.fold_left
+                    (fun doc_acc_err step ->
+                      match doc_acc_err with
+                      | Ok doc ->
+                          Coq_document.apply_transformation_step step doc
+                      | Error err -> Error err)
+                    doc_acc steps
+              | Error err -> Error err)
           | Error err -> Error err)
-      | Error err -> Error err)
-    (Ok doc) proofs
+        (Ok doc) proofs
+  | Error err -> Error err
