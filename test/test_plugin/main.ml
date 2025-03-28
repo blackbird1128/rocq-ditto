@@ -545,6 +545,48 @@ let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
   Alcotest.(check (list (pair string range_testable)))
     "The two list should be the same " parsed_target new_doc_res
 
+let test_replace_auto_using_zarith_by_steps (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+  let parsed_target = get_target uri_str in
+
+  let proofs = Coq_document.get_proofs doc in
+  let new_doc =
+    List.fold_left
+      (fun doc_acc proof ->
+        let doc_res =
+          Transformations.apply_proof_transformation
+            Transformations.replace_auto_with_info_auto doc_acc proof
+        in
+        match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
+      doc proofs
+  in
+
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+  Alcotest.(check (list (pair string range_testable)))
+    "The two list should be the same " parsed_target new_doc_res
+
+let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+  let parsed_target = get_target uri_str in
+
+  let proofs = Coq_document.get_proofs doc in
+  let new_doc =
+    List.fold_left
+      (fun doc_acc proof ->
+        let doc_res =
+          Transformations.apply_proof_transformation
+            Transformations.replace_auto_with_info_auto doc_acc proof
+        in
+        match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
+      doc proofs
+  in
+
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+  Alcotest.(check (list (pair string range_testable)))
+    "The two list should be the same " parsed_target new_doc_res
+
 let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if a simple test is created normally"
@@ -649,6 +691,12 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_auto2.v"
     (create_fixed_test "test replacing branching auto with all the taken steps"
        test_replace_multiple_branch_auto_by_steps doc);
+  Hashtbl.add table "ex_auto3.v"
+    (create_fixed_test "test replacing auto with zarith"
+       test_replace_auto_using_zarith_by_steps doc);
+  Hashtbl.add table "ex_auto4.v"
+    (create_fixed_test "test replacing auto with backtracking by steps"
+       test_replace_auto_with_backtracking doc);
   ()
 
 let test_runner ~io ~token:_ ~(doc : Doc.t) =
