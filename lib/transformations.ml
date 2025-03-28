@@ -97,6 +97,87 @@ let fold_inspect (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) =
   in
   ()
 
+type op_type = Cut | Keep
+
+let cut_replace_branch (cut_tactic : string) (doc : Coq_document.t)
+    (proof_tree : syntaxNode nary_tree) :
+    (transformation_step list, string) result =
+  let token = Coq.Limits.Token.create () in
+  let node_creator =
+   fun node ->
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string cut_tactic
+         (Range_transformation.range_from_starting_point_and_repr
+            node.range.start cut_tactic))
+  in
+
+  let rec aux state_acc tree steps_acc =
+    match tree with
+    | Node (x, children) -> (
+        let state = Result.get_ok (Runner.run_node token state_acc x) in
+        if is_doc_node_proof_intro_or_end x then
+          List.fold_left
+            (fun (state, acc) child ->
+              let new_state, new_acc = aux state child acc in
+              (new_state, new_acc))
+            (state, steps_acc) children
+        else
+          let cut_node = node_creator x in
+          let cut_node_state_res = Runner.run_node token state_acc cut_node in
+          (* Fold over the children using the updated state and accumulator *)
+          match cut_node_state_res with
+          | Ok cut_node_state ->
+              let cut_node_goals_count =
+                Runner.count_goals token cut_node_state
+              in
+              let children_nodes =
+                List.concat (List.map Proof_tree.flatten children)
+              in
+
+              let next_state =
+                List.fold_left
+                  (fun state_acc node ->
+                    if node_can_close_proof node then state_acc
+                    else Result.get_ok (Runner.run_node token state_acc node))
+                  state children_nodes
+              in
+
+              let next_state_goals = Runner.count_goals token next_state in
+
+              if cut_node_goals_count = next_state_goals then
+                let children_nodes =
+                  List.concat (List.map Proof_tree.flatten children)
+                in
+
+                let remove_steps =
+                  List.filter_map
+                    (fun node ->
+                      if node_can_open_proof node || node_can_close_proof node
+                      then None
+                      else Some (Remove node.id))
+                    (x :: children_nodes)
+                in
+                (cut_node_state, steps_acc @ (Add cut_node :: remove_steps))
+              else
+                List.fold_left
+                  (fun (state, acc) child ->
+                    let new_state, new_acc = aux state child acc in
+                    (new_state, new_acc))
+                  (state, steps_acc) children
+          | Error err ->
+              List.fold_left
+                (fun (state, acc) child ->
+                  let new_state, new_acc = aux state child acc in
+                  (new_state, new_acc))
+                (state, steps_acc) children)
+  in
+  let cur_proof = Runner.tree_to_proof proof_tree in
+  match get_init_state doc cur_proof.proposition token with
+  | Ok state ->
+      let _, steps = aux state proof_tree [] in
+      Ok steps
+  | _ -> Error "Unable to retrieve initial state"
+
 let fold_replace_assumption_with_apply (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, string) result =
@@ -602,8 +683,7 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
 let apply_proof_transformation
     (transformation :
       Coq_document.t -> Proof.proof -> (transformation_step list, string) result)
-    (doc : Coq_document.t) (proof : Proof.proof) :
-    (Coq_document.t, string) result =
+    (doc : Coq_document.t) : (Coq_document.t, string) result =
   let proofs_rec = Coq_document.get_proofs doc in
   match proofs_rec with
   | Ok proofs ->
@@ -625,4 +705,39 @@ let apply_proof_transformation
               | Error err -> Error err)
           | Error err -> Error err)
         (Ok doc) proofs
+  | Error err -> Error err
+
+let apply_proof_tree_transformation
+    (transformation :
+      Coq_document.t ->
+      syntaxNode nary_tree ->
+      (transformation_step list, string) result) (doc : Coq_document.t) :
+    (Coq_document.t, string) result =
+  let proofs_rec = Coq_document.get_proofs doc in
+  match proofs_rec with
+  | Ok proofs ->
+      let proof_trees =
+        List.filter_map
+          (fun proof -> Result.to_option (Runner.treeify_proof doc proof))
+          proofs
+      in
+      List.fold_left
+        (fun (doc_acc : (Coq_document.t, string) result)
+             (proof_tree : syntaxNode nary_tree) ->
+          Proof.print_tree proof_tree "";
+          match doc_acc with
+          | Ok acc -> (
+              let transformation_steps = transformation acc proof_tree in
+              match transformation_steps with
+              | Ok steps ->
+                  List.fold_left
+                    (fun doc_acc_err step ->
+                      match doc_acc_err with
+                      | Ok doc ->
+                          Coq_document.apply_transformation_step step doc
+                      | Error err -> Error err)
+                    doc_acc steps
+              | Error err -> Error err)
+          | Error err -> Error err)
+        (Ok doc) proof_trees
   | Error err -> Error err
