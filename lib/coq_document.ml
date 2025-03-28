@@ -44,7 +44,6 @@ let get_proofs (doc : t) : (proof list, string) result =
           | ProofOpened -> aux tail (x :: cur_proof_acc) proofs_acc ProofOpened)
   in
   let res = aux doc.elements [] [] NoProof in
-
   if List.exists Result.is_error res then
     Error "One ore more proofs was badly parsed"
   else Ok (List.map Result.get_ok res)
@@ -157,9 +156,6 @@ let parse_document (doc : Doc.t) : t =
   let nodes = doc.nodes in
   let document_repr = doc.contents.raw in
   let filename = Lang.LUri.File.to_string_uri doc.uri in
-
-  let split_lines = String.split_on_char '\n' document_repr in
-  let document_repr = String.concat "\n" split_lines in
 
   let nodes_with_ast =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes

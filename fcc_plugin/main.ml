@@ -12,7 +12,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   | Doc.Completion.Yes _ ->
       let parsed_document = Coq_document.parse_document doc in
 
-      let proofs = Coq_document.get_proofs parsed_document in
+      let proofs = Result.get_ok (Coq_document.get_proofs parsed_document) in
 
       let proof_trees =
         List.filter_map
@@ -32,32 +32,25 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             ^ " "
             ^ Pp.string_of_ppcmds diag.message))
         diags; *)
-      let modified_doc =
-        List.fold_left
-          (fun doc_acc proof ->
-            let transformation_steps =
-              Transformations.replace_auto_with_info_auto doc_acc proof
-            in
-
-            match transformation_steps with
-            | Ok steps -> (
-                let doc_with_steps_applied =
-                  List.fold_left
-                    (fun doc_acc_err step ->
-                      match doc_acc_err with
-                      | Ok doc ->
-                          Coq_document.apply_transformation_step step doc
-                      | Error err -> Error err)
-                    (Ok doc_acc) steps
-                in
-                match doc_with_steps_applied with
-                | Ok new_doc -> new_doc
-                | Error err -> doc_acc)
-            | Error err -> doc_acc)
-          parsed_document proofs
+      let transformations =
+        [ Transformations.cut_replace_branch "auto with cong." ]
       in
+
+      let res =
+        List.fold_left
+          (fun (doc_acc : Coq_document.t) transformation ->
+            let doc_res =
+              Transformations.apply_proof_tree_transformation transformation
+                doc_acc
+            in
+            match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
+          parsed_document transformations
+      in
+
+      List.iter (fun node -> print_endline node.repr) res.elements;
+
       let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in
-      output_string out (Coq_document.dump_to_string modified_doc);
+      output_string out (Coq_document.dump_to_string res);
       ()
   | Doc.Completion.Stopped range ->
       print_endline ("parsing stopped at : " ^ Lang.Range.to_string range);
