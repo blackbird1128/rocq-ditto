@@ -155,14 +155,17 @@ let count_goals (token : Coq.Limits.Token.t) (st : Coq.State.t) : int =
   | Error _ -> 0
 
 let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
-    (st : Coq.State.t) (steps : syntaxNode list) : (syntaxNode * int) list =
+    (st : Coq.State.t) (steps : syntaxNode list) : (int * syntaxNode * int) list
+    =
   match steps with
   | [] -> []
   | step :: tail ->
+      let before_count = count_goals token st in
       let state = Fleche.Doc.run ~token ~st step.repr in
       let agent_state = get_proof_state state in
       let goal_count = count_goals token agent_state in
-      (step, goal_count) :: proof_steps_with_goalcount token agent_state tail
+      (before_count, step, goal_count)
+      :: proof_steps_with_goalcount token agent_state tail
 
 let can_reduce_to_zero_goals (init_state : Coq.State.t)
     (nodes : syntaxNode list) =
@@ -205,49 +208,69 @@ let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
 
 type parent_category = Fork | Linear
 
-let rec pop_until_fork (prev_pars : (int * syntaxNode * parent_category) list) :
-    (int * syntaxNode * parent_category) list =
+let print_prev_pars
+    (prev_pars : (int * int * syntaxNode * parent_category) list) : unit =
+  List.iter
+    (fun (goal_count, id, node, cat) ->
+      print_endline
+        ("goal count: " ^ string_of_int goal_count ^ " node id: "
+       ^ string_of_int id))
+    prev_pars
+
+let rec pop_until_free_fork
+    (prev_pars : (int * int * syntaxNode * parent_category) list)
+    (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
+    (int * int * syntaxNode * parent_category) list =
   match prev_pars with
   | [] -> []
-  | (_, _, cat_par) :: tail_par -> (
-      match cat_par with Fork -> prev_pars | Linear -> pop_until_fork tail_par)
+  | (goal_count, par_id, par_node, cat_par) :: tail_par -> (
+      match cat_par with
+      | Fork ->
+          let childs_count =
+            List.length (Hashtbl.find_all parents (par_id, par_node))
+          in
+          if childs_count < goal_count then prev_pars
+          else pop_until_free_fork tail_par parents
+      | Linear -> pop_until_free_fork tail_par parents)
 
-let rec get_parents_rec (steps_with_goals : (syntaxNode * int) list)
-    (prev_goals : int) (prev_pars : (int * syntaxNode * parent_category) list)
-    (idx : int) (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) =
+let rec get_parents_rec (steps_with_goals : (int * syntaxNode * int) list)
+    (prev_goals : int)
+    (prev_pars : (int * int * syntaxNode * parent_category) list) (idx : int)
+    (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) =
   match steps_with_goals with
   | [] -> parents
-  | (step, new_goals) :: tail -> (
+  | (prev_goals, step, new_goals) :: tail -> (
       match prev_pars with
       | [] ->
           if new_goals > prev_goals then
             get_parents_rec tail new_goals
-              [ (idx, step, Fork) ]
+              [ (new_goals - prev_goals + 1, idx, step, Fork) ]
               (idx + 1) parents
           else
             get_parents_rec tail new_goals
-              [ (idx, step, Linear) ]
+              [ (new_goals, idx, step, Linear) ]
               (idx + 1) parents
-      | (idx_par, tactic_par, _) :: _ ->
+      | (prev_goals_par, idx_par, tactic_par, _) :: _ ->
           let par = (idx_par, tactic_par) in
           if new_goals < prev_goals then (
             Hashtbl.add parents par (idx, step);
             if new_goals > 0 then
-              get_parents_rec tail new_goals (pop_until_fork prev_pars)
+              get_parents_rec tail new_goals
+                (pop_until_free_fork prev_pars parents)
                 (idx + 1) parents
             else
               get_parents_rec tail new_goals
-                [ (idx, step, Linear) ]
+                [ (new_goals, idx, step, Linear) ]
                 (idx + 1) parents)
           else if new_goals = prev_goals then (
             Hashtbl.add parents par (idx, step);
             get_parents_rec tail new_goals
-              ((idx, step, Linear) :: prev_pars)
+              ((new_goals, idx, step, Linear) :: prev_pars)
               (idx + 1) parents)
           else (
             Hashtbl.add parents par (idx, step);
             get_parents_rec tail new_goals
-              ((idx, step, Fork) :: prev_pars)
+              ((new_goals - prev_goals + 1, idx, step, Fork) :: prev_pars)
               (idx + 1) parents))
 
 let rec proof_tree_from_parents (cur_node : int * syntaxNode)

@@ -51,7 +51,7 @@ val proof_steps_with_goalcount :
   Coq.Limits.Token.t ->
   Coq.State.t ->
   syntaxNode list ->
-  (syntaxNode * int) list
+  (int * syntaxNode * int) list
 
 val get_hypothesis_names : string Coq.Goals.Reified_goal.t -> string list
 
