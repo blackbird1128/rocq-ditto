@@ -14,27 +14,27 @@ let test_equality () =
 
 let test_remove_all_non_matching_simple () =
   let tree1 = Node (1, [ Node (2, []); Node (4, [ Node (3, []) ]) ]) in
-  let tree2 = remove_all_nonmatching (fun x -> not (x = 4)) tree1 in
+  let tree2 = filter (fun x -> not (x = 4)) tree1 in
   let expected = Node (1, [ Node (2, []); Node (3, []) ]) in
   match tree2 with
   | Some tree ->
       Alcotest.check int_tree
         "the result doesn't have the same shape as the expected result" expected
         tree
-  | None -> Alcotest.fail "remove_all_nonmatching returned None"
+  | None -> Alcotest.fail "filter returned None"
 
-let test_remove_all_nonmatching_multiple () =
+let test_filter_multiple () =
   let tree1 =
     Node (24, [ Node (2, []); Node (4, [ Node (6, [ Node (3, []) ]) ]) ])
   in
   let expected = Node (24, [ Node (2, []); Node (4, [ Node (6, []) ]) ]) in
-  let tree2 = remove_all_nonmatching (fun x -> x mod 2 = 0) tree1 in
+  let tree2 = filter (fun x -> x mod 2 = 0) tree1 in
   match tree2 with
   | Some tree ->
       Alcotest.check int_tree
         "the result doesn't have the same shape as the expected result" expected
         tree
-  | None -> Alcotest.fail "remove_all_nonmatching returned None"
+  | None -> Alcotest.fail "filter returned None"
 
 let test_flatten_simple () =
   let tree1 = Node (1, [ Node (2, []); Node (4, [ Node (3, []) ]) ]) in
@@ -95,7 +95,7 @@ let tests =
         Alcotest.test_case "remove all non matching simple" `Quick
           test_remove_all_non_matching_simple;
         Alcotest.test_case "remove all non matching multiple" `Quick
-          test_remove_all_nonmatching_multiple;
+          test_filter_multiple;
         Alcotest.test_case "flatten a simple tree" `Quick test_flatten_simple;
         Alcotest.test_case "flatten and double each value of a simple tree"
           `Quick test_flatten_map_simple;

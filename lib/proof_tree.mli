@@ -1,6 +1,6 @@
 type 'a nary_tree = Node of 'a * 'a nary_tree list
 
-val remove_all_nonmatching : ('a -> bool) -> 'a nary_tree -> 'a nary_tree option
+val filter : ('a -> bool) -> 'a nary_tree -> 'a nary_tree option
 
 val equal_nary_tree : ('a -> 'a -> bool) -> 'a nary_tree -> 'a nary_tree -> bool
 (** Compare two n-ary trees for equality. [equal_nary_tree equal_a tree1 tree2]

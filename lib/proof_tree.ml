@@ -31,8 +31,7 @@ let rec flatten_filter (f : 'a -> bool) (Node (x, children)) : 'a nary_tree list
     (* Node doesn't match, flatten it by returning its children directly *)
     processed_children
 
-let remove_all_nonmatching (f : 'a -> bool) (tree : 'a nary_tree) :
-    'a nary_tree option =
+let filter (f : 'a -> bool) (tree : 'a nary_tree) : 'a nary_tree option =
   match flatten_filter f tree with [ result ] -> Some result | _ -> None
 
 let add_child (tree : 'a nary_tree) (child : 'a nary_tree) : 'a nary_tree =
