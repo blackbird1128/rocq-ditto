@@ -30,6 +30,11 @@ val cut_replace_branch :
 val make_intros_explicit :
   Coq_document.t -> proof -> (transformation_step list, string) result
 
+val turn_into_oneliner :
+  Coq_document.t ->
+  syntaxNode nary_tree ->
+  (transformation_step list, string) result
+
 val apply_proof_transformation :
   (Coq_document.t -> Proof.proof -> (transformation_step list, string) result) ->
   Coq_document.t ->

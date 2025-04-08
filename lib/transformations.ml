@@ -415,16 +415,6 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
           pop_until_prev_depth tail target_depth
         else stack
   in
-  (* (node, cur_state, depth, number_children, goal_count) *)
-  let print_stack =
-    List.iter
-      (fun (node, state, depth, num_children, goal_count, reduced_goals) ->
-        print_endline
-          ("stack node: " ^ node.repr ^ " depth: " ^ string_of_int depth
-         ^ " n_children: " ^ string_of_int num_children ^ " goal_count: "
-         ^ string_of_int goal_count ^ " reduced goals: "
-          ^ string_of_bool reduced_goals))
-  in
 
   match
     Runner.fold_proof_with_state doc token
@@ -640,6 +630,80 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
   with
   | Ok steps -> Ok steps
   | Error err -> Error err
+
+let turn_into_oneliner (doc : Coq_document.t)
+    (proof_tree : syntaxNode nary_tree) :
+    (transformation_step list, string) result =
+  let token = Coq.Limits.Token.create () in
+  let tree_without_command =
+    Option.get
+      (Proof_tree.filter
+         (fun node -> not (is_doc_node_ast_proof_command node))
+         proof_tree)
+  in
+
+  Proof.print_tree tree_without_command " ";
+
+  let rec get_oneliner (tree : syntaxNode nary_tree) =
+    match tree with
+    | Node (x, childrens) ->
+        let x_without_dot = String.sub x.repr 0 (String.length x.repr - 1) in
+
+        let last_children_opt =
+          if List.length childrens > 0 then
+            List.nth_opt childrens (List.length childrens - 1)
+          else None
+        in
+
+        let childrens_length_without_proof_end =
+          match last_children_opt with
+          | Some (Node (last_children, _)) ->
+              if is_doc_node_ast_proof_end last_children then
+                List.length childrens - 1
+              else List.length childrens
+          | None -> 0
+        in
+
+        if is_doc_node_proof_intro_or_end x then
+          String.concat "" (List.map get_oneliner childrens)
+        else if childrens_length_without_proof_end > 1 then
+          x_without_dot ^ ";\n" ^ "["
+          ^ String.concat "\n| " (List.map get_oneliner childrens)
+          ^ "]"
+        else if childrens_length_without_proof_end = 1 then
+          x_without_dot ^ ";\n"
+          ^ String.concat " " (List.map get_oneliner childrens)
+        else x_without_dot
+  in
+  let one_liner_repr = get_oneliner tree_without_command ^ "." in
+  print_endline one_liner_repr;
+  let flattened = Proof_tree.flatten proof_tree in
+  let steps =
+    List.filter_map
+      (fun node ->
+        if is_doc_node_proof_intro_or_end node then None
+        else Some (Remove node.id))
+      flattened
+  in
+  let first_step_node =
+    List.find (fun node -> not (is_doc_node_proof_intro_or_end node)) flattened
+  in
+  let r =
+    Range_transformation.range_from_starting_point_and_repr
+      first_step_node.range.start one_liner_repr
+  in
+  print_endline (Lang.Range.to_string r);
+  let _ =
+    match Syntax_node.syntax_node_of_string one_liner_repr r with
+    | Ok x -> print_endline "everything is ok"
+    | Error err -> print_endline err
+  in
+
+  let oneliner_node =
+    Result.get_ok (Syntax_node.syntax_node_of_string one_liner_repr r)
+  in
+
+  Ok (steps @ [ Add oneliner_node ])
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
