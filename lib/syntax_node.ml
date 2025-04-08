@@ -65,7 +65,12 @@ let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
 
 let syntax_node_of_string (code : string) (range : Lang.Range.t) :
     (syntaxNode, string) result =
-  if String.length code > range.end_.offset - range.start.offset then
+  let length_code_offset =
+    String.length code
+    - String.fold_left (fun acc c -> if c = '\n' then acc + 1 else acc) 0 code
+  in
+  (*offset doesn't count the newline in*)
+  if length_code_offset > range.end_.offset - range.start.offset then
     Error
       "Incorrect range: range end offset minus range start offset smaller than \
        node character size"
