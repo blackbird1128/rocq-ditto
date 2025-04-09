@@ -7,7 +7,7 @@ all:
 	cp ./_opam/bin/fcc ./vendor/fcc
 	dune build lib --profile=release
 	dune build fcc_plugin --profile=releas
-	dune exec fcc -- --plugin=ditto-plugin --diags_level=2  ./test/fixtures/ex_oneliner2.v
+	dune exec fcc -- --plugin=ditto-plugin --diags_level=2  ./test/fixtures/ex_subtree1.v
 
 test: all
 	dune build test/test_plugin/ --profile=release
@@ -32,7 +32,7 @@ uninstall:
 
 dump-json: all
 	dune build ./test/json_dump_plugin/ --profile=release
-	dune exec fcc -- --plugin=json-dump-plugin ./test/fixtures/ex_id_assign2.v
+	dune exec fcc -- --plugin=json-dump-plugin ./test/fixtures/ex_subtree1.v
 
 clean:
 	dune clean
