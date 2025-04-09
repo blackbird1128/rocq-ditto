@@ -260,20 +260,29 @@ let remove_empty_lines (proof : proof) : proof =
 
 let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
-  let token = Coq.Limits.Token.create () in
+  let token_reduce = Coq.Limits.Token.create () in
+
   let rec aux state acc nodes =
     match nodes with
     | [] -> acc
-    | x :: tail ->
+    | x :: tail -> (
+        let token = Coq.Limits.Token.create () in
+        print_endline ("treating " ^ x.repr);
         if
-          (not (is_doc_node_proof_intro_or_end x))
+          ((not (is_doc_node_proof_intro_or_end x))
+          && not (is_doc_node_bullet x))
           && Runner.can_reduce_to_zero_goals state tail
         then aux state (Remove x.id :: acc) tail
         else
-          let state_node = Result.get_ok (Runner.run_node token state x) in
-          aux state_node acc tail
+          let token = Coq.Limits.Token.create () in
+          match Runner.run_node token state x with
+          | Ok state_node -> aux state_node acc tail
+          | Error err ->
+              print_endline (running_error_to_string err);
+              raise Exit;
+              [])
   in
-  match get_init_state doc proof.proposition token with
+  match get_init_state doc proof.proposition token_reduce with
   | Ok state ->
       let steps = aux state [] (proof_nodes proof) in
       Ok steps
@@ -436,6 +445,7 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
                    (Range_transformation.range_from_starting_point_and_repr
                       node.range.start info_auto))
             in
+
             let _, diagnostics =
               Result.get_ok
                 (Runner.run_node_with_diagnostics token state info_auto_node)
