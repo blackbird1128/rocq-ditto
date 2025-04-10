@@ -6,8 +6,8 @@ type syntaxNode = {
   repr : string;
   id : int;
   proof_id : int option;
-  diagnostics : Lang.Diagnostic.t list;
       (* the id of the proof associated with the node if there is one *)
+  diagnostics : Lang.Diagnostic.t list;
 }
 
 let pp_doc_ast (fmt : Format.formatter) (ast : Doc.Node.Ast.t) : unit =
@@ -26,7 +26,7 @@ let pp_syntax_node (fmt : Format.formatter) (node : syntaxNode) : unit =
     node.proof_id;
   Format.fprintf fmt "@ }"
 
-let generate_ast code =
+let generate_ast (code : string) : Vernacexpr.vernac_control list =
   let mode = Ltac_plugin.G_ltac.classic_proof_mode in
   let entry = Pvernac.main_entry (Some mode) in
   let code_stream = Gramlib.Stream.of_string code in
@@ -56,7 +56,6 @@ let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
       {
         ast = None;
         repr = "(* " ^ content ^ " *)";
-        (* TODO handle multiple line comments *)
         range;
         id = 0;
         proof_id = None;
@@ -154,7 +153,7 @@ let syntax_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
   `Assoc [ ("v", Lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
 (* TODO treat info *)
 
-let syntax_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
+let doc_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
   let open Yojson.Safe.Util in
   {
     v = json |> member "v" |> Lsp.JCoq.Ast.of_yojson |> Result.get_ok;
@@ -211,7 +210,7 @@ let shift_node (n_line : int) (n_char : int) (n_offset : int) (x : syntaxNode) :
     syntaxNode =
   { x with range = shift_range n_line n_char n_offset x.range }
 
-let is_doc_node_ast_tactic (x : syntaxNode) : bool =
+let is_syntax_node_ast_tactic (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -223,7 +222,7 @@ let is_doc_node_ast_tactic (x : syntaxNode) : bool =
       | VernacSynPure _ -> false)
   | None -> false
 
-let is_doc_node_ast_proof_command (x : syntaxNode) : bool =
+let is_syntax_node_ast_proof_command (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -232,7 +231,7 @@ let is_doc_node_ast_proof_command (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacProof _ -> true | _ -> false))
   | None -> false
 
-let is_doc_node_function_start (x : syntaxNode) : bool =
+let is_syntax_node_function_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -245,7 +244,7 @@ let is_doc_node_function_start (x : syntaxNode) : bool =
       | VernacSynPure _ -> false)
   | None -> false
 
-let is_doc_node_instance_start (x : syntaxNode) : bool =
+let is_syntax_node_instance_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -254,7 +253,7 @@ let is_doc_node_instance_start (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacInstance _ -> true | _ -> false))
   | None -> false
 
-let is_doc_node_goal_start (x : syntaxNode) : bool =
+let is_syntax_node_goal_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -267,7 +266,7 @@ let is_doc_node_goal_start (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
-let is_doc_node_bullet (x : syntaxNode) : bool =
+let is_syntax_node_bullet (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -276,7 +275,7 @@ let is_doc_node_bullet (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacBullet _ -> true | _ -> false))
   | None -> false
 
-let is_doc_node_ast_proof_start (x : syntaxNode) : bool =
+let is_syntax_node_ast_proof_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -287,7 +286,7 @@ let is_doc_node_ast_proof_start (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
-let is_doc_node_ast_proof_end (x : syntaxNode) : bool =
+let is_syntax_node_ast_proof_end (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -296,7 +295,7 @@ let is_doc_node_ast_proof_end (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false))
   | None -> false
 
-let is_doc_node_ast_proof_abort (x : syntaxNode) : bool =
+let is_syntax_node_ast_proof_abort (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -311,15 +310,15 @@ let is_doc_node_ast_proof_abort (x : syntaxNode) : bool =
   | None -> false
 
 let node_can_open_proof (x : syntaxNode) : bool =
-  is_doc_node_ast_proof_start x
-  || is_doc_node_goal_start x
-  || is_doc_node_instance_start x
-  || is_doc_node_function_start x
+  is_syntax_node_ast_proof_start x
+  || is_syntax_node_goal_start x
+  || is_syntax_node_instance_start x
+  || is_syntax_node_function_start x
 
 let node_can_close_proof (x : syntaxNode) : bool =
-  is_doc_node_ast_proof_abort x || is_doc_node_ast_proof_end x
+  is_syntax_node_ast_proof_abort x || is_syntax_node_ast_proof_end x
 
-let is_doc_node_proof_intro_or_end (x : syntaxNode) : bool =
-  is_doc_node_ast_proof_start x
-  || is_doc_node_ast_proof_command x
-  || is_doc_node_ast_proof_end x
+let is_syntax_node_proof_intro_or_end (x : syntaxNode) : bool =
+  is_syntax_node_ast_proof_start x
+  || is_syntax_node_ast_proof_command x
+  || is_syntax_node_ast_proof_end x

@@ -115,7 +115,7 @@ let cut_replace_branch (cut_tactic : string) (doc : Coq_document.t)
     match tree with
     | Node (x, children) -> (
         let state = Result.get_ok (Runner.run_node token state_acc x) in
-        if is_doc_node_proof_intro_or_end x then
+        if is_syntax_node_proof_intro_or_end x then
           List.fold_left
             (fun (state, acc) child ->
               let new_state, new_acc = aux state child acc in
@@ -269,8 +269,8 @@ let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
         let token = Coq.Limits.Token.create () in
         print_endline ("treating " ^ x.repr);
         if
-          ((not (is_doc_node_proof_intro_or_end x))
-          && not (is_doc_node_bullet x))
+          ((not (is_syntax_node_proof_intro_or_end x))
+          && not (is_syntax_node_bullet x))
           && Runner.can_reduce_to_zero_goals state tail
         then aux state (Remove x.id :: acc) tail
         else
@@ -648,7 +648,7 @@ let turn_into_oneliner (doc : Coq_document.t)
   let tree_without_command =
     Option.get
       (Proof_tree.filter
-         (fun node -> not (is_doc_node_ast_proof_command node))
+         (fun node -> not (is_syntax_node_ast_proof_command node))
          proof_tree)
   in
 
@@ -668,13 +668,13 @@ let turn_into_oneliner (doc : Coq_document.t)
         let childrens_length_without_proof_end =
           match last_children_opt with
           | Some (Node (last_children, _)) ->
-              if is_doc_node_ast_proof_end last_children then
+              if is_syntax_node_ast_proof_end last_children then
                 List.length childrens - 1
               else List.length childrens
           | None -> 0
         in
 
-        if is_doc_node_proof_intro_or_end x then
+        if is_syntax_node_proof_intro_or_end x then
           String.concat "" (List.map get_oneliner childrens)
         else if childrens_length_without_proof_end > 1 then
           x_without_dot ^ ";\n" ^ "["
@@ -691,12 +691,14 @@ let turn_into_oneliner (doc : Coq_document.t)
   let steps =
     List.filter_map
       (fun node ->
-        if is_doc_node_proof_intro_or_end node then None
+        if is_syntax_node_proof_intro_or_end node then None
         else Some (Remove node.id))
       flattened
   in
   let first_step_node =
-    List.find (fun node -> not (is_doc_node_proof_intro_or_end node)) flattened
+    List.find
+      (fun node -> not (is_syntax_node_proof_intro_or_end node))
+      flattened
   in
   let r =
     Range_transformation.range_from_starting_point_and_repr
