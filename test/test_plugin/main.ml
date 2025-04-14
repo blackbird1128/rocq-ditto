@@ -513,7 +513,7 @@ let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
       (fun doc_acc proof ->
         let doc_res =
           Transformations.apply_proof_transformation
-            Transformations.replace_auto_with_info_auto doc_acc proof
+            Transformations.replace_auto_with_steps doc_acc proof
         in
         match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
       doc proofs
@@ -535,7 +535,7 @@ let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
       (fun doc_acc proof ->
         let doc_res =
           Transformations.apply_proof_transformation
-            Transformations.replace_auto_with_info_auto doc_acc proof
+            Transformations.replace_auto_with_steps doc_acc proof
         in
         match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
       doc proofs
@@ -556,7 +556,7 @@ let test_replace_auto_using_zarith_by_steps (doc : Doc.t) () : unit =
       (fun doc_acc proof ->
         let doc_res =
           Transformations.apply_proof_transformation
-            Transformations.replace_auto_with_info_auto doc_acc proof
+            Transformations.replace_auto_with_steps doc_acc proof
         in
         match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
       doc proofs
@@ -577,7 +577,7 @@ let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
       (fun doc_acc proof ->
         let doc_res =
           Transformations.apply_proof_transformation
-            Transformations.replace_auto_with_info_auto doc_acc proof
+            Transformations.replace_auto_with_steps doc_acc proof
         in
         match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
       doc proofs

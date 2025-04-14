@@ -388,7 +388,7 @@ let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
         k_tactic.repr v_idx v_tactic.repr)
     parents
 
-let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
+let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
   let re =
@@ -644,7 +644,6 @@ let replace_auto_with_info_auto (doc : Coq_document.t) (proof : proof) :
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, string) result =
-  let token = Coq.Limits.Token.create () in
   let tree_without_command =
     Option.get
       (Proof_tree.filter
@@ -700,22 +699,18 @@ let turn_into_oneliner (doc : Coq_document.t)
       (fun node -> not (is_syntax_node_proof_intro_or_end node))
       flattened
   in
+  print_endline ("first step node: " ^ first_step_node.repr);
   let r =
     Range_transformation.range_from_starting_point_and_repr
       first_step_node.range.start one_liner_repr
   in
   print_endline (Lang.Range.to_string r);
-  let _ =
-    match Syntax_node.syntax_node_of_string one_liner_repr r with
-    | Ok x -> print_endline "everything is ok"
-    | Error err -> print_endline err
-  in
 
   let oneliner_node =
     Result.get_ok (Syntax_node.syntax_node_of_string one_liner_repr r)
   in
 
-  Ok (steps @ [ Add oneliner_node ])
+  Ok (Add oneliner_node :: steps)
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =

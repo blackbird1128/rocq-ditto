@@ -15,7 +15,7 @@ val remove_unecessary_steps :
 val fold_add_time_taken :
   Coq_document.t -> proof -> (transformation_step list, string) result
 
-val replace_auto_with_info_auto :
+val replace_auto_with_steps :
   Coq_document.t -> proof -> (transformation_step list, string) result
 
 val compress_intro :
