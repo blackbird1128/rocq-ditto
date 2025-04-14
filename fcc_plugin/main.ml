@@ -5,6 +5,28 @@ open Ditto.Proof
 open Ditto.Syntax_node
 open Vernacexpr
 
+let remove_loc sexp =
+  let open Sexplib.Sexp in
+  let rec aux sexp =
+    match sexp with
+    | Atom _ -> sexp
+    | List (Atom "loc" :: _) -> List [] (* or List [] *)
+    | List l ->
+        let filtered =
+          List.filter_map
+            (fun s ->
+              match s with List (Atom "loc" :: _) -> None | _ -> Some (aux s))
+            l
+        in
+        List filtered
+  in
+  aux sexp
+
+let print_prim_token (x : Constrexpr.prim_token) =
+  match x with
+  | Constrexpr.Number num -> print_endline (NumTok.Signed.to_string num)
+  | Constrexpr.String string -> print_endline string
+
 let print_lident (x : Names.lident) = print_endline (Names.Id.to_string x.v)
 
 let print_qualid (x : Libnames.qualid) =
@@ -39,9 +61,9 @@ let rec print_info_constr_expr_r (x : Constrexpr.constr_expr_r) =
   | Constrexpr.CGenarg _ -> print_endline "not handled"
   | Constrexpr.CGenargGlob _ -> print_endline "not handled"
   | Constrexpr.CPatVar _ -> print_endline "not handled"
-  | Constrexpr.CEvar (_, _) -> print_endline "not handled"
+  | Constrexpr.CEvar (_, _) -> print_endline "E var"
   | Constrexpr.CSort _ -> print_endline "not handled"
-  | Constrexpr.CCast (_, _, _) -> print_endline "not handled"
+  | Constrexpr.CCast (_, _, _) -> print_endline "casting into"
   | Constrexpr.CNotation (scope, (notation_entry, notation_key), substitution)
     ->
       let expr_l1, expr_ll, _, _ = substitution in
@@ -51,81 +73,146 @@ let rec print_info_constr_expr_r (x : Constrexpr.constr_expr_r) =
         (fun (x : Constrexpr.constr_expr) -> print_info_constr_expr_r x.v)
         expr_l1
   | Constrexpr.CGeneralization (_, _) -> print_endline "not handled"
-  | Constrexpr.CPrim _ -> print_endline "not handled"
+  | Constrexpr.CPrim prim_token -> print_prim_token prim_token
   | Constrexpr.CDelimiters (_, _, _) -> print_endline "not handled"
   | Constrexpr.CArray (_, _, _, _) -> print_endline "not handled"
+
+type transformation_kind =
+  | Help
+  | MakeIntrosExplicit
+  | TurnIntoOneliner
+  | ReplaceAutoWithSteps
+  | CompressIntro
+
+let transformation_kind_to_arg (kind : transformation_kind) : string =
+  match kind with
+  | Help -> "HELP"
+  | MakeIntrosExplicit -> "MAKE_INTROS_EXPLICIT"
+  | TurnIntoOneliner -> "TURN_INTO_ONELINER"
+  | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
+  | CompressIntro -> "COMPRESS_INTROS"
+
+let arg_to_transformation_kind (arg : string) :
+    (transformation_kind, string) result =
+  let normalized = String.lowercase_ascii arg in
+  if normalized = "help" then Ok Help
+  else if normalized = "make_intros_explicit" then Ok MakeIntrosExplicit
+  else if normalized = "turn_into_one_liner" then Ok TurnIntoOneliner
+  else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
+  else if normalized = "compress_intro" then Ok CompressIntro
+  else
+    Error
+      ("transformation " ^ arg ^ "wasn't recognized as a valid transformation")
+
+let wrap_to_treeify doc x = Result.get_ok (Runner.treeify_proof doc x)
+
+let transformation_kind_to_function (doc : Coq_document.t)
+    (kind : transformation_kind) :
+    Coq_document.t -> Proof.proof -> (transformation_step list, string) result =
+  match kind with
+  | Help -> fun doc x -> Ok []
+  | MakeIntrosExplicit -> Transformations.make_intros_explicit
+  | TurnIntoOneliner ->
+      fun doc x ->
+        Transformations.turn_into_oneliner doc (wrap_to_treeify doc x)
+  | ReplaceAutoWithSteps -> Transformations.replace_auto_with_steps
+  | CompressIntro -> Transformations.compress_intro
+
+let print_help (transformation_help : (transformation_kind * string) list) :
+    unit =
+  List.iter
+    (fun (kind, help) ->
+      print_endline (transformation_kind_to_arg kind ^ ": " ^ help);
+      print_newline ())
+    transformation_help
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
   match doc.completed with
-  | Doc.Completion.Yes _ ->
-      let parsed_document = Coq_document.parse_document doc in
+  | Doc.Completion.Yes _ -> (
+      (*
+        Transformations:
+        - make intros explicit
+        - turn into one-liner
+        - replace auto with steps
 
-      let proofs = Result.get_ok (Coq_document.get_proofs parsed_document) in
-
-      let first_proof = List.hd proofs in
-      let statement = first_proof.proposition in
-      let statement_ast = Option.get statement.ast in
-
-      let _ =
-        match (Coq.Ast.to_coq statement_ast.v).CAst.v.expr with
-        | VernacSynterp _ ->
-            print_endline "BBB";
-            false
-        | VernacSynPure expr -> (
-            match expr with
-            | Vernacexpr.VernacStartTheoremProof
-                (kind, [ ((ident, univ), (args, expr)) ]) ->
-                print_lident ident;
-                let json = Serlib.Ser_constrexpr.constr_expr_to_yojson expr in
-                print_endline
-                  ("size of the binder list : "
-                  ^ string_of_int (List.length args));
-                let constr_expr_r = expr.v in
-                print_info_constr_expr_r constr_expr_r;
-
-                true
-            | _ -> false)
-      in
-      print_endline statement.repr;
-      let proof_trees =
-        List.filter_map
-          (fun proof ->
-            Result.to_option (Runner.treeify_proof parsed_document proof))
-          proofs
+      *)
+      let transformations_help =
+        [
+          ( MakeIntrosExplicit,
+            "Transform intros. into intros X_1 ... X_n where X are the \
+             variables introduced by intros." );
+          ( TurnIntoOneliner,
+            "Remove all commands from the proof and turn all steps into a \
+             single tactic call using the ';' and '[]' tacticals." );
+          ( ReplaceAutoWithSteps,
+            "Replace all calls to the 'auto' tactic with the steps effectively \
+             used by auto using 'info_auto' trace." );
+          ( CompressIntro,
+            "Replace consecutive calls to the 'intro' tactic with one call to \
+             'intros'." );
+        ]
       in
 
-      (* List.iter (fun tree -> Proof.print_tree tree " ") proof_trees; *)
+      match Sys.getenv_opt "DITTO_TRANSFORMATION" with
+      | Some args ->
+          let args = String.split_on_char ',' args in
+          let transformations_steps =
+            List.filter_map
+              (fun x -> Result.to_option (arg_to_transformation_kind x))
+              args
+          in
+          if List.mem Help transformations_steps then
+            print_help transformations_help
+          else
+            let parsed_document = Coq_document.parse_document doc in
+            let transformations =
+              List.map
+                (transformation_kind_to_function parsed_document)
+                transformations_steps
+            in
 
-      (* print_endline ("number of proofs : " ^ string_of_int (List.length proofs)); *)
+            print_endline "Diagnostics:";
+            let diags =
+              List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes
+            in
 
-      (* (\* let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in *)
+            List.iter
+              (fun (diag : Lang.Diagnostic.t) ->
+                prerr_endline
+                  (Transformations.error_location_to_string diag.range
+                  ^ " "
+                  ^ Pp.string_of_ppcmds diag.message))
+              diags;
 
-      (* List.iter *)
-      (*   (fun (diag : Lang.Diagnostic.t) -> *)
-      (*     prerr_endline *)
-      (*       (Transformations.error_location_to_string diag.range *)
-      (*       ^ " " *)
-      (*       ^ Pp.string_of_ppcmds diag.message)) *)
-      (*   diags; *\) *)
-      (* let transformations = [ Transformations.turn_into_oneliner ] in *)
+            let res =
+              List.fold_left
+                (fun (doc_acc : Coq_document.t) transformation ->
+                  let doc_res =
+                    Transformations.apply_proof_transformation transformation
+                      doc_acc
+                  in
+                  match doc_res with
+                  | Ok new_doc -> new_doc
+                  | Error err -> doc_acc)
+                parsed_document transformations
+            in
+            let filename = Filename.remove_extension uri_str ^ "_bis.v" in
+            print_endline
+              ("All transformations applied, writing to file" ^ filename);
 
-      (* let res = *)
-      (*   List.fold_left *)
-      (*     (fun (doc_acc : Coq_document.t) transformation -> *)
-      (*       let doc_res = *)
-      (*         Transformations.apply_proof_tree_transformation transformation *)
-      (*           doc_acc *)
-      (*       in *)
-      (*       match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc) *)
-      (*     parsed_document transformations *)
-      (* in *)
-      (* List.iter (fun node -> print_endline node.repr) res.elements; *)
-
-      (* let out = open_out (Filename.remove_extension uri_str ^ "_bis.v") in *)
-      (* output_string out (Coq_document.dump_to_string res); *)
-      ()
+            let out = open_out filename in
+            output_string out (Coq_document.dump_to_string res);
+            ()
+      | None ->
+          prerr_endline
+            "Please specify the wanted transformation using the environment \
+             variable: DITTO_TRANSFORMATION";
+          prerr_endline
+            "If you want help about the different transformation, specify \
+             DITTO_TRANSFORMATION=HELP";
+          exit 1)
   | Doc.Completion.Stopped range ->
       print_endline ("parsing stopped at : " ^ Lang.Range.to_string range);
       ()
