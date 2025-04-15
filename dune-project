@@ -25,22 +25,26 @@
 
 (package
   (name ditto-plugin)
+  (synopsis "Base Fleche plugin used to run transformation" )
   (allow_empty)
   (depends ocaml dune lsp coq-lsp base-unix re coq-ditto)
  )
 
 (package
  (name target-generator-plugin)
+ (synopsis "Generate the jsons result used to compare test to their result ")
  (allow_empty)
  (depends ocaml dune lsp coq-lsp base-unix re coq-ditto))
 
 (package
  (name ditto-test-plugin)
+ (synopsis "Run the tests")
  (allow_empty)
  (depends ocaml dune lsp coq-lsp base-unix re coq-ditto))
 
 (package
  (name json-dump-plugin)
+ (synopsis "dump a Coq-AST to JSON to explore internal representation")
  (allow_empty)
  (depends ocaml dune lsp coq-lsp base-unix re coq-ditto))
 
