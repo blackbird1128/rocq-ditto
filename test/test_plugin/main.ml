@@ -113,7 +113,7 @@ let test_parsing_ex2 (doc : Doc.t) () : unit =
 
 let test_proof_parsing_ex2 (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  let proofs = Coq_document.get_proofs doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -122,7 +122,7 @@ let test_proof_parsing_ex2 (doc : Doc.t) () : unit =
 
 let test_parsing_admit (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  let proofs = Coq_document.get_proofs doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -131,7 +131,7 @@ let test_parsing_admit (doc : Doc.t) () : unit =
 
 let test_parsing_defined (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  let proofs = Coq_document.get_proofs doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -140,7 +140,7 @@ let test_parsing_defined (doc : Doc.t) () : unit =
 
 let test_parsing_function (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  let proofs = Coq_document.get_proofs doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -149,7 +149,7 @@ let test_parsing_function (doc : Doc.t) () : unit =
 
 let test_parsing_abort1 (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  let proofs = Coq_document.get_proofs doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -158,7 +158,7 @@ let test_parsing_abort1 (doc : Doc.t) () : unit =
 
 let test_parsing_abort2 (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  let proofs = Coq_document.get_proofs doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 2 (List.length proofs);
   let first_proof = List.hd proofs in
@@ -170,7 +170,7 @@ let test_parsing_abort2 (doc : Doc.t) () : unit =
 
 let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  let proof = List.hd (Coq_document.get_proofs doc) in
+  let proof = List.hd (Result.get_ok (Coq_document.get_proofs doc)) in
   Alcotest.(check string)
     "The proof name should be modus ponens" "modus_ponens"
     (Option.default "got none" (Proof.get_proof_name proof));
@@ -198,7 +198,7 @@ let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
 
 let test_proof_parsing_multiple_proofs_ex3 (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  let proofs = Coq_document.get_proofs doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed" 2 (List.length proofs);
   let proof_names = List.filter_map (fun p -> Proof.get_proof_name p) proofs in
@@ -262,7 +262,7 @@ let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
 let test_parsing_instance (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
 
-  let proofs = Coq_document.get_proofs doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let first_proof = List.hd proofs in
@@ -506,86 +506,56 @@ let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let proofs = Coq_document.get_proofs doc in
-
   let new_doc =
-    List.fold_left
-      (fun doc_acc proof ->
-        let doc_res =
-          Transformations.apply_proof_transformation
-            Transformations.replace_auto_with_steps doc_acc proof
-        in
-        match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
-      doc proofs
+    Transformations.apply_proof_transformation
+      Transformations.replace_auto_with_steps doc
   in
 
-  let new_doc_res = document_to_range_representation_pairs new_doc in
-  Alcotest.(check (list (pair string range_testable)))
-    "The two list should be the same " parsed_target new_doc_res
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let proofs = Coq_document.get_proofs doc in
-
   let new_doc =
-    List.fold_left
-      (fun doc_acc proof ->
-        let doc_res =
-          Transformations.apply_proof_transformation
-            Transformations.replace_auto_with_steps doc_acc proof
-        in
-        match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
-      doc proofs
+    Transformations.apply_proof_transformation
+      Transformations.replace_auto_with_steps doc
   in
 
-  let new_doc_res = document_to_range_representation_pairs new_doc in
-  Alcotest.(check (list (pair string range_testable)))
-    "The two list should be the same " parsed_target new_doc_res
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replace_auto_using_zarith_by_steps (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let proofs = Coq_document.get_proofs doc in
   let new_doc =
-    List.fold_left
-      (fun doc_acc proof ->
-        let doc_res =
-          Transformations.apply_proof_transformation
-            Transformations.replace_auto_with_steps doc_acc proof
-        in
-        match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
-      doc proofs
+    Transformations.apply_proof_transformation
+      Transformations.replace_auto_with_steps doc
   in
 
-  let new_doc_res = document_to_range_representation_pairs new_doc in
-  Alcotest.(check (list (pair string range_testable)))
-    "The two list should be the same " parsed_target new_doc_res
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let proofs = Coq_document.get_proofs doc in
   let new_doc =
-    List.fold_left
-      (fun doc_acc proof ->
-        let doc_res =
-          Transformations.apply_proof_transformation
-            Transformations.replace_auto_with_steps doc_acc proof
-        in
-        match doc_res with Ok new_doc -> new_doc | Error err -> doc_acc)
-      doc proofs
+    Transformations.apply_proof_transformation
+      Transformations.replace_auto_with_steps doc
   in
 
-  let new_doc_res = document_to_range_representation_pairs new_doc in
-  Alcotest.(check (list (pair string range_testable)))
-    "The two list should be the same " parsed_target new_doc_res
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"

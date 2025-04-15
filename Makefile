@@ -6,7 +6,7 @@ all:
 	rm -rf vendor/fcc 
 	cp ./_opam/bin/fcc ./vendor/fcc
 	dune build lib --profile=release
-	dune build fcc_plugin --profile=releas
+	dune build fcc_plugin --profile=release
 	DITTO_TRANSFORMATION=MAKE_INTROS_EXPLICIT dune exec fcc -- --plugin=ditto-plugin --diags_level=2  ./test/fixtures/ex_subtree2.v
 
 test: all
