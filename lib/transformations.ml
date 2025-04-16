@@ -720,7 +720,7 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
       (fun state acc node ->
         let new_state = Result.get_ok (Runner.run_node token state node) in
         if
-          String.starts_with ~prefix:"intros" node.repr
+          String.starts_with ~prefix:"intros." node.repr
           && not (String.contains node.repr ';')
         then
           let old_state_vars =
@@ -756,6 +756,7 @@ let apply_proof_transformation
       Coq_document.t -> Proof.proof -> (transformation_step list, string) result)
     (doc : Coq_document.t) : (Coq_document.t, string) result =
   let proofs_rec = Coq_document.get_proofs doc in
+
   match proofs_rec with
   | Ok proofs ->
       List.fold_left
@@ -764,6 +765,7 @@ let apply_proof_transformation
           match doc_acc with
           | Ok acc -> (
               let transformation_steps = transformation acc proof in
+
               match transformation_steps with
               | Ok steps ->
                   List.fold_left

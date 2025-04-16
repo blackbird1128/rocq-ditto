@@ -152,7 +152,7 @@ let get_init_state (doc : Coq_document.t) (node : syntaxNode)
       match state with
       | Ok state -> run_node token state node
       | Error err -> Error err)
-    (Ok init_state) (nodes_before @ [ node ])
+    (Ok init_state) nodes_before
 
 let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
     =
