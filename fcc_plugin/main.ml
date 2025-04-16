@@ -126,112 +126,108 @@ let print_help (transformation_help : (transformation_kind * string) list) :
       print_newline ())
     transformation_help
 
+let range_to_diag_repr (r : Lang.Range.t) : string =
+  "line: " ^ string_of_int r.start.line ^ " char: " ^ string_of_int r.end_.line
+
+let diagnostic_kind_to_str (diag_kind : Lang.Diagnostic.Severity.t) : string =
+  if diag_kind = Lang.Diagnostic.Severity.error then "Error"
+  else if diag_kind = Lang.Diagnostic.Severity.hint then "Hint"
+  else if diag_kind = Lang.Diagnostic.Severity.information then "Information"
+  else "Warning"
+
+let print_diagnostics (errors : Lang.Diagnostic.t list) : unit =
+  List.iter
+    (fun (diag : Lang.Diagnostic.t) ->
+      print_endline
+        ("At: "
+        ^ range_to_diag_repr diag.range
+        ^ " "
+        ^ diagnostic_kind_to_str diag.severity
+        ^ ": "
+        ^ Pp.string_of_ppcmds diag.message))
+    errors
+
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
+  let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
+  let errors = List.filter Lang.Diagnostic.is_error diags in
+
   match doc.completed with
+  | Doc.Completion.Stopped range_stop ->
+      prerr_endline ("parsing stopped at " ^ Lang.Range.to_string range_stop);
+      print_diagnostics errors
+  | Doc.Completion.Failed range_failed ->
+      prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
+      print_diagnostics errors
   | Doc.Completion.Yes _ -> (
-      (*
-        Transformations:
-        - make intros explicit
-        - turn into one-liner
-        - replace auto with steps
+      if List.length errors > 0 then
+        let first_errors = List.filteri (fun i _ -> i < 3) errors in
+        print_diagnostics first_errors
+      else
+        let transformations_help =
+          [
+            ( MakeIntrosExplicit,
+              "Transform intros. into intros X_1 ... X_n where X are the \
+               variables introduced by intros." );
+            ( TurnIntoOneliner,
+              "Remove all commands from the proof and turn all steps into a \
+               single tactic call using the ';' and '[]' tacticals." );
+            ( ReplaceAutoWithSteps,
+              "Replace all calls to the 'auto' tactic with the steps \
+               effectively used by auto using 'info_auto' trace." );
+            ( CompressIntro,
+              "Replace consecutive calls to the 'intro' tactic with one call \
+               to 'intros'." );
+          ]
+        in
 
-      *)
-      let transformations_help =
-        [
-          ( MakeIntrosExplicit,
-            "Transform intros. into intros X_1 ... X_n where X are the \
-             variables introduced by intros." );
-          ( TurnIntoOneliner,
-            "Remove all commands from the proof and turn all steps into a \
-             single tactic call using the ';' and '[]' tacticals." );
-          ( ReplaceAutoWithSteps,
-            "Replace all calls to the 'auto' tactic with the steps effectively \
-             used by auto using 'info_auto' trace." );
-          ( CompressIntro,
-            "Replace consecutive calls to the 'intro' tactic with one call to \
-             'intros'." );
-        ]
-      in
-
-      match Sys.getenv_opt "DITTO_TRANSFORMATION" with
-      | Some args ->
-          let args = String.split_on_char ',' args in
-          let transformations_steps =
-            List.filter_map
-              (fun x -> Result.to_option (arg_to_transformation_kind x))
-              args
-          in
-          if List.mem Help transformations_steps then
-            print_help transformations_help
-          else
-            let parsed_document = Coq_document.parse_document doc in
-            let transformations =
-              List.map
-                (transformation_kind_to_function parsed_document)
-                transformations_steps
+        match Sys.getenv_opt "DITTO_TRANSFORMATION" with
+        | Some args ->
+            let args = String.split_on_char ',' args in
+            let transformations_steps =
+              List.filter_map
+                (fun x -> Result.to_option (arg_to_transformation_kind x))
+                args
             in
+            if List.mem Help transformations_steps then
+              print_help transformations_help
+            else
+              let parsed_document = Coq_document.parse_document doc in
+              let transformations =
+                List.map
+                  (transformation_kind_to_function parsed_document)
+                  transformations_steps
+              in
 
-            print_endline "Diagnostics:";
-            let diags =
-              List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes
-            in
+              let res =
+                List.fold_left
+                  (fun (doc_acc : Coq_document.t) transformation ->
+                    let doc_res =
+                      Transformations.apply_proof_transformation transformation
+                        doc_acc
+                    in
+                    match doc_res with
+                    | Ok new_doc -> new_doc
+                    | Error err -> doc_acc)
+                  parsed_document transformations
+              in
 
-            List.iter
-              (fun (diag : Lang.Diagnostic.t) ->
-                prerr_endline
-                  (Transformations.error_location_to_string diag.range
-                  ^ " "
-                  ^ Pp.string_of_ppcmds diag.message))
-              diags;
+              let filename = Filename.remove_extension uri_str ^ "_bis.v" in
+              print_endline
+                ("All transformations applied, writing to file" ^ filename);
 
-            let res =
-              List.fold_left
-                (fun (doc_acc : Coq_document.t) transformation ->
-                  let doc_res =
-                    Transformations.apply_proof_transformation transformation
-                      doc_acc
-                  in
-                  match doc_res with
-                  | Ok new_doc -> new_doc
-                  | Error err -> doc_acc)
-                parsed_document transformations
-            in
-            let filename = Filename.remove_extension uri_str ^ "_bis.v" in
-            print_endline
-              ("All transformations applied, writing to file" ^ filename);
-
-            let out = open_out filename in
-            output_string out (Coq_document.dump_to_string res);
-            ()
-      | None ->
-          prerr_endline
-            "Please specify the wanted transformation using the environment \
-             variable: DITTO_TRANSFORMATION";
-          prerr_endline
-            "If you want help about the different transformation, specify \
-             DITTO_TRANSFORMATION=HELP";
-          exit 1)
-  | Doc.Completion.Stopped range ->
-      print_endline ("parsing stopped at : " ^ Lang.Range.to_string range);
-      ()
-  | Doc.Completion.Failed range ->
-      print_endline ("parsing of " ^ uri_str ^ " failed");
-      print_endline "parsing failed at : ";
-      flush stderr;
-      let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
-      let first_errors = List.filteri (fun i a -> i < 3) diags in
-
-      List.iter
-        (fun (diag : Lang.Diagnostic.t) ->
-          prerr_endline
-            (Transformations.error_location_to_string diag.range
-            ^ " "
-            ^ Pp.string_of_ppcmds diag.message))
-        first_errors;
-
-      ()
+              let out = open_out filename in
+              output_string out (Coq_document.dump_to_string res);
+              ()
+        | None ->
+            prerr_endline
+              "Please specify the wanted transformation using the environment \
+               variable: DITTO_TRANSFORMATION";
+            prerr_endline
+              "If you want help about the different transformation, specify \
+               DITTO_TRANSFORMATION=HELP";
+            exit 1)
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()
