@@ -1,6 +1,15 @@
 # Coq ditto
 
+## Description
+
+`coq-ditto` is a plugin and a library allowing to write transformations of Coq proof scripts using the Coq AST.
+It use [coq-lsp](https://github.com/ejgallego/coq-lsp) to extract and run the Coq AST of a file.
+
+`coq-ditto` then provide utilities to add, delete and replace nodes in the AST, as well as extract proofs and 
+transform them into different representations.
+
 ## install
+
 
 ### prerequisites
 
@@ -38,4 +47,4 @@ Then, you can run the following command
 ```shell
 DITTO_TRANSFORMATION=T1 dune exec fcc -- --root=files_root_folder --plugin=ditto-plugin $(coqdep -sort -f files_root_folder/_CoqProject) 
 ```
-²
+
