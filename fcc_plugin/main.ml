@@ -4,6 +4,92 @@ open Ditto.Proof_tree
 open Ditto.Proof
 open Ditto.Syntax_node
 open Vernacexpr
+open Theorem_query
+
+type transformation_kind =
+  | Help
+  | MakeIntrosExplicit
+  | TurnIntoOneliner
+  | ReplaceAutoWithSteps
+  | CompressIntro
+
+let transformation_kind_to_arg (kind : transformation_kind) : string =
+  match kind with
+  | Help -> "HELP"
+  | MakeIntrosExplicit -> "MAKE_INTROS_EXPLICIT"
+  | TurnIntoOneliner -> "TURN_INTO_ONELINER"
+  | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
+  | CompressIntro -> "COMPRESS_INTROS"
+
+let arg_to_transformation_kind (arg : string) :
+    (transformation_kind, string) result =
+  let normalized = String.lowercase_ascii arg in
+  if normalized = "help" then Ok Help
+  else if normalized = "make_intros_explicit" then Ok MakeIntrosExplicit
+  else if normalized = "turn_into_one_liner" then Ok TurnIntoOneliner
+  else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
+  else if normalized = "compress_intro" then Ok CompressIntro
+  else
+    Error
+      ("transformation " ^ arg ^ "wasn't recognized as a valid transformation")
+
+let wrap_to_treeify doc x = Result.get_ok (Runner.treeify_proof doc x)
+
+let transformation_kind_to_function (doc : Coq_document.t)
+    (kind : transformation_kind) :
+    Coq_document.t -> Proof.proof -> (transformation_step list, string) result =
+  match kind with
+  | Help -> fun doc x -> Ok []
+  | MakeIntrosExplicit -> Transformations.make_intros_explicit
+  | TurnIntoOneliner ->
+      fun doc x ->
+        Transformations.turn_into_oneliner doc (wrap_to_treeify doc x)
+  | ReplaceAutoWithSteps -> Transformations.replace_auto_with_steps
+  | CompressIntro -> Transformations.compress_intro
+
+let print_help (transformation_help : (transformation_kind * string) list) :
+    unit =
+  List.iter
+    (fun (kind, help) ->
+      print_endline (transformation_kind_to_arg kind ^ ": " ^ help);
+      print_newline ())
+    transformation_help
+
+let error_location_to_string (location : Lang.Range.t) : string =
+  if location.start.line = location.end_.line then
+    "line "
+    ^ string_of_int location.start.line
+    ^ ", characters: "
+    ^ string_of_int location.start.character
+    ^ "-"
+    ^ string_of_int location.end_.character
+  else
+    "line "
+    ^ string_of_int location.start.line
+    ^ "-"
+    ^ string_of_int location.end_.line
+    ^ ", characters: "
+    ^ string_of_int location.start.character
+    ^ "-"
+    ^ string_of_int location.end_.character
+
+let diagnostic_kind_to_str (diag_kind : Lang.Diagnostic.Severity.t) : string =
+  if diag_kind = Lang.Diagnostic.Severity.error then "Error"
+  else if diag_kind = Lang.Diagnostic.Severity.hint then "Hint"
+  else if diag_kind = Lang.Diagnostic.Severity.information then "Information"
+  else "Warning"
+
+let print_diagnostics (errors : Lang.Diagnostic.t list) : unit =
+  List.iter
+    (fun (diag : Lang.Diagnostic.t) ->
+      print_endline
+        ("At: "
+        ^ error_location_to_string diag.range
+        ^ " "
+        ^ diagnostic_kind_to_str diag.severity
+        ^ ": "
+        ^ Pp.string_of_ppcmds diag.message))
+    errors
 
 let remove_loc sexp =
   let open Sexplib.Sexp in
@@ -77,75 +163,13 @@ let rec print_info_constr_expr_r (x : Constrexpr.constr_expr_r) =
   | Constrexpr.CDelimiters (_, _, _) -> print_endline "not handled"
   | Constrexpr.CArray (_, _, _, _) -> print_endline "not handled"
 
-type transformation_kind =
-  | Help
-  | MakeIntrosExplicit
-  | TurnIntoOneliner
-  | ReplaceAutoWithSteps
-  | CompressIntro
-
-let transformation_kind_to_arg (kind : transformation_kind) : string =
-  match kind with
-  | Help -> "HELP"
-  | MakeIntrosExplicit -> "MAKE_INTROS_EXPLICIT"
-  | TurnIntoOneliner -> "TURN_INTO_ONELINER"
-  | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
-  | CompressIntro -> "COMPRESS_INTROS"
-
-let arg_to_transformation_kind (arg : string) :
-    (transformation_kind, string) result =
-  let normalized = String.lowercase_ascii arg in
-  if normalized = "help" then Ok Help
-  else if normalized = "make_intros_explicit" then Ok MakeIntrosExplicit
-  else if normalized = "turn_into_one_liner" then Ok TurnIntoOneliner
-  else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
-  else if normalized = "compress_intro" then Ok CompressIntro
-  else
-    Error
-      ("transformation " ^ arg ^ "wasn't recognized as a valid transformation")
-
-let wrap_to_treeify doc x = Result.get_ok (Runner.treeify_proof doc x)
-
-let transformation_kind_to_function (doc : Coq_document.t)
-    (kind : transformation_kind) :
-    Coq_document.t -> Proof.proof -> (transformation_step list, string) result =
-  match kind with
-  | Help -> fun doc x -> Ok []
-  | MakeIntrosExplicit -> Transformations.make_intros_explicit
-  | TurnIntoOneliner ->
-      fun doc x ->
-        Transformations.turn_into_oneliner doc (wrap_to_treeify doc x)
-  | ReplaceAutoWithSteps -> Transformations.replace_auto_with_steps
-  | CompressIntro -> Transformations.compress_intro
-
-let print_help (transformation_help : (transformation_kind * string) list) :
-    unit =
-  List.iter
-    (fun (kind, help) ->
-      print_endline (transformation_kind_to_arg kind ^ ": " ^ help);
-      print_newline ())
-    transformation_help
-
-let range_to_diag_repr (r : Lang.Range.t) : string =
-  "line: " ^ string_of_int r.start.line ^ " char: " ^ string_of_int r.end_.line
-
-let diagnostic_kind_to_str (diag_kind : Lang.Diagnostic.Severity.t) : string =
-  if diag_kind = Lang.Diagnostic.Severity.error then "Error"
-  else if diag_kind = Lang.Diagnostic.Severity.hint then "Hint"
-  else if diag_kind = Lang.Diagnostic.Severity.information then "Information"
-  else "Warning"
-
-let print_diagnostics (errors : Lang.Diagnostic.t list) : unit =
-  List.iter
-    (fun (diag : Lang.Diagnostic.t) ->
-      print_endline
-        ("At: "
-        ^ range_to_diag_repr diag.range
-        ^ " "
-        ^ diagnostic_kind_to_str diag.severity
-        ^ ": "
-        ^ Pp.string_of_ppcmds diag.message))
-    errors
+let rec divide_sexp (sexp : Sexplib.Sexp.t) =
+  match sexp with
+  | Sexplib.Sexp.Atom id -> print_endline ("id : " ^ id)
+  | Sexplib.Sexp.List l ->
+      print_endline "-----";
+      List.iter divide_sexp l;
+      print_endline "---"
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
