@@ -5,24 +5,6 @@ open Syntax_node
 open Vernacexpr
 open Runner
 
-let error_location_to_string (location : Lang.Range.t) : string =
-  if location.start.line = location.end_.line then
-    "line "
-    ^ string_of_int location.start.line
-    ^ ", characters: "
-    ^ string_of_int location.start.character
-    ^ "-"
-    ^ string_of_int location.end_.character
-  else
-    "line "
-    ^ string_of_int location.start.line
-    ^ "-"
-    ^ string_of_int location.end_.line
-    ^ ", characters: "
-    ^ string_of_int location.start.character
-    ^ "-"
-    ^ string_of_int location.end_.character
-
 let depth_to_bullet_type (depth : int) =
   let bullet_number = 1 + (depth / 3) in
   match depth mod 3 with

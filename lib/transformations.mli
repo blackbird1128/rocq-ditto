@@ -2,8 +2,6 @@ open Proof
 open Proof_tree
 open Syntax_node
 
-val error_location_to_string : Lang.Range.t -> string
-
 val fold_replace_assumption_with_apply :
   Coq_document.t ->
   syntaxNode nary_tree ->
