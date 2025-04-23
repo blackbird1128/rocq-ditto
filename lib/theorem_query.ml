@@ -38,13 +38,10 @@ let get_proof_proposition_sexp (x : proof) : Sexplib.Sexp.t option =
   | None -> None
 
 let rec matches (q : sexp_query) (sexp : Sexplib.Sexp.t) : bool =
-  print_endline ("matching " ^ Sexplib.Sexp.to_string_hum sexp);
   match (q, sexp) with
   | Q_any, _ -> true
   | Q_atom s, Atom a -> a = s
   | Q_field (key, qv), List [ Atom k; v ] ->
-      print_endline "good key";
-      print_endline ("key : " ^ k);
       if k = key then matches qv v else false
   | Q_field_path [], _ -> true
   | Q_field_path (k :: ks), List [ Atom k'; v ] when k = k' ->
@@ -67,11 +64,54 @@ let rec matches (q : sexp_query) (sexp : Sexplib.Sexp.t) : bool =
       go sexp
   | _, _ -> false
 
+let rec extract_match (q : sexp_query) (sexp : Sexplib.Sexp.t) :
+    Sexplib.Sexp.t option =
+  match (q, sexp) with
+  | Q_any, _ -> Some sexp
+  | Q_atom s, Atom a -> if a = s then Some sexp else None
+  | Q_field (key, qv), List [ Atom k; v ] ->
+      if k = key then extract_match qv v else None
+  | Q_field_path [], _ -> Some sexp
+  | Q_field_path (k :: ks), List [ Atom k'; v ] when k = k' ->
+      extract_match (Q_field_path ks) v
+  | Q_list_any q, List l ->
+      if List.exists (matches q) l then Some sexp else None
+  | Q_list_exact qs, List l ->
+      if List.length qs = List.length l && List.for_all2 matches qs l then
+        Some sexp
+      else None
+  | Q_list_prefix qs, List l ->
+      let len = List.length qs in
+      if List.length l < len then None
+      else if List.for_all2 matches qs (List_utils.take len l) then Some sexp
+      else None
+  | Q_and qs, _ ->
+      if List.for_all (fun q -> matches q sexp) qs then Some sexp else None
+  | Q_or qs, _ ->
+      if List.exists (fun q -> matches q sexp) qs then Some sexp else None
+  | Q_not q, _ -> if not (matches q sexp) then Some sexp else None
+  | Q_anywhere q, sexp ->
+      let rec go_bool s =
+        matches q s
+        || match s with Atom _ -> false | List lst -> List.exists go_bool lst
+      in
+      let rec go s =
+        if matches q s then Some s
+        else
+          match s with
+          | Atom _ -> None
+          | List lst ->
+              let existing = List.exists go_bool lst in
+              if existing then List.find_opt go_bool lst else None
+      in
+      go sexp
+  | _, _ -> None
+
 let collect_matches (q : sexp_query) (sexp : Sexplib.Sexp.t) :
     Sexplib.Sexp.t list =
   let open Sexplib.Sexp in
   let rec collect s acc =
-    let acc = if matches q s then s :: acc else acc in
+    let acc = if Option.has_some (extract_match q s) then s :: acc else acc in
     match s with
     | Atom _ -> acc
     | List l -> List.fold_left (fun fold_acc x -> collect x fold_acc) acc l

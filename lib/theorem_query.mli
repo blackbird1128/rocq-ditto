@@ -18,4 +18,6 @@ type sexp_query =
 
 val get_proof_proposition_sexp : proof -> Sexplib.Sexp.t option
 val matches : sexp_query -> Sexplib.Sexp.t -> bool
+val extract_match : sexp_query -> Sexplib.Sexp.t -> Sexplib.Sexp.t option
+val collect_matches : sexp_query -> Sexplib.Sexp.t -> Sexplib.Sexp.t list
 val q_theorem_with_exists_conclusion : sexp_query
