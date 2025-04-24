@@ -240,6 +240,10 @@ let remove_empty_lines (proof : proof) : proof =
       Result.get_ok (proof_from_nodes (List.rev res_func))
   | None -> proof
 
+let id_transform (doc : Coq_document.t) (proof : proof) :
+    (transformation_step list, string) result =
+  Ok []
+
 let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token_reduce = Coq.Limits.Token.create () in

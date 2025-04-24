@@ -12,6 +12,7 @@ type transformation_kind =
   | TurnIntoOneliner
   | ReplaceAutoWithSteps
   | CompressIntro
+  | IdTransformation
 
 let transformation_kind_to_arg (kind : transformation_kind) : string =
   match kind with
@@ -20,6 +21,7 @@ let transformation_kind_to_arg (kind : transformation_kind) : string =
   | TurnIntoOneliner -> "TURN_INTO_ONELINER"
   | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
   | CompressIntro -> "COMPRESS_INTROS"
+  | IdTransformation -> "ID_TRANSFORMATION"
 
 let arg_to_transformation_kind (arg : string) :
     (transformation_kind, string) result =
@@ -29,6 +31,7 @@ let arg_to_transformation_kind (arg : string) :
   else if normalized = "turn_into_one_liner" then Ok TurnIntoOneliner
   else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
   else if normalized = "compress_intro" then Ok CompressIntro
+  else if normalized = "id_transformation" then Ok IdTransformation
   else
     Error
       ("transformation " ^ arg ^ "wasn't recognized as a valid transformation")
@@ -46,6 +49,7 @@ let transformation_kind_to_function (doc : Coq_document.t)
         Transformations.turn_into_oneliner doc (wrap_to_treeify doc x)
   | ReplaceAutoWithSteps -> Transformations.replace_auto_with_steps
   | CompressIntro -> Transformations.compress_intro
+  | IdTransformation -> Transformations.id_transform
 
 let print_help (transformation_help : (transformation_kind * string) list) :
     unit =
@@ -203,6 +207,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             ( CompressIntro,
               "Replace consecutive calls to the 'intro' tactic with one call \
                to 'intros'." );
+            (IdTransformation, "Keep the file the same.");
           ]
         in
 

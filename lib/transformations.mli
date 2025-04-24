@@ -7,6 +7,9 @@ val fold_replace_assumption_with_apply :
   syntaxNode nary_tree ->
   (transformation_step list, string) result
 
+val id_transform :
+  Coq_document.t -> proof -> (transformation_step list, string) result
+
 val remove_unecessary_steps :
   Coq_document.t -> proof -> (transformation_step list, string) result
 
