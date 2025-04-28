@@ -175,6 +175,115 @@ let rec divide_sexp (sexp : Sexplib.Sexp.t) =
       List.iter divide_sexp l;
       print_endline "---"
 
+let is_raw_assert (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : bool =
+  match tac.CAst.v with
+  | Ltac_plugin.Tacexpr.TacAtom atom -> (
+      match atom with
+      | Ltac_plugin__Tacexpr.TacAssert (_, _, _, _, _) -> true
+      | _ -> false)
+  | _ -> false
+
+let get_assert_constr_expr (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Constrexpr.constr_expr option =
+  match tac.CAst.v with
+  | Ltac_plugin.Tacexpr.TacAtom atom -> (
+      match atom with
+      | Ltac_plugin.Tacexpr.TacAssert (_, _, _, _, e) -> Some e
+      | _ -> None)
+  | _ -> None
+
+let experiment_tactic ~io ~token:_ ~(doc : Doc.t) =
+  let parsed_document = Coq_document.parse_document doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs parsed_document) in
+
+  let first_proof = List.hd proofs in
+  let first_proof_tactics =
+    List.filter Syntax_node.is_syntax_node_ast_tactic first_proof.proof_steps
+  in
+  let first_tactic = List.hd first_proof_tactics in
+  let tactic_args =
+    Option.get (Syntax_node.get_tactic_raw_generic_arguments first_tactic)
+  in
+
+  let exist_query =
+    Q_anywhere
+      (Q_list_prefix
+         [
+           Q_atom "CNotation";
+           Q_empty;
+           Q_list_prefix [ Q_atom "InConstrEntry"; Q_atom "exists _ .. _ , _" ];
+         ])
+  in
+
+  List.iter
+    (fun tac ->
+      let args =
+        Option.get (Syntax_node.get_tactic_raw_generic_arguments tac)
+      in
+      let elems =
+        Option.get (Raw_gen_args_converter.raw_arguments_to_ltac_elements args)
+      in
+      if is_raw_assert elems.raw_tactic_expr then (
+        let expr = Option.get (get_assert_constr_expr elems.raw_tactic_expr) in
+
+        let sexp_expr = Serlib.Ser_constrexpr.sexp_of_constr_expr expr in
+
+        print_endline (tac.repr ^ " is an assert ");
+        if Theorem_query.matches exist_query sexp_expr then
+          print_endline "there is an exist inside the assert"))
+    first_proof_tactics;
+
+  let elems =
+    Option.get
+      (Raw_gen_args_converter.raw_arguments_to_ltac_elements tactic_args)
+  in
+
+  ()
+
+let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
+  let parsed_document = Coq_document.parse_document doc in
+  let proofs = Result.get_ok (Coq_document.get_proofs parsed_document) in
+
+  let admitted_proofs =
+    List.filter
+      (fun proof -> Proof.get_proof_status proof = Some Admitted)
+      proofs
+  in
+  let first_proof = List.hd proofs in
+  Proof.print_proof first_proof;
+
+  let first_proof_prop =
+    Option.get (Theorem_query.get_proof_proposition_sexp first_proof)
+  in
+
+  let theorem_query = Q_list_prefix [ Q_atom "CProdN" ] in
+
+  (* Sexplib.Sexp.pp_hum Format.std_formatter (remove_loc first_proof_prop); *)
+  print_newline ();
+
+  print_endline "------------------------";
+
+  let theorem =
+    List.hd
+      (Theorem_query.collect_matches theorem_query
+         (remove_loc first_proof_prop))
+  in
+  (* Sexplib.Sexp.pp_hum Format.std_formatter theorem; *)
+  let last_query = Q_last Q_anything in
+  let theorem_end =
+    List.hd (Theorem_query.collect_matches last_query theorem)
+  in
+  Sexplib.Sexp.pp_hum_indent 0 Format.std_formatter theorem_end;
+
+  (* List.iter *)
+  (*   (fun res -> *)
+  (*     Sexplib.Sexp.pp_hum Format.std_formatter res; *)
+  (*     Format.pp_force_newline Format.std_formatter ()) *)
+  (*   (Theorem_query.collect_matches theorem_query (remove_loc first_proof_prop)); *)
+  print_newline ();
+  flush_all ();
+  ()
+
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
