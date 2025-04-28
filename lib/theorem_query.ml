@@ -4,17 +4,22 @@ open Vernacexpr
 open Fleche
 
 type sexp_query =
-  | Q_any
+  | Q_anything
+  | Q_empty
   | Q_atom of string
   | Q_field of string * sexp_query
   | Q_field_path of string list
   | Q_list_any of sexp_query
   | Q_list_exact of sexp_query list
   | Q_list_prefix of sexp_query list
+  | Q_nth of int * sexp_query
+  | Q_hd of sexp_query
+  | Q_last of sexp_query
   | Q_and of sexp_query list
   | Q_or of sexp_query list
   | Q_not of sexp_query
   | Q_anywhere of sexp_query
+  | Q_sequence of sexp_query list
 
 let get_proof_proposition_sexp (x : proof) : Sexplib.Sexp.t option =
   let coq_ast =
@@ -39,7 +44,8 @@ let get_proof_proposition_sexp (x : proof) : Sexplib.Sexp.t option =
 
 let rec matches (q : sexp_query) (sexp : Sexplib.Sexp.t) : bool =
   match (q, sexp) with
-  | Q_any, _ -> true
+  | Q_anything, _ -> true
+  | Q_empty, List [] -> true
   | Q_atom s, Atom a -> a = s
   | Q_field (key, qv), List [ Atom k; v ] ->
       if k = key then matches qv v else false
@@ -53,6 +59,14 @@ let rec matches (q : sexp_query) (sexp : Sexplib.Sexp.t) : bool =
       let len = List.length qs in
       if List.length l < len then false
       else List.for_all2 matches qs (List_utils.take len l)
+  | Q_nth (n, qs), List l -> (
+      match List.nth_opt l n with Some elem -> matches qs elem | None -> false)
+  | Q_hd qs, List (x :: t) -> matches qs x
+  | Q_last qs, List l ->
+      if List.length l < 1 then false
+      else
+        let last_elem = List.nth l (List.length l - 1) in
+        matches qs last_elem
   | Q_and qs, _ -> List.for_all (fun q -> matches q sexp) qs
   | Q_or qs, _ -> List.exists (fun q -> matches q sexp) qs
   | Q_not q, _ -> not (matches q sexp)
@@ -62,12 +76,16 @@ let rec matches (q : sexp_query) (sexp : Sexplib.Sexp.t) : bool =
         || match s with Atom _ -> false | List lst -> List.exists go lst
       in
       go sexp
+  | Q_sequence seq, sexp ->
+      print_endline "Not sure if this is correct";
+      List.fold_left (fun acc action -> acc && matches action sexp) true seq
   | _, _ -> false
 
 let rec extract_match (q : sexp_query) (sexp : Sexplib.Sexp.t) :
     Sexplib.Sexp.t option =
   match (q, sexp) with
-  | Q_any, _ -> Some sexp
+  | Q_anything, ex -> Some ex
+  | Q_empty, List [] -> Some (List [])
   | Q_atom s, Atom a -> if a = s then Some sexp else None
   | Q_field (key, qv), List [ Atom k; v ] ->
       if k = key then extract_match qv v else None
@@ -85,61 +103,46 @@ let rec extract_match (q : sexp_query) (sexp : Sexplib.Sexp.t) :
       if List.length l < len then None
       else if List.for_all2 matches qs (List_utils.take len l) then Some sexp
       else None
+  | Q_nth (n, qs), List l -> (
+      match List.nth_opt l n with
+      | Some elem -> extract_match qs elem
+      | None -> None)
+  | Q_hd qs, List (x :: t) -> extract_match qs x
+  | Q_last qs, List l ->
+      if List.length l < 1 then None
+      else
+        let last_elem = List.nth l (List.length l - 1) in
+        extract_match qs last_elem
   | Q_and qs, _ ->
       if List.for_all (fun q -> matches q sexp) qs then Some sexp else None
   | Q_or qs, _ ->
       if List.exists (fun q -> matches q sexp) qs then Some sexp else None
   | Q_not q, _ -> if not (matches q sexp) then Some sexp else None
   | Q_anywhere q, sexp ->
-      let rec go_bool s =
-        matches q s
-        || match s with Atom _ -> false | List lst -> List.exists go_bool lst
-      in
       let rec go s =
-        if matches q s then Some s
-        else
-          match s with
-          | Atom _ -> None
-          | List lst ->
-              let existing = List.exists go_bool lst in
-              if existing then List.find_opt go_bool lst else None
+        match extract_match q s with
+        | Some _ as res -> res
+        | None -> (
+            match s with Atom _ -> None | List lst -> List.find_map go lst)
       in
       go sexp
+  | Q_sequence seq, sexp ->
+      List.fold_left
+        (fun acc action ->
+          match acc with Some acc -> extract_match action acc | None -> None)
+        (Some sexp) seq
   | _, _ -> None
 
 let collect_matches (q : sexp_query) (sexp : Sexplib.Sexp.t) :
     Sexplib.Sexp.t list =
   let open Sexplib.Sexp in
   let rec collect s acc =
-    let acc = if Option.has_some (extract_match q s) then s :: acc else acc in
+    let extraction = extract_match q s in
+    let acc =
+      if Option.has_some extraction then Option.get extraction :: acc else acc
+    in
     match s with
     | Atom _ -> acc
     | List l -> List.fold_left (fun fold_acc x -> collect x fold_acc) acc l
   in
   collect sexp [] |> List.rev
-
-let q_path (keys : string list) (q : sexp_query) : sexp_query =
-  List.fold_right (fun k acc -> Q_field (k, acc)) keys q
-
-let rec q_exists_notation : sexp_query =
-  q_path [ "v"; "CNotation"; "InConstrEntry" ] (Q_atom "exists _ .. _ , _")
-
-let q_body_is_exists : sexp_query =
-  Q_field
-    ( "v",
-      Q_field
-        ( "CProdN",
-          Q_list_prefix
-            [
-              Q_list_any (Q_atom "_");
-              (* assumptions *)
-              Q_field ("v", q_exists_notation) (* conclusion *);
-            ] ) )
-
-let q_theorem_with_exists_conclusion : sexp_query =
-  Q_list_prefix
-    [
-      Q_atom "VernacStartTheoremProof";
-      Q_atom "Theorem";
-      Q_list_any (Q_list_any (Q_list_any (Q_list_any q_body_is_exists)));
-    ]
