@@ -84,6 +84,13 @@ let proof_status_from_last_node (node : syntaxNode) :
 let get_proof_name (p : proof) : string option =
   List.nth_opt (get_names p.proposition) 0
 
+let get_proof_status (p : proof) : proof_status option =
+  if List.length p.proof_steps < 1 then None
+  else
+    Result.to_option
+      (proof_status_from_last_node
+         (List.nth p.proof_steps (List.length p.proof_steps - 1)))
+
 let get_tree_name (Node (x, children)) : string option =
   List.nth_opt (get_names x) 0
 
@@ -100,13 +107,6 @@ let rec print_tree (tree : syntaxNode nary_tree) (indent : string) : unit =
   | Node (value, children) ->
       Printf.printf "%sNode(%s)\n" indent value.repr;
       List.iter (fun child -> print_tree child (indent ^ "  ")) children
-
-let last_offset (p : proof) : int =
-  List.fold_left
-    (fun acc elem ->
-      if elem.range.end_.offset > acc then elem.range.end_.offset else acc)
-    0
-    (p.proposition :: p.proof_steps)
 
 let proof_nodes (p : proof) : syntaxNode list = p.proposition :: p.proof_steps
 
