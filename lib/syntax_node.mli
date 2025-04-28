@@ -114,3 +114,6 @@ val node_can_open_proof : syntaxNode -> bool
 val node_can_close_proof : syntaxNode -> bool
 (** [node_can_close_proof x] check if [x] can close a proof, meaning it's either
     Qed, Admitted, Abort or Abort all *)
+
+val get_tactic_raw_generic_arguments :
+  syntaxNode -> Genarg.raw_generic_argument list option

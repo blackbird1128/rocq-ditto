@@ -309,6 +309,20 @@ let is_syntax_node_ast_proof_abort (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
+let get_tactic_raw_generic_arguments (x : syntaxNode) :
+    Genarg.raw_generic_argument list option =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp synterp_expr -> (
+          match synterp_expr with
+          | VernacExtend (ext, args) ->
+              if ext.ext_plugin = "coq-core.plugins.ltac" then Some args
+              else None
+          | _ -> None)
+      | VernacSynPure _ -> None)
+  | None -> None
+
 let node_can_open_proof (x : syntaxNode) : bool =
   is_syntax_node_ast_proof_start x
   || is_syntax_node_goal_start x
