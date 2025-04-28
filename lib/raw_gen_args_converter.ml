@@ -455,3 +455,29 @@ let ltac_selector_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
       ] ->
       Some (Sexplib.Std.option_of_sexp Serlib.Ser_goal_select.t_of_sexp rems)
   | _ -> None
+
+type ltac_elements = {
+  selector : Goal_select.t option;
+  raw_tactic_expr : Ltac_plugin.Tacexpr.raw_tactic_expr;
+  use_default : bool; (* TODO parse last args *)
+}
+
+let raw_arguments_to_ltac_elements (args : Genarg.raw_generic_argument list) :
+    ltac_elements option =
+  if List.length args != 4 then None
+  else
+    let first_arg = List.nth args 0 in
+    let _ = List.nth args 1 in
+    let third_arg = List.nth args 2 in
+    let fourth_arg = List.nth args 3 in
+    let selector =
+      Option.get (ltac_selector_of_raw_generic_argument first_arg)
+    in
+    (* TODO parse second arg *)
+    let raw_tactic_expr =
+      Option.get (raw_tactic_expr_of_raw_generic_argument third_arg)
+    in
+    let use_default =
+      Option.get (ltac_use_default_of_raw_generic_argument fourth_arg)
+    in
+    Some { selector; raw_tactic_expr; use_default }

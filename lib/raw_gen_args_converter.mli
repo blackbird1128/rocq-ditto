@@ -94,3 +94,12 @@ val lconstr_of_raw_generic_argument :
 
 val ltac_selector_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Goal_select.t option option
+
+type ltac_elements = {
+  selector : Goal_select.t option;
+  raw_tactic_expr : Ltac_plugin.Tacexpr.raw_tactic_expr;
+  use_default : bool; (* TODO parse last args *)
+}
+
+val raw_arguments_to_ltac_elements :
+  Genarg.raw_generic_argument list -> ltac_elements option
