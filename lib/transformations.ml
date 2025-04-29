@@ -244,6 +244,58 @@ let id_transform (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   Ok []
 
+let admit_proof (doc : Coq_document.t) (proof : proof) :
+    (transformation_step list, string) result =
+  let remove_all_steps =
+    List.map (fun step -> Remove step.id) proof.proof_steps
+  in
+  let first_proof_node = List.hd proof.proof_steps in
+  let last_proof_node =
+    List.nth proof.proof_steps (List.length proof.proof_steps - 1)
+  in
+
+  let comment_content =
+    List.fold_left
+      (fun str_acc step -> str_acc ^ step.repr ^ "\n")
+      "(* "
+      (List_utils.take
+         (max 0 (List.length proof.proof_steps - 1))
+         proof.proof_steps)
+    ^ " *)"
+  in
+  print_endline comment_content;
+
+  let comment_range =
+    Range_transformation.range_from_starting_point_and_repr
+      first_proof_node.range.start comment_content
+  in
+  print_endline (Lang.Range.to_string comment_range);
+  let _ =
+    match
+      Syntax_node.comment_syntax_node_of_string comment_content
+        (Range_transformation.range_from_starting_point_and_repr
+           first_proof_node.range.start comment_content)
+    with
+    | Ok _ -> print_endline "everything ok"
+    | Error err -> print_endline err
+  in
+  let comment_node =
+    Result.get_ok
+      (Syntax_node.comment_syntax_node_of_string comment_content
+         (Range_transformation.range_from_starting_point_and_repr
+            first_proof_node.range.start comment_content))
+  in
+  print_endline "there";
+  print_endline comment_node.repr;
+
+  let admitted_node =
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string "Admitted."
+         (Range_transformation.range_from_starting_point_and_repr
+            comment_node.range.end_ "Admitted."))
+  in
+  Ok (remove_all_steps @ [ Add comment_node ] @ [ Add admitted_node ])
+
 let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token_reduce = Coq.Limits.Token.create () in
@@ -286,11 +338,7 @@ let compress_intro (doc : Coq_document.t) (proof : proof) :
           String.starts_with ~prefix:"intro." x.repr
           && not (String.contains x.repr ';')
         then aux state_node (x :: acc_intro, acc_steps) tail
-        else if List.length acc_intro > 0 then (
-          print_endline
-            ("got "
-            ^ string_of_int (List.length acc_intro)
-            ^ " intro to compress");
+        else if List.length acc_intro > 0 then
           let steps =
             List.mapi
               (fun i node ->
@@ -306,7 +354,7 @@ let compress_intro (doc : Coq_document.t) (proof : proof) :
                 else Remove node.id)
               acc_intro
           in
-          aux state_node ([], acc_steps @ steps) tail)
+          aux state_node ([], acc_steps @ steps) tail
         else aux state_node ([], acc_steps) tail
   in
 
@@ -671,7 +719,7 @@ let turn_into_oneliner (doc : Coq_document.t)
         else x_without_dot
   in
   let one_liner_repr = get_oneliner tree_without_command ^ "." in
-  print_endline one_liner_repr;
+
   let flattened = Proof_tree.flatten proof_tree in
   let steps =
     List.filter_map
@@ -685,12 +733,11 @@ let turn_into_oneliner (doc : Coq_document.t)
       (fun node -> not (is_syntax_node_proof_intro_or_end node))
       flattened
   in
-  print_endline ("first step node: " ^ first_step_node.repr);
+
   let r =
     Range_transformation.range_from_starting_point_and_repr
       first_step_node.range.start one_liner_repr
   in
-  print_endline (Lang.Range.to_string r);
 
   let oneliner_node =
     Result.get_ok (Syntax_node.syntax_node_of_string one_liner_repr r)

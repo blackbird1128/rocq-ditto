@@ -22,6 +22,9 @@ val replace_auto_with_steps :
 val compress_intro :
   Coq_document.t -> proof -> (transformation_step list, string) result
 
+val admit_proof :
+  Coq_document.t -> proof -> (transformation_step list, string) result
+
 val cut_replace_branch :
   string ->
   Coq_document.t ->
