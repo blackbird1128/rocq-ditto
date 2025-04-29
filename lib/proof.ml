@@ -64,6 +64,40 @@ let get_names (node : syntaxNode) : string list =
       | None -> [])
   | None -> []
 
+let get_theorem_kind (x : proof) : Decls.theorem_kind option =
+  let coq_ast =
+    Option.map
+      (fun (x : Doc.Node.Ast.t) -> Coq.Ast.to_coq x.v)
+      x.proposition.ast
+  in
+  match coq_ast with
+  | Some ast -> (
+      match ast.v.expr with
+      | VernacSynterp _ -> None
+      | VernacSynPure expr_syn -> (
+          match expr_syn with
+          | VernacStartTheoremProof (kind, _) -> Some kind
+          | _ -> None))
+  | None -> None
+
+let get_constr_expr (x : proof) : Constrexpr.constr_expr option =
+  let coq_ast =
+    Option.map
+      (fun (x : Doc.Node.Ast.t) -> Coq.Ast.to_coq x.v)
+      x.proposition.ast
+  in
+  match coq_ast with
+  | Some ast -> (
+      match ast.v.expr with
+      | VernacSynterp _ -> None
+      | VernacSynPure expr_syn -> (
+          match expr_syn with
+          | Vernacexpr.VernacStartTheoremProof
+              (kind, [ ((ident, univ), (args, expr)) ]) ->
+              Some expr
+          | _ -> None))
+  | None -> None
+
 let proof_status_from_last_node (node : syntaxNode) :
     (proof_status, string) result =
   match node.ast with

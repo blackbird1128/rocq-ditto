@@ -26,6 +26,16 @@ val get_names : syntaxNode -> string list
 (** Get the names of a node. A node can have multiple names (i.e., mutual
     recursive definitions) *)
 
+val get_theorem_kind : proof -> Decls.theorem_kind option
+(** Get the theorem kind of a proof. If the proof isn't a basic assertion
+    command ie: Theorem, Lemma, Fact, Remark, Property, Proposition or
+    Corollary, return [None], otherwise return the kind of the theorem. *)
+
+val get_constr_expr : proof -> Constrexpr.constr_expr option
+(** Get the constr_expr of the proof. If the proof start a theorem or a proof
+    (as it should) return the [Constrexpr.constr_expr] representing the
+    expression stated by the proof or theorem, otherwise return [None] *)
+
 val get_proof_name : proof -> string option
 (** Retrieve the name of the proof's proposition if available.
     [get_proof_name p] returns [Some name] if the proof [p] has a proposition
