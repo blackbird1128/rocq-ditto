@@ -29,12 +29,11 @@ let get_proof_proposition_sexp (x : proof) : Sexplib.Sexp.t option =
   in
   match coq_ast with
   | Some ast -> (
-      match ast.CAst.v.expr with
+      match ast.v.expr with
       | VernacSynterp _ -> None
       | VernacSynPure expr_syn -> (
           match expr_syn with
-          | Vernacexpr.VernacStartTheoremProof
-              (kind, [ ((ident, univ), (args, expr)) ]) ->
+          | Vernacexpr.VernacStartTheoremProof _ ->
               let sexp_expr =
                 Serlib.Ser_vernacexpr.sexp_of_synpure_vernac_expr expr_syn
               in
