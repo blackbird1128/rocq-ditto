@@ -38,9 +38,16 @@ let generate_ast (code : string) : Vernacexpr.vernac_control list =
   in
   f init_parser
 
+(* TODO, is this even necessary ? *)
 let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
     (syntaxNode, string) result =
-  if String.length content > range.end_.offset - range.start.offset then
+  let length_content_offset =
+    String.length content
+    - String.fold_left
+        (fun acc c -> if c = '\n' then acc + 1 else acc)
+        0 content
+  in
+  if length_content_offset > range.end_.offset - range.start.offset then
     Error
       "Incorrect range: range end offset minus range start offset smaller than \
        node character size"
@@ -55,7 +62,7 @@ let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
     Ok
       {
         ast = None;
-        repr = "(* " ^ content ^ " *)";
+        repr = content;
         range;
         id = 0;
         proof_id = None;
