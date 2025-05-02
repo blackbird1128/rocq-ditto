@@ -250,9 +250,6 @@ let admit_proof (doc : Coq_document.t) (proof : proof) :
     List.map (fun step -> Remove step.id) proof.proof_steps
   in
   let first_proof_node = List.hd proof.proof_steps in
-  let last_proof_node =
-    List.nth proof.proof_steps (List.length proof.proof_steps - 1)
-  in
 
   let comment_content =
     List.fold_left
@@ -263,38 +260,25 @@ let admit_proof (doc : Coq_document.t) (proof : proof) :
          proof.proof_steps)
     ^ " *)"
   in
-  print_endline comment_content;
 
-  let comment_range =
-    Range_transformation.range_from_starting_point_and_repr
-      first_proof_node.range.start comment_content
-  in
-  print_endline (Lang.Range.to_string comment_range);
-  let _ =
-    match
-      Syntax_node.comment_syntax_node_of_string comment_content
-        (Range_transformation.range_from_starting_point_and_repr
-           first_proof_node.range.start comment_content)
-    with
-    | Ok _ -> print_endline "everything ok"
-    | Error err -> print_endline err
-  in
   let comment_node =
     Result.get_ok
       (Syntax_node.comment_syntax_node_of_string comment_content
          (Range_transformation.range_from_starting_point_and_repr
             first_proof_node.range.start comment_content))
   in
-  print_endline "there";
-  print_endline comment_node.repr;
+
+  let admitted_start =
+    shift_point 1 (-comment_node.range.end_.character) 0 comment_node.range.end_
+  in
 
   let admitted_node =
     Result.get_ok
       (Syntax_node.syntax_node_of_string "Admitted."
-         (Range_transformation.range_from_starting_point_and_repr
-            comment_node.range.end_ "Admitted."))
+         (Range_transformation.range_from_starting_point_and_repr admitted_start
+            "Admitted."))
   in
-  Ok (remove_all_steps @ [ Add comment_node ] @ [ Add admitted_node ])
+  Ok (remove_all_steps @ [ Add comment_node; Add admitted_node ])
 
 let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
