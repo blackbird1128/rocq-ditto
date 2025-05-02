@@ -1,4 +1,5 @@
 open Fleche
+open Vernacexpr
 
 type syntaxNode = {
   ast : Doc.Node.Ast.t option;
@@ -27,6 +28,11 @@ val syntax_node_of_string :
     [code] was parsed as only one syntax node that will be positioned at range
     or [Error string] with a string containing the error message detailing why
     the node was not able to be created *)
+
+val string_of_syntax_node : syntaxNode -> string
+
+val mk_vernac_control :
+  ?loc:Loc.t -> synterp_vernac_expr vernac_expr_gen -> vernac_control
 
 val qed_ast_node : Lang.Range.t -> syntaxNode
 (** [qed_ast_node] create a syntax node containing the Coq command Qed at the

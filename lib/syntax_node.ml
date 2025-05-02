@@ -1,4 +1,5 @@
 open Fleche
+open Vernacexpr
 
 type syntaxNode = {
   ast : Doc.Node.Ast.t option;
@@ -37,6 +38,16 @@ let generate_ast (code : string) : Vernacexpr.vernac_control list =
     | Some ast -> ast :: f parser
   in
   f init_parser
+
+let mk_vernac_control ?(loc : Loc.t option)
+    (ve : synterp_vernac_expr vernac_expr_gen) : vernac_control =
+  let control = [] in
+  let attrs = [] in
+  let expr = ve in
+  let payload = { control; attrs; expr } in
+  match loc with
+  | Some loc -> CAst.make ~loc payload
+  | None -> CAst.make payload
 
 (* TODO, is this even necessary ? *)
 let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
@@ -155,6 +166,11 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode
 
 let qed_ast_node (range : Lang.Range.t) : syntaxNode =
   Result.get_ok (syntax_node_of_string "Qed." range)
+
+let string_of_syntax_node (node : syntaxNode) : string =
+  match node.ast with
+  | Some ast -> Ppvernac.pr_vernac (Coq.Ast.to_coq ast.v) |> Pp.string_of_ppcmds
+  | None -> node.repr
 
 let syntax_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
   `Assoc [ ("v", Lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
