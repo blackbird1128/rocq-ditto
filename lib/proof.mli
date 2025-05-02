@@ -36,6 +36,19 @@ val get_constr_expr : proof -> Constrexpr.constr_expr option
     (as it should) return the [Constrexpr.constr_expr] representing the
     expression stated by the proof or theorem, otherwise return [None] *)
 
+type theorem_components = {
+  kind : Decls.theorem_kind;
+  name : Names.lident;
+  universe : Constrexpr.universe_decl_expr option;
+  binders : Constrexpr.local_binder_expr list;
+  expr : Constrexpr.constr_expr;
+}
+
+val get_theorem_components : proof -> theorem_components option
+
+val syntax_node_from_theorem_components :
+  theorem_components -> Lang.Range.t -> syntaxNode
+
 val get_proof_name : proof -> string option
 (** Retrieve the name of the proof's proposition if available.
     [get_proof_name p] returns [Some name] if the proof [p] has a proposition

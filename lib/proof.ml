@@ -93,10 +93,47 @@ let get_constr_expr (x : proof) : Constrexpr.constr_expr option =
       | VernacSynPure expr_syn -> (
           match expr_syn with
           | Vernacexpr.VernacStartTheoremProof
-              (kind, [ ((ident, univ), (args, expr)) ]) ->
+              (kind, [ ((ident, univ), (binders, expr)) ]) ->
               Some expr
           | _ -> None))
   | None -> None
+
+type theorem_components = {
+  kind : Decls.theorem_kind;
+  name : Names.lident;
+  universe : Constrexpr.universe_decl_expr option;
+  binders : Constrexpr.local_binder_expr list;
+  expr : Constrexpr.constr_expr;
+}
+
+let get_theorem_components (x : proof) : theorem_components option =
+  let coq_ast =
+    Option.map
+      (fun (x : Doc.Node.Ast.t) -> Coq.Ast.to_coq x.v)
+      x.proposition.ast
+  in
+  match coq_ast with
+  | Some ast -> (
+      match ast.v.expr with
+      | VernacSynterp _ -> None
+      | VernacSynPure expr_syn -> (
+          match expr_syn with
+          | Vernacexpr.VernacStartTheoremProof
+              (kind, [ ((name, universe), (binders, expr)) ]) ->
+              Some { kind; name; universe; binders; expr }
+          | _ -> None))
+  | None -> None
+
+let syntax_node_from_theorem_components (c : theorem_components)
+    (range : Lang.Range.t) : syntaxNode =
+  let expr_syn =
+    Vernacexpr.VernacStartTheoremProof
+      (c.kind, [ ((c.name, c.universe), (c.binders, c.expr)) ])
+  in
+  let synpure_expr = VernacSynPure expr_syn in
+  let control = Syntax_node.mk_vernac_control synpure_expr in
+  let coq_ast = Coq.Ast.of_coq control in
+  Syntax_node.syntax_node_of_coq_ast coq_ast range
 
 let proof_status_from_last_node (node : syntaxNode) :
     (proof_status, string) result =
