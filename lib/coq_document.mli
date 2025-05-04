@@ -85,3 +85,6 @@ val replace_proof : proof -> t -> (t, string) result
     specified id is not in the document. *)
 
 val apply_transformation_step : transformation_step -> t -> (t, string) result
+
+val apply_transformations_steps :
+  transformation_step list -> t -> (t, string) result

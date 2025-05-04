@@ -331,11 +331,8 @@ let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
 
 let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     (doc : t) : (t, string) result =
-  let element_before_new_node_start =
-    List.filter (fun node -> compare_nodes node new_node < 0) doc.elements
-  in
-  let element_after_new_node_start =
-    List.filter (fun node -> compare_nodes node new_node >= 0) doc.elements
+  let element_before_new_node_start, element_after_new_node_start =
+    List.partition (fun node -> compare_nodes node new_node < 0) doc.elements
   in
 
   let element_after_range_opt =
@@ -346,7 +343,11 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
   if
     shift_method = ShiftHorizontally
     && new_node.range.start.line != new_node.range.end_.line
-  then Error "Shifting horizontally is only possible with 1 line wide node"
+  then
+    Error
+      ("Error when trying to shift " ^ new_node.repr ^ " at : "
+      ^ Lang.Range.to_string new_node.range
+      ^ ". Shifting horizontally is only possible with 1 line wide node")
   else
     match element_after_range_opt with
     | Some element_after_range -> (
@@ -415,7 +416,7 @@ let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
       let removed_node_doc =
         remove_node_with_id ~remove_method:LeaveBlank node.id doc
       in
-      insert_node replacement ~shift_method:ShiftHorizontally removed_node_doc
+      insert_node replacement ~shift_method:ShiftVertically removed_node_doc
   | None ->
       Error
         ("The target node with id : " ^ string_of_int target_id
@@ -450,8 +451,25 @@ let replace_proof (target : proof) (doc : t) : (t, string) result =
         ^ string_of_int target.proposition.id
         ^ "isn't in the document")
 
-let apply_transformation_step (step : transformation_step) (doc : t) =
+let apply_transformation_step (step : transformation_step) (doc : t) :
+    (t, string) result =
   match step with
   | Remove id -> Ok (remove_node_with_id id doc)
   | Replace (id, new_node) -> replace_node id new_node doc
   | Add new_node -> insert_node new_node doc
+
+let transformation_step_to_string (step : transformation_step) : string =
+  match step with
+  | Remove id -> "Removing " ^ string_of_int id
+  | Replace (id, new_node) ->
+      "Replacing " ^ string_of_int id ^ " with " ^ new_node.repr
+  | Add node -> "Adding " ^ node.repr
+
+let apply_transformations_steps (steps : transformation_step list) (doc : t) :
+    (t, string) result =
+  List.fold_left
+    (fun doc_acc_err step ->
+      match doc_acc_err with
+      | Ok doc -> apply_transformation_step step doc
+      | Error err -> Error err)
+    (Ok doc) steps
