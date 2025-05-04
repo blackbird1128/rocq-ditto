@@ -3,9 +3,11 @@
 
 all:
 	dune build --profile=release
-	DITTO_TRANSFORMATION=MAKE_INTROS_EXPLICIT dune exec fcc -- --plugin=ditto-plugin --diags_level=2  ./test/fixtures/ex_subtree2.v
+	DITTO_TRANSFORMATION=MAKE_INTROS_EXPLICIT dune exec fcc -- --root=../private-geocoq/  --plugin=constructive-plugin --diags_level=2 ../private-geocoq/theories/Main/Tarski_dev/Ch03_bet.v
+#	DITTO_TRANSFORMATION=MAKE_INTROS_EXPLICIT dune exec fcc --  --plugin=constructive-plugin --diags_level=2 ./test/fixtures/constructive/ex5.v
 
-test: all
+
+test: all 
 	dune build test/test_plugin/ --profile=release
 	dune build ./test/test_target_generator_plugin --profile=release
 	find test/fixtures/ -name "*_target.v"	-exec dune exec fcc -- --plugin=target-generator-plugin {} 2>/dev/null \;
