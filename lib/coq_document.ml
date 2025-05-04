@@ -46,7 +46,7 @@ let get_proofs (doc : t) : (proof list, string) result =
   let res = aux doc.elements [] [] NoProof in
   if List.exists Result.is_error res then
     Error "One ore more proofs was badly parsed"
-  else Ok (List.map Result.get_ok res)
+  else Ok (List.rev (List.map Result.get_ok res))
 
 let node_representation (node : Doc.Node.t) (document : string) : string =
   String.sub document node.range.start.offset
