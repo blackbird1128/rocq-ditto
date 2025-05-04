@@ -151,15 +151,19 @@ let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
                })
              l ranges)
 
-let syntax_node_of_coq_ast (ast : Coq.Ast.t) (range : Lang.Range.t) : syntaxNode
-    =
+let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Lang.Point.t) :
+    syntaxNode =
+  let repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds in
+  let range =
+    Range_transformation.range_from_starting_point_and_repr start_point repr
+  in
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
   {
     ast = Some node_ast;
     range;
     id = -1;
     (* id is set during document insertion *)
-    repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds;
+    repr;
     proof_id = None;
     diagnostics = [];
   }

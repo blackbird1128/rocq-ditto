@@ -47,7 +47,7 @@ type theorem_components = {
 val get_theorem_components : proof -> theorem_components option
 
 val syntax_node_from_theorem_components :
-  theorem_components -> Lang.Range.t -> syntaxNode
+  theorem_components -> Lang.Point.t -> syntaxNode
 
 val get_proof_name : proof -> string option
 (** Retrieve the name of the proof's proposition if available.

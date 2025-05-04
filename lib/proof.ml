@@ -125,7 +125,7 @@ let get_theorem_components (x : proof) : theorem_components option =
   | None -> None
 
 let syntax_node_from_theorem_components (c : theorem_components)
-    (range : Lang.Range.t) : syntaxNode =
+    (start_point : Lang.Point.t) : syntaxNode =
   let expr_syn =
     Vernacexpr.VernacStartTheoremProof
       (c.kind, [ ((c.name, c.universe), (c.binders, c.expr)) ])
@@ -133,7 +133,7 @@ let syntax_node_from_theorem_components (c : theorem_components)
   let synpure_expr = VernacSynPure expr_syn in
   let control = Syntax_node.mk_vernac_control synpure_expr in
   let coq_ast = Coq.Ast.of_coq control in
-  Syntax_node.syntax_node_of_coq_ast coq_ast range
+  Syntax_node.syntax_node_of_coq_ast coq_ast start_point
 
 let proof_status_from_last_node (node : syntaxNode) :
     (proof_status, string) result =

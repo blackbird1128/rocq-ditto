@@ -13,26 +13,26 @@ let depth_to_bullet_type (depth : int) =
   | 2 -> VernacBullet (Proof_bullet.Star bullet_number)
   | _ -> VernacBullet (Proof_bullet.Dash bullet_number)
 
-let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) :
-    syntaxNode =
-  let example_without_dirpath : Loc.source =
-    InFile { dirpath = None; file = "main.ml" }
-  in
-  let control_r =
-    {
-      control = [];
-      (* No control flags *)
-      attrs = [];
-      (* Default attributes *)
-      expr =
-        VernacSynPure (depth_to_bullet_type depth)
-        (* The pure expression we created *);
-    }
-  in
-  let loc = Loc.create example_without_dirpath 0 0 0 0 in
-  let vernac_control = CAst.make ~loc control_r in
-  let ast_node = Coq.Ast.of_coq vernac_control in
-  syntax_node_of_coq_ast ast_node range
+(* let create_annotated_ast_bullet (depth : int) (range : Lang.Range.t) : *)
+(*     syntaxNode = *)
+(*   let example_without_dirpath : Loc.source = *)
+(*     InFile { dirpath = None; file = "main.ml" } *)
+(*   in *)
+(*   let control_r = *)
+(*     { *)
+(*       control = []; *)
+(*       (\* No control flags *\) *)
+(*       attrs = []; *)
+(*       (\* Default attributes *\) *)
+(*       expr = *)
+(*         VernacSynPure (depth_to_bullet_type depth) *)
+(*         (\* The pure expression we created *\); *)
+(*     } *)
+(*   in *)
+(*   let loc = Loc.create example_without_dirpath 0 0 0 0 in *)
+(*   let vernac_control = CAst.make ~loc control_r in *)
+(*   let ast_node = Coq.Ast.of_coq vernac_control in *)
+(*   syntax_node_of_coq_ast ast_node range *)
 
 let pp_goal (goal : string Coq.Goals.Reified_goal.t) : unit =
   print_endline ("Goal : " ^ goal.ty);

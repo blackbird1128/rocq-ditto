@@ -12,9 +12,9 @@ type syntaxNode = {
 
 val pp_syntax_node : Format.formatter -> syntaxNode -> unit
 
-val syntax_node_of_coq_ast : Coq.Ast.t -> Lang.Range.t -> syntaxNode
-(** [syntax_node_of_coq_ast ast range] create a syntax node from a Coq AST
-    element and a position to associate to this AST. *)
+val syntax_node_of_coq_ast : Coq.Ast.t -> Lang.Point.t -> syntaxNode
+(** [syntax_node_of_coq_ast ast starting_point] create a syntax node from a Coq
+    AST element and a point to start the node. *)
 
 val comment_syntax_node_of_string :
   string -> Lang.Range.t -> (syntaxNode, string) result
