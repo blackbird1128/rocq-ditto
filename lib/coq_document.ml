@@ -280,43 +280,49 @@ let shift_nodes (n_line : int) (n_char : int) (n_offset : int)
   List.map (Syntax_node.shift_node n_line n_char n_offset) nodes
 
 let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
-    : t =
+    : (t, string) result =
   match element_with_id_opt target_id doc with
-  | None -> doc
+  | None ->
+      Error
+        ("The element with id: " ^ string_of_int target_id
+       ^ "wasn't found in the document")
   | Some elem -> (
       let before, after = split_at_id target_id doc in
       let offset_shift = elem.range.end_.offset - elem.range.start.offset in
       match remove_method with
-      | LeaveBlank -> { doc with elements = before @ after }
+      | LeaveBlank -> Ok { doc with elements = before @ after }
       | ShiftNode ->
           if
             List.length (elements_starting_at_line elem.range.start.line doc)
             > 1
           then
-            {
-              doc with
-              elements =
-                List.concat
-                  [
-                    before;
-                    List.map
-                      (fun node ->
-                        if node.range.start.line = elem.range.start.line then
-                          shift_node 0 (-offset_shift) 0 node
-                        else shift_node 0 0 (-offset_shift) node)
-                      after;
-                  ];
-            }
+            Ok
+              {
+                doc with
+                elements =
+                  List.concat
+                    [
+                      before;
+                      List.map
+                        (fun node ->
+                          if node.range.start.line = elem.range.start.line then
+                            shift_node 0 (-offset_shift) 0 node
+                          else shift_node 0 0 (-offset_shift) node)
+                        after;
+                    ];
+              }
           else
-            {
-              doc with
-              elements =
-                List.concat
-                  [
-                    before;
-                    shift_nodes (-offset_shift + 1) 0 (-offset_shift - 1) after;
-                  ];
-            })
+            Ok
+              {
+                doc with
+                elements =
+                  List.concat
+                    [
+                      before;
+                      shift_nodes (-offset_shift + 1) 0 (-offset_shift - 1)
+                        after;
+                    ];
+              })
 
 let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     (doc : t) : (t, string) result =
@@ -396,7 +402,9 @@ let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
   match element_with_id_opt target_id doc with
   | Some node ->
       let removed_node_doc =
-        remove_node_with_id ~remove_method:LeaveBlank node.id doc
+        Result.get_ok
+          (remove_node_with_id ~remove_method:LeaveBlank node.id doc)
+        (* we already checked for the node existence *)
       in
       insert_node replacement ~shift_method:ShiftHorizontally removed_node_doc
   | None ->
@@ -407,7 +415,7 @@ let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
 let apply_transformation_step (step : transformation_step) (doc : t) :
     (t, string) result =
   match step with
-  | Remove id -> Ok (remove_node_with_id id doc)
+  | Remove id -> remove_node_with_id id doc
   | Replace (id, new_node) -> replace_node id new_node doc
   | Add new_node -> insert_node new_node doc
 

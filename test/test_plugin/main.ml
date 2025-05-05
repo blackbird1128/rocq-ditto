@@ -327,7 +327,7 @@ let test_removing_only_node_on_line (doc : Doc.t) () : unit =
 
   let parsed_target = get_target uri_str in
 
-  let new_doc = Coq_document.remove_node_with_id 0 doc in
+  let new_doc = Result.get_ok (Coq_document.remove_node_with_id 0 doc) in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (list (pair string range_testable)))
@@ -339,7 +339,7 @@ let test_removing_multiple_line_node (doc : Doc.t) () : unit =
 
   let parsed_target = get_target uri_str in
 
-  let new_doc = Coq_document.remove_node_with_id 1 doc in
+  let new_doc = Result.get_ok (Coq_document.remove_node_with_id 1 doc) in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (list (pair string range_testable)))
@@ -349,7 +349,7 @@ let test_removing_node_same_line_as_other (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
-  let new_doc = Coq_document.remove_node_with_id 1 doc in
+  let new_doc = Result.get_ok (Coq_document.remove_node_with_id 1 doc) in
   let new_doc_res = document_to_range_representation_pairs new_doc in
   Alcotest.(check (list (pair string range_testable)))
     "The two lists should be the same" parsed_target new_doc_res

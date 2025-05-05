@@ -22,19 +22,20 @@ val element_with_id_opt : int -> t -> syntaxNode option
     with the given [element_id] exists in the document [doc], otherwise it
     returns [None]. *)
 
-val remove_node_with_id : int -> ?remove_method:removeMethod -> t -> t
-(** Remove a node with a specific ID from the document.
-    [remove_node_with_id target_id doc] removes the element with the given
-    [target_id] from the document [doc]. If the element is found, it returns a
-    new document with the element removed, potentially adjusting the line
-    numbers of subsequent elements. If the element is not found, it returns the
-    original document. *)
-
 val colliding_nodes : syntaxNode -> t -> syntaxNode list
 (** return the nodes colliding with target node *)
 
 val compare_nodes : syntaxNode -> syntaxNode -> int
 val split_at_id : int -> t -> syntaxNode list * syntaxNode list
+
+val remove_node_with_id :
+  int -> ?remove_method:removeMethod -> t -> (t, string) result
+(** Remove a node with a specific ID from the document.
+    [remove_node_with_id target_id doc] removes the element with the given
+    [target_id] from the document [doc]. If the element is found, it returns a
+    new document with the element removed wrapped in [Ok], potentially adjusting
+    the line numbers of subsequent elements. If the element is not found, it
+    returns an Error indicating that the element wasn't found. *)
 
 val insert_node :
   syntaxNode -> ?shift_method:shiftMethod -> t -> (t, string) result
