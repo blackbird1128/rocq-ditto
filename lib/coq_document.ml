@@ -285,10 +285,14 @@ let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
   | None ->
       Error
         ("The element with id: " ^ string_of_int target_id
-       ^ "wasn't found in the document")
+       ^ " wasn't found in the document")
   | Some elem -> (
       let before, after = split_at_id target_id doc in
-      let offset_shift = elem.range.end_.offset - elem.range.start.offset in
+      let offset_shift = elem.range.start.offset - elem.range.end_.offset in
+      (* the offset shift is negative as we are moving back nodes *)
+      let block_height = elem.range.end_.line - elem.range.start.line + 1 in
+      (* each block is at least a line high *)
+
       match remove_method with
       | LeaveBlank -> Ok { doc with elements = before @ after }
       | ShiftNode ->
@@ -306,8 +310,8 @@ let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
                       List.map
                         (fun node ->
                           if node.range.start.line = elem.range.start.line then
-                            shift_node 0 (-offset_shift) 0 node
-                          else shift_node 0 0 (-offset_shift) node)
+                            shift_node 0 offset_shift 0 node
+                          else shift_node 0 0 offset_shift node)
                         after;
                     ];
               }
@@ -319,8 +323,7 @@ let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
                   List.concat
                     [
                       before;
-                      shift_nodes (-offset_shift + 1) 0 (-offset_shift - 1)
-                        after;
+                      shift_nodes (-block_height) 0 (offset_shift - 1) after;
                     ];
               })
 
