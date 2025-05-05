@@ -416,40 +416,11 @@ let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
       let removed_node_doc =
         remove_node_with_id ~remove_method:LeaveBlank node.id doc
       in
-      insert_node replacement ~shift_method:ShiftVertically removed_node_doc
+      insert_node replacement ~shift_method:ShiftHorizontally removed_node_doc
   | None ->
       Error
         ("The target node with id : " ^ string_of_int target_id
        ^ " doesn't exists")
-
-let remove_proof (target : proof) (doc : t) : t =
-  let proof_nodes = target.proposition :: target.proof_steps in
-  List.fold_left
-    (fun doc_acc node -> remove_node_with_id node.id doc_acc)
-    doc proof_nodes
-
-let insert_proof (target : proof) (doc : t) : (t, string) result =
-  let proof_nodes = target.proposition :: target.proof_steps in
-  let rec aux (nodes : syntaxNode list) (doc_acc : t) : (t, string) result =
-    match nodes with
-    | [] -> Ok doc_acc
-    | node :: tail -> (
-        match insert_node node doc_acc with
-        | Ok new_doc -> aux tail new_doc
-        | Error msg -> Error msg)
-  in
-  aux proof_nodes doc
-
-let replace_proof (target : proof) (doc : t) : (t, string) result =
-  match proof_with_id_opt target.proposition.id doc with
-  | Some elem ->
-      let doc_removed = remove_proof elem doc in
-      insert_proof target doc_removed
-  | None ->
-      Error
-        ("proof with id "
-        ^ string_of_int target.proposition.id
-        ^ "isn't in the document")
 
 let apply_transformation_step (step : transformation_step) (doc : t) :
     (t, string) result =

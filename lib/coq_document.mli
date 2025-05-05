@@ -33,6 +33,7 @@ val remove_node_with_id : int -> ?remove_method:removeMethod -> t -> t
 val colliding_nodes : syntaxNode -> t -> syntaxNode list
 (** return the nodes colliding with target node *)
 
+val compare_nodes : syntaxNode -> syntaxNode -> int
 val split_at_id : int -> t -> syntaxNode list * syntaxNode list
 
 val insert_node :
@@ -65,24 +66,6 @@ val dump_to_string : t -> string
     [dump_to_string doc] returns a string that represents the structure of the
     annotated document [doc], formatting the nodes according to their positions
     and characters in the document. *)
-
-val remove_proof : proof -> t -> t
-(** Remove a proof from the document. [remove_proof target doc] removes all
-    nodes associated with the given [target] proof from the [doc]. *)
-
-val insert_proof : proof -> t -> (t, string) result
-(** Insert a proof into a document at a specified position.
-    [insert_proof target doc insert_pos] takes a [target] proof, a document
-    [doc], and an insertion position [insert_pos]. It returns [Ok doc_acc] with
-    the modified document if the insertion is successful, or [Error msg] with an
-    error message if it fails. *)
-
-val replace_proof : proof -> t -> (t, string) result
-(** Replace a proof in a document. [replace_proof target doc] attempts to find a
-    proof corresponding to [target.proposition.id] in [doc]. If found, it
-    removes this proof and inserts [target] at the appropriate position. If the
-    proof is not found, it returns an error indicating that the proof with the
-    specified id is not in the document. *)
 
 val apply_transformation_step : transformation_step -> t -> (t, string) result
 
