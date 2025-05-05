@@ -34,6 +34,22 @@ let int_tree = testable_nary_tree pp_int ( = )
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
 let range_testable = Alcotest.testable Lang.Range.pp ( = )
 
+let make_dummy_node id start_line start_char start_offset end_line end_char
+    end_offset : syntaxNode =
+  {
+    ast = None;
+    repr = "dummy";
+    id;
+    proof_id = None;
+    diagnostics = [];
+    range =
+      {
+        start =
+          { line = start_line; character = start_char; offset = start_offset };
+        end_ = { line = end_line; character = end_char; offset = end_offset };
+      };
+  }
+
 let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
     (doc : Doc.t) =
   Alcotest.test_case test_text `Quick (f doc)
@@ -286,6 +302,25 @@ let test_searching_node (doc : Doc.t) () : unit =
     "No element should be retrieved" None
     (Option.map (fun x -> x.id) absurd_node)
 
+let test_sorting_nodes (doc : Doc.t) () : unit =
+  let doc = Coq_document.parse_document doc in
+  let node1 = make_dummy_node 1 0 0 1 0 12 13 in
+  (* your example *)
+  let node2 = make_dummy_node 2 0 14 15 1 2 18 in
+  (* overlaps with node1 *)
+  let node3 = make_dummy_node 3 2 0 19 2 10 29 in
+  (* does not overlap *)
+
+  let sorted = List.sort Coq_document.compare_nodes [ node2; node3; node1 ] in
+  let ids = List.map (fun n -> n.id) sorted in
+
+  (* node1 and node2 overlap; smallest common = 18 *)
+  (* node1 starts at 16 < 18 => node1 before node2 *)
+  (* node3 is later and doesn't overlap *)
+  let expected = [ 1; 2; 3 ] in
+
+  Alcotest.(check (list int)) "compare_nodes ordering" expected ids
+
 let test_removing_only_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
@@ -488,18 +523,78 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
   Alcotest.(check (result (list (pair string range_testable)) string))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
-let test_adding_removing_nodes_simple (doc : Doc.t) () : unit =
+let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
-  let parsed_target = document_to_range_representation_pairs doc in
+  let parsed_target = get_target uri_str in
 
-  let empty_doc =
-    List.fold_left
-      (fun doc_acc node -> Coq_document.remove_node_with_id node.id doc)
-      doc doc.elements
+  let start_point : Lang.Point.t = { line = 1; character = 0; offset = 1 } in
+  let end_point : Lang.Point.t = { line = 2; character = 10; offset = 40 } in
+  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
+  let node =
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string
+         "Theorem th : forall n : nat,\nn + 0 = n." node_range)
   in
-  ()
-(* abort for now as we still rely on the old definition of insert *)
-(* TODO complete *)
+
+  let new_doc = Coq_document.replace_node 0 node doc in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
+
+let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+  let parsed_target = get_target uri_str in
+
+  let start_point : Lang.Point.t = { line = 1; character = 0; offset = 1 } in
+  let end_point : Lang.Point.t = { line = 1; character = 39; offset = 40 } in
+
+  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
+  let node =
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string
+         "Theorem th : forall n : nat, n + 0 = n." node_range)
+  in
+
+  let new_doc = Coq_document.replace_node 0 node doc in
+
+  let new_doc = Coq_document.replace_node 0 node doc in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
+
+let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+  let parsed_target = get_target uri_str in
+
+  let start_point : Lang.Point.t = { line = 16; character = 0; offset = 461 } in
+  let end_point : Lang.Point.t = { line = 19; character = 9; offset = 567 } in
+
+  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
+  let node =
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string
+         "Lemma l4_19_stdlib :\n\
+         \  forall A B C C' : Point,\n\
+         \  Bet A C B -> Cong A C A C' -> Cong B C B C' ->\n\
+         \  C = C'."
+         node_range)
+  in
+
+  let new_doc = Coq_document.replace_node 0 node doc in
+
+  let new_doc = Coq_document.replace_node 0 node doc in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
@@ -567,6 +662,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if a wrong offset range trigger an error"
        test_creating_node_with_incorrect_range_offset doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "Check if simply ordered nodes are sorted correctly"
+       test_sorting_nodes doc);
   Hashtbl.add table "ex_id_assign1.v"
     (create_fixed_test "check if id are assigned logically 1"
        test_parsing_logical_id_assignement doc);
@@ -654,6 +752,16 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_replacing4.v"
     (create_fixed_test "test replacing a node with some spaces after"
        test_replacing_node_end_of_line doc);
+  Hashtbl.add table "ex_replacing5.v"
+    (create_fixed_test "test replacing a node with a bigger node"
+       test_replacing_smaller_node_with_bigger_node doc);
+  Hashtbl.add table "ex_replacing6.v"
+    (create_fixed_test "test replacing a node with a smaller node"
+       test_replacing_bigger_node_with_smaller_node doc);
+  Hashtbl.add table "ex_replacing7.v"
+    (create_fixed_test
+       "test replacing a theorem block with another theorem block"
+       test_replacing_block_by_other_block doc);
 
   Hashtbl.add table "ex_auto1.v"
     (create_fixed_test "test replacing simple auto with all the taken steps"
@@ -661,12 +769,13 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_auto2.v"
     (create_fixed_test "test replacing branching auto with all the taken steps"
        test_replace_multiple_branch_auto_by_steps doc);
-  Hashtbl.add table "ex_auto3.v"
-    (create_fixed_test "test replacing auto with zarith"
-       test_replace_auto_using_zarith_by_steps doc);
-  Hashtbl.add table "ex_auto4.v"
-    (create_fixed_test "test replacing auto with backtracking by steps"
-       test_replace_auto_with_backtracking doc);
+  (* Hashtbl.add table "ex_auto3.v" *)
+  (*   (create_fixed_test "test replacing auto with zarith" *)
+  (*      test_replace_auto_using_zarith_by_steps doc); *)
+  (* Hashtbl.add table "ex_auto4.v" *)
+  (*   (create_fixed_test "test replacing auto with backtracking by steps" *)
+  (*      test_replace_auto_with_backtracking doc); *)
+  (* TODO commit files *)
   ()
 
 let test_runner ~io ~token:_ ~(doc : Doc.t) =
