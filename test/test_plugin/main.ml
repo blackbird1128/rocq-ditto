@@ -449,6 +449,27 @@ let test_adding_collision_next_line (doc : Doc.t) () : unit =
   Alcotest.(check (result (list (pair string range_testable)) string))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
+let test_adding_node_colliding_many (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+  let parsed_target = get_target uri_str in
+
+  let start_point : Lang.Point.t = { line = 6; character = 2; offset = 75 } in
+  let end_point : Lang.Point.t = { line = 8; character = 10; offset = 109 } in
+  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
+  let node =
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string "Compute 1 +\n  2 + 3 + 4\n  + 5 + 6."
+         node_range)
+  in
+
+  let new_doc = Coq_document.insert_node node doc in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) string))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
+
 let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
@@ -737,9 +758,12 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_adding4.v"
     (create_fixed_test "test adding a node between two nodes on the same line"
        test_adding_node_between doc);
-  (* TODO fix Hashtbl.add table "ex_adding5.v"
+  Hashtbl.add table "ex_adding5.v"
     (create_fixed_test "test adding a node that will collide on another line"
-       test_adding_collision_next_line doc); *)
+       test_adding_collision_next_line doc);
+  Hashtbl.add table "ex_adding6.v"
+    (create_fixed_test "test adding a node that will collide with many nodes"
+       test_adding_node_colliding_many doc);
   Hashtbl.add table "ex_replacing1.v"
     (create_fixed_test "test replacing the single node on one line"
        test_replacing_single_node_on_line doc);
