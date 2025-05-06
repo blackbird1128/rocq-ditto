@@ -49,6 +49,25 @@ let mk_vernac_control ?(loc : Loc.t option)
   | Some loc -> CAst.make ~loc payload
   | None -> CAst.make payload
 
+let validate_syntax_node (x : syntaxNode) : (syntaxNode, string) result =
+  if x.range.end_.offset < x.range.start.offset then
+    Error "Incorrect range: range end offset is smaller than range start offset"
+  else if x.range.end_.line < x.range.start.line then
+    Error "Incorrect range: range end line is smaller than the range start line"
+  else if String.length x.repr > x.range.end_.offset - x.range.start.offset then
+    Error
+      "Incorrect range: range end character minus range start character \
+       smaller than node character size"
+  else if
+    x.range.start.line = x.range.end_.line
+    && String.length x.repr > x.range.end_.character - x.range.start.character
+  then
+    Error
+      "Incorrect range: the height of the node is one and the range end \
+       character minus range start character is smaller than the node \
+       character size"
+  else Ok x
+
 (* TODO, is this even necessary ? *)
 let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
     (syntaxNode, string) result =

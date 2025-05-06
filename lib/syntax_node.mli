@@ -30,6 +30,7 @@ val syntax_node_of_string :
     the node was not able to be created *)
 
 val string_of_syntax_node : syntaxNode -> string
+val validate_syntax_node : syntaxNode -> (syntaxNode, string) result
 
 val mk_vernac_control :
   ?loc:Loc.t -> synterp_vernac_expr vernac_expr_gen -> vernac_control
