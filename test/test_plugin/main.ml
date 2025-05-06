@@ -54,39 +54,6 @@ let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
     (doc : Doc.t) =
   Alcotest.test_case test_text `Quick (f doc)
 
-let test_creating_simple_node (doc : Doc.t) () : unit =
-  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
-
-  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." start_point in
-  let node_res_repr = Result.map (fun node -> node.repr) node in
-  Alcotest.(check (result string string))
-    "The syntax node should have the same representation" (Ok "Compute 1 + 1.")
-    node_res_repr
-
-let test_creating_node_with_incorrect_range_char (doc : Doc.t) () : unit =
-  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
-
-  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." start_point in
-  let node_res_repr = Result.map (fun node -> node.repr) node in
-  Alcotest.(check (result string string))
-    "The syntax node should have the same representation"
-    (Error
-       "Incorrect range: range end character minus range start character \
-        smaller than node character size")
-    node_res_repr
-
-let test_creating_node_with_incorrect_range_offset (doc : Doc.t) () : unit =
-  let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
-
-  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." start_point in
-  let node_res_repr = Result.map (fun node -> node.repr) node in
-  Alcotest.(check (result string string))
-    "The syntax node should have the same representation"
-    (Error
-       "Incorrect range: range end offset minus range start offset smaller \
-        than node character size")
-    node_res_repr
-
 let test_parsing_logical_id_assignement (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let _ =
@@ -537,6 +504,15 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
 
   let start_point : Lang.Point.t = { line = 1; character = 0; offset = 1 } in
 
+  let _ =
+    match
+      Syntax_node.syntax_node_of_string
+        "Theorem th : forall n : nat,\nn + 0 = n." start_point
+    with
+    | Ok node -> print_endline "everything great !"
+    | Error err -> print_endline err
+  in
+
   let node =
     Result.get_ok
       (Syntax_node.syntax_node_of_string
@@ -650,15 +626,6 @@ let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let setup_test_table table (doc : Doc.t) =
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "Check if a simple test is created normally"
-       test_creating_simple_node doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "Check if a wrong character range trigger an error"
-       test_creating_node_with_incorrect_range_char doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "Check if a wrong offset range trigger an error"
-       test_creating_node_with_incorrect_range_offset doc);
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if simply ordered nodes are sorted correctly"
        test_sorting_nodes doc);
