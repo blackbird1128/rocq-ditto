@@ -23,11 +23,11 @@ val comment_syntax_node_of_string :
 *)
 
 val syntax_node_of_string :
-  string -> Lang.Range.t -> (syntaxNode, string) result
-(** [syntax_node_of_string code range] returns a result [Ok Syntax_node] if
-    [code] was parsed as only one syntax node that will be positioned at range
-    or [Error string] with a string containing the error message detailing why
-    the node was not able to be created *)
+  string -> Lang.Point.t -> (syntaxNode, string) result
+(** [syntax_node_of_string code start_point] returns a result [Ok Syntax_node]
+    if [code] was parsed as only one syntax node that will be positioned
+    starting at [start_point] or [Error string] with a string containing the
+    error message detailing why the node was not able to be created *)
 
 val string_of_syntax_node : syntaxNode -> string
 val validate_syntax_node : syntaxNode -> (syntaxNode, string) result
@@ -35,9 +35,9 @@ val validate_syntax_node : syntaxNode -> (syntaxNode, string) result
 val mk_vernac_control :
   ?loc:Loc.t -> synterp_vernac_expr vernac_expr_gen -> vernac_control
 
-val qed_ast_node : Lang.Range.t -> syntaxNode
-(** [qed_ast_node] create a syntax node containing the Coq command Qed at the
-    specified range. *)
+val qed_ast_node : Lang.Point.t -> syntaxNode
+(** [qed_ast_node] create a syntax node containing the Coq command Qed starting
+    at the specified point. *)
 
 val syntax_node_to_yojson : Doc.Node.Ast.t -> Yojson.Safe.t
 (** [syntax_node_to_yojson ast_node] converts a syntax node of type

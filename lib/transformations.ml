@@ -88,9 +88,7 @@ let cut_replace_branch (cut_tactic : string) (doc : Coq_document.t)
   let node_creator =
    fun node ->
     Result.get_ok
-      (Syntax_node.syntax_node_of_string cut_tactic
-         (Range_transformation.range_from_starting_point_and_repr
-            node.range.start cut_tactic))
+      (Syntax_node.syntax_node_of_string cut_tactic node.range.start)
   in
 
   let rec aux state_acc tree steps_acc =
@@ -188,7 +186,7 @@ let fold_replace_assumption_with_apply (doc : Coq_document.t)
                 List.map
                   (fun repr ->
                     Result.get_ok
-                      (Syntax_node.syntax_node_of_string repr node.range))
+                      (Syntax_node.syntax_node_of_string repr node.range.start))
                   hypothesis_apply_repr
               in
 
@@ -273,10 +271,7 @@ let admit_proof (doc : Coq_document.t) (proof : proof) :
   in
 
   let admitted_node =
-    Result.get_ok
-      (Syntax_node.syntax_node_of_string "Admitted."
-         (Range_transformation.range_from_starting_point_and_repr admitted_start
-            "Admitted."))
+    Result.get_ok (Syntax_node.syntax_node_of_string "Admitted." admitted_start)
   in
   Ok (remove_all_steps @ [ Add comment_node; Add admitted_node ])
 
@@ -330,9 +325,7 @@ let compress_intro (doc : Coq_document.t) (proof : proof) :
                   let intros_node =
                     Result.get_ok
                       (Syntax_node.syntax_node_of_string "intros."
-                         (Range_transformation
-                          .range_from_starting_point_and_repr node.range.start
-                            "intros."))
+                         node.range.start)
                   in
                   Replace (node.id, intros_node)
                 else Remove node.id)
@@ -459,9 +452,7 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
             let info_auto = "info_auto" ^ node_args ^ "." in
             let info_auto_node =
               Result.get_ok
-                (Syntax_node.syntax_node_of_string info_auto
-                   (Range_transformation.range_from_starting_point_and_repr
-                      node.range.start info_auto))
+                (Syntax_node.syntax_node_of_string info_auto node.range.start)
             in
 
             let _, diagnostics =
@@ -483,9 +474,7 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
               List.map
                 (fun repr ->
                   Result.get_ok
-                    (Syntax_node.syntax_node_of_string repr
-                       (Range_transformation.range_from_starting_point_and_repr
-                          node.range.start repr)))
+                    (Syntax_node.syntax_node_of_string repr node.range.start))
                 intros
             in
 
@@ -507,10 +496,8 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
                 (fun (depth, tac) ->
                   ( depth,
                     Result.get_ok
-                      (Syntax_node.syntax_node_of_string tac
-                         (Range_transformation
-                          .range_from_starting_point_and_repr node.range.start
-                            tac)) ))
+                      (Syntax_node.syntax_node_of_string tac node.range.start)
+                  ))
                 depth_tuples
             in
 
@@ -522,9 +509,7 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
 
             let default_node =
               Result.get_ok
-                (Syntax_node.syntax_node_of_string "idtac."
-                   (Range_transformation.range_from_starting_point_and_repr
-                      node.range.start "idtac."))
+                (Syntax_node.syntax_node_of_string "idtac." node.range.start)
             in
 
             let default_node_tuple =
@@ -632,10 +617,7 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
                 (fun i repr ->
                   Result.get_ok
                     (Syntax_node.syntax_node_of_string repr
-                       (shift_range i 0 0
-                          (Range_transformation
-                           .range_from_starting_point_and_repr node.range.start
-                             repr))))
+                       (shift_point i 0 0 node.range.start)))
                 filtered_tactics
             in
             let shifted_nodes =
@@ -718,13 +700,10 @@ let turn_into_oneliner (doc : Coq_document.t)
       flattened
   in
 
-  let r =
-    Range_transformation.range_from_starting_point_and_repr
-      first_step_node.range.start one_liner_repr
-  in
-
   let oneliner_node =
-    Result.get_ok (Syntax_node.syntax_node_of_string one_liner_repr r)
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string one_liner_repr
+         first_step_node.range.start)
   in
 
   Ok (Add oneliner_node :: steps)
@@ -756,9 +735,7 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
           let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
           let explicit_intro_node =
             Result.get_ok
-              (Syntax_node.syntax_node_of_string explicit_intro
-                 (Range_transformation.range_from_starting_point_and_repr
-                    node.range.start explicit_intro))
+              (Syntax_node.syntax_node_of_string explicit_intro node.range.start)
           in
           let r = Replace (node.id, explicit_intro_node) in
           (new_state, r :: acc)

@@ -56,9 +56,8 @@ let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
 
 let test_creating_simple_node (doc : Doc.t) () : unit =
   let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
-  let end_point : Lang.Point.t = { line = 0; character = 14; offset = 14 } in
-  let range : Lang.Range.t = { start = start_point; end_ = end_point } in
-  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." range in
+
+  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." start_point in
   let node_res_repr = Result.map (fun node -> node.repr) node in
   Alcotest.(check (result string string))
     "The syntax node should have the same representation" (Ok "Compute 1 + 1.")
@@ -66,9 +65,8 @@ let test_creating_simple_node (doc : Doc.t) () : unit =
 
 let test_creating_node_with_incorrect_range_char (doc : Doc.t) () : unit =
   let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
-  let end_point : Lang.Point.t = { line = 0; character = 8; offset = 14 } in
-  let range : Lang.Range.t = { start = start_point; end_ = end_point } in
-  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." range in
+
+  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." start_point in
   let node_res_repr = Result.map (fun node -> node.repr) node in
   Alcotest.(check (result string string))
     "The syntax node should have the same representation"
@@ -79,9 +77,8 @@ let test_creating_node_with_incorrect_range_char (doc : Doc.t) () : unit =
 
 let test_creating_node_with_incorrect_range_offset (doc : Doc.t) () : unit =
   let start_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
-  let end_point : Lang.Point.t = { line = 0; character = 14; offset = 8 } in
-  let range : Lang.Range.t = { start = start_point; end_ = end_point } in
-  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." range in
+
+  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." start_point in
   let node_res_repr = Result.map (fun node -> node.repr) node in
   Alcotest.(check (result string string))
     "The syntax node should have the same representation"
@@ -360,10 +357,9 @@ let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 1; character = 0; offset = 11 } in
-  let end_point : Lang.Point.t = { line = 1; character = 10; offset = 21 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
+    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
   let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -377,10 +373,9 @@ let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 1; character = 0; offset = 11 } in
-  let end_point : Lang.Point.t = { line = 1; character = 10; offset = 21 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
+    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
 
   let new_doc = Coq_document.insert_node node doc in
@@ -395,12 +390,11 @@ let test_adding_multiple_line_node (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
-  let end_point : Lang.Point.t = { line = 4; character = 10; offset = 42 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
   let node =
     Result.get_ok
       (Syntax_node.syntax_node_of_string "Compute 1\n        +\n        1."
-         node_range)
+         start_point)
   in
 
   let new_doc = Coq_document.insert_node node doc in
@@ -415,10 +409,9 @@ let test_adding_node_between (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 1; character = 11; offset = 12 } in
-  let end_point : Lang.Point.t = { line = 1; character = 21; offset = 22 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." node_range)
+    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
 
   let new_doc =
@@ -436,11 +429,10 @@ let test_adding_collision_next_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
-  let end_point : Lang.Point.t = { line = 4; character = 2; offset = 26 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
   let node =
     Result.get_ok
-      (Syntax_node.syntax_node_of_string "Compute 1\n+\n1." node_range)
+      (Syntax_node.syntax_node_of_string "Compute 1\n+\n1." start_point)
   in
 
   let new_doc = Coq_document.insert_node node doc in
@@ -455,13 +447,11 @@ let test_adding_node_colliding_many (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 6; character = 2; offset = 75 } in
-  let end_point : Lang.Point.t = { line = 8; character = 10; offset = 109 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
 
   let node =
     Result.get_ok
       (Syntax_node.syntax_node_of_string "Compute 1 +\n  2 + 3 + 4\n  + 5 + 6."
-         node_range)
+         start_point)
   in
 
   let new_doc = Coq_document.insert_node node doc in
@@ -476,10 +466,9 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
-  let end_point : Lang.Point.t = { line = 2; character = 11; offset = 23 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 42." node_range)
+    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 42." start_point)
   in
 
   let new_doc = Coq_document.replace_node 1 node doc in
@@ -494,10 +483,9 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
-  let end_point : Lang.Point.t = { line = 2; character = 12; offset = 24 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 123." node_range)
+    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 123." start_point)
   in
 
   let new_doc = Coq_document.replace_node 1 node doc in
@@ -512,11 +500,10 @@ let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 2; character = 11; offset = 23 } in
-  let end_point : Lang.Point.t = { line = 2; character = 26; offset = 38 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
   let node =
     Result.get_ok
-      (Syntax_node.syntax_node_of_string "Compute 123456." node_range)
+      (Syntax_node.syntax_node_of_string "Compute 123456." start_point)
   in
 
   let new_doc = Coq_document.replace_node 2 node doc in
@@ -531,11 +518,10 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 2; character = 22; offset = 34 } in
-  let end_point : Lang.Point.t = { line = 2; character = 36; offset = 48 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
+
   let node =
     Result.get_ok
-      (Syntax_node.syntax_node_of_string "Compute 12345." node_range)
+      (Syntax_node.syntax_node_of_string "Compute 12345." start_point)
   in
 
   let new_doc = Coq_document.replace_node 3 node doc in
@@ -550,13 +536,11 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 1; character = 0; offset = 1 } in
-  let end_point : Lang.Point.t = { line = 2; character = 10; offset = 40 } in
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
 
   let node =
     Result.get_ok
       (Syntax_node.syntax_node_of_string
-         "Theorem th : forall n : nat,\nn + 0 = n." node_range)
+         "Theorem th : forall n : nat,\nn + 0 = n." start_point)
   in
 
   let new_doc = Coq_document.replace_node 0 node doc in
@@ -571,17 +555,12 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 1; character = 0; offset = 1 } in
-  let end_point : Lang.Point.t = { line = 1; character = 39; offset = 40 } in
-
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
 
   let node =
     Result.get_ok
       (Syntax_node.syntax_node_of_string
-         "Theorem th : forall n : nat, n + 0 = n." node_range)
+         "Theorem th : forall n : nat, n + 0 = n." start_point)
   in
-
-  let new_doc = Coq_document.replace_node 0 node doc in
 
   let new_doc = Coq_document.replace_node 0 node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -595,9 +574,6 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point : Lang.Point.t = { line = 16; character = 0; offset = 461 } in
-  let end_point : Lang.Point.t = { line = 19; character = 9; offset = 567 } in
-
-  let node_range : Lang.Range.t = { start = start_point; end_ = end_point } in
 
   let node =
     Result.get_ok
@@ -606,7 +582,7 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
          \  forall A B C C' : Point,\n\
          \  Bet A C B -> Cong A C A C' -> Cong B C B C' ->\n\
          \  C = C'."
-         node_range)
+         start_point)
   in
 
   let new_doc = Coq_document.replace_node 0 node doc in

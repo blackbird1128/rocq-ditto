@@ -11,6 +11,10 @@ type syntaxNode = {
   diagnostics : Lang.Diagnostic.t list;
 }
 
+let repr_to_offset_size (repr : string) : int =
+  String.length repr
+  - String.fold_left (fun acc c -> if c = '\n' then acc + 1 else acc) 0 repr
+
 let pp_doc_ast (fmt : Format.formatter) (ast : Doc.Node.Ast.t) : unit =
   Pp.pp_with fmt (Coq.Ast.print ast.v)
 
@@ -71,12 +75,8 @@ let validate_syntax_node (x : syntaxNode) : (syntaxNode, string) result =
 (* TODO, is this even necessary ? *)
 let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
     (syntaxNode, string) result =
-  let length_content_offset =
-    String.length content
-    - String.fold_left
-        (fun acc c -> if c = '\n' then acc + 1 else acc)
-        0 content
-  in
+  let length_content_offset = repr_to_offset_size content in
+
   if length_content_offset > range.end_.offset - range.start.offset then
     Error
       "Incorrect range: range end offset minus range start offset smaller than \
@@ -99,11 +99,11 @@ let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
         diagnostics = [];
       }
 
-let syntax_node_of_string (code : string) (range : Lang.Range.t) :
+let syntax_node_of_string (code : string) (start_point : Lang.Point.t) :
     (syntaxNode, string) result =
-  let length_code_offset =
-    String.length code
-    - String.fold_left (fun acc c -> if c = '\n' then acc + 1 else acc) 0 code
+  let length_code_offset = repr_to_offset_size code in
+  let range =
+    Range_transformation.range_from_starting_point_and_repr start_point code
   in
   (*offset doesn't count the newline in*)
   if length_code_offset > range.end_.offset - range.start.offset then
@@ -187,8 +187,8 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Lang.Point.t) :
     diagnostics = [];
   }
 
-let qed_ast_node (range : Lang.Range.t) : syntaxNode =
-  Result.get_ok (syntax_node_of_string "Qed." range)
+let qed_ast_node (start_point : Lang.Point.t) : syntaxNode =
+  Result.get_ok (syntax_node_of_string "Qed." start_point)
 
 let string_of_syntax_node (node : syntaxNode) : string =
   match node.ast with
