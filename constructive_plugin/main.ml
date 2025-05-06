@@ -252,6 +252,13 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
   (*     if Theorem_query.matches exists_query x then *)
   (*       print_endline (Sexplib.Sexp.to_string_hum (remove_loc x))) *)
   (*   proof_sexps; *)
+
+  (* let new_doc = List.fold_left (fun doc_acc proof -> *)
+  (*                   match replace_bet_by_betl proof with *)
+  (*                     Some step -> *)
+  (*                      Coq_document.apply_transformation_step step doc_acc in  *)
+  (*                    | None ->  doc_acc *)
+  (*                 ) parsed_document proofs in  *)
   let replace_bet_by_betl_steps =
     List.filter_map (fun proof -> replace_bet_by_betl proof) proofs
   in

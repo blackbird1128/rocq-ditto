@@ -23,7 +23,7 @@ let range_from_starting_point_and_repr (starting_point : Lang.Point.t)
       0 repr
   in
   let last_jump = String.rindex_opt repr '\n' in
-  let offset_length = String.length repr - number_line_jump in
+  let offset_length = String.length repr in
   {
     start = starting_point;
     end_ =
