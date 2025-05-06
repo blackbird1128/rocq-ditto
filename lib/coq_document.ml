@@ -352,28 +352,40 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
 
   match shift_method with
   | ShiftHorizontally ->
-      if
-        shift_method = ShiftHorizontally
-        && new_node.range.start.line != new_node.range.end_.line
-      then
+      if new_node.range.start.line != new_node.range.end_.line then
         Error
           ("Error when trying to shift " ^ new_node.repr ^ " at : "
           ^ Lang.Range.to_string new_node.range
           ^ ". Shifting horizontally is only possible with 1 line wide node")
       else
-        Ok
-          {
-            doc with
-            elements =
-              element_before_new_node_start
-              @ node_with_id
-                :: List.map
-                     (fun node ->
-                       if node.range.start.line = node_with_id.range.start.line
-                       then shift_node 0 total_shift 0 node
-                       else shift_node 0 0 total_shift node)
-                     element_after_new_node_start;
-          }
+        let multi_lines_nodes_after_same_line =
+          elements_starting_at_line new_node.range.start.line
+            element_after_new_node_start
+          |> List.find_opt (fun node ->
+                 node.range.start.character > new_node.range.start.character
+                 && node.range.end_.line - node.range.start.line >= 1)
+          |> Option.has_some
+        in
+        if multi_lines_nodes_after_same_line then
+          Error
+            ("Can't shift multi-lines nodes on the same line ("
+            ^ string_of_int new_node.range.start.line
+            ^ ") as the node inserted")
+        else
+          Ok
+            {
+              doc with
+              elements =
+                element_before_new_node_start
+                @ node_with_id
+                  :: List.map
+                       (fun node ->
+                         if
+                           node.range.start.line = node_with_id.range.start.line
+                         then shift_node 0 total_shift 0 node
+                         else shift_node 0 0 total_shift node)
+                       element_after_new_node_start;
+            }
   | ShiftVertically ->
       let line_shift =
         if List.length (colliding_nodes node_with_id doc) = 0 then 0
