@@ -272,12 +272,9 @@ let split_at_id (target_id : int) (doc : t) : syntaxNode list * syntaxNode list
   in
   aux doc.elements []
 
-let elements_starting_at_line (line_number : int) (doc : t) : syntaxNode list =
-  List.filter (fun elem -> elem.range.start.line = line_number) doc.elements
-
-let shift_nodes (n_line : int) (n_char : int) (n_offset : int)
-    (nodes : syntaxNode list) : syntaxNode list =
-  List.map (Syntax_node.shift_node n_line n_char n_offset) nodes
+let elements_starting_at_line (line_number : int) (nodes : syntaxNode list) :
+    syntaxNode list =
+  List.filter (fun elem -> elem.range.start.line = line_number) nodes
 
 let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
     : (t, string) result =
@@ -297,7 +294,8 @@ let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
       | LeaveBlank -> Ok { doc with elements = before @ after }
       | ShiftNode ->
           if
-            List.length (elements_starting_at_line elem.range.start.line doc)
+            List.length
+              (elements_starting_at_line elem.range.start.line doc.elements)
             > 1
           then
             Ok
@@ -323,7 +321,9 @@ let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
                   List.concat
                     [
                       before;
-                      shift_nodes (-block_height) 0 (offset_shift - 1) after;
+                      List.map
+                        (shift_node (-block_height) 0 (offset_shift - 1))
+                        after;
                     ];
               })
 
@@ -338,82 +338,99 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
   in
 
   let node_with_id = { new_node with id = Unique_id.next doc.id_counter } in
-  if
-    shift_method = ShiftHorizontally
-    && new_node.range.start.line != new_node.range.end_.line
-  then
-    Error
-      ("Error when trying to shift " ^ new_node.repr ^ " at : "
-      ^ Lang.Range.to_string new_node.range
-      ^ ". Shifting horizontally is only possible with 1 line wide node")
-  else
+  let node_offset_size =
+    node_with_id.range.end_.offset - node_with_id.range.start.offset
+  in
+  let offset_space =
     match element_after_range_opt with
-    | Some element_after_range -> (
-        let node_offset_size =
-          node_with_id.range.end_.offset - node_with_id.range.start.offset
-        in
-        let offset_space =
-          element_after_range.start.offset - node_with_id.range.start.offset - 1
-        in
+    | Some element_after_range ->
+        element_after_range.start.offset - node_with_id.range.start.offset - 1
+    | None -> 0
+  in
 
-        let total_shift = node_offset_size - offset_space in
+  let total_shift = node_offset_size - offset_space in
 
-        match shift_method with
-        | ShiftHorizontally ->
-            Ok
-              {
-                doc with
-                elements =
-                  element_before_new_node_start
-                  @ node_with_id
-                    :: List.map
-                         (fun node ->
-                           if
-                             node.range.start.line
-                             = node_with_id.range.start.line
-                           then shift_node 0 total_shift 0 node
-                           else shift_node 0 0 total_shift node)
-                         element_after_new_node_start;
-              }
-        | ShiftVertically ->
-            let line_shift =
-              if List.length (colliding_nodes node_with_id doc) = 0 then 0
-              else
-                node_with_id.range.end_.line - node_with_id.range.start.line + 1
-            in
-
-            (*there can be less offset but still space *)
-            Ok
-              {
-                doc with
-                elements =
-                  element_before_new_node_start
-                  @ node_with_id
-                    :: List.map
-                         (fun node -> shift_node line_shift 0 total_shift node)
-                         element_after_new_node_start;
-              })
-    | None ->
+  match shift_method with
+  | ShiftHorizontally ->
+      if
+        shift_method = ShiftHorizontally
+        && new_node.range.start.line != new_node.range.end_.line
+      then
+        Error
+          ("Error when trying to shift " ^ new_node.repr ^ " at : "
+          ^ Lang.Range.to_string new_node.range
+          ^ ". Shifting horizontally is only possible with 1 line wide node")
+      else
         Ok
           {
             doc with
-            elements = element_before_new_node_start @ [ node_with_id ];
+            elements =
+              element_before_new_node_start
+              @ node_with_id
+                :: List.map
+                     (fun node ->
+                       if node.range.start.line = node_with_id.range.start.line
+                       then shift_node 0 total_shift 0 node
+                       else shift_node 0 0 total_shift node)
+                     element_after_new_node_start;
           }
+  | ShiftVertically ->
+      let line_shift =
+        if List.length (colliding_nodes node_with_id doc) = 0 then 0
+        else node_with_id.range.end_.line - node_with_id.range.start.line + 1
+      in
+
+      (*there can be less offset but still space *)
+      Ok
+        {
+          doc with
+          elements =
+            element_before_new_node_start
+            @ node_with_id
+              :: List.map
+                   (fun node -> shift_node line_shift 0 total_shift node)
+                   element_after_new_node_start;
+        }
+
+(* How would one insert a node ? *)
+
+(* depend on the shift method *)
+(*
+    - get the nodes before and after 
+    
+    - if we shift horizontally:
+    first check that we are inserting a one line wide node
+
+    - if we shift vertically
+
+    shift all nodes after by the offset amount
+    and the number of lines of height ? 
+    
+   *)
 
 let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
     (t, string) result =
-  match element_with_id_opt target_id doc with
-  | Some node ->
-      let removed_node_doc =
-        Result.get_ok
-          (remove_node_with_id ~remove_method:LeaveBlank node.id doc)
-        (* we already checked for the node existence *)
-      in
-      insert_node replacement ~shift_method:ShiftHorizontally removed_node_doc
-  | None ->
-      Error
-        ("The target node with id : " ^ string_of_int target_id
-       ^ " doesn't exists")
+  match validate_syntax_node replacement with
+  | Error err -> Error err
+  | Ok replacement -> (
+      match element_with_id_opt target_id doc with
+      | Some node ->
+          if node.range.start <> replacement.range.start then
+            Error
+              "The replacing node should start at the same point than the \
+               replaced node"
+          else
+            let removed_node_doc =
+              Result.get_ok
+                (remove_node_with_id ~remove_method:LeaveBlank node.id doc)
+              (* we already checked for the node existence *)
+            in
+            insert_node replacement ~shift_method:ShiftHorizontally
+              removed_node_doc
+      | None ->
+          Error
+            ("The target node with id : " ^ string_of_int target_id
+           ^ " doesn't exists"))
 
 let apply_transformation_step (step : transformation_step) (doc : t) :
     (t, string) result =
