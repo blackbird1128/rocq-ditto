@@ -87,11 +87,9 @@ let matches_with_line_col content pattern : (string * Lang.Range.t) list =
 let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
   let a_start, a_end = a in
   let b_start, b_end = b in
-  if
-    (a_start >= b_start && a_start <= b_end)
-    || (a_end >= b_start && a_end <= b_end)
-  then true
-  else false
+
+  (a_start >= b_start && a_start <= b_end)
+  || (a_end >= b_start && a_end <= b_end)
 
 let common_range (a : int * int) (b : int * int) : (int * int) option =
   if are_flat_ranges_colliding a b then
@@ -348,7 +346,12 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     | None -> 0
   in
 
-  let total_shift = node_offset_size - offset_space in
+  let new_lines_push =
+    String.fold_left
+      (fun acc c -> if c = '\n' then acc + 1 else acc)
+      0 new_node.repr
+  in
+  let total_shift = node_offset_size - offset_space + new_lines_push in
 
   match shift_method with
   | ShiftHorizontally ->
@@ -356,7 +359,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
         Error
           ("Error when trying to shift " ^ new_node.repr ^ " at : "
           ^ Lang.Range.to_string new_node.range
-          ^ ". Shifting horizontally is only possible with 1 line wide node")
+          ^ ". Shifting horizontally is only possible with 1 line height node")
       else
         let multi_lines_nodes_after_same_line =
           elements_starting_at_line new_node.range.start.line
@@ -426,19 +429,53 @@ let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
   | Error err -> Error err
   | Ok replacement -> (
       match element_with_id_opt target_id doc with
-      | Some node ->
-          if node.range.start <> replacement.range.start then
-            Error
-              "The replacing node should start at the same point than the \
-               replaced node"
-          else
-            let removed_node_doc =
-              Result.get_ok
-                (remove_node_with_id ~remove_method:LeaveBlank node.id doc)
-              (* we already checked for the node existence *)
-            in
-            insert_node replacement ~shift_method:ShiftHorizontally
+      | Some target -> (
+          let replacement_shifted =
+            {
+              replacement with
+              range = { replacement.range with start = target.range.start };
+            }
+          in
+
+          let target_height =
+            target.range.end_.line - target.range.start.line + 1
+          in
+
+          let replacement_height =
+            replacement_shifted.range.end_.line
+            - replacement_shifted.range.start.line + 1
+          in
+
+          let removed_node_doc =
+            Result.get_ok
+              (remove_node_with_id ~remove_method:LeaveBlank target.id doc)
+            (* we already checked for the node existence *)
+          in
+          if replacement_height = 1 then
+            insert_node replacement_shifted ~shift_method:ShiftHorizontally
               removed_node_doc
+          else
+            match
+              insert_node replacement_shifted ~shift_method:ShiftVertically
+                removed_node_doc
+            with
+            | Ok new_doc ->
+                if target_height - replacement_height < 0 then
+                  let diff = replacement_height - target_height in
+                  let nodes_before, nodes_after =
+                    List.partition
+                      (fun node -> compare_nodes node replacement_shifted > 0)
+                      new_doc.elements
+                  in
+                  Ok
+                    {
+                      new_doc with
+                      elements =
+                        nodes_before
+                        @ List.map (shift_node diff 0 0) nodes_after;
+                    }
+                else Ok new_doc
+            | Error err -> Error err)
       | None ->
           Error
             ("The target node with id : " ^ string_of_int target_id
