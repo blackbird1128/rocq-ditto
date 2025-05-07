@@ -262,18 +262,20 @@ let admit_proof (doc : Coq_document.t) (proof : proof) :
   let comment_node =
     Result.get_ok
       (Syntax_node.comment_syntax_node_of_string comment_content
-         (Range_transformation.range_from_starting_point_and_repr
-            first_proof_node.range.start comment_content))
+         first_proof_node.range.start)
   in
+
+  pp_syntax_node Format.std_formatter comment_node;
 
   let admitted_start =
     shift_point 1 (-comment_node.range.end_.character) 0 comment_node.range.end_
   in
 
   let admitted_node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Admitted." admitted_start)
+    Result.get_ok
+      (Syntax_node.syntax_node_of_string "Admitted." comment_node.range.end_)
   in
-  Ok (remove_all_steps @ [ Add comment_node; Add admitted_node ])
+  Ok (Add admitted_node :: remove_all_steps)
 
 let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
@@ -376,8 +378,7 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
           in
           let comment_node_res =
             Syntax_node.comment_syntax_node_of_string comment_content
-              (Range_transformation.range_from_starting_point_and_repr
-                 (shift_node 0 5 0 furthest_char_node).range.end_ comment_repr)
+              (shift_point 0 5 0 furthest_char_node.range.end_)
           in
           match comment_node_res with
           | Ok comment_node -> (new_state, Add comment_node :: acc)
