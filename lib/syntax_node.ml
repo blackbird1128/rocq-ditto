@@ -73,9 +73,12 @@ let validate_syntax_node (x : syntaxNode) : (syntaxNode, string) result =
   else Ok x
 
 (* TODO, is this even necessary ? *)
-let comment_syntax_node_of_string (content : string) (range : Lang.Range.t) :
-    (syntaxNode, string) result =
+let comment_syntax_node_of_string (content : string)
+    (start_point : Lang.Point.t) : (syntaxNode, string) result =
   let length_content_offset = repr_to_offset_size content in
+  let range =
+    Range_transformation.range_from_starting_point_and_repr start_point content
+  in
 
   if length_content_offset > range.end_.offset - range.start.offset then
     Error

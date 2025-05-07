@@ -17,10 +17,10 @@ val syntax_node_of_coq_ast : Coq.Ast.t -> Lang.Point.t -> syntaxNode
     AST element and a point to start the node. *)
 
 val comment_syntax_node_of_string :
-  string -> Lang.Range.t -> (syntaxNode, string) result
+  string -> Lang.Point.t -> (syntaxNode, string) result
 (** [comment_syntax_node_of_string content range] create a syntax node
-    representing a comment containing the string content at the specified range
-*)
+    representing a comment containing the string content starting at the
+    specified point *)
 
 val syntax_node_of_string :
   string -> Lang.Point.t -> (syntaxNode, string) result
