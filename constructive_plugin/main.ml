@@ -143,28 +143,39 @@ let get_assert_constr_expr (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       | _ -> None)
   | _ -> None
 
+let split_option_pair (pair_opt : ('a * 'b) option) : 'a option * 'b option =
+  match pair_opt with Some (a, b) -> (Some a, Some b) | None -> (None, None)
+
 let rec replace_func (old_fun_name : string)
     (new_func_name : Constrexpr.constr_expr) (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr * bool =
   match term.v with
-  | Constrexpr.CRef (qualid, instance_expr) -> (term, false)
-  | Constrexpr.CFix (_, _) -> (term, false)
-  | Constrexpr.CCoFix (_, _) -> (term, false)
+  | Constrexpr.CRef (qualid, instance_expr) -> (term, false) (*terminal*)
+  | Constrexpr.CFix (_, _) -> (term, false) (* TODO *)
+  | Constrexpr.CCoFix (_, _) -> (term, false) (* TODO *)
   | Constrexpr.CProdN (binders, expr) ->
       let new_expr, had_subst = replace_func old_fun_name new_func_name expr in
       (CAst.make (Constrexpr.CProdN (binders, new_expr)), had_subst)
   | Constrexpr.CLambdaN (binders, expr) ->
-      replace_func old_fun_name new_func_name expr
+      let new_expr, had_subst = replace_func old_fun_name new_func_name expr in
+      (CAst.make (Constrexpr.CLambdaN (binders, new_expr)), had_subst)
+      (* To finish *)
   | Constrexpr.CLetIn (name, expr, expr_opt, expr_bis) ->
+      let new_expr, had_subst_expr =
+        replace_func old_fun_name new_func_name expr
+      in
+      let new_opt_expr, had_subst_opt_expr =
+        split_option_pair
+          (Option.map (replace_func old_fun_name new_func_name) expr_opt)
+      in
+      let new_expr_bis, had_subst_expr_bis =
+        replace_func old_fun_name new_func_name expr_bis
+      in
       ( CAst.make
-          (Constrexpr.CLetIn
-             ( name,
-               fst (replace_func old_fun_name new_func_name expr),
-               Option.map fst
-                 (Option.map (replace_func old_fun_name new_func_name) expr_opt),
-               fst (replace_func old_fun_name new_func_name expr_bis) )),
-        false )
-  | Constrexpr.CAppExpl (_, _) -> (term, false)
+          (Constrexpr.CLetIn (name, new_expr, new_opt_expr, new_expr_bis)),
+        had_subst_expr || had_subst_expr_bis
+        || Option.default false had_subst_opt_expr )
+  | Constrexpr.CAppExpl (_, _) -> (term, false) (* TODO *)
   | Constrexpr.CApp (f, args) -> (
       match f.v with
       | Constrexpr.CRef (qualid, _) ->
@@ -183,7 +194,16 @@ let rec replace_func (old_fun_name : string)
   | Constrexpr.CPatVar _ -> (term, false)
   | Constrexpr.CEvar (existential_name, named_exprs) -> (term, false)
   | Constrexpr.CSort _ -> (term, false)
-  | Constrexpr.CCast (from, cast_kind, to_) -> (term, false)
+  | Constrexpr.CCast (from, cast_kind, to_) ->
+      let from_replace, had_subst_from =
+        replace_func old_fun_name new_func_name from
+      in
+      let to_replace, had_subst_to =
+        replace_func old_fun_name new_func_name to_
+      in
+
+      ( CAst.make (Constrexpr.CCast (from_replace, cast_kind, to_replace)),
+        had_subst_from || had_subst_to )
   | Constrexpr.CNotation
       (opt_scope, (notation_entry, notation_key), substitution) ->
       let expr_l1, expr_ll, kinded_cases_pattern_expr_l, local_binders_ll =
@@ -216,13 +236,13 @@ let replace_bet_by_betl (x : proof) : transformation_step option =
   let qualid = Libnames.qualid_of_string "BetL" in
   let g_long_func = CAst.make (Constrexpr.CRef (qualid, None)) in
   let new_expr, did_replace = replace_func "Bet" g_long_func expr in
-  if did_replace then (
+  if did_replace then
     let new_components = { components with expr = new_expr } in
     let new_node =
       Proof.syntax_node_from_theorem_components new_components x_start
     in
-    print_endline new_node.repr;
-    Some (Replace (x.proposition.id, new_node)))
+
+    Some (Replace (x.proposition.id, new_node))
   else None
 
 let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
@@ -233,9 +253,7 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
 
   let proofs = Result.get_ok (Coq_document.get_proofs parsed_document) in
 
-  let proof_sexps =
-    List.filter_map Theorem_query.get_proof_proposition_sexp proofs
-  in
+  List.iter (fun proof -> print_endline proof.proposition.repr) proofs;
 
   let exists_query =
     Q_anywhere
@@ -247,28 +265,51 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
          ])
   in
 
-  (* List.iter *)
-  (*   (fun x -> *)
-  (*     if Theorem_query.matches exists_query x then *)
-  (*       print_endline (Sexplib.Sexp.to_string_hum (remove_loc x))) *)
-  (*   proof_sexps; *)
+  (* let replace_bet_by_betl_steps = *)
+  (*   List.filter_map (fun proof -> replace_bet_by_betl proof) proofs *)
+  (* in *)
 
-  (* let new_doc = List.fold_left (fun doc_acc proof -> *)
-  (*                   match replace_bet_by_betl proof with *)
-  (*                     Some step -> *)
-  (*                      Coq_document.apply_transformation_step step doc_acc in  *)
-  (*                    | None ->  doc_acc *)
-  (*                 ) parsed_document proofs in  *)
-  let replace_bet_by_betl_steps =
-    List.filter_map (fun proof -> replace_bet_by_betl proof) proofs
+  (* let new_doc = *)
+  (*   Result.get_ok *)
+  (*     (Coq_document.apply_transformations_steps replace_bet_by_betl_steps *)
+  (*        parsed_document) *)
+  (* in *)
+  print_endline "there";
+
+  (* let _ = *)
+  (*   match Coq_document.get_proofs new_doc with *)
+  (*   | Ok proofs -> print_endline "Yeah proofs !" *)
+  (*   | Error err -> print_endline err *)
+  (* in *)
+
+  (* let proofs = Result.get_ok (Coq_document.get_proofs new_doc) in *)
+  (* replacement can be made into any order *)
+  let proof_sexps_pairs =
+    List.filter_map
+      (fun proof ->
+        match Theorem_query.get_proof_proposition_sexp proof with
+        | Some sexp -> Some (proof, sexp)
+        | None -> None)
+      proofs
   in
 
-  let new_doc =
-    Coq_document.apply_transformations_steps replace_bet_by_betl_steps
-      parsed_document
+  let admit_exists_doc =
+    List.fold_left
+      (fun doc_acc (proof, proof_sexps) ->
+        match doc_acc with
+        | Ok doc_acc ->
+            if Theorem_query.matches exists_query proof_sexps then
+              let steps =
+                Result.get_ok (Transformations.admit_proof doc_acc proof)
+              in
+              Coq_document.apply_transformations_steps steps doc_acc
+            else Ok doc_acc
+        | Error err -> Error err)
+      (Ok parsed_document) proof_sexps_pairs
   in
 
-  match new_doc with
+  (* let admit_exists_steps =  *)
+  match admit_exists_doc with
   | Ok res ->
       let filename = Filename.remove_extension uri_str ^ "_bis.v" in
       print_endline ("All transformations applied, writing to file" ^ filename);
