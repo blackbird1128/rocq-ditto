@@ -265,17 +265,19 @@ let admit_proof (doc : Coq_document.t) (proof : proof) :
          first_proof_node.range.start)
   in
 
-  pp_syntax_node Format.std_formatter comment_node;
-
   let admitted_start =
     shift_point 1 (-comment_node.range.end_.character) 0 comment_node.range.end_
   in
 
   let admitted_node =
-    Result.get_ok
-      (Syntax_node.syntax_node_of_string "Admitted." comment_node.range.end_)
+    Result.get_ok (Syntax_node.syntax_node_of_string "Admitted." admitted_start)
   in
-  Ok (Add admitted_node :: remove_all_steps)
+  Ok
+    (remove_all_steps
+    @ [
+        Attach (comment_node, LineAfter, proof.proposition.id);
+        Attach (admitted_node, LineAfter, comment_node.id);
+      ])
 
 let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
