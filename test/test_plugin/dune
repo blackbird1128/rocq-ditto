@@ -1,5 +1,5 @@
 (library
  (public_name ditto-test-plugin)
  (name ditto_test_plugin)
- (libraries coq-ditto coq-core.plugins.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche alcotest)
+ (libraries coq-ditto coq-core.plugins.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche alcotest uuidm )
  )

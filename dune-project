@@ -19,7 +19,7 @@
  (name coq-ditto)
  (synopsis "Coq ditto lib")
  (description "libraries used by the plugins")
- (depends ocaml dune coq-lsp base-unix re alcotest)
+ (depends ocaml dune coq-lsp base-unix re alcotest uuidm)
  (tags
   (topics "to describe" your project)))
 
@@ -47,7 +47,7 @@
  (name ditto-test-plugin)
  (synopsis "Run the tests")
  (allow_empty)
- (depends ocaml dune coq-lsp base-unix re coq-ditto))
+ (depends ocaml dune coq-lsp base-unix re coq-ditto uuidm))
 
 (package
  (name json-dump-plugin)

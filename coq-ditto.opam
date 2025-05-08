@@ -16,6 +16,7 @@ depends: [
   "base-unix"
   "re"
   "alcotest"
+  "uuidm"
   "odoc" {with-doc}
 ]
 build: [
