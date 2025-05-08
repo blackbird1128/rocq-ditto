@@ -5,7 +5,7 @@ type syntaxNode = {
   ast : Doc.Node.Ast.t option;
   range : Lang.Range.t;
   repr : string;
-  id : int;
+  id : Uuidm.t;
   proof_id : int option;
   diagnostics : Lang.Diagnostic.t list;
 }

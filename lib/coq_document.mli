@@ -16,20 +16,22 @@ type shiftMethod = ShiftVertically | ShiftHorizontally
 val pp_coq_document : Format.formatter -> t -> unit
 val parse_document : Doc.t -> t
 
-val element_with_id_opt : int -> t -> syntaxNode option
+val element_with_id_opt : Uuidm.t -> t -> syntaxNode option
 (** Find an element with a specific ID in a document.
     [element_with_id_opt element_id doc] returns [Some element] if an element
     with the given [element_id] exists in the document [doc], otherwise it
     returns [None]. *)
 
+val proof_with_id_opt : Uuidm.t -> t -> proof option
+
 val colliding_nodes : syntaxNode -> t -> syntaxNode list
 (** return the nodes colliding with target node *)
 
 val compare_nodes : syntaxNode -> syntaxNode -> int
-val split_at_id : int -> t -> syntaxNode list * syntaxNode list
+val split_at_id : Uuidm.t -> t -> syntaxNode list * syntaxNode list
 
 val remove_node_with_id :
-  int -> ?remove_method:removeMethod -> t -> (t, string) result
+  Uuidm.t -> ?remove_method:removeMethod -> t -> (t, string) result
 (** Remove a node with a specific ID from the document.
     [remove_node_with_id target_id doc] removes the element with the given
     [target_id] from the document [doc]. If the element is found, it returns a
@@ -54,7 +56,7 @@ val insert_node :
     - [Start]: inserts [new_node] at the start of the document.
     - [End]: appends [new_node] to the end of the document. *)
 
-val replace_node : int -> syntaxNode -> t -> (t, string) result
+val replace_node : Uuidm.t -> syntaxNode -> t -> (t, string) result
 
 val get_proofs : t -> (proof list, string) result
 (** Extract proofs from a document. [get_proofs doc] takes a document [doc] of

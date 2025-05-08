@@ -11,38 +11,51 @@ let pp_proof_status (fmt : Format.formatter) (status : proof_status) : unit =
   | Proved -> Format.fprintf fmt "Proved"
   | Aborted -> Format.fprintf fmt "Aborted"
 
+type attach_position = LineAfter | LineBefore
+
 type transformation_step =
-  | Remove of int
-  | Replace of int * syntaxNode
+  | Remove of Uuidm.t
+  | Replace of Uuidm.t * syntaxNode
   | Add of syntaxNode
+  | Attach of syntaxNode * attach_position * Uuidm.t
 
 let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
     : unit =
   match step with
-  | Remove id -> Format.fprintf fmt "Removing node with id : %d." id
+  | Remove id ->
+      Format.fprintf fmt "Removing node with id : %s." (Uuidm.to_string id)
   | Replace (id, new_node) ->
       if new_node.range.start.line != new_node.range.end_.line then
-        Format.fprintf fmt "Replacing node with id: %d by node: %s at %s" id
-          new_node.repr
+        Format.fprintf fmt "Replacing node with id: %s by node: %s at %s"
+          (Uuidm.to_string id) new_node.repr
           (Lang.Range.to_string new_node.range)
   | Add new_node ->
       Format.fprintf fmt "Adding new node: %s at %s" new_node.repr
         (Lang.Range.to_string new_node.range)
+  | Attach (attached_node, attach_position, anchor_id) ->
+      Format.fprintf fmt "Attaching node %s to node with id: %s "
+        attached_node.repr
+        (Uuidm.to_string anchor_id)
 
 let print_transformation_step (step : transformation_step) : unit =
   match step with
   | Remove id ->
-      print_endline ("Removing node with id : " ^ string_of_int id ^ ".")
+      print_endline ("Removing node with id : " ^ Uuidm.to_string id ^ ".")
   | Replace (id, new_node) ->
       if new_node.range.start.line != new_node.range.end_.line then
         print_endline
-          ("Replacing node with id: " ^ string_of_int id ^ " by node: "
+          ("Replacing node with id: " ^ Uuidm.to_string id ^ " by node: "
          ^ new_node.repr ^ " at "
           ^ Lang.Range.to_string new_node.range)
   | Add new_node ->
       print_endline
         ("Adding new node: " ^ new_node.repr ^ " at "
         ^ Lang.Range.to_string new_node.range)
+  | Attach (attached_node, attach_position, anchor_id) ->
+      print_endline
+        ("Attaching node " ^ attached_node.repr ^ " to node with id: "
+       ^ Uuidm.to_string anchor_id)
+(* TODO add precisions *)
 
 type proof = {
   proposition : syntaxNode;
@@ -182,8 +195,10 @@ let rec print_tree (tree : syntaxNode nary_tree) (indent : string) : unit =
 let proof_nodes (p : proof) : syntaxNode list = p.proposition :: p.proof_steps
 
 let proof_from_nodes (nodes : syntaxNode list) : (proof, string) result =
-  if List.length nodes < 3 then
-    Error "Not enough elements to create a proof from the nodes ."
+  if List.length nodes < 2 then
+    Error
+      ("Not enough elements to create a proof from the nodes.\nnodes: "
+      ^ String.concat "" (List.map (fun node -> node.repr) nodes))
   else
     let last_node_status =
       List.hd (List.rev nodes) |> proof_status_from_last_node

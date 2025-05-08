@@ -44,9 +44,12 @@ let get_proofs (doc : t) : (proof list, string) result =
           | ProofOpened -> aux tail (x :: cur_proof_acc) proofs_acc ProofOpened)
   in
   let res = aux doc.elements [] [] NoProof in
-  if List.exists Result.is_error res then
-    Error "One ore more proofs was badly parsed"
-  else Ok (List.rev (List.map Result.get_ok res))
+  let err_opt =
+    List.find_opt (fun proof_res -> Result.is_error proof_res) res
+  in
+  match err_opt with
+  | Some error -> Error (Result.get_error error)
+  | None -> Ok (List.rev (List.map Result.get_ok res))
 
 let node_representation (node : Doc.Node.t) (document : string) : string =
   String.sub document node.range.start.offset
@@ -165,7 +168,7 @@ let parse_document (doc : Doc.t) : t =
           ast = node.ast;
           range = node.range;
           repr = node_representation node document_repr;
-          id = -1;
+          id = Unique_id.uuid ();
           proof_id = None;
           diagnostics = node.diags;
         })
@@ -179,7 +182,7 @@ let parse_document (doc : Doc.t) : t =
           ast = None;
           range = snd comment;
           repr = fst comment;
-          id = -1;
+          id = Unique_id.uuid ();
           proof_id = None;
           diagnostics = [];
         })
@@ -190,15 +193,10 @@ let parse_document (doc : Doc.t) : t =
     merge_nodes (List.sort compare_nodes (ast_nodes @ comments_nodes))
   in
   let doc_counter = Unique_id.create () in
-  let numbered_all_nodes =
-    List.map
-      (fun node -> { node with id = Unique_id.next doc_counter })
-      all_nodes
-  in
 
   {
     id_counter = doc_counter;
-    elements = numbered_all_nodes;
+    elements = all_nodes;
     document_repr;
     filename;
     initial_state = doc.root;
@@ -210,6 +208,7 @@ let rec dump_to_string (doc : t) : string =
     match repr_nodes with
     | [] -> doc_repr
     | node :: tail ->
+        let line_diff = node.range.start.line - previous_node.range.end_.line in
         let repr =
           if previous_node.range = node.range then
             (* treating the first node as a special case to deal with eventual empty lines before *)
@@ -218,19 +217,29 @@ let rec dump_to_string (doc : t) : string =
             ^ String.make node.range.start.character ' '
             ^ node.repr
           else if node.range.start.line = previous_node.range.end_.line then
-            doc_repr
-            ^ String.make
-                (node.range.start.line - previous_node.range.end_.line)
-                '\n'
-            ^ String.make
-                (node.range.start.character - previous_node.range.end_.character)
-                ' '
-            ^ node.repr
+            let char_diff =
+              node.range.start.character - previous_node.range.end_.character
+            in
+            if char_diff <= 0 then (
+              print_endline
+                "Error: node start - previous en char negative or zero ";
+              print_endline
+                ("previous node range: "
+                ^ Lang.Range.to_string previous_node.range);
+              print_endline
+                ("current node range: " ^ Lang.Range.to_string node.range);
+              "ERR")
+            else doc_repr ^ String.make char_diff ' ' ^ node.repr
+          else if line_diff <= 0 then (
+            print_endline "line diff negative";
+            print_endline
+              ("previous node range: "
+              ^ Lang.Range.to_string previous_node.range);
+            print_endline
+              ("current node range: " ^ Lang.Range.to_string node.range);
+            "ERR")
           else
-            doc_repr
-            ^ String.make
-                (node.range.start.line - previous_node.range.end_.line)
-                '\n'
+            doc_repr ^ String.make line_diff '\n'
             ^ String.make node.range.start.character ' '
             ^ node.repr
         in
@@ -238,9 +247,12 @@ let rec dump_to_string (doc : t) : string =
   in
 
   let sorted_elements = List.sort compare_nodes doc.elements in
+  List.iter
+    (fun x -> print_endline (Lang.Range.to_string x.range))
+    sorted_elements;
   aux sorted_elements "" (List.hd sorted_elements)
 
-let element_before_id_opt (target_id : int) (doc : t) : syntaxNode option =
+let element_before_id_opt (target_id : Uuidm.t) (doc : t) : syntaxNode option =
   match List.find_index (fun elem -> elem.id = target_id) doc.elements with
   | Some elem_id ->
       if elem_id - 1 < 0 then None
@@ -250,18 +262,20 @@ let element_before_id_opt (target_id : int) (doc : t) : syntaxNode option =
           doc.elements
   | None -> None
 
-let element_with_id_opt (element_id : int) (doc : t) : syntaxNode option =
+let element_with_id_opt (element_id : Uuidm.t) (doc : t) : syntaxNode option =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
 
-let proof_with_id_opt (proof_id : int) (doc : t) : proof option =
+let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) : proof option =
   let proofs_res = get_proofs doc in
   match proofs_res with
   | Ok proofs ->
       List.find_opt (fun elem -> elem.proposition.id = proof_id) proofs
-  | Error err -> None
+  | Error err ->
+      print_endline "No proof found !";
+      None
 
-let split_at_id (target_id : int) (doc : t) : syntaxNode list * syntaxNode list
-    =
+let split_at_id (target_id : Uuidm.t) (doc : t) :
+    syntaxNode list * syntaxNode list =
   let rec aux (elements : syntaxNode list) (acc : syntaxNode list) =
     match elements with
     | [] -> (acc, [])
@@ -274,12 +288,12 @@ let elements_starting_at_line (line_number : int) (nodes : syntaxNode list) :
     syntaxNode list =
   List.filter (fun elem -> elem.range.start.line = line_number) nodes
 
-let remove_node_with_id (target_id : int) ?(remove_method = ShiftNode) (doc : t)
-    : (t, string) result =
+let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
+    (doc : t) : (t, string) result =
   match element_with_id_opt target_id doc with
   | None ->
       Error
-        ("The element with id: " ^ string_of_int target_id
+        ("The element with id: " ^ Uuidm.to_string target_id
        ^ " wasn't found in the document")
   | Some elem -> (
       let before, after = split_at_id target_id doc in
@@ -335,14 +349,13 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     Option.map (fun x -> x.range) (List.nth_opt element_after_new_node_start 0)
   in
 
-  let node_with_id = { new_node with id = Unique_id.next doc.id_counter } in
   let node_offset_size =
-    node_with_id.range.end_.offset - node_with_id.range.start.offset
+    new_node.range.end_.offset - new_node.range.start.offset
   in
   let offset_space =
     match element_after_range_opt with
     | Some element_after_range ->
-        element_after_range.start.offset - node_with_id.range.start.offset - 1
+        element_after_range.start.offset - new_node.range.start.offset - 1
     | None -> 0
   in
 
@@ -380,19 +393,18 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
               doc with
               elements =
                 element_before_new_node_start
-                @ node_with_id
+                @ new_node
                   :: List.map
                        (fun node ->
-                         if
-                           node.range.start.line = node_with_id.range.start.line
+                         if node.range.start.line = new_node.range.start.line
                          then shift_node 0 total_shift 0 node
                          else shift_node 0 0 total_shift node)
                        element_after_new_node_start;
             }
   | ShiftVertically ->
       let line_shift =
-        if List.length (colliding_nodes node_with_id doc) = 0 then 0
-        else node_with_id.range.end_.line - node_with_id.range.start.line + 1
+        if List.length (colliding_nodes new_node doc) = 0 then 0
+        else new_node.range.end_.line - new_node.range.start.line + 1
       in
 
       (*there can be less offset but still space *)
@@ -401,7 +413,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
           doc with
           elements =
             element_before_new_node_start
-            @ node_with_id
+            @ new_node
               :: List.map
                    (fun node -> shift_node line_shift 0 total_shift node)
                    element_after_new_node_start;
@@ -423,7 +435,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     
    *)
 
-let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
+let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
     (t, string) result =
   match validate_syntax_node replacement with
   | Error err -> Error err
@@ -433,7 +445,9 @@ let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
           let replacement_shifted =
             {
               replacement with
-              range = { replacement.range with start = target.range.start };
+              range =
+                Range_transformation.range_from_starting_point_and_repr
+                  target.range.start replacement.repr;
             }
           in
 
@@ -448,7 +462,7 @@ let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
 
           let removed_node_doc =
             Result.get_ok
-              (remove_node_with_id ~remove_method:LeaveBlank target.id doc)
+              (remove_node_with_id ~remove_method:ShiftNode target.id doc)
             (* we already checked for the node existence *)
           in
           if replacement_height = 1 then
@@ -462,23 +476,18 @@ let replace_node (target_id : int) (replacement : syntaxNode) (doc : t) :
             | Ok new_doc ->
                 if target_height - replacement_height < 0 then
                   let diff = replacement_height - target_height in
+
                   let nodes_before, nodes_after =
                     List.partition
-                      (fun node -> compare_nodes node replacement_shifted > 0)
+                      (fun node -> compare_nodes node replacement_shifted < 0)
                       new_doc.elements
                   in
-                  Ok
-                    {
-                      new_doc with
-                      elements =
-                        nodes_before
-                        @ List.map (shift_node diff 0 0) nodes_after;
-                    }
+                  Ok new_doc
                 else Ok new_doc
             | Error err -> Error err)
       | None ->
           Error
-            ("The target node with id : " ^ string_of_int target_id
+            ("The target node with id : " ^ Uuidm.to_string target_id
            ^ " doesn't exists"))
 
 let apply_transformation_step (step : transformation_step) (doc : t) :
@@ -487,13 +496,75 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
   | Remove id -> remove_node_with_id id doc
   | Replace (id, new_node) -> replace_node id new_node doc
   | Add new_node -> insert_node new_node doc
+  | Attach (attached_node, attach_position, anchor_id) -> (
+      match element_with_id_opt anchor_id doc with
+      | Some target ->
+          print_endline ("target repr : " ^ target.repr);
+          print_endline ("target range: " ^ Lang.Range.to_string target.range);
+          let line_target = target.range.end_.line in
+          let attached_node_start_point =
+            match attach_position with
+            | LineBefore -> shift_point (-1) 0 0 target.range.start
+            | LineAfter -> shift_point 1 0 0 target.range.end_
+          in
+
+          let new_node_range =
+            Range_transformation.range_from_starting_point_and_repr
+              attached_node_start_point attached_node.repr
+          in
+          print_endline ("N node range: " ^ Lang.Range.to_string new_node_range);
+          let new_node_range : Lang.Range.t =
+            {
+              start =
+                shift_point 0
+                  (-new_node_range.start.character)
+                  0 new_node_range.start;
+              end_ =
+                shift_point 0 0
+                  (-new_node_range.start.character)
+                  new_node_range.end_;
+            }
+          in
+          print_endline "there and back again";
+          print_endline ("attached node repr: " ^ attached_node.repr);
+          print_endline
+            ("new node range: " ^ Lang.Range.to_string new_node_range);
+
+          let new_node =
+            match attached_node.ast with
+            | Some _ ->
+                let node =
+                  Result.get_ok
+                    (Syntax_node.syntax_node_of_string attached_node.repr
+                       new_node_range.start)
+                in
+                { node with id = attached_node.id }
+            | None ->
+                let node =
+                  Result.get_ok
+                    (Syntax_node.comment_syntax_node_of_string
+                       attached_node.repr new_node_range.start)
+                in
+                { node with id = attached_node.id }
+          in
+
+          print_endline "new node created";
+
+          insert_node new_node doc
+      | None ->
+          Error
+            ("Can't find the node with id: " ^ Uuidm.to_string anchor_id
+           ^ " to attach to"))
 
 let transformation_step_to_string (step : transformation_step) : string =
   match step with
-  | Remove id -> "Removing " ^ string_of_int id
+  | Remove id -> "Removing " ^ Uuidm.to_string id
   | Replace (id, new_node) ->
-      "Replacing " ^ string_of_int id ^ " with " ^ new_node.repr
+      "Replacing " ^ Uuidm.to_string id ^ " with " ^ new_node.repr
   | Add node -> "Adding " ^ node.repr
+  | Attach (attached_node, attach_position, anchor_id) ->
+      "Attaching node " ^ attached_node.repr ^ " to node with id: "
+      ^ Uuidm.to_string anchor_id
 
 let apply_transformations_steps (steps : transformation_step list) (doc : t) :
     (t, string) result =

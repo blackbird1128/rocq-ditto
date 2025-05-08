@@ -6,3 +6,5 @@ val create : unit -> counter
 
 val next : counter -> int
 (** Returns the next integer in the counter sequence for a given counter *)
+
+val uuid : unit -> Uuidm.t

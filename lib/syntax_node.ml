@@ -5,7 +5,7 @@ type syntaxNode = {
   ast : Doc.Node.Ast.t option;
   range : Lang.Range.t;
   repr : string;
-  id : int;
+  id : Uuidm.t;
   proof_id : int option;
       (* the id of the proof associated with the node if there is one *)
   diagnostics : Lang.Diagnostic.t list;
@@ -25,7 +25,7 @@ let pp_syntax_node (fmt : Format.formatter) (node : syntaxNode) : unit =
     node.ast;
   Format.fprintf fmt "range: %a@ " Lang.Range.pp node.range;
   Format.fprintf fmt "repr: %s@ " node.repr;
-  Format.fprintf fmt "id: %d@ " node.id;
+  Format.fprintf fmt "id: %s" (Uuidm.to_string node.id);
   Format.fprintf fmt "proof id: %a@ "
     (fun fmt id -> Format.pp_print_option Format.pp_print_int fmt id)
     node.proof_id;
@@ -97,7 +97,7 @@ let comment_syntax_node_of_string (content : string)
         ast = None;
         repr = content;
         range;
-        id = 0;
+        id = Unique_id.uuid ();
         proof_id = None;
         diagnostics = [];
       }
@@ -132,7 +132,7 @@ let syntax_node_of_string (code : string) (start_point : Lang.Point.t) :
           {
             ast = Some node_ast;
             range;
-            id = 0;
+            id = Unique_id.uuid ();
             (*id is set during insertion in a document*)
             repr = code;
             proof_id = None;
@@ -165,7 +165,7 @@ let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
                {
                  ast = Some node_ast;
                  range;
-                 id = 0;
+                 id = Unique_id.uuid ();
                  (* id is set during document insertion *)
                  repr = code;
                  proof_id = None;
@@ -183,7 +183,7 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Lang.Point.t) :
   {
     ast = Some node_ast;
     range;
-    id = -1;
+    id = Unique_id.uuid ();
     (* id is set during document insertion *)
     repr;
     proof_id = None;

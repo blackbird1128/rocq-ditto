@@ -7,7 +7,7 @@ let create_dummy_node (range : Lang.Range.t) : syntaxNode =
   {
     ast = None;
     range;
-    id = 0;
+    id = Unique_id.uuid ();
     repr = "dummy";
     proof_id = None;
     diagnostics = [];

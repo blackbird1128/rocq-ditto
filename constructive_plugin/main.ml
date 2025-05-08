@@ -253,8 +253,6 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
 
   let proofs = Result.get_ok (Coq_document.get_proofs parsed_document) in
 
-  List.iter (fun proof -> print_endline proof.proposition.repr) proofs;
-
   let exists_query =
     Q_anywhere
       (Q_list_prefix
@@ -264,25 +262,17 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
            Q_list_exact [ Q_atom "InConstrEntry"; Q_atom "exists _ .. _ , _" ];
          ])
   in
+  let replace_bet_by_betl_steps =
+    List.filter_map (fun proof -> replace_bet_by_betl proof) proofs
+  in
 
-  (* let replace_bet_by_betl_steps = *)
-  (*   List.filter_map (fun proof -> replace_bet_by_betl proof) proofs *)
-  (* in *)
+  let new_doc =
+    Result.get_ok
+      (Coq_document.apply_transformations_steps replace_bet_by_betl_steps
+         parsed_document)
+  in
 
-  (* let new_doc = *)
-  (*   Result.get_ok *)
-  (*     (Coq_document.apply_transformations_steps replace_bet_by_betl_steps *)
-  (*        parsed_document) *)
-  (* in *)
-  print_endline "there";
-
-  (* let _ = *)
-  (*   match Coq_document.get_proofs new_doc with *)
-  (*   | Ok proofs -> print_endline "Yeah proofs !" *)
-  (*   | Error err -> print_endline err *)
-  (* in *)
-
-  (* let proofs = Result.get_ok (Coq_document.get_proofs new_doc) in *)
+  let proofs = Result.get_ok (Coq_document.get_proofs new_doc) in
   (* replacement can be made into any order *)
   let proof_sexps_pairs =
     List.filter_map
@@ -293,6 +283,7 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
       proofs
   in
 
+  print_endline "THERE";
   let admit_exists_doc =
     List.fold_left
       (fun doc_acc (proof, proof_sexps) ->
@@ -305,7 +296,7 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
               Coq_document.apply_transformations_steps steps doc_acc
             else Ok doc_acc
         | Error err -> Error err)
-      (Ok parsed_document) proof_sexps_pairs
+      (Ok new_doc) proof_sexps_pairs
   in
 
   (* let admit_exists_steps =  *)
@@ -313,9 +304,9 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
   | Ok res ->
       let filename = Filename.remove_extension uri_str ^ "_bis.v" in
       print_endline ("All transformations applied, writing to file" ^ filename);
-      List.iter
-        (fun x -> print_endline (Lang.Range.to_string x.range))
-        res.elements;
+      (* List.iter *)
+      (*   (fun x -> print_endline (Lang.Range.to_string x.range)) *)
+      (*   res.elements; *)
       let out = open_out filename in
       output_string out (Coq_document.dump_to_string res)
   | Error err ->

@@ -6,10 +6,13 @@ type proof_status = Admitted | Proved | Aborted
 
 val pp_proof_status : Format.formatter -> proof_status -> unit
 
+type attach_position = LineAfter | LineBefore
+
 type transformation_step =
-  | Remove of int
-  | Replace of int * syntaxNode
+  | Remove of Uuidm.t
+  | Replace of Uuidm.t * syntaxNode
   | Add of syntaxNode
+  | Attach of syntaxNode * attach_position * Uuidm.t
 
 val pp_transformation_step : Format.formatter -> transformation_step -> unit
 val print_transformation_step : transformation_step -> unit

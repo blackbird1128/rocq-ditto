@@ -34,12 +34,12 @@ let int_tree = testable_nary_tree pp_int ( = )
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
 let range_testable = Alcotest.testable Lang.Range.pp ( = )
 
-let make_dummy_node id start_line start_char start_offset end_line end_char
+let make_dummy_node start_line start_char start_offset end_line end_char
     end_offset : syntaxNode =
   {
     ast = None;
     repr = "dummy";
-    id;
+    Unique_id.uuid ();
     proof_id = None;
     diagnostics = [];
     range =
@@ -53,17 +53,6 @@ let make_dummy_node id start_line start_char start_offset end_line end_char
 let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
     (doc : Doc.t) =
   Alcotest.test_case test_text `Quick (f doc)
-
-let test_parsing_logical_id_assignement (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
-  let _ =
-    List.fold_left
-      (fun id_acc node ->
-        Alcotest.(check int) "Id doesn't match the " id_acc node.id;
-        id_acc + 1)
-      0 doc.elements
-  in
-  ()
 
 let test_parsing_ex1 (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
@@ -251,18 +240,16 @@ let test_parsing_instance (doc : Doc.t) () : unit =
 
 let test_searching_node (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  List.iter
-    (fun elem -> Format.printf "id:%d repr:%s @ " elem.id elem.repr)
-    doc.elements;
-  let node_compute = Coq_document.element_with_id_opt 0 doc in
+  let first_node_id = (List.hd doc.elements).id in
+  let node_compute = Coq_document.element_with_id_opt first_node_id doc in
   let node_compute_id = Option.map (fun node -> node.id) node_compute in
   Alcotest.(check (option int))
     "Item with the wrong id was retrieved" (Some 0) node_compute_id;
   Alcotest.(check (option string))
     "The wrong repr was retrieved" (Some "Compute 1.")
     (Option.map (fun node -> node.repr) node_compute);
-  let absurd_node = Coq_document.element_with_id_opt (-1) doc in
-  Alcotest.(check (option int))
+  let absurd_node = Coq_document.element_with_id_opt (Unique_id.uuid ()) doc in
+  Alcotest.(check (option Uuidm.t))
     "No element should be retrieved" None
     (Option.map (fun x -> x.id) absurd_node)
 
@@ -301,9 +288,12 @@ let test_removing_multiple_line_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
 
+  let second_node = List.nth doc.elements 1 in
   let parsed_target = get_target uri_str in
 
-  let new_doc = Result.get_ok (Coq_document.remove_node_with_id 1 doc) in
+  let new_doc =
+    Result.get_ok (Coq_document.remove_node_with_id second_node.id doc)
+  in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (list (pair string range_testable)))
@@ -313,7 +303,11 @@ let test_removing_node_same_line_as_other (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
-  let new_doc = Result.get_ok (Coq_document.remove_node_with_id 1 doc) in
+
+  let second_node = List.nth doc.elements 1 in
+  let new_doc =
+    Result.get_ok (Coq_document.remove_node_with_id second_node.id doc)
+  in
   let new_doc_res = document_to_range_representation_pairs new_doc in
   Alcotest.(check (list (pair string range_testable)))
     "The two lists should be the same" parsed_target new_doc_res
@@ -629,15 +623,6 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if simply ordered nodes are sorted correctly"
        test_sorting_nodes doc);
-  Hashtbl.add table "ex_id_assign1.v"
-    (create_fixed_test "check if id are assigned logically 1"
-       test_parsing_logical_id_assignement doc);
-  Hashtbl.add table "ex_id_assign2.v"
-    (create_fixed_test "check if id are assigned logically 2"
-       test_parsing_logical_id_assignement doc);
-  Hashtbl.add table "ex_id_assign3.v"
-    (create_fixed_test "check if id are assigned logically 3"
-       test_parsing_logical_id_assignement doc);
 
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
