@@ -323,6 +323,12 @@ let treeify_proof (doc : Coq_document.t) (p : proof) :
              [ proof_tree_from_parents (0, List.hd p.proof_steps) parents ] ))
   | Error err -> Error "Unable to retrieve initial state"
 
+let is_valid_proof (doc : Coq_document.t) (p : proof) : bool =
+  let token = Coq.Limits.Token.create () in
+  match get_init_state doc p.proposition token with
+  | Ok init_state -> can_reduce_to_zero_goals init_state p.proof_steps
+  | Error err -> false
+
 let rec proof_tree_to_node_list (Node (value, children)) : syntaxNode list =
   value :: List.concat (List.map proof_tree_to_node_list children)
 

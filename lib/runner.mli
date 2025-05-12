@@ -69,6 +69,7 @@ val get_current_goal :
   (string Coq.Goals.Reified_goal.t, string) result
 
 val can_reduce_to_zero_goals : Coq.State.t -> syntaxNode list -> bool
+val is_valid_proof : Coq_document.t -> proof -> bool
 val tree_to_proof : syntaxNode nary_tree -> proof
 
 val proof_tree_from_parents :
