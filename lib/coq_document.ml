@@ -161,6 +161,7 @@ let parse_document (doc : Doc.t) : t =
   let nodes_with_ast =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
+
   let ast_nodes =
     List.map
       (fun (node : Doc.Node.t) ->
@@ -174,6 +175,7 @@ let parse_document (doc : Doc.t) : t =
         })
       nodes_with_ast
   in
+
   let comments = matches_with_line_col document_repr "\\(\\*.*\\*\\)$" in
   let comments_nodes =
     List.map
@@ -403,8 +405,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
             }
   | ShiftVertically ->
       let line_shift =
-        if List.length (colliding_nodes new_node doc) = 0 then 0
-        else new_node.range.end_.line - new_node.range.start.line + 1
+        new_node.range.end_.line - new_node.range.start.line + 1
       in
 
       (*there can be less offset but still space *)
@@ -499,9 +500,6 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
   | Attach (attached_node, attach_position, anchor_id) -> (
       match element_with_id_opt anchor_id doc with
       | Some target ->
-          print_endline ("target repr : " ^ target.repr);
-          print_endline ("target range: " ^ Lang.Range.to_string target.range);
-          let line_target = target.range.end_.line in
           let attached_node_start_point =
             match attach_position with
             | LineBefore -> shift_point (-1) 0 0 target.range.start
@@ -512,7 +510,7 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
             Range_transformation.range_from_starting_point_and_repr
               attached_node_start_point attached_node.repr
           in
-          print_endline ("N node range: " ^ Lang.Range.to_string new_node_range);
+
           let new_node_range : Lang.Range.t =
             {
               start =
@@ -525,10 +523,9 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
                   new_node_range.end_;
             }
           in
-          print_endline "there and back again";
-          print_endline ("attached node repr: " ^ attached_node.repr);
+
           print_endline
-            ("new node range: " ^ Lang.Range.to_string new_node_range);
+            ("new node range : " ^ Lang.Range.to_string new_node_range);
 
           let new_node =
             match attached_node.ast with
@@ -547,8 +544,6 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
                 in
                 { node with id = attached_node.id }
           in
-
-          print_endline "new node created";
 
           insert_node new_node doc
       | None ->
