@@ -33,13 +33,14 @@ let pp_int fmt x = Format.fprintf fmt "%d" x
 let int_tree = testable_nary_tree pp_int ( = )
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
 let range_testable = Alcotest.testable Lang.Range.pp ( = )
+let uuidm_testable = Alcotest.testable Uuidm.pp ( = )
 
 let make_dummy_node start_line start_char start_offset end_line end_char
     end_offset : syntaxNode =
   {
     ast = None;
     repr = "dummy";
-    Unique_id.uuid ();
+    id = Unique_id.uuid ();
     proof_id = None;
     diagnostics = [];
     range =
@@ -243,23 +244,23 @@ let test_searching_node (doc : Doc.t) () : unit =
   let first_node_id = (List.hd doc.elements).id in
   let node_compute = Coq_document.element_with_id_opt first_node_id doc in
   let node_compute_id = Option.map (fun node -> node.id) node_compute in
-  Alcotest.(check (option int))
-    "Item with the wrong id was retrieved" (Some 0) node_compute_id;
+  Alcotest.(check (option uuidm_testable))
+    "Item with the wrong id was retrieved" (Some first_node_id) node_compute_id;
   Alcotest.(check (option string))
     "The wrong repr was retrieved" (Some "Compute 1.")
     (Option.map (fun node -> node.repr) node_compute);
   let absurd_node = Coq_document.element_with_id_opt (Unique_id.uuid ()) doc in
-  Alcotest.(check (option Uuidm.t))
+  Alcotest.(check (option uuidm_testable))
     "No element should be retrieved" None
     (Option.map (fun x -> x.id) absurd_node)
 
 let test_sorting_nodes (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  let node1 = make_dummy_node 1 0 0 1 0 12 13 in
+  let node1 = make_dummy_node 0 0 1 0 12 13 in
   (* your example *)
-  let node2 = make_dummy_node 2 0 14 15 1 2 18 in
+  let node2 = make_dummy_node 0 14 15 1 2 18 in
   (* overlaps with node1 *)
-  let node3 = make_dummy_node 3 2 0 19 2 10 29 in
+  let node3 = make_dummy_node 2 0 19 2 10 29 in
   (* does not overlap *)
 
   let sorted = List.sort Coq_document.compare_nodes [ node2; node3; node1 ] in
@@ -268,9 +269,9 @@ let test_sorting_nodes (doc : Doc.t) () : unit =
   (* node1 and node2 overlap; smallest common = 18 *)
   (* node1 starts at 16 < 18 => node1 before node2 *)
   (* node3 is later and doesn't overlap *)
-  let expected = [ 1; 2; 3 ] in
+  let expected = [ node1.id; node2.id; node3.id ] in
 
-  Alcotest.(check (list int)) "compare_nodes ordering" expected ids
+  Alcotest.(check (list uuidm_testable)) "compare_nodes ordering" expected ids
 
 let test_removing_only_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
@@ -278,7 +279,11 @@ let test_removing_only_node_on_line (doc : Doc.t) () : unit =
 
   let parsed_target = get_target uri_str in
 
-  let new_doc = Result.get_ok (Coq_document.remove_node_with_id 0 doc) in
+  let first_node_id = (List.hd doc.elements).id in
+
+  let new_doc =
+    Result.get_ok (Coq_document.remove_node_with_id first_node_id doc)
+  in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (list (pair string range_testable)))
@@ -432,7 +437,9 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 42." start_point)
   in
 
-  let new_doc = Coq_document.replace_node 1 node doc in
+  let second_node_id = (List.nth doc.elements 1).id in
+
+  let new_doc = Coq_document.replace_node second_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -449,7 +456,9 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 123." start_point)
   in
 
-  let new_doc = Coq_document.replace_node 1 node doc in
+  let second_node_id = (List.nth doc.elements 1).id in
+
+  let new_doc = Coq_document.replace_node second_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -467,7 +476,9 @@ let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
       (Syntax_node.syntax_node_of_string "Compute 123456." start_point)
   in
 
-  let new_doc = Coq_document.replace_node 2 node doc in
+  let third_node_id = (List.nth doc.elements 2).id in
+
+  let new_doc = Coq_document.replace_node third_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -485,7 +496,9 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
       (Syntax_node.syntax_node_of_string "Compute 12345." start_point)
   in
 
-  let new_doc = Coq_document.replace_node 3 node doc in
+  let fourth_node_id = (List.nth doc.elements 3).id in
+
+  let new_doc = Coq_document.replace_node fourth_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -513,7 +526,9 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
          "Theorem th : forall n : nat,\nn + 0 = n." start_point)
   in
 
-  let new_doc = Coq_document.replace_node 0 node doc in
+  let first_node_id = (List.hd doc.elements).id in
+
+  let new_doc = Coq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -532,7 +547,9 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
          "Theorem th : forall n : nat, n + 0 = n." start_point)
   in
 
-  let new_doc = Coq_document.replace_node 0 node doc in
+  let first_node_id = (List.hd doc.elements).id in
+
+  let new_doc = Coq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
@@ -554,10 +571,9 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
          \  C = C'."
          start_point)
   in
+  let first_node_id = (List.hd doc.elements).id in
 
-  let new_doc = Coq_document.replace_node 0 node doc in
-
-  let new_doc = Coq_document.replace_node 0 node doc in
+  let new_doc = Coq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))
