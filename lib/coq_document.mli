@@ -3,7 +3,6 @@ open Fleche
 open Syntax_node
 
 type t = {
-  id_counter : Unique_id.counter;
   filename : string;
   elements : syntaxNode list;
   document_repr : string;
@@ -23,11 +22,6 @@ val element_with_id_opt : Uuidm.t -> t -> syntaxNode option
     returns [None]. *)
 
 val proof_with_id_opt : Uuidm.t -> t -> proof option
-
-val colliding_nodes : syntaxNode -> t -> syntaxNode list
-(** return the nodes colliding with target node *)
-
-val compare_nodes : syntaxNode -> syntaxNode -> int
 val split_at_id : Uuidm.t -> t -> syntaxNode list * syntaxNode list
 
 val remove_node_with_id :

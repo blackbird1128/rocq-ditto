@@ -11,6 +11,11 @@ type syntaxNode = {
 }
 
 val pp_syntax_node : Format.formatter -> syntaxNode -> unit
+val compare_nodes : syntaxNode -> syntaxNode -> int
+
+val colliding_nodes : syntaxNode -> syntaxNode list -> syntaxNode list
+(** [colliding_nodes target nodes_list] return the nodes in [nodes_lists]
+    colliding with [target] *)
 
 val syntax_node_of_coq_ast : Coq.Ast.t -> Lang.Point.t -> syntaxNode
 (** [syntax_node_of_coq_ast ast starting_point] create a syntax node from a Coq

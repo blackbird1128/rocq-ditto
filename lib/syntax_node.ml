@@ -53,6 +53,50 @@ let mk_vernac_control ?(loc : Loc.t option)
   | Some loc -> CAst.make ~loc payload
   | None -> CAst.make payload
 
+let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
+  let a_start, a_end = a in
+  let b_start, b_end = b in
+
+  (a_start >= b_start && a_start <= b_end)
+  || (a_end >= b_start && a_end <= b_end)
+
+let common_range (a : int * int) (b : int * int) : (int * int) option =
+  if are_flat_ranges_colliding a b then
+    let a_start, a_end = a in
+    let b_start, b_end = b in
+    Some (max a_start b_start, min a_end b_end)
+  else None
+
+let colliding_nodes (target : syntaxNode) (nodes_list : syntaxNode list) :
+    syntaxNode list =
+  let target_line_range = (target.range.start.line, target.range.end_.line) in
+  let target_offset_range =
+    (target.range.start.offset, target.range.end_.offset)
+  in
+  List.filter
+    (fun node ->
+      let node_line_range = (node.range.start.line, node.range.end_.line) in
+      if are_flat_ranges_colliding target_line_range node_line_range then
+        let node_offset_range =
+          (node.range.start.offset, node.range.end_.offset)
+        in
+        are_flat_ranges_colliding target_offset_range node_offset_range
+      else false)
+    nodes_list
+
+let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
+  match
+    common_range
+      (a.range.start.line, a.range.end_.line)
+      (b.range.start.line, b.range.end_.line)
+  with
+  | Some common_line_range ->
+      let smallest_common = fst common_line_range in
+      if a.range.start.line < smallest_common then -1
+      else if b.range.start.line < smallest_common then 1
+      else compare a.range.start.character b.range.start.character
+  | None -> compare a.range.start.line b.range.start.line
+
 let validate_syntax_node (x : syntaxNode) : (syntaxNode, string) result =
   if x.range.end_.offset < x.range.start.offset then
     Error "Incorrect range: range end offset is smaller than range start offset"

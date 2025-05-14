@@ -6,7 +6,6 @@ open Sexplib
 type proofState = NoProof | ProofOpened
 
 type t = {
-  id_counter : Unique_id.counter;
   filename : string;
   elements : syntaxNode list;
   document_repr : string;
@@ -87,50 +86,6 @@ let matches_with_line_col content pattern : (string * Lang.Range.t) list =
   in
   matches
 
-let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
-  let a_start, a_end = a in
-  let b_start, b_end = b in
-
-  (a_start >= b_start && a_start <= b_end)
-  || (a_end >= b_start && a_end <= b_end)
-
-let common_range (a : int * int) (b : int * int) : (int * int) option =
-  if are_flat_ranges_colliding a b then
-    let a_start, a_end = a in
-    let b_start, b_end = b in
-    Some (max a_start b_start, min a_end b_end)
-  else None
-
-(*return the nodes colliding with target node*)
-let colliding_nodes (target : syntaxNode) (doc : t) : syntaxNode list =
-  let target_line_range = (target.range.start.line, target.range.end_.line) in
-  let target_offset_range =
-    (target.range.start.offset, target.range.end_.offset)
-  in
-  List.filter
-    (fun node ->
-      let node_line_range = (node.range.start.line, node.range.end_.line) in
-      if are_flat_ranges_colliding target_line_range node_line_range then
-        let node_offset_range =
-          (node.range.start.offset, node.range.end_.offset)
-        in
-        are_flat_ranges_colliding target_offset_range node_offset_range
-      else false)
-    doc.elements
-
-let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
-  match
-    common_range
-      (a.range.start.line, a.range.end_.line)
-      (b.range.start.line, b.range.end_.line)
-  with
-  | Some common_line_range ->
-      let smallest_common = fst common_line_range in
-      if a.range.start.line < smallest_common then -1
-      else if b.range.start.line < smallest_common then 1
-      else compare a.range.start.character b.range.start.character
-  | None -> compare a.range.start.line b.range.start.line
-
 let second_node_included_in (a : syntaxNode) (b : syntaxNode) : bool =
   if a.range.start.offset < b.range.start.offset then
     if
@@ -194,11 +149,12 @@ let parse_document (doc : Doc.t) : t =
   let all_nodes =
     merge_nodes (List.sort compare_nodes (ast_nodes @ comments_nodes))
   in
-  let doc_counter = Unique_id.create () in
+  let all_nodes_with_growing_ids =
+    List.map (fun node -> { node with id = Unique_id.uuid () }) all_nodes
+  in
 
   {
-    id_counter = doc_counter;
-    elements = all_nodes;
+    elements = all_nodes_with_growing_ids;
     document_repr;
     filename;
     initial_state = doc.root;
@@ -249,9 +205,6 @@ let rec dump_to_string (doc : t) : string =
   in
 
   let sorted_elements = List.sort compare_nodes doc.elements in
-  List.iter
-    (fun x -> print_endline (Lang.Range.to_string x.range))
-    sorted_elements;
   aux sorted_elements "" (List.hd sorted_elements)
 
 let element_before_id_opt (target_id : Uuidm.t) (doc : t) : syntaxNode option =
