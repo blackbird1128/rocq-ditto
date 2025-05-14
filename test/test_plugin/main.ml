@@ -51,6 +51,21 @@ let make_dummy_node start_line start_char start_offset end_line end_char
       };
   }
 
+let check_list_sorted ~cmp ~pp lst =
+  let rec find_failure idx = function
+    | [] | [ _ ] -> None
+    | x :: y :: rest ->
+        if cmp x y <= 0 then find_failure (idx + 1) (y :: rest)
+        else Some (idx, x, y)
+  in
+  match find_failure 0 lst with
+  | None -> ()
+  | Some (idx, x, y) ->
+      let pp_list = Fmt.Dump.list pp in
+      let list_str = Format.asprintf "@[<v>Full list:@ %a@]" pp_list lst in
+      Alcotest.failf "List is not sorted at index %d: %a > %a\n%s" idx pp x pp y
+        list_str
+
 let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
     (doc : Doc.t) =
   Alcotest.test_case test_text `Quick (f doc)
@@ -254,8 +269,12 @@ let test_searching_node (doc : Doc.t) () : unit =
     "No element should be retrieved" None
     (Option.map (fun x -> x.id) absurd_node)
 
-let test_sorting_nodes (doc : Doc.t) () : unit =
+let test_id_assign_document (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
+  let nodes_ids = List.map (fun x -> x.id) doc.elements in
+  check_list_sorted ~cmp:Uuidm.compare ~pp:Uuidm.pp nodes_ids
+
+let test_sorting_nodes (doc : Doc.t) () : unit =
   let node1 = make_dummy_node 0 0 1 0 12 13 in
   (* your example *)
   let node2 = make_dummy_node 0 14 15 1 2 18 in
@@ -263,7 +282,7 @@ let test_sorting_nodes (doc : Doc.t) () : unit =
   let node3 = make_dummy_node 2 0 19 2 10 29 in
   (* does not overlap *)
 
-  let sorted = List.sort Coq_document.compare_nodes [ node2; node3; node1 ] in
+  let sorted = List.sort Syntax_node.compare_nodes [ node2; node3; node1 ] in
   let ids = List.map (fun n -> n.id) sorted in
 
   (* node1 and node2 overlap; smallest common = 18 *)
@@ -271,7 +290,20 @@ let test_sorting_nodes (doc : Doc.t) () : unit =
   (* node3 is later and doesn't overlap *)
   let expected = [ node1.id; node2.id; node3.id ] in
 
-  Alcotest.(check (list uuidm_testable)) "compare_nodes ordering" expected ids
+  Alcotest.(check (list uuidm_testable))
+    "The nodes should be ordered correctly" expected ids
+
+let test_colliding_nodes_no_common_lines (doc : Doc.t) () : unit =
+  let target_node = make_dummy_node 0 0 1 0 12 13 in
+  let other_node = make_dummy_node 1 0 15 1 10 25 in
+
+  let colliding_nodes_ids =
+    Syntax_node.colliding_nodes target_node [ other_node ]
+    |> List.map (fun node -> node.id)
+  in
+
+  Alcotest.(check (list uuidm_testable))
+    "the two nodes should not be colliding" [] colliding_nodes_ids
 
 let test_removing_only_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
@@ -639,7 +671,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if simply ordered nodes are sorted correctly"
        test_sorting_nodes doc);
-
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "check if two nodes on different lines are not colliding"
+       test_colliding_nodes_no_common_lines doc);
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
   Hashtbl.add table "ex_parsing2.v"
@@ -678,6 +712,15 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_parsing7.v"
     (create_fixed_test "test parsing weird comments"
        test_parsing_weird_comments_ex7 doc);
+  Hashtbl.add table "ex_id_assign1.v"
+    (create_fixed_test "test the initial ordering of nodes in the document"
+       test_id_assign_document doc);
+  Hashtbl.add table "ex_id_assign2.v"
+    (create_fixed_test "test the initial ordering of nodes in a simple proof"
+       test_id_assign_document doc);
+  Hashtbl.add table "ex_id_assign3.v"
+    (create_fixed_test "test the initial ordering of nodes with comments"
+       test_id_assign_document doc);
 
   Hashtbl.add table "ex_removing1.v"
     (create_fixed_test "test removing only node on a line"
