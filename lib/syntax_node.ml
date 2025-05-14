@@ -67,6 +67,13 @@ let common_range (a : int * int) (b : int * int) : (int * int) option =
     Some (max a_start b_start, min a_end b_end)
   else None
 
+let are_colliding (a : syntaxNode) (b : syntaxNode) : bool =
+  let a_line_range = (a.range.start.line, a.range.end_.line) in
+  let b_line_range = (b.range.start.line, b.range.end_.line) in
+  match common_range a_line_range b_line_range with
+  | Some common_range -> true
+  | None -> false
+
 let colliding_nodes (target : syntaxNode) (nodes_list : syntaxNode list) :
     syntaxNode list =
   let target_line_range = (target.range.start.line, target.range.end_.line) in

@@ -145,7 +145,7 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
 
 let get_init_state (doc : Coq_document.t) (node : syntaxNode)
     (token : Coq.Limits.Token.t) : (Coq.State.t, runningError) result =
-  let nodes_before, nodes_after = Coq_document.split_at_id node.id doc in
+  let nodes_before, _ = Coq_document.split_at_id node.id doc in
   let init_state = doc.initial_state in
   List.fold_left
     (fun state node ->

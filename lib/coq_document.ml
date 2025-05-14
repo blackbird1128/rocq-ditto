@@ -147,7 +147,8 @@ let parse_document (doc : Doc.t) : t =
   in
 
   let all_nodes =
-    merge_nodes (List.sort compare_nodes (ast_nodes @ comments_nodes))
+    merge_nodes
+      (List.sort Syntax_node.compare_nodes (ast_nodes @ comments_nodes))
   in
   let all_nodes_with_growing_ids =
     List.map (fun node -> { node with id = Unique_id.uuid () }) all_nodes
