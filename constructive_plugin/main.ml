@@ -165,12 +165,10 @@ let replace_or_by_constructive_or_map (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
   match term.v with
   | CNotation (scope, (entry, key), (l1, ll, pat, binders)) ->
-      if key = "_ \\/ _" then (
-        print_endline "key found";
-
+      if key = "_ \\/ _" then
         CAst.make
           (Constrexpr.CNotation
-             (scope, (entry, "_ \\_/ _"), (l1, ll, pat, binders))))
+             (scope, (entry, "_ \\_/ _"), (l1, ll, pat, binders)))
       else term
   | _ -> term
 
@@ -183,14 +181,13 @@ let replace_bet_by_betl (x : proof) : transformation_step option =
   let new_expr, did_replace =
     Expr_substitution.constr_expr_map replace_by_betl_map expr
   in
-  if did_replace then (
-    print_endline "replacement yeah";
+  if did_replace then
     let new_components = { components with expr = new_expr } in
     let new_node =
       Proof.syntax_node_from_theorem_components new_components x_start
     in
 
-    Some (Replace (x.proposition.id, new_node)))
+    Some (Replace (x.proposition.id, new_node))
   else None
 
 let replace_or_by_constructive_or (x : proof) : transformation_step option =
@@ -231,6 +228,61 @@ let replace_tactic_by_other (previous_tac : string) (new_tac : string)
           Some (Replace (node.id, new_node))
       | None -> None)
     x.proof_steps
+
+let coq_init ~debug =
+  let load_module = Dynlink.loadfile in
+  let load_plugin = Coq.Loader.plugin_handler None in
+  let vm, warnings = (true, None) in
+  Coq.Init.(coq_init { debug; load_module; load_plugin; vm; warnings })
+
+let by_load ~io ~token:tok ~(doc : Doc.t) =
+  let uri = doc.uri in
+  let uri_str = Lang.LUri.File.to_string_uri uri in
+
+  let env = doc.env in
+  let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
+  let errors = List.filter Lang.Diagnostic.is_error diags in
+
+  match doc.completed with
+  | Doc.Completion.Stopped range_stop ->
+      prerr_endline ("parsing stopped at " ^ Lang.Range.to_string range_stop);
+      print_diagnostics errors
+  | Doc.Completion.Failed range_failed ->
+      prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
+      print_diagnostics errors
+  | Doc.Completion.Yes _ -> (
+      let parsed__first_document = Coq_document.parse_document doc in
+
+      let other_doc_path = "./test/fixtures/ex_id_assign2.v" in
+      let other_doc_uri = Lang.LUri.of_string other_doc_path in
+      let other_doc_file =
+        Result.get_ok (Lang.LUri.File.of_uri other_doc_uri)
+      in
+
+      let other_doc_raw_content = File_utils.read_whole_file other_doc_path in
+      print_endline other_doc_raw_content;
+      let other_doc =
+        Fleche.Doc.create ~token:tok ~env ~uri ~version:1
+          ~raw:other_doc_raw_content
+      in
+      match other_doc.completed with
+      | Doc.Completion.Stopped range_stop ->
+          let diags =
+            List.concat_map (fun (x : Doc.Node.t) -> x.diags) other_doc.nodes
+          in
+          let errors = List.filter Lang.Diagnostic.is_error diags in
+          prerr_endline
+            ("parsing of the second file stopped at "
+            ^ Lang.Range.to_string range_stop);
+          print_diagnostics diags
+      | Doc.Completion.Failed range_failed ->
+          prerr_endline
+            ("parsing failed at " ^ Lang.Range.to_string range_failed);
+          print_diagnostics errors
+      | Doc.Completion.Yes _ ->
+          print_endline "the second doc was parsed succesfully";
+
+          ())
 
 let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -349,5 +401,5 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
 
           ())
 
-let main () = Theory.Register.Completed.add experiment_theorem
+let main () = Theory.Register.Completed.add by_load
 let () = main ()
