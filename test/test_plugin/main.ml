@@ -51,6 +51,23 @@ let make_dummy_node start_line start_char start_offset end_line end_char
       };
   }
 
+let make_dummy_node_from_repr start_line start_char start_offset repr :
+    syntaxNode =
+  let start_point : Lang.Point.t =
+    { line = start_line; character = start_char; offset = start_offset }
+  in
+  let range =
+    Range_transformation.range_from_starting_point_and_repr start_point repr
+  in
+  {
+    ast = None;
+    repr;
+    id = Unique_id.uuid ();
+    proof_id = None;
+    diagnostics = [];
+    range;
+  }
+
 let check_list_sorted ~cmp ~pp lst =
   let rec find_failure idx = function
     | [] | [ _ ] -> None
@@ -304,6 +321,55 @@ let test_colliding_nodes_no_common_lines (doc : Doc.t) () : unit =
 
   Alcotest.(check (list uuidm_testable))
     "the two nodes should not be colliding" [] colliding_nodes_ids
+
+let test_colliding_nodes_common_line_no_collision (doc : Doc.t) () : unit =
+  let target_node = make_dummy_node_from_repr 0 0 1 "hello" in
+  let other_node = make_dummy_node_from_repr 0 20 20 "world" in
+
+  let colliding_nodes_ids =
+    Syntax_node.colliding_nodes target_node [ other_node ]
+    |> List.map (fun node -> node.id)
+  in
+
+  Alcotest.(check (list uuidm_testable))
+    "the two nodes should not be colliding" [] colliding_nodes_ids
+
+let test_colliding_nodes_common_line_collision (doc : Doc.t) () : unit =
+  let target_node = make_dummy_node_from_repr 0 0 1 "hello" in
+  let other_node = make_dummy_node_from_repr 0 3 4 "world" in
+
+  let colliding_nodes_ids =
+    Syntax_node.colliding_nodes target_node [ other_node ]
+    |> List.map (fun node -> node.id)
+  in
+
+  Alcotest.(check (list uuidm_testable))
+    "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
+
+let test_colliding_nodes_one_common_line_no_collision (doc : Doc.t) () : unit =
+  let target_node = make_dummy_node 0 0 1 1 10 15 in
+  let other_node = make_dummy_node 1 12 17 1 20 25 in
+
+  let colliding_nodes_ids =
+    Syntax_node.colliding_nodes target_node [ other_node ]
+    |> List.map (fun node -> node.id)
+  in
+
+  Alcotest.(check (list uuidm_testable))
+    "the two nodes should not be colliding" [] colliding_nodes_ids
+
+let test_colliding_nodes_multiple_common_lines_collision (doc : Doc.t) () : unit
+    =
+  let target_node = make_dummy_node 0 0 1 2 20 42 in
+  let other_node = make_dummy_node 1 12 17 2 25 456 in
+
+  let colliding_nodes_ids =
+    Syntax_node.colliding_nodes target_node [ other_node ]
+    |> List.map (fun node -> node.id)
+  in
+
+  Alcotest.(check (list uuidm_testable))
+    "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
 
 let test_removing_only_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
@@ -674,6 +740,21 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "check if two nodes on different lines are not colliding"
        test_colliding_nodes_no_common_lines doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "check if two nodes on the same line are not colliding"
+       test_colliding_nodes_common_line_no_collision doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "check if two nodes on the same line are colliding"
+       test_colliding_nodes_common_line_collision doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test
+       "check if two nodes with one common line are not colliding"
+       test_colliding_nodes_one_common_line_no_collision doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test
+       "check if two nodes with multiple common lines are colliding"
+       test_colliding_nodes_multiple_common_lines_collision doc);
+
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
   Hashtbl.add table "ex_parsing2.v"

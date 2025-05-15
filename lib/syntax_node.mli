@@ -12,6 +12,7 @@ type syntaxNode = {
 
 val pp_syntax_node : Format.formatter -> syntaxNode -> unit
 val compare_nodes : syntaxNode -> syntaxNode -> int
+val are_colliding : syntaxNode -> syntaxNode -> bool
 
 val colliding_nodes : syntaxNode -> syntaxNode list -> syntaxNode list
 (** [colliding_nodes target nodes_list] return the nodes in [nodes_lists]

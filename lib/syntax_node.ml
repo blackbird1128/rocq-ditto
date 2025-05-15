@@ -71,25 +71,33 @@ let are_colliding (a : syntaxNode) (b : syntaxNode) : bool =
   let a_line_range = (a.range.start.line, a.range.end_.line) in
   let b_line_range = (b.range.start.line, b.range.end_.line) in
   match common_range a_line_range b_line_range with
-  | Some common_range -> true
+  | Some range ->
+      let len_range = snd range - fst range + 1 in
+      if len_range > 1 then true
+      else
+        let common_line = fst range in
+        let a_line_start_char =
+          if fst a_line_range < common_line then 0 else a.range.start.character
+        in
+        let b_line_start_char =
+          if fst b_line_range < common_line then 0 else b.range.start.character
+        in
+        let a_line_end_char =
+          if snd a_line_range > common_line then max_int
+          else a.range.end_.character
+        in
+        let b_line_end_char =
+          if snd b_line_range > common_line then max_int
+          else b.range.end_.character
+        in
+        let a_char_range = (a_line_start_char, a_line_end_char) in
+        let b_char_range = (b_line_start_char, b_line_end_char) in
+        Option.has_some (common_range a_char_range b_char_range)
   | None -> false
 
 let colliding_nodes (target : syntaxNode) (nodes_list : syntaxNode list) :
     syntaxNode list =
-  let target_line_range = (target.range.start.line, target.range.end_.line) in
-  let target_offset_range =
-    (target.range.start.offset, target.range.end_.offset)
-  in
-  List.filter
-    (fun node ->
-      let node_line_range = (node.range.start.line, node.range.end_.line) in
-      if are_flat_ranges_colliding target_line_range node_line_range then
-        let node_offset_range =
-          (node.range.start.offset, node.range.end_.offset)
-        in
-        are_flat_ranges_colliding target_offset_range node_offset_range
-      else false)
-    nodes_list
+  List.filter (are_colliding target) nodes_list
 
 let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
   match
