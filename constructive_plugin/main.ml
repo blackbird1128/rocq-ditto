@@ -79,57 +79,6 @@ let print_binder_type (x : Constrexpr.local_binder_expr) =
   | Constrexpr.CLocalDef (_, _, _, _) -> print_endline "local def kind "
   | Constrexpr.CLocalPattern _ -> print_endline "local pattern kind"
 
-let rec print_info_constr_expr (x : Constrexpr.constr_expr) =
-  let _ =
-    match x.loc with
-    | Some loc -> Pp.pp_with Format.std_formatter (Loc.pr loc)
-    | None -> ()
-  in
-  Format.print_newline ();
-  match x.v with
-  | Constrexpr.CRef (qualid, instance_expr) -> (
-      print_endline "yep that a ref";
-      print_qualid qualid;
-      match instance_expr with
-      | Some _ -> print_endline "Ho god we have an instance expr ! Panic !!"
-      | None -> print_endline "all good boss")
-  | Constrexpr.CFix (_, _) -> print_endline "not handled"
-  | Constrexpr.CCoFix (_, _) -> print_endline "not handled"
-  | Constrexpr.CProdN (binders, expr) ->
-      List.iter print_binder_type binders;
-      print_info_constr_expr expr
-  | Constrexpr.CLambdaN (_, _) -> print_endline "not handled"
-  | Constrexpr.CLetIn (_, _, _, _) -> print_endline "not handled"
-  | Constrexpr.CAppExpl (_, _) -> print_endline "not handled"
-  | Constrexpr.CApp (f, args) ->
-      print_endline "applying a function";
-      print_info_constr_expr f;
-      List.iter (fun (expr, _) -> print_info_constr_expr expr) args
-  | Constrexpr.CProj (_, _, _, _) -> print_endline "not handled"
-  | Constrexpr.CRecord _ -> print_endline "not handled"
-  | Constrexpr.CCases (_, _, _, _) -> print_endline "not handled"
-  | Constrexpr.CLetTuple (_, _, _, _) -> print_endline "not handled"
-  | Constrexpr.CIf (_, _, _, _) -> print_endline "not handled"
-  | Constrexpr.CHole _ -> print_endline "not handled"
-  | Constrexpr.CGenarg _ -> print_endline "not handled"
-  | Constrexpr.CGenargGlob _ -> print_endline "not handled"
-  | Constrexpr.CPatVar _ -> print_endline "not handled"
-  | Constrexpr.CEvar (_, _) -> print_endline "E var"
-  | Constrexpr.CSort _ -> print_endline "not handled"
-  | Constrexpr.CCast (_, _, _) -> print_endline "casting into"
-  | Constrexpr.CNotation (scope, (notation_entry, notation_key), substitution)
-    ->
-      let expr_l1, expr_ll, _, _ = substitution in
-      print_endline "that a notation";
-      print_endline notation_key;
-      List.iter
-        (fun (x : Constrexpr.constr_expr) -> print_info_constr_expr x)
-        expr_l1
-  | Constrexpr.CGeneralization (_, _) -> print_endline "not handled"
-  | Constrexpr.CPrim prim_token -> print_prim_token prim_token
-  | Constrexpr.CDelimiters (_, _, _) -> print_endline "not handled"
-  | Constrexpr.CArray (_, _, _, _) -> print_endline "not handled"
-
 let is_raw_assert (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : bool =
   match tac.CAst.v with
   | Ltac_plugin.Tacexpr.TacAtom atom -> (
@@ -198,14 +147,13 @@ let replace_or_by_constructive_or (x : proof) : transformation_step option =
   let new_expr, did_replace =
     Expr_substitution.constr_expr_map replace_or_by_constructive_or_map expr
   in
-  if did_replace then (
-    print_endline "replacement yeah";
+  if did_replace then
     let new_components = { components with expr = new_expr } in
     let new_node =
       Proof.syntax_node_from_theorem_components new_components x_start
     in
 
-    Some (Replace (x.proposition.id, new_node)))
+    Some (Replace (x.proposition.id, new_node))
   else None
 
 let replace_tactic_by_other (previous_tac : string) (new_tac : string)
@@ -229,17 +177,85 @@ let replace_tactic_by_other (previous_tac : string) (new_tac : string)
       | None -> None)
     x.proof_steps
 
-let coq_init ~debug =
-  let load_module = Dynlink.loadfile in
-  let load_plugin = Coq.Loader.plugin_handler None in
-  let vm, warnings = (true, None) in
-  Coq.Init.(coq_init { debug; load_module; load_plugin; vm; warnings })
+let print_require (x : syntaxNode) =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynterp synterp_expr -> (
+          match synterp_expr with
+          | VernacRequire
+              (option_libname, export_with_cats_opt, libnames_import_list) ->
+              let _ = Option.map print_qualid option_libname in
+              print_endline
+                ("libnames len : "
+                ^ string_of_int (List.length libnames_import_list));
+              List.iter
+                (fun (qualid, filter_import) -> print_qualid qualid)
+                libnames_import_list;
+              ()
+          | _ -> ())
+      | VernacSynPure _ -> ())
+  | None -> ()
 
-let by_load ~io ~token:tok ~(doc : Doc.t) =
+let replace_require (x : syntaxNode) : transformation_step option =
+  let split_prefix prefix s =
+    let plen = String.length prefix in
+    if String.length s >= plen && String.sub s 0 plen = prefix then
+      Some (prefix, String.sub s plen (String.length s - plen))
+    else None
+  in
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynterp synterp_expr -> (
+          match synterp_expr with
+          | VernacRequire
+              (option_libname, export_with_cats_opt, libnames_import_list) -> (
+              match List.nth_opt libnames_import_list 0 with
+              | Some (qualid, import_filter) ->
+                  let qualid_str = Libnames.string_of_qualid qualid in
+                  if
+                    String.starts_with ~prefix:"GeoCoq.Main.Tarski_dev."
+                      qualid_str
+                  then
+                    let prefix, postfix =
+                      Option.get
+                        (split_prefix "GeoCoq.Main.Tarski_dev." qualid_str)
+                    in
+                    let new_qualid_str = "GeoCoq.Constructive." ^ postfix in
+                    let new_qualid = Libnames.qualid_of_string new_qualid_str in
+                    let new_head_tuple = (new_qualid, import_filter) in
+                    let new_libnames_import_list =
+                      new_head_tuple :: List_utils.drop 1 libnames_import_list
+                    in
+                    let new_expr =
+                      VernacSynterp
+                        (VernacRequire
+                           ( option_libname,
+                             export_with_cats_opt,
+                             new_libnames_import_list ))
+                    in
+                    let new_vernac_control =
+                      CAst.make { control = []; attrs = []; expr = new_expr }
+                    in
+
+                    let new_coq_node =
+                      Syntax_node.syntax_node_of_coq_ast
+                        (Coq.Ast.of_coq new_vernac_control)
+                        x.range.start
+                    in
+                    Some (Replace (x.id, new_coq_node))
+                  else None
+              | None -> None)
+          | _ -> None)
+      | VernacSynPure _ -> None)
+  | None -> None
+
+let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
   let uri = doc.uri in
+
   let uri_str = Lang.LUri.File.to_string_uri uri in
 
-  let env = doc.env in
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
   let errors = List.filter Lang.Diagnostic.is_error diags in
 
@@ -251,38 +267,59 @@ let by_load ~io ~token:tok ~(doc : Doc.t) =
       prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
       print_diagnostics errors
   | Doc.Completion.Yes _ -> (
-      let parsed__first_document = Coq_document.parse_document doc in
-
-      let other_doc_path = "./test/fixtures/ex_id_assign2.v" in
-      let other_doc_uri = Lang.LUri.of_string other_doc_path in
-      let other_doc_file =
-        Result.get_ok (Lang.LUri.File.of_uri other_doc_uri)
+      let parsed_document = Coq_document.parse_document doc in
+      let require_nodes =
+        List.filter Syntax_node.is_syntax_node_require parsed_document.elements
+      in
+      List.iter (fun x -> print_require x) require_nodes;
+      let require_transform_steps =
+        List.filter_map replace_require parsed_document.elements
+      in
+      let new_doc =
+        Coq_document.apply_transformations_steps require_transform_steps
+          parsed_document
       in
 
-      let other_doc_raw_content = File_utils.read_whole_file other_doc_path in
-      print_endline other_doc_raw_content;
-      let other_doc =
-        Fleche.Doc.create ~token:tok ~env ~uri ~version:1
-          ~raw:other_doc_raw_content
-      in
-      match other_doc.completed with
-      | Doc.Completion.Stopped range_stop ->
-          let diags =
-            List.concat_map (fun (x : Doc.Node.t) -> x.diags) other_doc.nodes
-          in
-          let errors = List.filter Lang.Diagnostic.is_error diags in
-          prerr_endline
-            ("parsing of the second file stopped at "
-            ^ Lang.Range.to_string range_stop);
-          print_diagnostics diags
-      | Doc.Completion.Failed range_failed ->
-          prerr_endline
-            ("parsing failed at " ^ Lang.Range.to_string range_failed);
-          print_diagnostics errors
-      | Doc.Completion.Yes _ ->
-          print_endline "the second doc was parsed succesfully";
+      match new_doc with
+      | Ok res ->
+          let filename = Filename.remove_extension uri_str ^ "_bis.v" in
+          print_endline
+            ("All transformations applied, writing to file" ^ filename);
+          (* List.iter *)
+          (*   (fun x -> print_endline (Lang.Range.to_string x.range)) *)
+          (*   res.elements; *)
+          let out = open_out filename in
+          output_string out (Coq_document.dump_to_string res)
+      | Error err -> print_endline err)
 
-          ())
+(* let other_doc_path = "./test/fixtures/ex_id_assign2.v" in *)
+(* let compiler_args = Compile.plugin_args_to_compiler_args io tok doc in *)
+(* let other_doc = Compile.compile_file compiler_args other_doc_path in *)
+(* match other_doc with *)
+(* | Ok new_doc -> ( *)
+(*     match new_doc.completed with *)
+(*     | Doc.Completion.Stopped range_stop -> *)
+(*         let diags = *)
+(*           List.concat_map (fun (x : Doc.Node.t) -> x.diags) new_doc.nodes *)
+(*         in *)
+(*         let errors = List.filter Lang.Diagnostic.is_error diags in *)
+(*         prerr_endline *)
+(*           ("parsing of the second file stopped at " *)
+(*           ^ Lang.Range.to_string range_stop); *)
+(*         print_diagnostics diags *)
+(*     | Doc.Completion.Failed range_failed -> *)
+(*         prerr_endline *)
+(*           ("parsing of the second file failed at " *)
+(*           ^ Lang.Range.to_string range_failed); *)
+(*         print_diagnostics errors *)
+(*     | Doc.Completion.Yes _ -> *)
+(*         let other_doc_parsed = Coq_document.parse_document new_doc in *)
+(*         List.iter *)
+(*           (fun node -> print_endline node.repr) *)
+(*           other_doc_parsed.elements; *)
+(*         print_endline "the second doc was parsed succesfully") *)
+(* | Error err -> *)
+(*     print_endline ("ERROR : " ^ Compile.compiler_error_to_string err)) *)
 
 let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
