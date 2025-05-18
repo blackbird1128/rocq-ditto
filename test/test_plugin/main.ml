@@ -56,9 +56,7 @@ let make_dummy_node_from_repr start_line start_char start_offset repr :
   let start_point : Lang.Point.t =
     { line = start_line; character = start_char; offset = start_offset }
   in
-  let range =
-    Range_transformation.range_from_starting_point_and_repr start_point repr
-  in
+  let range = Range_utils.range_from_starting_point_and_repr start_point repr in
   {
     ast = None;
     repr;
@@ -669,9 +667,11 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
          \  C = C'."
          start_point)
   in
-  let first_node_id = (List.hd doc.elements).id in
 
-  let new_doc = Coq_document.replace_node first_node_id node doc in
+  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let thm_id = first_proof.proposition.id in
+
+  let new_doc = Coq_document.replace_node thm_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) string))

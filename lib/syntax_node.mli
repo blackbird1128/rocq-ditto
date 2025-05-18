@@ -106,6 +106,9 @@ val is_syntax_node_ast_proof_end : syntaxNode -> bool
 val is_syntax_node_ast_proof_command : syntaxNode -> bool
 (** [is_syntax_node_ast_proof_command x] check if [x] is the command Proof. *)
 
+val is_syntax_node_require : syntaxNode -> bool
+(** [is_syntax_node_require x] check if [x] is the Require command. *)
+
 val is_syntax_node_proof_intro_or_end : syntaxNode -> bool
 (** [is_syntax_node_proof_intro_or_end x] check if [x] is an intro of a proof or
     an end of a proof, meaning if it's either a a sentence starting with:

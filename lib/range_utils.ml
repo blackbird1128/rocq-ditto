@@ -36,3 +36,15 @@ let range_from_starting_point_and_repr (starting_point : Lang.Point.t)
         offset = starting_point.offset + offset_length;
       };
   }
+
+let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
+  let a_start, a_end = a in
+  let b_start, b_end = b in
+  not (a_end < b_start || b_end < a_start)
+
+let common_range (a : int * int) (b : int * int) : (int * int) option =
+  let a_start, a_end = a in
+  let b_start, b_end = b in
+  if are_flat_ranges_colliding (a_start, a_end) (b_start, b_end) then
+    Some (max a_start b_start, min a_end b_end)
+  else None

@@ -53,24 +53,10 @@ let mk_vernac_control ?(loc : Loc.t option)
   | Some loc -> CAst.make ~loc payload
   | None -> CAst.make payload
 
-let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
-  let a_start, a_end = a in
-  let b_start, b_end = b in
-
-  (a_start >= b_start && a_start <= b_end)
-  || (a_end >= b_start && a_end <= b_end)
-
-let common_range (a : int * int) (b : int * int) : (int * int) option =
-  if are_flat_ranges_colliding a b then
-    let a_start, a_end = a in
-    let b_start, b_end = b in
-    Some (max a_start b_start, min a_end b_end)
-  else None
-
 let are_colliding (a : syntaxNode) (b : syntaxNode) : bool =
   let a_line_range = (a.range.start.line, a.range.end_.line) in
   let b_line_range = (b.range.start.line, b.range.end_.line) in
-  match common_range a_line_range b_line_range with
+  match Range_utils.common_range a_line_range b_line_range with
   | Some range ->
       let len_range = snd range - fst range + 1 in
       if len_range > 1 then true
@@ -92,7 +78,7 @@ let are_colliding (a : syntaxNode) (b : syntaxNode) : bool =
         in
         let a_char_range = (a_line_start_char, a_line_end_char) in
         let b_char_range = (b_line_start_char, b_line_end_char) in
-        Option.has_some (common_range a_char_range b_char_range)
+        Option.has_some (Range_utils.common_range a_char_range b_char_range)
   | None -> false
 
 let colliding_nodes (target : syntaxNode) (nodes_list : syntaxNode list) :
@@ -101,7 +87,7 @@ let colliding_nodes (target : syntaxNode) (nodes_list : syntaxNode list) :
 
 let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
   match
-    common_range
+    Range_utils.common_range
       (a.range.start.line, a.range.end_.line)
       (b.range.start.line, b.range.end_.line)
   with
@@ -136,7 +122,7 @@ let comment_syntax_node_of_string (content : string)
     (start_point : Lang.Point.t) : (syntaxNode, string) result =
   let length_content_offset = repr_to_offset_size content in
   let range =
-    Range_transformation.range_from_starting_point_and_repr start_point content
+    Range_utils.range_from_starting_point_and_repr start_point content
   in
 
   if length_content_offset > range.end_.offset - range.start.offset then
@@ -164,9 +150,7 @@ let comment_syntax_node_of_string (content : string)
 let syntax_node_of_string (code : string) (start_point : Lang.Point.t) :
     (syntaxNode, string) result =
   let length_code_offset = repr_to_offset_size code in
-  let range =
-    Range_transformation.range_from_starting_point_and_repr start_point code
-  in
+  let range = Range_utils.range_from_starting_point_and_repr start_point code in
   (*offset doesn't count the newline in*)
   if length_code_offset > range.end_.offset - range.start.offset then
     Error
@@ -235,9 +219,7 @@ let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
 let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Lang.Point.t) :
     syntaxNode =
   let repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds in
-  let range =
-    Range_transformation.range_from_starting_point_and_repr start_point repr
-  in
+  let range = Range_utils.range_from_starting_point_and_repr start_point repr in
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
   {
     ast = Some node_ast;
@@ -337,6 +319,15 @@ let is_syntax_node_ast_proof_command (x : syntaxNode) : bool =
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with Vernacexpr.VernacProof _ -> true | _ -> false))
+  | None -> false
+
+let is_syntax_node_require (x : syntaxNode) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynterp synterp_expr -> (
+          match synterp_expr with VernacRequire _ -> true | _ -> false)
+      | VernacSynPure _ -> false)
   | None -> false
 
 let is_syntax_node_function_start (x : syntaxNode) : bool =
