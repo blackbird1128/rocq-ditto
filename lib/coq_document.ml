@@ -315,12 +315,12 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     | None -> 0
   in
 
-  let new_lines_push =
-    String.fold_left
-      (fun acc c -> if c = '\n' then acc + 1 else acc)
-      0 new_node.repr
-  in
-  let total_shift = node_offset_size - offset_space + new_lines_push in
+  (* let new_lines_push = *)
+  (*   String.fold_left *)
+  (*     (fun acc c -> if c = '\n' then acc + 1 else acc) *)
+  (*     0 new_node.repr *)
+  (* in *)
+  let total_shift = node_offset_size - offset_space in
 
   match shift_method with
   | ShiftHorizontally ->
@@ -359,7 +359,8 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
             }
   | ShiftVertically ->
       let line_shift =
-        new_node.range.end_.line - new_node.range.start.line + 1
+        if List.length (colliding_nodes new_node doc.elements) = 0 then 0
+        else new_node.range.end_.line - new_node.range.start.line + 1
       in
 
       (*there can be less offset but still space *)
@@ -401,7 +402,7 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
             {
               replacement with
               range =
-                Range_transformation.range_from_starting_point_and_repr
+                Range_utils.range_from_starting_point_and_repr
                   target.range.start replacement.repr;
             }
           in
@@ -420,7 +421,21 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
               (remove_node_with_id ~remove_method:ShiftNode target.id doc)
             (* we already checked for the node existence *)
           in
-          if replacement_height = 1 then
+
+          List.iter
+            (fun node ->
+              print_endline (node.repr ^ Lang.Range.to_string node.range))
+            removed_node_doc.elements;
+
+          let has_same_lines_elements =
+            List.exists
+              (fun node -> node.range.start.line = target.range.start.line)
+              removed_node_doc.elements
+          in
+          print_endline
+            ("has same line elements: " ^ string_of_bool has_same_lines_elements);
+
+          if has_same_lines_elements && replacement_height = 1 then
             insert_node replacement_shifted ~shift_method:ShiftHorizontally
               removed_node_doc
           else
@@ -429,16 +444,24 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
                 removed_node_doc
             with
             | Ok new_doc ->
-                if target_height - replacement_height < 0 then
-                  let diff = replacement_height - target_height in
+                print_endline ("target height: " ^ string_of_int target_height);
+                print_endline
+                  ("replacement height: " ^ string_of_int replacement_height);
+                (* if target_height - replacement_height < 0 then *)
+                let diff = replacement_height - target_height in
 
-                  let nodes_before, nodes_after =
-                    List.partition
-                      (fun node -> compare_nodes node replacement_shifted < 0)
-                      new_doc.elements
-                  in
-                  Ok new_doc
-                else Ok new_doc
+                let nodes_before, nodes_after =
+                  List.partition
+                    (fun node -> compare_nodes node replacement_shifted < 0)
+                    new_doc.elements
+                in
+                Ok
+                  {
+                    new_doc with
+                    elements =
+                      nodes_before @ List.map (shift_node diff 0 0) nodes_after;
+                  }
+                (* else Ok new_doc *)
             | Error err -> Error err)
       | None ->
           Error
@@ -461,7 +484,7 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
           in
 
           let new_node_range =
-            Range_transformation.range_from_starting_point_and_repr
+            Range_utils.range_from_starting_point_and_repr
               attached_node_start_point attached_node.repr
           in
 
