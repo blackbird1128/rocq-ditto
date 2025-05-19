@@ -397,7 +397,7 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
   | Error err -> Error err
   | Ok replacement -> (
       match element_with_id_opt target_id doc with
-      | Some target -> (
+      | Some target ->
           let replacement_shifted =
             {
               replacement with
@@ -429,8 +429,10 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
 
           let has_same_lines_elements =
             List.exists
-              (fun node -> node.range.start.line = target.range.start.line)
-              removed_node_doc.elements
+              (fun node ->
+                node.id != target.id
+                && node.range.start.line = target.range.start.line)
+              doc.elements
           in
           print_endline
             ("has same line elements: " ^ string_of_bool has_same_lines_elements);
@@ -439,30 +441,8 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
             insert_node replacement_shifted ~shift_method:ShiftHorizontally
               removed_node_doc
           else
-            match
-              insert_node replacement_shifted ~shift_method:ShiftVertically
-                removed_node_doc
-            with
-            | Ok new_doc ->
-                print_endline ("target height: " ^ string_of_int target_height);
-                print_endline
-                  ("replacement height: " ^ string_of_int replacement_height);
-                (* if target_height - replacement_height < 0 then *)
-                let diff = replacement_height - target_height in
-
-                let nodes_before, nodes_after =
-                  List.partition
-                    (fun node -> compare_nodes node replacement_shifted < 0)
-                    new_doc.elements
-                in
-                Ok
-                  {
-                    new_doc with
-                    elements =
-                      nodes_before @ List.map (shift_node diff 0 0) nodes_after;
-                  }
-                (* else Ok new_doc *)
-            | Error err -> Error err)
+            insert_node replacement_shifted ~shift_method:ShiftVertically
+              removed_node_doc
       | None ->
           Error
             ("The target node with id : " ^ Uuidm.to_string target_id
