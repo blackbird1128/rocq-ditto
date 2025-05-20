@@ -197,6 +197,22 @@ let print_require (x : syntaxNode) =
       | VernacSynPure _ -> ())
   | None -> ()
 
+let replace_context (x : syntaxNode) : transformation_step option =
+  if Syntax_node.is_syntax_node_context x then
+    let new_context_str : string =
+      "Context {Pred : predicates}\n\
+      \        {ITn : independent_Tarski_neutral_dimensionless Pred}\n\
+      \        {ES : Eq_stability Pred ITn}\n\
+      \        {Dim : dimension}\n\
+      \        {ITnD : @independent_Tarski_nD Pred ITn (incr (incr Dim))}."
+    in
+    let new_context_node =
+      Syntax_node.syntax_node_of_string new_context_str x.range.start
+      |> Result.get_ok
+    in
+    Some (Replace (x.id, new_context_node))
+  else None
+
 let replace_require (x : syntaxNode) : transformation_step option =
   let split_prefix prefix s =
     let plen = String.length prefix in
@@ -275,51 +291,61 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
       let require_transform_steps =
         List.filter_map replace_require parsed_document.elements
       in
+      let context_transform_steps =
+        List.filter_map replace_context parsed_document.elements
+      in
       let new_doc =
-        Coq_document.apply_transformations_steps require_transform_steps
+        Coq_document.apply_transformations_steps
+          (require_transform_steps @ context_transform_steps)
           parsed_document
       in
 
-      match new_doc with
-      | Ok res ->
-          let filename = Filename.remove_extension uri_str ^ "_bis.v" in
-          print_endline
-            ("All transformations applied, writing to file" ^ filename);
-          (* List.iter *)
-          (*   (fun x -> print_endline (Lang.Range.to_string x.range)) *)
-          (*   res.elements; *)
-          let out = open_out filename in
-          output_string out (Coq_document.dump_to_string res)
-      | Error err -> print_endline err)
-
-(* let other_doc_path = "./test/fixtures/ex_id_assign2.v" in *)
-(* let compiler_args = Compile.plugin_args_to_compiler_args io tok doc in *)
-(* let other_doc = Compile.compile_file compiler_args other_doc_path in *)
-(* match other_doc with *)
-(* | Ok new_doc -> ( *)
-(*     match new_doc.completed with *)
-(*     | Doc.Completion.Stopped range_stop -> *)
-(*         let diags = *)
-(*           List.concat_map (fun (x : Doc.Node.t) -> x.diags) new_doc.nodes *)
-(*         in *)
-(*         let errors = List.filter Lang.Diagnostic.is_error diags in *)
-(*         prerr_endline *)
-(*           ("parsing of the second file stopped at " *)
-(*           ^ Lang.Range.to_string range_stop); *)
-(*         print_diagnostics diags *)
-(*     | Doc.Completion.Failed range_failed -> *)
-(*         prerr_endline *)
-(*           ("parsing of the second file failed at " *)
-(*           ^ Lang.Range.to_string range_failed); *)
-(*         print_diagnostics errors *)
-(*     | Doc.Completion.Yes _ -> *)
-(*         let other_doc_parsed = Coq_document.parse_document new_doc in *)
-(*         List.iter *)
-(*           (fun node -> print_endline node.repr) *)
-(*           other_doc_parsed.elements; *)
-(*         print_endline "the second doc was parsed succesfully") *)
-(* | Error err -> *)
-(*     print_endline ("ERROR : " ^ Compile.compiler_error_to_string err)) *)
+      (* match new_doc with *)
+      (* | Ok res -> *)
+      (*     let filename = Filename.basename uri_str in *)
+      (*     let new_dir = "../private-geocoq/theories/Constructive/" in *)
+      (*     let filename_bis = *)
+      (*       Filename.remove_extension filename ^ "_bis.v" *)
+      (*       |> Filename.concat new_dir *)
+      (*     in *)
+      (*     print_endline *)
+      (*       ("All transformations applied, writing to file " ^ filename_bis); *)
+      (*     (\* List.iter *\) *)
+      (*     (\*   (fun x -> print_endline (Lang.Range.to_string x.range)) *\) *)
+      (*     (\*   res.elements; *\) *)
+      (*     let out = open_out filename_bis in *)
+      (*     output_string out (Coq_document.dump_to_string res) *)
+      (* | Error err -> print_endline err) *)
+      let other_doc_path = "../dedukti-tarski-dev/coq/ch02_cong.v" in
+      let compiler_args =
+        Compile.file_and_plugin_args_to_compiler_args other_doc_path io tok doc
+      in
+      let other_doc = Compile.compile_file compiler_args other_doc_path in
+      match other_doc with
+      | Ok new_doc -> (
+          match new_doc.completed with
+          | Doc.Completion.Stopped range_stop ->
+              let diags =
+                List.concat_map (fun (x : Doc.Node.t) -> x.diags) new_doc.nodes
+              in
+              let errors = List.filter Lang.Diagnostic.is_error diags in
+              prerr_endline
+                ("parsing of the second file stopped at "
+                ^ Lang.Range.to_string range_stop);
+              print_diagnostics diags
+          | Doc.Completion.Failed range_failed ->
+              prerr_endline
+                ("parsing of the second file failed at "
+                ^ Lang.Range.to_string range_failed);
+              print_diagnostics errors
+          | Doc.Completion.Yes _ ->
+              let other_doc_parsed = Coq_document.parse_document new_doc in
+              List.iter
+                (fun node -> print_endline node.repr)
+                other_doc_parsed.elements;
+              print_endline "the second doc was parsed succesfully")
+      | Error err ->
+          print_endline ("ERROR : " ^ Compile.compiler_error_to_string err))
 
 let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
