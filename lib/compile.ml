@@ -23,9 +23,19 @@ let compiler_error_to_string (error : compilerError) : string =
   | ParsingStopped -> "parsing stopped"
   | ParsingFailed -> "parsing failed"
 
-let plugin_args_to_compiler_args (io : Io.CallBack.t)
-    (token : Coq.Limits.Token.t) (doc : Doc.t) : compilerArgs =
+let get_workspace_folder (filepath : string) : string =
+  Filename.dirname filepath
+
+let file_and_plugin_args_to_compiler_args (filepath : string)
+    (io : Io.CallBack.t) (token : Coq.Limits.Token.t) (doc : Doc.t) :
+    compilerArgs =
   let token = Coq.Limits.Token.create () in
+  let env = doc.env in
+  let workspace = env.workspace in
+  List.iter
+    (fun (path : Loadpath.vo_path) -> print_endline path.unix_path)
+    env.workspace.vo_load_path;
+
   (* let root = Sys.getcwd () in *)
   (* TODO fix for stuff in multiple workspaces *)
   { io; token; env = doc.env }
