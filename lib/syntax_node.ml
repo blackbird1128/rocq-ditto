@@ -321,6 +321,15 @@ let is_syntax_node_ast_proof_command (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacProof _ -> true | _ -> false))
   | None -> false
 
+let is_syntax_node_context (x : syntaxNode) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with Vernacexpr.VernacContext _ -> true | _ -> false))
+  | None -> false
+
 let is_syntax_node_require (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (

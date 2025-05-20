@@ -106,6 +106,9 @@ val is_syntax_node_ast_proof_end : syntaxNode -> bool
 val is_syntax_node_ast_proof_command : syntaxNode -> bool
 (** [is_syntax_node_ast_proof_command x] check if [x] is the command Proof. *)
 
+val is_syntax_node_context : syntaxNode -> bool
+(** [is_syntax_node_context x] check if [x] is a context command. *)
+
 val is_syntax_node_require : syntaxNode -> bool
 (** [is_syntax_node_require x] check if [x] is the Require command. *)
 
