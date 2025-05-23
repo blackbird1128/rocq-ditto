@@ -3,46 +3,11 @@ open Ditto
 open Ditto.Proof_tree
 open Ditto.Proof
 open Ditto.Syntax_node
+open Ditto.Diagnostic_utils
 open Vernacexpr
 open Theorem_query
 
 let wrap_to_treeify doc x = Result.get_ok (Runner.treeify_proof doc x)
-
-let error_location_to_string (location : Lang.Range.t) : string =
-  if location.start.line = location.end_.line then
-    "line "
-    ^ string_of_int location.start.line
-    ^ ", characters: "
-    ^ string_of_int location.start.character
-    ^ "-"
-    ^ string_of_int location.end_.character
-  else
-    "line "
-    ^ string_of_int location.start.line
-    ^ "-"
-    ^ string_of_int location.end_.line
-    ^ ", characters: "
-    ^ string_of_int location.start.character
-    ^ "-"
-    ^ string_of_int location.end_.character
-
-let diagnostic_kind_to_str (diag_kind : Lang.Diagnostic.Severity.t) : string =
-  if diag_kind = Lang.Diagnostic.Severity.error then "Error"
-  else if diag_kind = Lang.Diagnostic.Severity.hint then "Hint"
-  else if diag_kind = Lang.Diagnostic.Severity.information then "Information"
-  else "Warning"
-
-let print_diagnostics (errors : Lang.Diagnostic.t list) : unit =
-  List.iter
-    (fun (diag : Lang.Diagnostic.t) ->
-      print_endline
-        ("At: "
-        ^ error_location_to_string diag.range
-        ^ " "
-        ^ diagnostic_kind_to_str diag.severity
-        ^ ": "
-        ^ Pp.string_of_ppcmds diag.message))
-    errors
 
 let remove_loc sexp =
   let open Sexplib.Sexp in
@@ -267,11 +232,25 @@ let replace_require (x : syntaxNode) : transformation_step option =
       | VernacSynPure _ -> None)
   | None -> None
 
+let replace_proof (target_id : Uuidm.t) (new_proof : proof)
+    (doc : Coq_document.t) : transformation_step list option =
+  match Coq_document.element_with_id_opt target_id doc with
+  | Some target ->
+      let replacement_node = Replace (target.id, new_proof.proposition) in
+      let attached_nodes =
+        List.mapi
+          (fun i node ->
+            if i = 0 then Attach (node, LineAfter, new_proof.proposition.id)
+            else
+              let node_before = List.nth new_proof.proof_steps i in
+
+              Attach (node, LineAfter, node_before.id))
+          new_proof.proof_steps
+      in
+      Some (replacement_node :: attached_nodes)
+  | None -> None
+
 let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
-  let uri = doc.uri in
-
-  let uri_str = Lang.LUri.File.to_string_uri uri in
-
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
   let errors = List.filter Lang.Diagnostic.is_error diags in
 
@@ -298,27 +277,13 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
         Coq_document.apply_transformations_steps
           (require_transform_steps @ context_transform_steps)
           parsed_document
+        |> Result.get_ok
       in
 
-      (* match new_doc with *)
-      (* | Ok res -> *)
-      (*     let filename = Filename.basename uri_str in *)
-      (*     let new_dir = "../private-geocoq/theories/Constructive/" in *)
-      (*     let filename_bis = *)
-      (*       Filename.remove_extension filename ^ "_bis.v" *)
-      (*       |> Filename.concat new_dir *)
-      (*     in *)
-      (*     print_endline *)
-      (*       ("All transformations applied, writing to file " ^ filename_bis); *)
-      (*     (\* List.iter *\) *)
-      (*     (\*   (fun x -> print_endline (Lang.Range.to_string x.range)) *\) *)
-      (*     (\*   res.elements; *\) *)
-      (*     let out = open_out filename_bis in *)
-      (*     output_string out (Coq_document.dump_to_string res) *)
-      (* | Error err -> print_endline err) *)
-      let other_doc_path = "../dedukti-tarski-dev/coq/ch02_cong.v" in
+      let other_doc_path = "../dedukti-tarski-dev/coq/ch04_cong_bet.v" in
       let compiler_args =
         Compile.file_and_plugin_args_to_compiler_args other_doc_path io tok doc
+        |> Result.get_ok
       in
       let other_doc = Compile.compile_file compiler_args other_doc_path in
       match other_doc with
@@ -332,7 +297,7 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
               prerr_endline
                 ("parsing of the second file stopped at "
                 ^ Lang.Range.to_string range_stop);
-              print_diagnostics diags
+              print_diagnostics errors
           | Doc.Completion.Failed range_failed ->
               prerr_endline
                 ("parsing of the second file failed at "
@@ -340,9 +305,28 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
               print_diagnostics errors
           | Doc.Completion.Yes _ ->
               let other_doc_parsed = Coq_document.parse_document new_doc in
-              List.iter
-                (fun node -> print_endline node.repr)
-                other_doc_parsed.elements;
+              let other_proofs =
+                Coq_document.get_proofs other_doc_parsed |> Result.get_ok
+              in
+              let proof_replacing_steps =
+                List.filter_map
+                  (fun p ->
+                    let name = Proof.get_proof_name p |> Option.get in
+                    let reg = Re.compile (Re.str "__") in
+                    let new_name = Re.replace_string reg ~by:"_" name in
+                    match
+                      Coq_document.proof_with_name_opt new_name parsed_document
+                    with
+                    | Some proof ->
+                        replace_proof proof.proposition.id p other_doc_parsed
+                    | None -> None)
+                  other_proofs
+                |> List.concat
+              in
+              let new_doc =
+                Coq_document.apply_transformations_steps proof_replacing_steps
+                  new_doc
+              in
               print_endline "the second doc was parsed succesfully")
       | Error err ->
           print_endline ("ERROR : " ^ Compile.compiler_error_to_string err))
