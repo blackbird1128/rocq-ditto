@@ -226,9 +226,19 @@ let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) : proof option =
   match proofs_res with
   | Ok proofs ->
       List.find_opt (fun elem -> elem.proposition.id = proof_id) proofs
-  | Error err ->
-      print_endline "No proof found !";
-      None
+  | Error err -> None
+
+let proof_with_name_opt (proof_name : string) (doc : t) : proof option =
+  let proof_res = get_proofs doc in
+  match proof_res with
+  | Ok proofs ->
+      List.find_opt
+        (fun proof ->
+          match get_proof_name proof with
+          | Some name -> name = proof_name
+          | None -> false)
+        proofs
+  | Error err -> None
 
 let split_at_id (target_id : Uuidm.t) (doc : t) :
     syntaxNode list * syntaxNode list =
@@ -375,22 +385,6 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
                    element_after_new_node_start;
         }
 
-(* How would one insert a node ? *)
-
-(* depend on the shift method *)
-(*
-    - get the nodes before and after 
-    
-    - if we shift horizontally:
-    first check that we are inserting a one line wide node
-
-    - if we shift vertically
-
-    shift all nodes after by the offset amount
-    and the number of lines of height ? 
-    
-   *)
-
 let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
     (t, string) result =
   match validate_syntax_node replacement with
@@ -407,10 +401,6 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
             }
           in
 
-          let target_height =
-            target.range.end_.line - target.range.start.line + 1
-          in
-
           let replacement_height =
             replacement_shifted.range.end_.line
             - replacement_shifted.range.start.line + 1
@@ -422,11 +412,6 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
             (* we already checked for the node existence *)
           in
 
-          List.iter
-            (fun node ->
-              print_endline (node.repr ^ Lang.Range.to_string node.range))
-            removed_node_doc.elements;
-
           let has_same_lines_elements =
             List.exists
               (fun node ->
@@ -434,8 +419,6 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
                 && node.range.start.line = target.range.start.line)
               doc.elements
           in
-          print_endline
-            ("has same line elements: " ^ string_of_bool has_same_lines_elements);
 
           if has_same_lines_elements && replacement_height = 1 then
             insert_node replacement_shifted ~shift_method:ShiftHorizontally
@@ -480,9 +463,6 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
                   new_node_range.end_;
             }
           in
-
-          print_endline
-            ("new node range : " ^ Lang.Range.to_string new_node_range);
 
           let new_node =
             match attached_node.ast with

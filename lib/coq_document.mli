@@ -22,6 +22,7 @@ val element_with_id_opt : Uuidm.t -> t -> syntaxNode option
     returns [None]. *)
 
 val proof_with_id_opt : Uuidm.t -> t -> proof option
+val proof_with_name_opt : string -> t -> proof option
 val split_at_id : Uuidm.t -> t -> syntaxNode list * syntaxNode list
 
 val remove_node_with_id :
