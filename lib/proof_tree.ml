@@ -95,3 +95,5 @@ let rec top_n (n : int) (Node (value, children)) : 'a nary_tree =
 let rec bottom_n (n : int) (Node (_, children) as tree) : 'a nary_tree list =
   if n = 0 then [ tree ]
   else List.flatten (List.map (bottom_n (n - 1)) children)
+
+let root (tree : 'a nary_tree) : 'a = match tree with Node (x, children) -> x

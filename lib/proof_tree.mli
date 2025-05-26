@@ -57,3 +57,6 @@ val bottom_n : int -> 'a nary_tree -> 'a nary_tree list
 (** Obtain the list of sub-trees at depth [n] from the n-ary tree [tree].
     [bottom_n n tree] returns a list of sub-trees that are [n] levels below the
     root. If [n] is 0, it returns the root node in a list. *)
+
+val root : 'a nary_tree -> 'a
+(** Get the root value [x] of a tree of the shape Node([x],[children]) *)
