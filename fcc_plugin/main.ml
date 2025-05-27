@@ -3,6 +3,7 @@ open Ditto
 open Ditto.Proof_tree
 open Ditto.Proof
 open Ditto.Syntax_node
+open Ditto.Diagnostic_utils
 open Vernacexpr
 open Theorem_query
 
@@ -59,124 +60,6 @@ let print_help (transformation_help : (transformation_kind * string) list) :
       print_newline ())
     transformation_help
 
-let error_location_to_string (location : Lang.Range.t) : string =
-  if location.start.line = location.end_.line then
-    "line "
-    ^ string_of_int location.start.line
-    ^ ", characters: "
-    ^ string_of_int location.start.character
-    ^ "-"
-    ^ string_of_int location.end_.character
-  else
-    "line "
-    ^ string_of_int location.start.line
-    ^ "-"
-    ^ string_of_int location.end_.line
-    ^ ", characters: "
-    ^ string_of_int location.start.character
-    ^ "-"
-    ^ string_of_int location.end_.character
-
-let diagnostic_kind_to_str (diag_kind : Lang.Diagnostic.Severity.t) : string =
-  if diag_kind = Lang.Diagnostic.Severity.error then "Error"
-  else if diag_kind = Lang.Diagnostic.Severity.hint then "Hint"
-  else if diag_kind = Lang.Diagnostic.Severity.information then "Information"
-  else "Warning"
-
-let print_diagnostics (errors : Lang.Diagnostic.t list) : unit =
-  List.iter
-    (fun (diag : Lang.Diagnostic.t) ->
-      print_endline
-        ("At: "
-        ^ error_location_to_string diag.range
-        ^ " "
-        ^ diagnostic_kind_to_str diag.severity
-        ^ ": "
-        ^ Pp.string_of_ppcmds diag.message))
-    errors
-
-let remove_loc sexp =
-  let open Sexplib.Sexp in
-  let rec aux sexp =
-    match sexp with
-    | Atom _ -> sexp
-    | List (Atom "loc" :: _) -> List [] (* or List [] *)
-    | List l ->
-        let filtered =
-          List.filter_map
-            (fun s ->
-              match s with List (Atom "loc" :: _) -> None | _ -> Some (aux s))
-            l
-        in
-        List filtered
-  in
-  aux sexp
-
-let is_raw_assert (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : bool =
-  match tac.CAst.v with
-  | Ltac_plugin.Tacexpr.TacAtom atom -> (
-      match atom with
-      | Ltac_plugin__Tacexpr.TacAssert (_, _, _, _, _) -> true
-      | _ -> false)
-  | _ -> false
-
-let get_assert_constr_expr (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
-    Constrexpr.constr_expr option =
-  match tac.v with
-  | Ltac_plugin.Tacexpr.TacAtom atom -> (
-      match atom with
-      | Ltac_plugin.Tacexpr.TacAssert (_, _, _, _, e) -> Some e
-      | _ -> None)
-  | _ -> None
-
-let experiment_tactic ~io ~token:_ ~(doc : Doc.t) =
-  let parsed_document = Coq_document.parse_document doc in
-  let proofs = Result.get_ok (Coq_document.get_proofs parsed_document) in
-
-  let first_proof = List.hd proofs in
-  let first_proof_tactics =
-    List.filter Syntax_node.is_syntax_node_ast_tactic first_proof.proof_steps
-  in
-  let first_tactic = List.hd first_proof_tactics in
-  let tactic_args =
-    Option.get (Syntax_node.get_tactic_raw_generic_arguments first_tactic)
-  in
-
-  let exist_query =
-    Q_anywhere
-      (Q_list_prefix
-         [
-           Q_atom "CNotation";
-           Q_empty;
-           Q_list_prefix [ Q_atom "InConstrEntry"; Q_atom "exists _ .. _ , _" ];
-         ])
-  in
-
-  List.iter
-    (fun tac ->
-      let args =
-        Option.get (Syntax_node.get_tactic_raw_generic_arguments tac)
-      in
-      let elems =
-        Option.get (Raw_gen_args_converter.raw_arguments_to_ltac_elements args)
-      in
-      if is_raw_assert elems.raw_tactic_expr then (
-        let expr = Option.get (get_assert_constr_expr elems.raw_tactic_expr) in
-
-        let sexp_expr = Serlib.Ser_constrexpr.sexp_of_constr_expr expr in
-
-        print_endline (tac.repr ^ " is an assert ");
-        if Theorem_query.matches exist_query sexp_expr then
-          print_endline "there is an exist inside the assert"))
-    first_proof_tactics;
-
-  let elems =
-    Option.get
-      (Raw_gen_args_converter.raw_arguments_to_ltac_elements tactic_args)
-  in
-
-  ()
-
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
@@ -230,6 +113,12 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                   (transformation_kind_to_function parsed_document)
                   transformations_steps
               in
+              List.iter
+                (fun transformation ->
+                  print_endline
+                    ("applying transformation : "
+                    ^ transformation_kind_to_arg transformation))
+                transformations_steps;
 
               let res =
                 List.fold_left
@@ -260,5 +149,5 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                DITTO_TRANSFORMATION=HELP";
             exit 1)
 
-let main () = Theory.Register.Completed.add experiment_tactic
+let main () = Theory.Register.Completed.add dump_ast
 let () = main ()
