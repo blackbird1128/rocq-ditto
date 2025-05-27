@@ -287,11 +287,13 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
       in
       let other_doc = Compile.compile_file compiler_args other_doc_path in
       match other_doc with
-      | Ok new_doc -> (
-          match new_doc.completed with
+      | Ok second_doc -> (
+          match second_doc.completed with
           | Doc.Completion.Stopped range_stop ->
               let diags =
-                List.concat_map (fun (x : Doc.Node.t) -> x.diags) new_doc.nodes
+                List.concat_map
+                  (fun (x : Doc.Node.t) -> x.diags)
+                  second_doc.nodes
               in
               let errors = List.filter Lang.Diagnostic.is_error diags in
               prerr_endline
@@ -304,7 +306,7 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
                 ^ Lang.Range.to_string range_failed);
               print_diagnostics errors
           | Doc.Completion.Yes _ ->
-              let other_doc_parsed = Coq_document.parse_document new_doc in
+              let other_doc_parsed = Coq_document.parse_document second_doc in
               let other_proofs =
                 Coq_document.get_proofs other_doc_parsed |> Result.get_ok
               in
