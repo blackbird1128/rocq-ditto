@@ -298,7 +298,6 @@ let rec proof_tree_from_parents (cur_node : int * syntaxNode)
     (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
     syntaxNode nary_tree =
   let _, tactic = cur_node in
-
   let childs = Hashtbl.find_all parents cur_node in
   Node
     ( tactic,
@@ -307,20 +306,18 @@ let rec proof_tree_from_parents (cur_node : int * syntaxNode)
 let treeify_proof (doc : Coq_document.t) (p : proof) :
     (syntaxNode nary_tree, string) result =
   let token = Coq.Limits.Token.create () in
-
   match get_init_state doc p.proposition token with
   | Ok init_state ->
       let steps_with_goals =
-        proof_steps_with_goalcount token init_state p.proof_steps
+        proof_steps_with_goalcount token init_state (Proof.proof_nodes p)
       in
 
       let parents = Hashtbl.create (List.length steps_with_goals) in
       let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
-
       Ok
         (Node
            ( p.proposition,
-             [ proof_tree_from_parents (0, List.hd p.proof_steps) parents ] ))
+             [ proof_tree_from_parents (0, p.proposition) parents ] ))
   | Error err -> Error "Unable to retrieve initial state"
 
 let is_valid_proof (doc : Coq_document.t) (p : proof) : bool =
