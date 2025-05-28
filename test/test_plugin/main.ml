@@ -284,6 +284,34 @@ let test_searching_node (doc : Doc.t) () : unit =
     "No element should be retrieved" None
     (Option.map (fun x -> x.id) absurd_node)
 
+let test_reformat_comment_node (doc : Doc.t) () : unit =
+  let starting_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+
+  let comment_node =
+    comment_syntax_node_of_string "(* a comment *)" starting_point
+    |> Result.get_ok
+  in
+
+  let reformatted_node = Syntax_node.reformat_node comment_node in
+  let reformat_id = Result.map (fun x -> x.id) reformatted_node in
+
+  Alcotest.(check (result uuidm_testable string))
+    "Should return an error"
+    (Error "The node need to have an AST to be reformatted") reformat_id
+
+let test_reformat_keep_id (doc : Doc.t) () : unit =
+  let starting_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+
+  let content_node =
+    syntax_node_of_string "Compute 1 + 1." starting_point |> Result.get_ok
+  in
+
+  let reformatted_node = Syntax_node.reformat_node content_node in
+  let reformat_id = Result.map (fun x -> x.id) reformatted_node in
+
+  Alcotest.(check (result uuidm_testable string))
+    "Should return the same id" (Ok content_node.id) reformat_id
+
 let test_id_assign_document (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let nodes_ids = List.map (fun x -> x.id) doc.elements in
@@ -754,6 +782,12 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "check if two nodes with multiple common lines are colliding"
        test_colliding_nodes_multiple_common_lines_collision doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "Check if reformat fail on comment"
+       test_reformat_comment_node doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "Check if reformat keep the same id"
+       test_reformat_keep_id doc);
 
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);

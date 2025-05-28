@@ -231,6 +231,14 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Lang.Point.t) :
     diagnostics = [];
   }
 
+let reformat_node (x : syntaxNode) : (syntaxNode, string) result =
+  let start_point = x.range.start in
+  match x.ast with
+  | Some ast ->
+      Ok { (syntax_node_of_coq_ast ast.v start_point) with id = x.id }
+      (* we return the same id, doesn't matter in the order of operation we do *)
+  | None -> Error "The node need to have an AST to be reformatted"
+
 let qed_ast_node (start_point : Lang.Point.t) : syntaxNode =
   Result.get_ok (syntax_node_of_string "Qed." start_point)
 

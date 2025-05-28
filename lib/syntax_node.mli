@@ -35,6 +35,11 @@ val syntax_node_of_string :
     starting at [start_point] or [Error string] with a string containing the
     error message detailing why the node was not able to be created *)
 
+val reformat_node : syntaxNode -> (syntaxNode, string) result
+(** [reformat_node node] reformat a node. The [node] is reformatted by turning
+    it into a coq_ast and then using pr_vernac to reformat the string. Return
+    [Error] if [node.ast] is none. *)
+
 val string_of_syntax_node : syntaxNode -> string
 val validate_syntax_node : syntaxNode -> (syntaxNode, string) result
 
