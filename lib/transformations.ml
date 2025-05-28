@@ -288,7 +288,6 @@ let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     | [] -> acc
     | x :: tail -> (
         let token = Coq.Limits.Token.create () in
-        print_endline ("treating " ^ x.repr);
         if
           ((not (is_syntax_node_proof_intro_or_end x))
           && not (is_syntax_node_bullet x))
@@ -437,6 +436,21 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
         if depth >= target_depth && not reduced_goals then
           pop_until_prev_depth tail target_depth
         else stack
+  in
+
+  let print_step
+      ( prev_node,
+        prev_state,
+        prev_depth,
+        prev_num_children,
+        prev_goal_count,
+        prev_reduced_goals ) =
+    Printf.printf "prev_node: %s\n" prev_node.repr;
+    Printf.printf "prev_depth: %d\n" prev_depth;
+    Printf.printf "prev_num_children: %d\n" prev_num_children;
+    Printf.printf "prev_goal_count: %d\n" prev_goal_count;
+    Printf.printf "prev_reduced_goals: [%s]\n"
+      (string_of_bool prev_reduced_goals)
   in
 
   match
@@ -605,6 +619,8 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
                 tree_with_depths
             in
 
+            List.iter print_step auto_steps;
+
             let tactics =
               intros
               @ List.rev_map
@@ -647,14 +663,16 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, string) result =
-  let tree_without_command =
+  let tree_proposition = Proof_tree.root proof_tree in
+
+  let tree_without_command_or_comment =
     Option.get
       (Proof_tree.filter
-         (fun node -> not (is_syntax_node_ast_proof_command node))
+         (fun node ->
+           (not (is_syntax_node_ast_proof_command node))
+           && Option.has_some node.ast)
          proof_tree)
   in
-
-  Proof.print_tree tree_without_command " ";
 
   let rec get_oneliner (tree : syntaxNode nary_tree) =
     match tree with
@@ -687,20 +705,19 @@ let turn_into_oneliner (doc : Coq_document.t)
           ^ String.concat " " (List.map get_oneliner childrens)
         else x_without_dot
   in
-  let one_liner_repr = get_oneliner tree_without_command ^ "." in
+  let one_liner_repr = get_oneliner tree_without_command_or_comment ^ "." in
 
   let flattened = Proof_tree.flatten proof_tree in
-  let steps =
+  let remove_steps =
     List.filter_map
       (fun node ->
         if is_syntax_node_proof_intro_or_end node then None
         else Some (Remove node.id))
       flattened
   in
+
   let first_step_node =
-    List.find
-      (fun node -> not (is_syntax_node_proof_intro_or_end node))
-      flattened
+    List.find (fun node -> is_syntax_node_ast_proof_command node) flattened
   in
 
   let oneliner_node =
@@ -708,8 +725,13 @@ let turn_into_oneliner (doc : Coq_document.t)
       (Syntax_node.syntax_node_of_string one_liner_repr
          first_step_node.range.start)
   in
+  let reformatted_oneliner_node =
+    Syntax_node.reformat_node oneliner_node |> Result.get_ok
+  in
 
-  Ok (Add oneliner_node :: steps)
+  Ok
+    (remove_steps
+    @ [ Attach (reformatted_oneliner_node, LineAfter, first_step_node.id) ])
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
@@ -753,7 +775,6 @@ let apply_proof_transformation
       Coq_document.t -> Proof.proof -> (transformation_step list, string) result)
     (doc : Coq_document.t) : (Coq_document.t, string) result =
   let proofs_rec = Coq_document.get_proofs doc in
-
   match proofs_rec with
   | Ok proofs ->
       List.fold_left
@@ -762,7 +783,6 @@ let apply_proof_transformation
           match doc_acc with
           | Ok acc -> (
               let transformation_steps = transformation acc proof in
-
               match transformation_steps with
               | Ok steps ->
                   List.fold_left
