@@ -48,7 +48,7 @@ let is_raw_assert (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : bool =
   match tac.CAst.v with
   | Ltac_plugin.Tacexpr.TacAtom atom -> (
       match atom with
-      | Ltac_plugin__Tacexpr.TacAssert (_, _, _, _, _) -> true
+      | Ltac_plugin.Tacexpr.TacAssert (_, _, _, _, _) -> true
       | _ -> false)
   | _ -> false
 
@@ -232,24 +232,6 @@ let replace_require (x : syntaxNode) : transformation_step option =
       | VernacSynPure _ -> None)
   | None -> None
 
-let replace_proof (target_id : Uuidm.t) (new_proof : proof)
-    (doc : Coq_document.t) : transformation_step list option =
-  match Coq_document.element_with_id_opt target_id doc with
-  | Some target ->
-      let replacement_node = Replace (target.id, new_proof.proposition) in
-      let attached_nodes =
-        List.mapi
-          (fun i node ->
-            if i = 0 then Attach (node, LineAfter, new_proof.proposition.id)
-            else
-              let node_before = List.nth new_proof.proof_steps i in
-
-              Attach (node, LineAfter, node_before.id))
-          new_proof.proof_steps
-      in
-      Some (replacement_node :: attached_nodes)
-  | None -> None
-
 let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
   let errors = List.filter Lang.Diagnostic.is_error diags in
@@ -320,7 +302,8 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
                       Coq_document.proof_with_name_opt new_name parsed_document
                     with
                     | Some proof ->
-                        replace_proof proof.proposition.id p other_doc_parsed
+                        Coq_document.replace_proof proof.proposition.id p
+                          other_doc_parsed
                     | None -> None)
                   other_proofs
                 |> List.concat

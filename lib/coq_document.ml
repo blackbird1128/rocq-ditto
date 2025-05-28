@@ -325,11 +325,6 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     | None -> 0
   in
 
-  (* let new_lines_push = *)
-  (*   String.fold_left *)
-  (*     (fun acc c -> if c = '\n' then acc + 1 else acc) *)
-  (*     0 new_node.repr *)
-  (* in *)
   let total_shift = node_offset_size - offset_space in
 
   match shift_method with
@@ -430,6 +425,24 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
           Error
             ("The target node with id : " ^ Uuidm.to_string target_id
            ^ " doesn't exists"))
+
+let replace_proof (target_id : Uuidm.t) (new_proof : proof) (doc : t) :
+    transformation_step list option =
+  match element_with_id_opt target_id doc with
+  | Some target ->
+      let replacement_node = Replace (target.id, new_proof.proposition) in
+      let attached_nodes =
+        List.mapi
+          (fun i node ->
+            if i = 0 then Attach (node, LineAfter, new_proof.proposition.id)
+            else
+              let node_before = List.nth new_proof.proof_steps i in
+
+              Attach (node, LineAfter, node_before.id))
+          new_proof.proof_steps
+      in
+      Some (replacement_node :: attached_nodes)
+  | None -> None
 
 let apply_transformation_step (step : transformation_step) (doc : t) :
     (t, string) result =
