@@ -6,7 +6,7 @@ type compilerArgs = {
   env : Doc.Env.t;
 }
 
-type compilerError = IncorrectURI | ParsingStopped | ParsingFailed
+type compilerError = IncorrectURI | ParsingStopped of Lang.Range.t * Lang.Diagnostic.t list | ParsingFailed of Lang.Range.t * Lang.Diagnostic.t list
 
 val compiler_error_to_string : compilerError -> string
 

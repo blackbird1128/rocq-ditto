@@ -7,18 +7,18 @@ type compilerArgs = {
   env : Doc.Env.t;
 }
 
-type compilerError = IncorrectURI | ParsingStopped | ParsingFailed
+type compilerError = IncorrectURI | ParsingStopped of Lang.Range.t * Lang.Diagnostic.t list | ParsingFailed of Lang.Range.t * Lang.Diagnostic.t list
 
 let compiler_error_to_string (error : compilerError) : string =
   match error with
   | IncorrectURI -> "incorrect URI"
-  | ParsingStopped -> "parsing stopped"
-  | ParsingFailed -> "parsing failed"
+  | ParsingStopped (stopped_range, errors) -> "parsing stopped"
+  | ParsingFailed (failed_range, errors)  -> "parsing failed"
 
 let rec find_coqproject (dir : string) : string option =
   let coqproject_filename = "_CoqProject" in
   if Sys.file_exists (Filename.concat dir coqproject_filename) then Some dir
-  else if dir = "/" then None
+  else if dir = "/" || dir = "." then None
   else find_coqproject (Filename.dirname dir)
 
 let get_workspace_folder (filepath : string) : string option =
@@ -129,5 +129,11 @@ let compile_file (cc : compilerArgs) (filepath : string) :
 
       match doc.completed with
       | Yes _ -> Ok doc
-      | Stopped _ -> Error ParsingStopped
-      | Failed failed_range -> Error ParsingFailed)
+      | Stopped stopped_range ->
+           let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
+           let errors = List.filter Lang.Diagnostic.is_error diags in
+           Error (ParsingStopped (stopped_range, errors))
+      | Failed failed_range ->
+         let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
+         let errors = List.filter Lang.Diagnostic.is_error diags in
+         Error (ParsingFailed (failed_range, errors) ))
