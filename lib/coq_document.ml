@@ -428,20 +428,25 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
 
 let replace_proof (target_id : Uuidm.t) (new_proof : proof) (doc : t) :
     transformation_step list option =
-  match element_with_id_opt target_id doc with
+  match proof_with_id_opt target_id doc with
   | Some target ->
-      let replacement_node = Replace (target.id, new_proof.proposition) in
+      let replacement_node =
+        Replace (target.proposition.id, new_proof.proposition)
+      in
+      let remove_nodes =
+        List.map (fun node -> Remove node.id) target.proof_steps
+      in
+
       let attached_nodes =
         List.mapi
           (fun i node ->
             if i = 0 then Attach (node, LineAfter, new_proof.proposition.id)
             else
-              let node_before = List.nth new_proof.proof_steps i in
-
-              Attach (node, LineAfter, node_before.id))
+              let prev_node = List.nth new_proof.proof_steps (i - 1) in
+              Attach (node, LineAfter, prev_node.id))
           new_proof.proof_steps
       in
-      Some (replacement_node :: attached_nodes)
+      Some (remove_nodes @ (replacement_node :: attached_nodes))
   | None -> None
 
 let apply_transformation_step (step : transformation_step) (doc : t) :
