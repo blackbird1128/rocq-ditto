@@ -61,6 +61,189 @@ let get_assert_constr_expr (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       | _ -> None)
   | _ -> None
 
+let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    string list =
+  let empty_env = Environ.empty_env in
+  let empty_evd = Evd.empty in
+  let pp = Ltac_plugin.Pptactic.pr_raw_tactic empty_env empty_evd tac in
+  match tac.v with
+  | Ltac_plugin.Tacexpr.TacAtom atom -> [ Pp.string_of_ppcmds pp ]
+  | Ltac_plugin.Tacexpr.TacThen (tac1, tac2) ->
+      (*x ; y can be nested*)
+      get_basic_tactic_names tac1 @ get_basic_tactic_names tac2
+  | Ltac_plugin.Tacexpr.TacDispatch tactics ->
+      List.concat_map get_basic_tactic_names tactics
+  (* [|>]*)
+  | Ltac_plugin.Tacexpr.TacExtendTac (_, _, _) ->
+      prerr_endline "extend tac, not handled yet";
+      []
+  | Ltac_plugin.Tacexpr.TacThens (tacDistributed, tac_list) ->
+      (* x;[a;b;c] *)
+      get_basic_tactic_names tacDistributed
+      @ List.concat_map get_basic_tactic_names tac_list
+  | Ltac_plugin.Tacexpr.TacThens3parts (tac1, tac_array1, tac2, tac_array2) ->
+      let tac_array1_names =
+        Array.map get_basic_tactic_names tac_array1
+        |> Array.map Array.of_list |> Array.to_list |> Array.concat
+        |> Array.to_list
+      in
+      let tac_array2_names =
+        Array.map get_basic_tactic_names tac_array2
+        |> Array.map Array.of_list |> Array.to_list |> Array.concat
+        |> Array.to_list
+      in
+      print_endline "tacThens3parts not handled yet";
+      get_basic_tactic_names tac1
+      @ tac_array1_names
+      @ get_basic_tactic_names tac2
+      @ tac_array2_names
+  | Ltac_plugin.Tacexpr.TacFirst tac_list ->
+      List.concat_map get_basic_tactic_names tac_list
+  | Ltac_plugin.Tacexpr.TacSolve tac_to_tries ->
+      List.concat_map get_basic_tactic_names tac_to_tries
+  | Ltac_plugin.Tacexpr.TacTry expr -> get_basic_tactic_names expr
+  | Ltac_plugin.Tacexpr.TacOr (tac1, tac2) ->
+      get_basic_tactic_names tac1 @ get_basic_tactic_names tac2
+  | Ltac_plugin.Tacexpr.TacOnce tac ->
+      get_basic_tactic_names tac (* once tactic*)
+  | Ltac_plugin.Tacexpr.TacExactlyOnce tac -> get_basic_tactic_names tac
+  | Ltac_plugin.Tacexpr.TacIfThenCatch (_, _, _) ->
+      print_endline "tacIfThenCatch not handled yet";
+      []
+  | Ltac_plugin.Tacexpr.TacOrelse (tac, tac_or_else) ->
+      get_basic_tactic_names tac @ get_basic_tactic_names tac_or_else
+  | Ltac_plugin.Tacexpr.TacDo (_, tactic_to_do) ->
+      get_basic_tactic_names tactic_to_do
+  | Ltac_plugin.Tacexpr.TacTimeout (duration, tac) -> get_basic_tactic_names tac
+  | Ltac_plugin.Tacexpr.TacTime (_, tacticTimed) ->
+      get_basic_tactic_names tacticTimed
+  | Ltac_plugin.Tacexpr.TacRepeat tactic_repeated ->
+      get_basic_tactic_names tactic_repeated
+  | Ltac_plugin.Tacexpr.TacProgress tac -> get_basic_tactic_names tac
+  | Ltac_plugin.Tacexpr.TacAbstract (tac, _) -> get_basic_tactic_names tac
+  | Ltac_plugin.Tacexpr.TacId msg -> [ "idtac" ]
+  | Ltac_plugin.Tacexpr.TacFail (_, _, _) -> [ Pp.string_of_ppcmds pp ]
+  | Ltac_plugin.Tacexpr.TacLetIn (_, _, _) ->
+      print_endline "tacLetIn not handled yet";
+      []
+  | Ltac_plugin.Tacexpr.TacMatch (_, _, _) ->
+      print_endline "tac match not handled yet";
+      []
+  | Ltac_plugin.Tacexpr.TacMatchGoal (_, _, _) ->
+      print_endline "tac match goal not handled yet";
+      []
+  | Ltac_plugin.Tacexpr.TacFun l ->
+      print_endline "fun call not handled yet";
+      []
+  | Ltac_plugin.Tacexpr.TacArg arg -> [ Pp.string_of_ppcmds pp ]
+  | Ltac_plugin.Tacexpr.TacSelect (goal_select, tac) ->
+      get_basic_tactic_names tac
+  | Ltac_plugin.Tacexpr.TacML (_, list_tac) ->
+      print_endline "what is a tac Ml ? ";
+      []
+  | Ltac_plugin.Tacexpr.TacAlias (_, tactics) -> [ Pp.string_of_ppcmds pp ]
+
+let rec print_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : unit =
+  let empty_env = Environ.empty_env in
+  let empty_evd = Evd.empty in
+  let pp = Ltac_plugin.Pptactic.pr_raw_tactic empty_env empty_evd tac in
+  print_endline (Pp.string_of_ppcmds pp);
+  match tac.v with
+  | Ltac_plugin.Tacexpr.TacAtom atom -> print_endline "atom"
+  | Ltac_plugin.Tacexpr.TacThen (tac1, tac2) ->
+      (*x ; y can be nested*)
+      print_endline "tacThen";
+      print_tactic_names tac1;
+      print_tactic_names tac2
+  | Ltac_plugin.Tacexpr.TacDispatch tactics ->
+      print_endline "tacDispatch";
+      List.iter print_tactic_names tactics
+  (* [|>]*)
+  | Ltac_plugin.Tacexpr.TacExtendTac (_, _, _) -> print_endline "tacExtendTac"
+  | Ltac_plugin.Tacexpr.TacThens (tacDistributed, tac_list) ->
+      print_endline "tacThens" (* x;[a;b;c] *)
+  | Ltac_plugin.Tacexpr.TacThens3parts (_, _, _, _) ->
+      print_endline "tacThens3parts"
+  | Ltac_plugin.Tacexpr.TacFirst tac_list ->
+      print_endline "first";
+      List.iter print_tactic_names tac_list
+  | Ltac_plugin.Tacexpr.TacSolve tac_to_tries -> print_endline "tacSolve"
+  | Ltac_plugin.Tacexpr.TacTry expr ->
+      print_endline "try this tactic: ";
+      print_tactic_names expr
+  | Ltac_plugin.Tacexpr.TacOr (tac1, tac2) ->
+      print_tactic_names tac1;
+      print_tactic_names tac2 (* OR tactic || *)
+  | Ltac_plugin.Tacexpr.TacOnce tac -> print_endline "tacOnce" (* once tactic*)
+  | Ltac_plugin.Tacexpr.TacExactlyOnce tac ->
+      print_endline "tacExactlyOnce" (* exactly once tactic *)
+  | Ltac_plugin.Tacexpr.TacIfThenCatch (_, _, _) ->
+      print_endline "tacIfThenCatch"
+  | Ltac_plugin.Tacexpr.TacOrelse (_, _) -> print_endline "tacOrelse"
+  | Ltac_plugin.Tacexpr.TacDo (_, tactic_to_do) ->
+      print_endline "the doc tactic"
+  | Ltac_plugin.Tacexpr.TacTimeout (duration, tac) -> print_endline "tacTimeout"
+  | Ltac_plugin.Tacexpr.TacTime (_, tacticTimed) ->
+      print_endline "tacTime";
+      print_tactic_names tacticTimed
+  | Ltac_plugin.Tacexpr.TacRepeat tactic_repeated ->
+      print_endline "repeat tactic";
+      print_tactic_names tactic_repeated
+  | Ltac_plugin.Tacexpr.TacProgress tac ->
+      print_endline "tac progress: try a tac and fail if no progress";
+      print_tactic_names tac
+  | Ltac_plugin.Tacexpr.TacAbstract (tac, _) ->
+      print_endline "the abtract tactic"
+  | Ltac_plugin.Tacexpr.TacId msg -> print_endline "idtac"
+  | Ltac_plugin.Tacexpr.TacFail (_, _, _) -> print_endline "the fail tactic"
+  | Ltac_plugin.Tacexpr.TacLetIn (_, _, _) -> print_endline "tacLetIn"
+  | Ltac_plugin.Tacexpr.TacMatch (_, _, _) ->
+      print_endline "there is a match tactic apparently"
+  | Ltac_plugin.Tacexpr.TacMatchGoal (_, _, _) ->
+      print_endline "there is also a match goal tactic"
+  | Ltac_plugin.Tacexpr.TacFun l -> print_endline "a fun call"
+  | Ltac_plugin.Tacexpr.TacArg arg -> print_endline "tacArg"
+  | Ltac_plugin.Tacexpr.TacSelect (goal_select, tac) ->
+      print_endline "tacSelect"
+  | Ltac_plugin.Tacexpr.TacML (_, list_tac) -> print_endline "what is a tac Ml"
+  | Ltac_plugin.Tacexpr.TacAlias (_, tactics) ->
+      print_endline "a tactic alias to call one or more tactic ?"
+
+(* let get_tactc_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : string list = *)
+(*   match tac.v with *)
+(*   | Ltac_plugin.Tacexpr.TacAtom atom -> print_endline "atom" *)
+(*   | Ltac_plugin.Tacexpr.TacThen (_, _) -> print_endline "tacThen" *)
+(*   | Ltac_plugin.Tacexpr.TacDispatch _ -> print_endline "tacDispatch" *)
+(*   | Ltac_plugin.Tacexpr.TacExtendTac (_, _, _) -> print_endline "tacExtendTac" *)
+(*   | Ltac_plugin.Tacexpr.TacThens (_, _) -> print_endline "tacThens" *)
+(*   | Ltac_plugin.Tacexpr.TacThens3parts (_, _, _, _) -> *)
+(*       print_endline "tacThens3parts" *)
+(*   | Ltac_plugin.Tacexpr.TacFirst _ -> print_endline "tacFirst" *)
+(*   | Ltac_plugin.Tacexpr.TacSolve _ -> print_endline "tacSolve" *)
+(*   | Ltac_plugin.Tacexpr.TacTry _ -> print_endline "tacTry" *)
+(*   | Ltac_plugin.Tacexpr.TacOr (_, _) -> print_endline "tacOr" *)
+(*   | Ltac_plugin.Tacexpr.TacOnce _ -> print_endline "tacOnce" *)
+(*   | Ltac_plugin.Tacexpr.TacExactlyOnce _ -> print_endline "tacExactlyOnce" *)
+(*   | Ltac_plugin.Tacexpr.TacIfThenCatch (_, _, _) -> *)
+(*       print_endline "tacIfThenCatch" *)
+(*   | Ltac_plugin.Tacexpr.TacOrelse (_, _) -> print_endline "tacOrelse" *)
+(*   | Ltac_plugin.Tacexpr.TacDo (_, _) -> print_endline "tacDo" *)
+(*   | Ltac_plugin.Tacexpr.TacTimeout (_, _) -> print_endline "tacTimeout" *)
+(*   | Ltac_plugin.Tacexpr.TacTime (_, _) -> print_endline "tacTime" *)
+(*   | Ltac_plugin.Tacexpr.TacRepeat _ -> print_endline "tacRepeat" *)
+(*   | Ltac_plugin.Tacexpr.TacProgress _ -> print_endline "tacProgress" *)
+(*   | Ltac_plugin.Tacexpr.TacAbstract (_, _) -> print_endline "tacAbstract" *)
+(*   | Ltac_plugin.Tacexpr.TacId _ -> print_endline "tacId" *)
+(*   | Ltac_plugin.Tacexpr.TacFail (_, _, _) -> print_endline "tacFail" *)
+(*   | Ltac_plugin.Tacexpr.TacLetIn (_, _, _) -> print_endline "tacLetIn" *)
+(*   | Ltac_plugin.Tacexpr.TacMatch (_, _, _) -> print_endline "tacMatch" *)
+(*   | Ltac_plugin.Tacexpr.TacMatchGoal (_, _, _) -> print_endline "tacMatchGoal" *)
+(*   | Ltac_plugin.Tacexpr.TacFun _ -> print_endline "tacFun" *)
+(*   | Ltac_plugin.Tacexpr.TacArg arg -> print_endline "tacArg" *)
+(*   | Ltac_plugin.Tacexpr.TacSelect (_, _) -> print_endline "tacSelect" *)
+(*   | Ltac_plugin.Tacexpr.TacML (_, _) -> print_endline "tacML" *)
+(*   | Ltac_plugin.Tacexpr.TacAlias (_, _) -> print_endline "tacAlias" *)
+
 let rec replace_func_map (old_fun_name : string) (new_fun_name : string)
     (term : Constrexpr.constr_expr) : Constrexpr.constr_expr =
   match term.v with
@@ -236,6 +419,9 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
   let errors = List.filter Lang.Diagnostic.is_error diags in
 
+  let uri = doc.uri in
+  let uri_str = Lang.LUri.File.to_string_uri uri in
+
   match doc.completed with
   | Doc.Completion.Stopped range_stop ->
       prerr_endline ("parsing stopped at " ^ Lang.Range.to_string range_stop);
@@ -267,54 +453,98 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
         Compile.file_and_plugin_args_to_compiler_args other_doc_path io tok doc
         |> Result.get_ok
       in
+
       let other_doc = Compile.compile_file compiler_args other_doc_path in
+
       match other_doc with
       | Ok second_doc -> (
-          match second_doc.completed with
-          | Doc.Completion.Stopped range_stop ->
-              let diags =
-                List.concat_map
-                  (fun (x : Doc.Node.t) -> x.diags)
-                  second_doc.nodes
+          let other_doc_parsed = Coq_document.parse_document second_doc in
+          let other_proofs =
+            Coq_document.get_proofs other_doc_parsed |> Result.get_ok
+          in
+          print_endline "there";
+          let proof_replacing_steps =
+            List.filter_map
+              (fun p ->
+                let name = Proof.get_proof_name p |> Option.get in
+                let reg = Re.compile (Re.str "__") in
+                let new_name = Re.replace_string reg ~by:"_" name in
+                print_endline p.proposition.repr;
+                match Coq_document.proof_with_name_opt new_name new_doc with
+                | Some proof ->
+                    Coq_document.replace_proof proof.proposition.id p new_doc
+                | None -> None)
+              other_proofs
+            |> List.concat
+          in
+          let new_doc =
+            Coq_document.apply_transformations_steps proof_replacing_steps
+              new_doc
+          in
+          match new_doc with
+          | Ok res ->
+              let filename =
+                "../private-geocoq/theories/Constructive/"
+                ^ (Filename.basename uri_str |> Filename.remove_extension)
+                ^ "_bis.v"
               in
-              let errors = List.filter Lang.Diagnostic.is_error diags in
-              prerr_endline
-                ("parsing of the second file stopped at "
-                ^ Lang.Range.to_string range_stop);
+              print_endline
+                ("All transformations applied, writing to file" ^ filename);
+              let out = open_out filename in
+              output_string out (Coq_document.dump_to_string res)
+          | Error err -> print_endline err)
+      | Error err -> (
+          match err with
+          | Compile.IncorrectURI -> print_endline "incorrect URI"
+          | Compile.ParsingStopped (stopped_range, errors) ->
               print_diagnostics errors
-          | Doc.Completion.Failed range_failed ->
-              prerr_endline
-                ("parsing of the second file failed at "
-                ^ Lang.Range.to_string range_failed);
-              print_diagnostics errors
-          | Doc.Completion.Yes _ ->
-              let other_doc_parsed = Coq_document.parse_document second_doc in
-              let other_proofs =
-                Coq_document.get_proofs other_doc_parsed |> Result.get_ok
-              in
-              let proof_replacing_steps =
-                List.filter_map
-                  (fun p ->
-                    let name = Proof.get_proof_name p |> Option.get in
-                    let reg = Re.compile (Re.str "__") in
-                    let new_name = Re.replace_string reg ~by:"_" name in
-                    match
-                      Coq_document.proof_with_name_opt new_name parsed_document
-                    with
-                    | Some proof ->
-                        Coq_document.replace_proof proof.proposition.id p
-                          other_doc_parsed
-                    | None -> None)
-                  other_proofs
-                |> List.concat
-              in
-              let new_doc =
-                Coq_document.apply_transformations_steps proof_replacing_steps
-                  new_doc
-              in
-              print_endline "the second doc was parsed succesfully")
-      | Error err ->
-          print_endline ("ERROR : " ^ Compile.compiler_error_to_string err))
+          | Compile.ParsingFailed (failed_range, errors) ->
+              print_diagnostics errors))
+
+let tactic_count ~io ~token:_ ~(doc : Doc.t) =
+  let uri = doc.uri in
+  let uri_str = Lang.LUri.File.to_string_uri uri in
+  prerr_endline ("treating: " ^ uri_str);
+  let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
+  let errors = List.filter Lang.Diagnostic.is_error diags in
+
+  match doc.completed with
+  | Doc.Completion.Stopped range_stopped ->
+      prerr_endline ("parsing stopped at " ^ Lang.Range.to_string range_stopped);
+      print_diagnostics errors
+  | Doc.Completion.Failed range_failed ->
+      prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
+      print_diagnostics errors
+  | Doc.Completion.Yes _ ->
+      let parsed_document = Coq_document.parse_document doc in
+
+      let proofs = Result.get_ok (Coq_document.get_proofs parsed_document) in
+
+      let proof_steps = List.concat_map (fun x -> x.proof_steps) proofs in
+      let proof_tactics =
+        List.filter Syntax_node.is_syntax_node_ast_tactic proof_steps
+      in
+
+      let basic_tactics =
+        List.concat_map
+          (fun node ->
+            let raw_args =
+              Syntax_node.get_tactic_raw_generic_arguments node |> Option.get
+            in
+            let ltac_elements =
+              Raw_gen_args_converter.raw_arguments_to_ltac_elements raw_args
+              |> Option.get
+            in
+
+            get_basic_tactic_names ltac_elements.raw_tactic_expr)
+          proof_tactics
+      in
+      let first_word_tactics =
+        List.map
+          (fun tac -> String.split_on_char ' ' tac |> List.hd)
+          basic_tactics
+      in
+      List.iter print_endline first_word_tactics
 
 let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -423,9 +653,6 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
           let filename = Filename.remove_extension uri_str ^ "_bis.v" in
           print_endline
             ("All transformations applied, writing to file" ^ filename);
-          (* List.iter *)
-          (*   (fun x -> print_endline (Lang.Range.to_string x.range)) *)
-          (*   res.elements; *)
           let out = open_out filename in
           output_string out (Coq_document.dump_to_string res)
       | Error err ->
@@ -433,5 +660,5 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
 
           ())
 
-let main () = Theory.Register.Completed.add by_load
+let main () = Theory.Register.Completed.add tactic_count
 let () = main ()
