@@ -58,6 +58,10 @@ val get_proof_name : proof -> string option
     with a name, otherwise it returns [None]. *)
 
 val get_proof_status : proof -> proof_status option
+(** Get the proof status of a proof. [get_proof_status proof] returns a
+    [proof_status] wrapped in [Some] matching the status of the last node of the
+    function. returns [Aborted] for both [Abort] and [Abort All]. Returns [None]
+    if there isn't a last node or it doesn't match a type in [proof_status]. *)
 
 val proof_status_from_last_node : syntaxNode -> (proof_status, string) result
 (** Get the proof status of the last node of a proof or an error if the node

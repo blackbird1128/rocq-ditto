@@ -18,40 +18,56 @@ val parse_document : Doc.t -> t
 val element_with_id_opt : Uuidm.t -> t -> syntaxNode option
 (** Find an element with a specific ID in a document.
     [element_with_id_opt element_id doc] returns [Some element] if an element
-    with the given [element_id] exists in the document [doc], otherwise it
-    returns [None]. *)
+    with the given [element_id] exists in [doc], otherwise returns [None]. *)
 
 val proof_with_id_opt : Uuidm.t -> t -> proof option
+(** Find a proof with a specific proposition ID.
+    [proof_with_id_opt proof_id doc] returns [Some element] if a proof has a
+    proposition with the given [proof_id] exists in [doc], otherwise returns
+    [None]. *)
+
 val proof_with_name_opt : string -> t -> proof option
+(** Find a proof with a specific name. [proof_with_name_opt proof_name doc]
+    returns [Some element] if a proof has the name [proof_name] where proof_name
+    match the ident_decl of a command in \{Theorem, Lemma, Fact, Remark,
+    Corollary, Proposition, Property\} for example. *)
+
 val split_at_id : Uuidm.t -> t -> syntaxNode list * syntaxNode list
+(** Split a document in two list of nodes, between and after the target id.
+    [split_at_id target_id doc] split [doc.elements] into two list, one with the
+    elements positioned before [target_id] and one with the elements after
+    [target_id]. [target_id] node is excluded, and if not found, return
+    [(doc.elements,[])] *)
 
 val remove_node_with_id :
   Uuidm.t -> ?remove_method:removeMethod -> t -> (t, string) result
 (** Remove a node with a specific ID from the document.
-    [remove_node_with_id target_id doc] removes the element with the given
-    [target_id] from the document [doc]. If the element is found, it returns a
-    new document with the element removed wrapped in [Ok], potentially adjusting
-    the line numbers of subsequent elements. If the element is not found, it
-    returns an Error indicating that the element wasn't found. *)
+    [remove_node_with_id ?remove_method target_id doc] removes the element with
+    the given [target_id] from the document [doc]. If the element is found, it
+    returns a new document with the element removed wrapped in [Ok], potentially
+    adjusting the line numbers of subsequent elements. If the [remove_method] is
+    [LeaveBlank] then the other nodes are not moved. If the element is not
+    found, it returns an [Error] indicating that the element wasn't found. *)
 
 val insert_node :
   syntaxNode -> ?shift_method:shiftMethod -> t -> (t, string) result
-(** [insert_node new_node doc insert_pos] attempts to insert [new_node] into the
-    document [doc] at the position specified by [insert_pos]. The insertion can
-    occur before or after a node identified by [id], or at the start or end of
-    the document.
-
-    Returns [Ok new_doc] if the insertion is successful, where [new_doc] is the
-    updated document. If the target node with the specified [id] does not exist,
-    it returns an [Error] with a message indicating the failure.
-
-    The possible insertion positions are:
-    - [Before id]: inserts [new_node] before the node with the given [id].
-    - [After id]: inserts [new_node] after the node with the given [id].
-    - [Start]: inserts [new_node] at the start of the document.
-    - [End]: appends [new_node] to the end of the document. *)
+(** Insert a new node into the document.
+    [insert_node new_node ?shift_method doc] attempt to insert [new_node] into
+    the document by shifting the other nodes further to make space. Can fail if
+    the [shift_method] is [ShiftHorizontally] and the node inserted has an
+    height higher than one or one of the node after on the line has an height
+    higher than one. *)
 
 val replace_node : Uuidm.t -> syntaxNode -> t -> (t, string) result
+(** Replace a node inside the document. [replace_node target_id new_node doc]
+    replace the node with id [target_id] by [new_node]. Fail and return [Error]
+    if a node with [target_id] isn't found in the document. *)
+
+val replace_proof : Uuidm.t -> proof -> t -> transformation_step list option
+(** Get the transformation steps needed to replace a proof inside the document.
+    [replace_proof target_id new_proof doc] return either a list of
+    transformation steps to replace a proof wrapped in [Some] if a proof
+    proposition with the id [target_id] exists and [None] otherwise *)
 
 val get_proofs : t -> (proof list, string) result
 (** Extract proofs from a document. [get_proofs doc] takes a document [doc] of
@@ -66,6 +82,18 @@ val dump_to_string : t -> string
     and characters in the document. *)
 
 val apply_transformation_step : transformation_step -> t -> (t, string) result
+(** Apply a transformation step to a document.
+    [apply_transformation_step step doc] returns a [Coq_document] wrapped in
+    with the following function applied:
+    - [Remove id]: [remove_node_with_id id ShiftNode doc]
+    - [Replace id new_node]: [replace_node id new_node doc]
+    - [Add new_node]: [insert_node new_node doc]
+    - [Attach attached_node attach_position anchor_id] : Use an heuristic to
+      place a node either a [LineBefore] or a [LineAfter] the node with id
+      [anchor_id], fail with error if the anchor isn't found. *)
 
 val apply_transformations_steps :
   transformation_step list -> t -> (t, string) result
+(** Repeatably apply [apply_transformation_step].
+    [apply_transformation_steps steps doc] fold [doc] until one step return an
+    [Error] or the resulting document is returned wrapped in [Ok] *)
