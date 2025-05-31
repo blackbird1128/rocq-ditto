@@ -6,5 +6,5 @@
 
 (install
  (package coq-ditto)
- (files "../vendor/fcc")
+ (files "../../vendor/fcc")
  (section bin))
