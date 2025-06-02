@@ -38,6 +38,13 @@
  )
 
 (package
+ (name get-basic-tactics-plugin)
+ (synopsis "Plugin to get the basics tactics in a file")
+ (allow_empty)
+ (depends ocaml dune coq-lsp base-unix re coq-ditto)
+ )
+
+(package
  (name target-generator-plugin)
  (synopsis "Generate the jsons result used to compare test to their result ")
  (allow_empty)
