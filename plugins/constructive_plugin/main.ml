@@ -372,8 +372,17 @@ let replace_non_constructive_tactics_in_doc (doc : Coq_document.t) :
 
   Coq_document.apply_transformations_steps replace_tactics_steps doc
 
-(* let replace_context_in_doc (doc: Coq_document.t) : *)
-(*       (Coq_document.t, string) result = *)
+let replace_context_in_doc (doc : Coq_document.t) :
+    (Coq_document.t, string) result =
+  let context_transform_steps = List.filter_map replace_context doc.elements in
+
+  Coq_document.apply_transformations_steps context_transform_steps doc
+
+let replace_requires_in_doc (doc : Coq_document.t) :
+    (Coq_document.t, string) result =
+  let require_transform_steps = List.filter_map replace_require doc.elements in
+
+  Coq_document.apply_transformations_steps require_transform_steps doc
 
 let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -396,8 +405,18 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
         admit_exists_proof_in_doc parsed_document
       in
 
+      let doc_with_requires_replaced =
+        Result.map replace_requires_in_doc doc_with_exists_proof_admitted
+        |> Result.join
+      in
+
+      let doc_with_context_replaced =
+        Result.map replace_context_in_doc doc_with_requires_replaced
+        |> Result.join
+      in
+
       let doc_with_bet_replaced_by_betl =
-        Result.map replace_bet_by_betl_in_doc doc_with_exists_proof_admitted
+        Result.map replace_bet_by_betl_in_doc doc_with_context_replaced
         |> Result.join
       in
 
