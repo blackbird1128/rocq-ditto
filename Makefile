@@ -3,7 +3,9 @@
 
 all:
 	dune build --profile=release
-	DITTO_TRANSFORMATION=MAKE_INTROS_EXPLICIT dune exec fcc -- --root=../private-geocoq/  --plugin=constructive-plugin --diags_level=2 ../private-geocoq/theories/Main/Tarski_dev/Ch04_cong_bet.v
+	dune exec fcc -- --root=../private-geocoq/  --plugin=constructive-plugin --diags_level=2 ../private-geocoq/theories/Main/Tarski_dev/Ch04_cong_bet.v
+	dune exec fcc -- --root=../private-geocoq/  --plugin=neat-fcc-plugin --diags_level=2 ../private-geocoq/theories/Constructive/Ch04_cong_bet_bis.v
+
 #	DITTO_TRANSFORMATION=MAKE_INTROS_EXPLICIT dune exec fcc --  --plugin=constructive-plugin --diags_level=2 ./test/fixtures/constructive/ex2.v
 
 

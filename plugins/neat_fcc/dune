@@ -1,0 +1,5 @@
+(library
+ (public_name neat-fcc-plugin)
+ (name neat_fcc_plugin)
+ (libraries coq-ditto coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche )
+ )
