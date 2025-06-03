@@ -6,6 +6,7 @@ open Ditto.Syntax_node
 open Ditto.Diagnostic_utils
 open Vernacexpr
 open Theorem_query
+open Result
 
 let wrap_to_treeify doc x = Result.get_ok (Runner.treeify_proof doc x)
 
@@ -288,7 +289,9 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
               print_endline
                 ("All transformations applied, writing to file" ^ filename);
               let out = open_out filename in
-              output_string out (Coq_document.dump_to_string res)
+              Result.fold ~ok:(output_string out)
+                ~error:(fun e -> print_endline e)
+                (Coq_document.dump_to_string res)
           | Error err -> print_endline err)
       | Error err -> (
           match err with
@@ -353,6 +356,46 @@ let replace_or_by_constructive_or_in_doc (doc : Coq_document.t) :
   Coq_document.apply_transformations_steps replace_or_by_constructive_or_steps
     doc
 
+let replace_proofs_by_fol_proofs (doc : Coq_document.t) (raw_doc : Doc.t)
+    (io : Io.CallBack.t) (token : Coq.Limits.Token.t) :
+    (Coq_document.t, string) result =
+  let ( let* ) = Result.bind in
+  let other_doc_path = "../dedukti-tarski-dev/coq/ch04_cong_bet.v" in
+  let* compiler_args =
+    Compile.file_and_plugin_args_to_compiler_args other_doc_path io token
+      raw_doc
+  in
+
+  let other_doc = Compile.compile_file compiler_args other_doc_path in
+  match other_doc with
+  | Ok second_doc ->
+      let other_doc_parsed = Coq_document.parse_document second_doc in
+      let* other_proofs = Coq_document.get_proofs other_doc_parsed in
+      let proof_replacing_steps =
+        List.filter_map
+          (fun p ->
+            let name = Proof.get_proof_name p |> Option.get in
+            let reg = Re.compile (Re.str "__") in
+            let new_name = Re.replace_string reg ~by:"_" name in
+            print_endline p.proposition.repr;
+            match Coq_document.proof_with_name_opt new_name doc with
+            | Some proof ->
+                Coq_document.replace_proof proof.proposition.id p doc
+            | None -> None)
+          other_proofs
+        |> List.concat
+      in
+
+      Coq_document.apply_transformations_steps proof_replacing_steps doc
+  | Error err -> (
+      match err with
+      | Compile.IncorrectURI -> Error "incorrect URI"
+      | Compile.ParsingStopped (stopped_range, errors) ->
+          Error "parsing of the second file stopped"
+      | Compile.ParsingFailed (failed_range, errors) ->
+          print_diagnostics errors;
+          Error "parsing of the second file failed")
+
 let replace_non_constructive_tactics_in_doc (doc : Coq_document.t) :
     (Coq_document.t, string) result =
   let proofs = Result.get_ok (Coq_document.get_proofs doc) in
@@ -384,7 +427,7 @@ let replace_requires_in_doc (doc : Coq_document.t) :
 
   Coq_document.apply_transformations_steps require_transform_steps doc
 
-let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
+let experiment_theorem ~io ~token ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
 
@@ -399,40 +442,40 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
       prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
       print_diagnostics errors
   | Doc.Completion.Yes _ -> (
+      let ( let* ) = Result.bind in
+
       let parsed_document = Coq_document.parse_document doc in
 
-      let doc_with_exists_proof_admitted =
-        admit_exists_proof_in_doc parsed_document
-      in
+      let res =
+        let* doc_with_fol_proofs =
+          replace_proofs_by_fol_proofs parsed_document doc io token
+        in
 
-      let doc_with_requires_replaced =
-        Result.map replace_requires_in_doc doc_with_exists_proof_admitted
-        |> Result.join
-      in
+        let* doc_with_exists_proof_admitted =
+          admit_exists_proof_in_doc doc_with_fol_proofs
+        in
 
-      let doc_with_context_replaced =
-        Result.map replace_context_in_doc doc_with_requires_replaced
-        |> Result.join
-      in
+        let* doc_with_requires_replaced =
+          replace_requires_in_doc doc_with_exists_proof_admitted
+        in
 
-      let doc_with_bet_replaced_by_betl =
-        Result.map replace_bet_by_betl_in_doc doc_with_context_replaced
-        |> Result.join
-      in
+        let* doc_with_context_replaced =
+          replace_context_in_doc doc_with_requires_replaced
+        in
 
-      let doc_with_or_replaced_by_constructive_or =
-        Result.map replace_or_by_constructive_or_in_doc
-          doc_with_bet_replaced_by_betl
-        |> Result.join
-      in
+        let* doc_with_bet_replaced_by_betl =
+          replace_bet_by_betl_in_doc doc_with_context_replaced
+        in
 
-      let doc_with_tactics_replaced =
-        Result.map replace_non_constructive_tactics_in_doc
+        let* doc_with_or_replaced_by_constructive_or =
+          replace_or_by_constructive_or_in_doc doc_with_bet_replaced_by_betl
+        in
+
+        replace_non_constructive_tactics_in_doc
           doc_with_or_replaced_by_constructive_or
-        |> Result.join
       in
 
-      match doc_with_tactics_replaced with
+      match res with
       | Ok res ->
           let filename =
             "../private-geocoq/theories/Constructive/"
@@ -442,7 +485,9 @@ let experiment_theorem ~io ~token:_ ~(doc : Doc.t) =
           print_endline
             ("All transformations applied, writing to file" ^ filename);
           let out = open_out filename in
-          output_string out (Coq_document.dump_to_string res)
+          Result.fold ~ok:(output_string out)
+            ~error:(fun e -> print_endline e)
+            (Coq_document.dump_to_string res)
       | Error err -> print_endline err)
 
 let main () = Theory.Register.Completed.add experiment_theorem
