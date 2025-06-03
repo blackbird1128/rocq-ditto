@@ -439,6 +439,15 @@ let get_tactic_raw_generic_arguments (x : syntaxNode) :
       | VernacSynPure _ -> None)
   | None -> None
 
+(* let syntax_node_of_raw_generic_arguments (start_point: Lang.Point.t) (args: Genarg.raw_generic_argument list) : syntaxNode option= *)
+(*   if List.length args != 4 then *)
+(*     None *)
+(*   else *)
+(*     let ext : extend_name =  {ext_plugin="coq-core.plugins.ltac"; ext_entry="VernacSolve"; ext_index=0} in  *)
+(*     let expr_syn = Vernacexpr.VernacExtend( ext, args) in *)
+(*     let synterp_expr = Vernacexpr.VernacSynterp expr_syn in  *)
+(*     let control = mk_vernac_control synterp_expr in  *)
+
 let node_can_open_proof (x : syntaxNode) : bool =
   is_syntax_node_ast_proof_start x
   || is_syntax_node_goal_start x
