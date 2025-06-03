@@ -75,7 +75,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       print_diagnostics errors
   | Doc.Completion.Yes _ -> (
       if List.length errors > 0 then
-        let first_errors = List.filteri (fun i _ -> i < 3) errors in
+        let first_errors = List.filteri (fun i _ -> i < 5) errors in
         print_diagnostics first_errors
       else
         let transformations_help =
@@ -138,8 +138,9 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                 ("All transformations applied, writing to file" ^ filename);
 
               let out = open_out filename in
-              output_string out (Coq_document.dump_to_string res);
-              ()
+              Result.fold ~ok:(output_string out)
+                ~error:(fun e -> print_endline e)
+                (Coq_document.dump_to_string res)
         | None ->
             prerr_endline
               "Please specify the wanted transformation using the environment \

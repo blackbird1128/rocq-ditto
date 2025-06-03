@@ -75,11 +75,12 @@ val get_proofs : t -> (proof list, string) result
     aggregating elements of the document that share the same proof identifier.
 *)
 
-val dump_to_string : t -> string
+val dump_to_string : t -> (string, string) result
 (** Convert an annotated document to a string representation.
-    [dump_to_string doc] returns a string that represents the structure of the
-    annotated document [doc], formatting the nodes according to their positions
-    and characters in the document. *)
+    [dump_to_string doc] returns a string wrapped in [Ok] that represents the
+    structure of the annotated document [doc], formatting the nodes according to
+    their positions and characters in the document. If the document is
+    malformed, return [Error] *)
 
 val apply_transformation_step : transformation_step -> t -> (t, string) result
 (** Apply a transformation step to a document.

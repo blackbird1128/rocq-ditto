@@ -161,52 +161,55 @@ let parse_document (doc : Doc.t) : t =
     initial_state = doc.root;
   }
 
-let rec dump_to_string (doc : t) : string =
+let rec dump_to_string (doc : t) : (string, string) result =
   let rec aux (repr_nodes : syntaxNode list) (doc_repr : string)
-      (previous_node : syntaxNode) =
+      (previous_node : syntaxNode) : string * string option =
     match repr_nodes with
-    | [] -> doc_repr
+    | [] -> (doc_repr, None)
     | node :: tail ->
         let line_diff = node.range.start.line - previous_node.range.end_.line in
-        let repr =
+        let repr, err =
           if previous_node.range = node.range then
             (* treating the first node as a special case to deal with eventual empty lines before *)
-            doc_repr
-            ^ String.make node.range.start.line '\n'
-            ^ String.make node.range.start.character ' '
-            ^ node.repr
+            ( doc_repr
+              ^ String.make node.range.start.line '\n'
+              ^ String.make node.range.start.character ' '
+              ^ node.repr,
+              None )
           else if node.range.start.line = previous_node.range.end_.line then
             let char_diff =
               node.range.start.character - previous_node.range.end_.character
             in
-            if char_diff <= 0 then (
-              print_endline
-                "Error: node start - previous en char negative or zero ";
-              print_endline
-                ("previous node range: "
-                ^ Lang.Range.to_string previous_node.range);
-              print_endline
-                ("current node range: " ^ Lang.Range.to_string node.range);
-              "ERR")
-            else doc_repr ^ String.make char_diff ' ' ^ node.repr
-          else if line_diff <= 0 then (
-            print_endline "line diff negative";
-            print_endline
-              ("previous node range: "
-              ^ Lang.Range.to_string previous_node.range);
-            print_endline
-              ("current node range: " ^ Lang.Range.to_string node.range);
-            "ERR")
+            if char_diff <= 0 then
+              ( "",
+                Some
+                  ("Error: node start - previous en char negative or zero "
+                  ^ ("\nprevious node range: "
+                    ^ Lang.Range.to_string previous_node.range)
+                  ^ "\ncurrent node range: "
+                  ^ Lang.Range.to_string node.range) )
+            else (doc_repr ^ String.make char_diff ' ' ^ node.repr, None)
+          else if line_diff <= 0 then
+            ( "",
+              Some
+                ("line diff negative"
+                ^ ("\nprevious node range: "
+                  ^ Lang.Range.to_string previous_node.range)
+                ^ "\ncurrent node range: "
+                ^ Lang.Range.to_string node.range) )
           else
-            doc_repr ^ String.make line_diff '\n'
-            ^ String.make node.range.start.character ' '
-            ^ node.repr
+            ( doc_repr ^ String.make line_diff '\n'
+              ^ String.make node.range.start.character ' '
+              ^ node.repr,
+              None )
         in
         aux tail repr node
   in
 
   let sorted_elements = List.sort compare_nodes doc.elements in
-  aux sorted_elements "" (List.hd sorted_elements)
+
+  let res, possible_err = aux sorted_elements "" (List.hd sorted_elements) in
+  Option.cata (fun x -> Error x) (Ok res) possible_err
 
 let element_before_id_opt (target_id : Uuidm.t) (doc : t) : syntaxNode option =
   match List.find_index (fun elem -> elem.id = target_id) doc.elements with
