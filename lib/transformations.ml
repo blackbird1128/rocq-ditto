@@ -287,7 +287,6 @@ let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
     match nodes with
     | [] -> acc
     | x :: tail -> (
-        let token = Coq.Limits.Token.create () in
         if
           ((not (is_syntax_node_proof_intro_or_end x))
           && not (is_syntax_node_bullet x))
@@ -663,8 +662,6 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, string) result =
-  let tree_proposition = Proof_tree.root proof_tree in
-
   let tree_without_command_or_comment =
     Option.get
       (Proof_tree.filter
@@ -711,13 +708,16 @@ let turn_into_oneliner (doc : Coq_document.t)
   let remove_steps =
     List.filter_map
       (fun node ->
-        if is_syntax_node_proof_intro_or_end node then None
+        if
+          is_syntax_node_ast_proof_start node
+          || is_syntax_node_ast_proof_end node
+        then None
         else Some (Remove node.id))
       flattened
   in
 
   let first_step_node =
-    List.find (fun node -> is_syntax_node_ast_proof_command node) flattened
+    List.find (fun node -> node_can_open_proof node) flattened
   in
 
   let oneliner_node =
@@ -725,13 +725,33 @@ let turn_into_oneliner (doc : Coq_document.t)
       (Syntax_node.syntax_node_of_string one_liner_repr
          first_step_node.range.start)
   in
+  let strip_parens s =
+    let len = String.length s in
+    if len >= 3 && s.[0] = '(' && s.[len - 2] = ')' then
+      String.sub s 1 (len - 3) ^ "."
+    else s
+  in
+
   let reformatted_oneliner_node =
     Syntax_node.reformat_node oneliner_node |> Result.get_ok
+  in
+  let reformatted_repr = reformatted_oneliner_node.repr |> strip_parens in
+  let reformatted_oneliner_node =
+    Syntax_node.syntax_node_of_string reformatted_repr
+      reformatted_oneliner_node.range.start
+    |> Result.get_ok
+  in
+
+  let proof_node =
+    Result.get_ok (syntax_node_of_string "Proof." first_step_node.range.end_)
   in
 
   Ok
     (remove_steps
-    @ [ Attach (reformatted_oneliner_node, LineAfter, first_step_node.id) ])
+    @ [
+        Attach (proof_node, LineAfter, first_step_node.id);
+        Attach (reformatted_oneliner_node, LineAfter, proof_node.id);
+      ])
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =

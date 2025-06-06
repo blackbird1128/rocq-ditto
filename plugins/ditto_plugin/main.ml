@@ -106,6 +106,20 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             in
             if List.mem Help transformations_steps then
               print_help transformations_help
+            else if List.length transformations_steps = 0 then (
+              prerr_endline "Transformations not recognized:";
+              List.iter print_endline args;
+              print_endline "Recognized transformations: ";
+              let transformations =
+                [
+                  "make_intros_explicit";
+                  "turn_into_one_liner";
+                  "replace_auto_with_steps";
+                  "compress_intro";
+                  "id_transformation";
+                ]
+              in
+              List.iter print_endline transformations)
             else
               let parsed_document = Coq_document.parse_document doc in
               let transformations =
@@ -113,6 +127,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                   (transformation_kind_to_function parsed_document)
                   transformations_steps
               in
+
               List.iter
                 (fun transformation ->
                   print_endline
