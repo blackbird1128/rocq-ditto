@@ -788,7 +788,6 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if reformat keep the same id"
        test_reformat_keep_id doc);
-
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
   Hashtbl.add table "ex_parsing2.v"

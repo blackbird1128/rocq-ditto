@@ -358,9 +358,7 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
           let comment_content =
             "Time spent on this step: " ^ string_of_float time_to_run
           in
-          let comment_repr =
-            "(* Time spent on this step: " ^ string_of_float time_to_run ^ " *)"
-          in
+
           let nodes_on_same_line =
             List.filter
               (fun x -> x != node && x.range.start.line = node.range.start.line)

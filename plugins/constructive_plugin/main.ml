@@ -229,9 +229,9 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
       print_diagnostics errors
   | Doc.Completion.Yes _ -> (
       let parsed_document = Coq_document.parse_document doc in
-      let require_nodes =
-        List.filter Syntax_node.is_syntax_node_require parsed_document.elements
-      in
+      (* let require_nodes = *)
+      (*   List.filter Syntax_node.is_syntax_node_require parsed_document.elements *)
+      (* in *)
 
       let require_transform_steps =
         List.filter_map replace_require parsed_document.elements
