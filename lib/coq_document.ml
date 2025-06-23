@@ -86,6 +86,58 @@ let matches_with_line_col content pattern : (string * Lang.Range.t) list =
   in
   matches
 
+let get_comments (content : string) :
+    ((string * Lang.Range.t) list, string) result =
+  let explode s =
+    List.init (String.length s) (fun idx -> (idx, String.get s idx))
+  in
+  let repr = explode content in
+
+  let ( let* ) = Result.bind in
+
+  let pairwise lst =
+    let rec aux acc = function
+      | (a1, p1) :: (a2, p2) :: rest ->
+          aux (((a1, p1), (a2, p2)) :: acc) ((a2, p2) :: rest)
+      | _ -> List.rev acc
+    in
+    aux [] lst
+  in
+
+  let pairs = pairwise repr in
+  let* stack, res =
+    List.fold_left
+      (fun acc pair ->
+        match acc with
+        | Ok (stack, res) as acc -> (
+            match pair with
+            | ((idx1, '('), (idx2, '*')) as x -> Ok (x :: stack, res)
+            | (idx1, '*'), (idx2, ')') -> (
+                match stack with
+                | ((idx3, '('), (idx4, '*')) :: t ->
+                    Ok (t, ((idx3, idx4), (idx1, idx2)) :: res)
+                | _ -> Error "unmatched ending comment")
+            | _ -> acc)
+        | Error err -> Error err)
+      (Ok ([], []))
+      pairs
+  in
+
+  Ok
+    (List.map
+       (fun ((a, b), (c, d)) ->
+         let len = d - a + 1 in
+         let str = String.sub content a len in
+
+         let range : Lang.Range.t =
+           {
+             start = get_line_col_positions content a;
+             end_ = get_line_col_positions content d;
+           }
+         in
+         (str, range))
+       res)
+
 let second_node_included_in (a : syntaxNode) (b : syntaxNode) : bool =
   if a.range.start.offset < b.range.start.offset then
     if
@@ -131,7 +183,9 @@ let parse_document (doc : Doc.t) : t =
       nodes_with_ast
   in
 
-  let comments = matches_with_line_col document_repr "\\(\\*.*\\*\\)$" in
+  (* let comments = matches_with_line_col document_repr "\\(\\*.*\\*\\)$" in *)
+  let comments = get_comments document_repr |> Result.get_ok in
+
   let comments_nodes =
     List.map
       (fun comment ->
