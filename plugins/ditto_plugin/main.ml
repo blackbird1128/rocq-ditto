@@ -41,7 +41,8 @@ let wrap_to_treeify doc x = Result.get_ok (Runner.treeify_proof doc x)
 
 let transformation_kind_to_function (doc : Coq_document.t)
     (kind : transformation_kind) :
-    Coq_document.t -> Proof.proof -> (transformation_step list, string) result =
+    Coq_document.t -> Proof.proof -> (transformation_step list, Error.t) result
+    =
   match kind with
   | Help -> fun doc x -> Ok []
   | MakeIntrosExplicit -> Transformations.make_intros_explicit
@@ -137,7 +138,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
               let res =
                 List.fold_left
-                  (fun (doc_acc : (Coq_document.t, string) result)
+                  (fun (doc_acc : (Coq_document.t, Error.t) result)
                        transformation ->
                     match doc_acc with
                     | Ok doc_acc -> (
@@ -162,7 +163,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                   Result.fold ~ok:(output_string out)
                     ~error:(fun e -> print_endline e)
                     (Coq_document.dump_to_string res)
-              | Error err -> print_endline err)
+              | Error err -> print_endline (Error.to_string_hum err))
         | None ->
             prerr_endline
               "Please specify the wanted transformation using the environment \

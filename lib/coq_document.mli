@@ -40,7 +40,7 @@ val split_at_id : Uuidm.t -> t -> syntaxNode list * syntaxNode list
     [(doc.elements,[])] *)
 
 val remove_node_with_id :
-  Uuidm.t -> ?remove_method:removeMethod -> t -> (t, string) result
+  Uuidm.t -> ?remove_method:removeMethod -> t -> (t, Error.t) result
 (** Remove a node with a specific ID from the document.
     [remove_node_with_id ?remove_method target_id doc] removes the element with
     the given [target_id] from the document [doc]. If the element is found, it
@@ -50,7 +50,7 @@ val remove_node_with_id :
     found, it returns an [Error] indicating that the element wasn't found. *)
 
 val insert_node :
-  syntaxNode -> ?shift_method:shiftMethod -> t -> (t, string) result
+  syntaxNode -> ?shift_method:shiftMethod -> t -> (t, Error.t) result
 (** Insert a new node into the document.
     [insert_node new_node ?shift_method doc] attempt to insert [new_node] into
     the document by shifting the other nodes further to make space. Can fail if
@@ -58,7 +58,7 @@ val insert_node :
     height higher than one or one of the node after on the line has an height
     higher than one. *)
 
-val replace_node : Uuidm.t -> syntaxNode -> t -> (t, string) result
+val replace_node : Uuidm.t -> syntaxNode -> t -> (t, Error.t) result
 (** Replace a node inside the document. [replace_node target_id new_node doc]
     replace the node with id [target_id] by [new_node]. Fail and return [Error]
     if a node with [target_id] isn't found in the document. *)
@@ -82,7 +82,7 @@ val dump_to_string : t -> (string, string) result
     their positions and characters in the document. If the document is
     malformed, return [Error] *)
 
-val apply_transformation_step : transformation_step -> t -> (t, string) result
+val apply_transformation_step : transformation_step -> t -> (t, Error.t) result
 (** Apply a transformation step to a document.
     [apply_transformation_step step doc] returns a [Coq_document] wrapped in
     with the following function applied:
@@ -94,7 +94,7 @@ val apply_transformation_step : transformation_step -> t -> (t, string) result
       [anchor_id], fail with error if the anchor isn't found. *)
 
 val apply_transformations_steps :
-  transformation_step list -> t -> (t, string) result
+  transformation_step list -> t -> (t, Error.t) result
 (** Repeatably apply [apply_transformation_step].
     [apply_transformation_steps steps doc] fold [doc] until one step return an
     [Error] or the resulting document is returned wrapped in [Ok] *)

@@ -292,7 +292,7 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
               Result.fold ~ok:(output_string out)
                 ~error:(fun e -> print_endline e)
                 (Coq_document.dump_to_string res)
-          | Error err -> print_endline err)
+          | Error err -> print_endline (Error.to_string_hum err))
       | Error err -> (
           match err with
           | Compile.IncorrectURI -> print_endline "incorrect URI"
@@ -302,7 +302,7 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
               print_diagnostics errors))
 
 let admit_exists_proof_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, string) result =
+    (Coq_document.t, Error.t) result =
   let proofs = Result.get_ok (Coq_document.get_proofs doc) in
 
   let exists_query =
@@ -338,7 +338,7 @@ let admit_exists_proof_in_doc (doc : Coq_document.t) :
     (Ok doc) proof_sexps_pairs
 
 let replace_bet_by_betl_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, string) result =
+    (Coq_document.t, Error.t) result =
   let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   let replace_bet_by_betl_steps =
     List.filter_map (fun proof -> replace_bet_by_betl_in_proof proof) proofs
@@ -347,7 +347,7 @@ let replace_bet_by_betl_in_doc (doc : Coq_document.t) :
   Coq_document.apply_transformations_steps replace_bet_by_betl_steps doc
 
 let replace_or_by_constructive_or_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, string) result =
+    (Coq_document.t, Error.t) result =
   let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   let replace_or_by_constructive_or_steps =
     List.filter_map (fun proof -> replace_or_by_constructive_or proof) proofs
@@ -358,19 +358,23 @@ let replace_or_by_constructive_or_in_doc (doc : Coq_document.t) :
 
 let replace_proofs_by_fol_proofs (doc : Coq_document.t) (raw_doc : Doc.t)
     (io : Io.CallBack.t) (token : Coq.Limits.Token.t) :
-    (Coq_document.t, string) result =
+    (Coq_document.t, Error.t) result =
   let ( let* ) = Result.bind in
   let other_doc_path = "../dedukti-tarski-dev/coq/ch04_cong_bet.v" in
   let* compiler_args =
     Compile.file_and_plugin_args_to_compiler_args other_doc_path io token
       raw_doc
+    |> Error.of_result
   in
 
   let other_doc = Compile.compile_file compiler_args other_doc_path in
   match other_doc with
   | Ok second_doc ->
       let other_doc_parsed = Coq_document.parse_document second_doc in
-      let* other_proofs = Coq_document.get_proofs other_doc_parsed in
+      let* other_proofs =
+        Coq_document.get_proofs other_doc_parsed |> Error.of_result
+      in
+
       let proof_replacing_steps =
         List.filter_map
           (fun p ->
@@ -389,15 +393,15 @@ let replace_proofs_by_fol_proofs (doc : Coq_document.t) (raw_doc : Doc.t)
       Coq_document.apply_transformations_steps proof_replacing_steps doc
   | Error err -> (
       match err with
-      | Compile.IncorrectURI -> Error "incorrect URI"
+      | Compile.IncorrectURI -> Error.string_to_or_error_err "incorrect URI"
       | Compile.ParsingStopped (stopped_range, errors) ->
-          Error "parsing of the second file stopped"
+          Error.string_to_or_error_err "parsing of the second file stopped"
       | Compile.ParsingFailed (failed_range, errors) ->
           print_diagnostics errors;
-          Error "parsing of the second file failed")
+          Error.string_to_or_error_err "parsing of the second file failed")
 
 let replace_non_constructive_tactics_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, string) result =
+    (Coq_document.t, Error.t) result =
   let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   let replace_tactics_steps =
     List.concat_map
@@ -416,13 +420,13 @@ let replace_non_constructive_tactics_in_doc (doc : Coq_document.t) :
   Coq_document.apply_transformations_steps replace_tactics_steps doc
 
 let replace_context_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, string) result =
+    (Coq_document.t, Error.t) result =
   let context_transform_steps = List.filter_map replace_context doc.elements in
 
   Coq_document.apply_transformations_steps context_transform_steps doc
 
 let replace_requires_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, string) result =
+    (Coq_document.t, Error.t) result =
   let require_transform_steps = List.filter_map replace_require doc.elements in
 
   Coq_document.apply_transformations_steps require_transform_steps doc
@@ -488,7 +492,7 @@ let experiment_theorem ~io ~token ~(doc : Doc.t) =
           Result.fold ~ok:(output_string out)
             ~error:(fun e -> print_endline e)
             (Coq_document.dump_to_string res)
-      | Error err -> print_endline err)
+      | Error err -> print_endline (Error.to_string_hum err))
 
 let main () = Theory.Register.Completed.add experiment_theorem
 let () = main ()

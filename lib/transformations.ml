@@ -84,7 +84,7 @@ type op_type = Cut | Keep
 
 let cut_replace_branch (cut_tactic : string) (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let node_creator =
    fun node ->
@@ -157,11 +157,11 @@ let cut_replace_branch (cut_tactic : string) (doc : Coq_document.t)
   | Ok state ->
       let _, steps = aux state proof_tree [] in
       Ok steps
-  | _ -> Error "Unable to retrieve initial state"
+  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
 let fold_replace_assumption_with_apply (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let res =
     Runner.depth_first_fold_with_state doc token
@@ -215,7 +215,7 @@ let fold_replace_assumption_with_apply (doc : Coq_document.t)
         else Ok (state_node, acc))
       [] proof_tree
   in
-  Error.or_error_to_string_result res
+  res
 
 let remove_empty_lines (proof : proof) : proof =
   let nodes = proof_nodes proof in
@@ -240,11 +240,11 @@ let remove_empty_lines (proof : proof) : proof =
   | None -> proof
 
 let id_transform (doc : Coq_document.t) (proof : proof) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   Ok []
 
 let admit_proof (doc : Coq_document.t) (proof : proof) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   let remove_all_steps =
     List.map (fun step -> Remove step.id) proof.proof_steps
   in
@@ -281,7 +281,7 @@ let admit_proof (doc : Coq_document.t) (proof : proof) :
       ])
 
 let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   let token_reduce = Coq.Limits.Token.create () in
 
   let rec aux state acc nodes =
@@ -306,10 +306,10 @@ let remove_unecessary_steps (doc : Coq_document.t) (proof : proof) :
   | Ok state ->
       let steps = aux state [] (proof_nodes proof) in
       Ok steps
-  | _ -> Error "Unable to retrieve initial state"
+  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
 let compress_intro (doc : Coq_document.t) (proof : proof) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let rec aux state (acc_intro, acc_steps) nodes =
     match nodes with
@@ -342,10 +342,10 @@ let compress_intro (doc : Coq_document.t) (proof : proof) :
   | Ok state ->
       let steps = aux state ([], []) (proof_nodes proof) in
       Ok steps
-  | _ -> Error "Unable to retrieve initial state"
+  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
 let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   match
     Runner.fold_proof_with_state doc token
@@ -389,7 +389,7 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
       [] proof
   with
   | Ok acc -> Ok acc
-  | Error err -> Error.to_string_result err
+  | Error err -> Error err
 
 (* TODO move this somewhere sensible *)
 
@@ -403,7 +403,7 @@ let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
     parents
 
 let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
   let re =
@@ -648,16 +648,16 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
           else Ok (new_state, acc))
       [] proof
   in
-  Error.or_error_to_string_result res
+  res
 
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
   let* cleaned_tree =
     Option.cata
       (fun x -> Ok x)
-      (Error "An error happened during tree filtering")
+      (Error.string_to_or_error_err "An error happened during tree filtering")
       (Proof_tree.filter
          (fun node ->
            (not (is_syntax_node_bullet node))
@@ -723,6 +723,7 @@ let turn_into_oneliner (doc : Coq_document.t)
 
   let* oneliner_node =
     Syntax_node.syntax_node_of_string one_liner_repr first_step_node.range.start
+    |> Error.of_result
   in
   let strip_parens s =
     let len = String.length s in
@@ -731,15 +732,20 @@ let turn_into_oneliner (doc : Coq_document.t)
     else s
   in
 
-  let* reformatted_oneliner_node = Syntax_node.reformat_node oneliner_node in
+  let* reformatted_oneliner_node =
+    Syntax_node.reformat_node oneliner_node |> Error.of_result
+  in
 
   let reformatted_repr = reformatted_oneliner_node.repr |> strip_parens in
   let* reformatted_oneliner_node =
     Syntax_node.syntax_node_of_string reformatted_repr
       reformatted_oneliner_node.range.start
+    |> Error.of_result
   in
 
-  let* proof_node = syntax_node_of_string "Proof." first_step_node.range.end_ in
+  let* proof_node =
+    syntax_node_of_string "Proof." first_step_node.range.end_ |> Error.of_result
+  in
 
   Ok
     (remove_steps
@@ -749,7 +755,7 @@ let turn_into_oneliner (doc : Coq_document.t)
       ])
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
-    (transformation_step list, string) result =
+    (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
@@ -791,17 +797,19 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
       [] proof
   with
   | Ok steps -> Ok steps
-  | Error err -> Error.to_string_result err
+  | Error err -> Error err
 
 let apply_proof_transformation
     (transformation :
-      Coq_document.t -> Proof.proof -> (transformation_step list, string) result)
-    (doc : Coq_document.t) : (Coq_document.t, string) result =
+      Coq_document.t ->
+      Proof.proof ->
+      (transformation_step list, Error.t) result) (doc : Coq_document.t) :
+    (Coq_document.t, Error.t) result =
   let proofs_rec = Coq_document.get_proofs doc in
   match proofs_rec with
   | Ok proofs ->
       List.fold_left
-        (fun (doc_acc : (Coq_document.t, string) result) (proof : Proof.proof)
+        (fun (doc_acc : (Coq_document.t, Error.t) result) (proof : Proof.proof)
            ->
           match doc_acc with
           | Ok acc -> (
@@ -818,14 +826,14 @@ let apply_proof_transformation
               | Error err -> Error err)
           | Error err -> Error err)
         (Ok doc) proofs
-  | Error err -> Error err
+  | Error err -> Error (Error.of_string err)
 
 let apply_proof_tree_transformation
     (transformation :
       Coq_document.t ->
       syntaxNode nary_tree ->
-      (transformation_step list, string) result) (doc : Coq_document.t) :
-    (Coq_document.t, string) result =
+      (transformation_step list, Error.t) result) (doc : Coq_document.t) :
+    (Coq_document.t, Error.t) result =
   let proofs_rec = Coq_document.get_proofs doc in
   match proofs_rec with
   | Ok proofs ->
@@ -835,9 +843,8 @@ let apply_proof_tree_transformation
           proofs
       in
       List.fold_left
-        (fun (doc_acc : (Coq_document.t, string) result)
+        (fun (doc_acc : (Coq_document.t, Error.t) result)
              (proof_tree : syntaxNode nary_tree) ->
-          Proof.print_tree proof_tree "";
           match doc_acc with
           | Ok acc -> (
               let transformation_steps = transformation acc proof_tree in
@@ -853,4 +860,4 @@ let apply_proof_tree_transformation
               | Error err -> Error err)
           | Error err -> Error err)
         (Ok doc) proof_trees
-  | Error err -> Error err
+  | Error err -> Error (Error.of_string err)

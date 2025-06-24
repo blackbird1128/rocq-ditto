@@ -24,3 +24,4 @@ type 'a or_error = ('a, t) result
 val of_result : ('a, string) result -> ('a, t) result
 val to_string_result : t -> ('a, string) result
 val or_error_to_string_result : 'a or_error -> ('a, string) result
+val string_to_or_error_err : string -> ('a, t) result

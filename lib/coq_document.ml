@@ -312,10 +312,10 @@ let elements_starting_at_line (line_number : int) (nodes : syntaxNode list) :
   List.filter (fun elem -> elem.range.start.line = line_number) nodes
 
 let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
-    (doc : t) : (t, string) result =
+    (doc : t) : (t, Error.t) result =
   match element_with_id_opt target_id doc with
   | None ->
-      Error
+      Error.string_to_or_error_err
         ("The element with id: " ^ Uuidm.to_string target_id
        ^ " wasn't found in the document")
   | Some elem -> (
@@ -363,7 +363,7 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
               })
 
 let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
-    (doc : t) : (t, string) result =
+    (doc : t) : (t, Error.t) result =
   let element_before_new_node_start, element_after_new_node_start =
     List.partition (fun node -> compare_nodes node new_node < 0) doc.elements
   in
@@ -387,7 +387,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
   match shift_method with
   | ShiftHorizontally ->
       if new_node.range.start.line != new_node.range.end_.line then
-        Error
+        Error.string_to_or_error_err
           ("Error when trying to shift " ^ new_node.repr ^ " at : "
           ^ Lang.Range.to_string new_node.range
           ^ ". Shifting horizontally is only possible with 1 line height node")
@@ -401,7 +401,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
           |> Option.has_some
         in
         if multi_lines_nodes_after_same_line then
-          Error
+          Error.string_to_or_error_err
             ("Can't shift multi-lines nodes on the same line ("
             ^ string_of_int new_node.range.start.line
             ^ ") as the node inserted")
@@ -438,9 +438,9 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
         }
 
 let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
-    (t, string) result =
+    (t, Error.t) result =
   match validate_syntax_node replacement with
-  | Error err -> Error err
+  | Error err -> Error.string_to_or_error_err err
   | Ok replacement -> (
       match element_with_id_opt target_id doc with
       | Some target ->
@@ -479,7 +479,7 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
             insert_node replacement_shifted ~shift_method:ShiftVertically
               removed_node_doc
       | None ->
-          Error
+          Error.string_to_or_error_err
             ("The target node with id : " ^ Uuidm.to_string target_id
            ^ " doesn't exists"))
 
@@ -507,7 +507,7 @@ let replace_proof (target_id : Uuidm.t) (new_proof : proof) (doc : t) :
   | None -> None
 
 let apply_transformation_step (step : transformation_step) (doc : t) :
-    (t, string) result =
+    (t, Error.t) result =
   match step with
   | Remove id -> remove_node_with_id id doc
   | Replace (id, new_node) -> replace_node id new_node doc
@@ -559,7 +559,7 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
 
           insert_node new_node doc
       | None ->
-          Error
+          Error.string_to_or_error_err
             ("Can't find the node with id: " ^ Uuidm.to_string anchor_id
            ^ " to attach to"))
 
@@ -574,7 +574,7 @@ let transformation_step_to_string (step : transformation_step) : string =
       ^ Uuidm.to_string anchor_id
 
 let apply_transformations_steps (steps : transformation_step list) (doc : t) :
-    (t, string) result =
+    (t, Error.t) result =
   List.fold_left
     (fun doc_acc_err step ->
       match doc_acc_err with

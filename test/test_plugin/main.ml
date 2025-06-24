@@ -34,6 +34,7 @@ let int_tree = testable_nary_tree pp_int ( = )
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
 let range_testable = Alcotest.testable Lang.Range.pp ( = )
 let uuidm_testable = Alcotest.testable Uuidm.pp ( = )
+let error_testable = Alcotest.testable Error.pp ( = )
 
 let make_dummy_node start_line start_char start_offset end_line end_char
     end_offset : syntaxNode =
@@ -454,7 +455,7 @@ let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
   let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
@@ -471,7 +472,7 @@ let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
   let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_adding_multiple_line_node (doc : Doc.t) () : unit =
@@ -490,7 +491,7 @@ let test_adding_multiple_line_node (doc : Doc.t) () : unit =
   let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_adding_node_between (doc : Doc.t) () : unit =
@@ -509,7 +510,7 @@ let test_adding_node_between (doc : Doc.t) () : unit =
   in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_adding_collision_next_line (doc : Doc.t) () : unit =
@@ -528,7 +529,7 @@ let test_adding_collision_next_line (doc : Doc.t) () : unit =
   let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_adding_node_colliding_many (doc : Doc.t) () : unit =
@@ -547,7 +548,7 @@ let test_adding_node_colliding_many (doc : Doc.t) () : unit =
   let new_doc = Coq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
@@ -566,7 +567,7 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
   let new_doc = Coq_document.replace_node second_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
@@ -585,7 +586,7 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
   let new_doc = Coq_document.replace_node second_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
@@ -605,7 +606,7 @@ let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
   let new_doc = Coq_document.replace_node third_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
@@ -625,7 +626,7 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
   let new_doc = Coq_document.replace_node fourth_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
@@ -655,7 +656,7 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
   let new_doc = Coq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
@@ -676,7 +677,7 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
   let new_doc = Coq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
@@ -702,7 +703,7 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
   let new_doc = Coq_document.replace_node thm_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
@@ -716,7 +717,7 @@ let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
   in
 
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
@@ -730,7 +731,7 @@ let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
   in
 
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replace_auto_using_zarith_by_steps (doc : Doc.t) () : unit =
@@ -744,7 +745,7 @@ let test_replace_auto_using_zarith_by_steps (doc : Doc.t) () : unit =
   in
 
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
@@ -758,7 +759,7 @@ let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
   in
 
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) string))
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let setup_test_table table (doc : Doc.t) =

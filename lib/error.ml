@@ -44,3 +44,5 @@ let to_string_result (t : t) = Error (to_string_hum t)
 
 let or_error_to_string_result (x : 'a or_error) =
   match x with Ok a -> Ok a | Error t -> to_string_result t
+
+let string_to_or_error_err (x : string) : ('a, 't) result = Error (of_string x)
