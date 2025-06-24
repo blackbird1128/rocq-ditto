@@ -97,7 +97,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         in
 
         match Sys.getenv_opt "DITTO_TRANSFORMATION" with
-        | Some args ->
+        | Some args -> (
             let args = String.split_on_char ',' args in
             let transformations_steps =
               List.filter_map
@@ -137,25 +137,32 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
               let res =
                 List.fold_left
-                  (fun (doc_acc : Coq_document.t) transformation ->
-                    let doc_res =
-                      Transformations.apply_proof_transformation transformation
-                        doc_acc
-                    in
-                    match doc_res with
-                    | Ok new_doc -> new_doc
-                    | Error err -> doc_acc)
-                  parsed_document transformations
+                  (fun (doc_acc : (Coq_document.t, string) result)
+                       transformation ->
+                    match doc_acc with
+                    | Ok doc_acc -> (
+                        let doc_res =
+                          Transformations.apply_proof_transformation
+                            transformation doc_acc
+                        in
+                        match doc_res with
+                        | Ok new_doc -> Ok new_doc
+                        | Error err -> Error err)
+                    | Error err -> Error err)
+                  (Ok parsed_document) transformations
               in
 
-              let filename = Filename.remove_extension uri_str ^ "_bis.v" in
-              print_endline
-                ("All transformations applied, writing to file" ^ filename);
+              match res with
+              | Ok res ->
+                  let filename = Filename.remove_extension uri_str ^ "_bis.v" in
+                  print_endline
+                    ("All transformations applied, writing to file" ^ filename);
 
-              let out = open_out filename in
-              Result.fold ~ok:(output_string out)
-                ~error:(fun e -> print_endline e)
-                (Coq_document.dump_to_string res)
+                  let out = open_out filename in
+                  Result.fold ~ok:(output_string out)
+                    ~error:(fun e -> print_endline e)
+                    (Coq_document.dump_to_string res)
+              | Error err -> print_endline err)
         | None ->
             prerr_endline
               "Please specify the wanted transformation using the environment \

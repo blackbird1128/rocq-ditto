@@ -83,16 +83,16 @@ val treeify_proof :
 val fold_nodes_with_state :
   Coq_document.t ->
   Coq.Limits.Token.t ->
-  (Coq.State.t -> 'acc -> syntaxNode -> Coq.State.t * 'acc) ->
+  (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result) ->
   Coq.State.t ->
   'acc ->
   syntaxNode list ->
-  'acc
+  ('acc, string) result
 
 val fold_proof_with_state :
   Coq_document.t ->
   Coq.Limits.Token.t ->
-  (Coq.State.t -> 'acc -> syntaxNode -> Coq.State.t * 'acc) ->
+  (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result) ->
   'acc ->
   proof ->
   ('acc, string) result

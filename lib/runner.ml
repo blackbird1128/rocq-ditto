@@ -380,29 +380,28 @@ let rec depth_first_fold_with_state (doc : Coq_document.t)
 
 let rec fold_nodes_with_state (doc : Coq_document.t)
     (token : Coq.Limits.Token.t)
-    (f : Coq.State.t -> 'acc -> syntaxNode -> Coq.State.t * 'acc)
-    (init_state : Coq.State.t) (acc : 'acc) (l : syntaxNode list) : 'acc =
-  let rec aux (l : syntaxNode list) (state : Coq.State.t) (acc : 'acc) =
+    (f :
+      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result)
+    (init_state : Coq.State.t) (acc : 'acc) (l : syntaxNode list) :
+    ('acc, string) result =
+  let ( let* ) = Result.bind in
+  let rec aux (l : syntaxNode list) (state : Coq.State.t) (acc : 'acc) :
+      (Coq.State.t * 'acc, string) result =
     match l with
-    | [] -> acc
+    | [] -> Ok (state, acc)
     | x :: tail ->
-        let res = f state acc x in
-        aux tail (fst res) (snd res)
+        let* new_state, acc = f state acc x in
+        aux tail new_state acc
   in
-  aux l init_state acc
+  Result.map (fun (state, acc) -> acc) (aux l init_state acc)
 
 let rec fold_proof_with_state (doc : Coq_document.t)
     (token : Coq.Limits.Token.t)
-    (f : Coq.State.t -> 'acc -> syntaxNode -> Coq.State.t * 'acc) (acc : 'acc)
-    (p : Proof.proof) : ('acc, string) result =
+    (f :
+      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result)
+    (acc : 'acc) (p : Proof.proof) : ('acc, string) result =
   let proof_nodes = Proof.proof_nodes p in
-  let rec aux (l : syntaxNode list) (state : Coq.State.t) (acc : 'acc) =
-    match l with
-    | [] -> acc
-    | x :: tail ->
-        let res = f state acc x in
-        aux tail (fst res) (snd res)
-  in
+
   match get_init_state doc p.proposition token with
-  | Ok state -> Ok (aux proof_nodes state acc)
+  | Ok state -> fold_nodes_with_state doc token f state acc proof_nodes
   | _ -> Error "Unable to retrieve initial state"
