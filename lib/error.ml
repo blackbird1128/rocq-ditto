@@ -40,3 +40,7 @@ let pp (fmt : Format.formatter) (t : t) =
 type 'a or_error = ('a, t) result
 
 let of_result = function Ok x -> Ok x | Error s -> Error (of_string s)
+let to_string_result (t : t) = Error (to_string_hum t)
+
+let or_error_to_string_result (x : 'a or_error) =
+  match x with Ok a -> Ok a | Error t -> to_string_result t
