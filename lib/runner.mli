@@ -83,24 +83,24 @@ val treeify_proof :
 val fold_nodes_with_state :
   Coq_document.t ->
   Coq.Limits.Token.t ->
-  (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result) ->
+  (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result) ->
   Coq.State.t ->
   'acc ->
   syntaxNode list ->
-  ('acc, string) result
+  ('acc, Error.t) result
 
 val fold_proof_with_state :
   Coq_document.t ->
   Coq.Limits.Token.t ->
-  (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result) ->
+  (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result) ->
   'acc ->
   proof ->
-  ('acc, string) result
+  ('acc, Error.t) result
 
 val depth_first_fold_with_state :
   Coq_document.t ->
   Coq.Limits.Token.t ->
-  (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result) ->
+  (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result) ->
   'acc ->
   syntaxNode nary_tree ->
-  ('acc, string) result
+  ('acc, Error.t) result

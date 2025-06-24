@@ -189,7 +189,7 @@ let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
       :: proof_steps_with_goalcount token agent_state tail
 
 let can_reduce_to_zero_goals (init_state : Coq.State.t)
-    (nodes : syntaxNode list) =
+    (nodes : syntaxNode list) : bool =
   let token = Coq.Limits.Token.create () in
 
   let rec aux state acc nodes =
@@ -340,7 +340,8 @@ let tree_to_proof (tree : syntaxNode nary_tree) : proof =
     status = Result.get_ok last_node_status;
   }
 
-let previous_steps_from_tree (node : syntaxNode) (tree : syntaxNode nary_tree) =
+let previous_steps_from_tree (node : syntaxNode) (tree : syntaxNode nary_tree) :
+    syntaxNode list =
   let nodes = proof_tree_to_node_list tree in
   let steps = List.tl nodes in
   let rec sublist_before_id lst target_id =
@@ -356,15 +357,17 @@ let previous_steps_from_tree (node : syntaxNode) (tree : syntaxNode nary_tree) =
 let rec depth_first_fold_with_state (doc : Coq_document.t)
     (token : Coq.Limits.Token.t)
     (f :
-      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result)
-    (acc : 'acc) (tree : syntaxNode nary_tree) : ('acc, string) result =
+      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
+    (acc : 'acc) (tree : syntaxNode nary_tree) : ('acc, Error.t) result =
   let ( let* ) = Result.bind in
 
   let rec aux
       (f :
-        Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result)
-      (state : Coq.State.t) (acc : 'acc) (tree : 'a nary_tree) :
-      (Coq.State.t * 'acc, string) result =
+        Coq.State.t ->
+        'acc ->
+        syntaxNode ->
+        (Coq.State.t * 'acc, Error.t) result) (state : Coq.State.t) (acc : 'acc)
+      (tree : 'a nary_tree) : (Coq.State.t * 'acc, Error.t) result =
     match tree with
     | Node (x, children) ->
         let* state, acc = f state acc x in
@@ -384,17 +387,17 @@ let rec depth_first_fold_with_state (doc : Coq_document.t)
   | Ok state ->
       let* state, acc = aux f state acc tree in
       Ok acc
-  | _ -> Error "Unable to retrieve initial state"
+  | _ -> Error.of_result (Error "Unable to retrieve initial state")
 
 let rec fold_nodes_with_state (doc : Coq_document.t)
     (token : Coq.Limits.Token.t)
     (f :
-      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result)
+      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
     (init_state : Coq.State.t) (acc : 'acc) (l : syntaxNode list) :
-    ('acc, string) result =
+    ('acc, 'err) result =
   let ( let* ) = Result.bind in
   let rec aux (l : syntaxNode list) (state : Coq.State.t) (acc : 'acc) :
-      (Coq.State.t * 'acc, string) result =
+      (Coq.State.t * 'acc, Error.t) result =
     match l with
     | [] -> Ok (state, acc)
     | x :: tail ->
@@ -406,10 +409,10 @@ let rec fold_nodes_with_state (doc : Coq_document.t)
 let rec fold_proof_with_state (doc : Coq_document.t)
     (token : Coq.Limits.Token.t)
     (f :
-      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result)
-    (acc : 'acc) (p : Proof.proof) : ('acc, string) result =
+      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
+    (acc : 'acc) (p : Proof.proof) : ('acc, Error.t) result =
   let proof_nodes = Proof.proof_nodes p in
 
   match get_init_state doc p.proposition token with
   | Ok state -> fold_nodes_with_state doc token f state acc proof_nodes
-  | _ -> Error "Unable to retrieve initial state"
+  | _ -> Error.of_result (Error "Unable to retrieve initial state")
