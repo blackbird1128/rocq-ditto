@@ -100,7 +100,7 @@ val fold_proof_with_state :
 val depth_first_fold_with_state :
   Coq_document.t ->
   Coq.Limits.Token.t ->
-  (Coq.State.t -> 'acc -> syntaxNode -> Coq.State.t * 'acc) ->
+  (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result) ->
   'acc ->
   syntaxNode nary_tree ->
   ('acc, string) result

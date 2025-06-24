@@ -355,27 +355,35 @@ let previous_steps_from_tree (node : syntaxNode) (tree : syntaxNode nary_tree) =
 (* fold over the proof while running the expr each time to get a new state *)
 let rec depth_first_fold_with_state (doc : Coq_document.t)
     (token : Coq.Limits.Token.t)
-    (f : Coq.State.t -> 'acc -> syntaxNode -> Coq.State.t * 'acc) (acc : 'acc)
-    (tree : syntaxNode nary_tree) : ('acc, string) result =
-  let rec aux (f : Coq.State.t -> 'acc -> 'a -> Coq.State.t * 'acc)
+    (f :
+      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result)
+    (acc : 'acc) (tree : syntaxNode nary_tree) : ('acc, string) result =
+  let ( let* ) = Result.bind in
+
+  let rec aux
+      (f :
+        Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, string) result)
       (state : Coq.State.t) (acc : 'acc) (tree : 'a nary_tree) :
-      Coq.State.t * 'acc =
+      (Coq.State.t * 'acc, string) result =
     match tree with
     | Node (x, children) ->
-        let state, acc = f state acc x in
+        let* state, acc = f state acc x in
         (* Fold over the children using the updated state and accumulator *)
         List.fold_left
-          (fun (state, acc) child ->
-            let new_state, new_acc = aux f state acc child in
-            (new_state, new_acc))
-          (state, acc) children
+          (fun res_acc child ->
+            let* state, acc = res_acc in
+            aux f state acc child)
+          (Ok (state, acc))
+          children
     (* Fold over the children, threading the state and updating acc *)
     (* Update state and accumulator for the current node *)
   in
 
   let proof = tree_to_proof tree in
   match get_init_state doc proof.proposition token with
-  | Ok state -> Ok (snd (aux f state acc tree))
+  | Ok state ->
+      let* state, acc = aux f state acc tree in
+      Ok acc
   | _ -> Error "Unable to retrieve initial state"
 
 let rec fold_nodes_with_state (doc : Coq_document.t)

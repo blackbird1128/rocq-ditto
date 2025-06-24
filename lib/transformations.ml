@@ -59,7 +59,8 @@ let pp_goal_stack
     stack;
   ()
 
-let fold_inspect (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) =
+let fold_inspect (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) :
+    unit =
   let token = Coq.Limits.Token.create () in
 
   let _ =
@@ -71,10 +72,10 @@ let fold_inspect (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) =
         | Ok (Some goals) ->
             List.iter pp_goal goals.goals;
             print_endline "\n";
-            (state_node, node :: acc)
+            Ok (state_node, node :: acc)
         | _ ->
             print_endline "error getting goals";
-            (state_node, node :: acc))
+            Ok (state_node, node :: acc))
       [] proof_tree
   in
   ()
@@ -165,7 +166,7 @@ let fold_replace_assumption_with_apply (doc : Coq_document.t)
   let res =
     Runner.depth_first_fold_with_state doc token
       (fun state acc node ->
-        let state_node = Result.get_ok (Runner.run_node token state node) in
+        let state_node = Runner.run_node token state node |> Result.get_ok in
         if
           String.starts_with ~prefix:"assumption" node.repr
           && not (String.contains node.repr ';')
@@ -209,9 +210,9 @@ let fold_replace_assumption_with_apply (doc : Coq_document.t)
               in
               let new_node = fst replacement in
 
-              (state_node, Replace (node.id, new_node) :: acc)
-          | Error _ -> (state_node, acc)
-        else (state_node, acc))
+              Ok (state_node, Replace (node.id, new_node) :: acc)
+          | Error err -> Ok (state_node, acc)
+        else Ok (state_node, acc))
       [] proof_tree
   in
   res
@@ -443,7 +444,10 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
     (fun state acc node ->
       if Option.is_empty node.ast then Ok (state, acc)
       else
-        let new_state = Result.get_ok (Runner.run_node token state node) in
+        let* new_state =
+          Runner.run_node token state node
+          |> Result.map_error running_error_to_string
+        in
 
         if
           String.starts_with ~prefix:"auto" node.repr
@@ -452,14 +456,13 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
           let node_args = extract node.repr in
 
           let info_auto = "info_auto" ^ node_args ^ "." in
-          let info_auto_node =
-            Result.get_ok
-              (Syntax_node.syntax_node_of_string info_auto node.range.start)
+          let* info_auto_node =
+            Syntax_node.syntax_node_of_string info_auto node.range.start
           in
 
-          let _, diagnostics =
-            Result.get_ok
-              (Runner.run_node_with_diagnostics token state info_auto_node)
+          let* _, diagnostics =
+            Runner.run_node_with_diagnostics token state info_auto_node
+            |> Result.map_error (fun err -> fst err |> running_error_to_string)
           in
 
           let tactic_diagnostic_repr =
@@ -506,9 +509,8 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
               depth_tuples_nodes_rev
           in
 
-          let default_node =
-            Result.get_ok
-              (Syntax_node.syntax_node_of_string "idtac." node.range.start)
+          let* default_node =
+            Syntax_node.syntax_node_of_string "idtac." node.range.start
           in
 
           let default_node_tuple =
@@ -554,15 +556,14 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
                 (node, fst matching_tuple + 1))
               tree
           in
-          let before_state =
+          let* before_state =
             List.fold_left
               (fun state_acc node ->
+                let* state_acc = state_acc in
                 match Runner.run_node token state_acc node with
-                | Ok new_state -> new_state
-                | Error err ->
-                    print_endline (Runner.running_error_to_string err);
-                    state_acc)
-              state intros_nodes
+                | Ok new_state -> Ok new_state
+                | Error err -> Error (running_error_to_string err))
+              (Ok state) intros_nodes
           in
 
           let auto_steps =
@@ -738,21 +739,26 @@ let turn_into_oneliner (doc : Coq_document.t)
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, string) result =
   let token = Coq.Limits.Token.create () in
+  let ( let* ) = Result.bind in
+
   match
     Runner.fold_proof_with_state doc token
       (fun state acc node ->
-        let new_state = Result.get_ok (Runner.run_node token state node) in
+        let* new_state =
+          Runner.run_node token state node
+          |> Result.map_error running_error_to_string
+        in
         if
           String.starts_with ~prefix:"intros." node.repr
           && not (String.contains node.repr ';')
         then
-          let old_state_vars =
-            Runner.get_current_goal token state
-            |> Result.get_ok |> Runner.get_hypothesis_names
+          let* old_state_vars =
+            Result.map Runner.get_hypothesis_names
+              (Runner.get_current_goal token state)
           in
-          let new_state_vars =
-            Runner.get_current_goal token new_state
-            |> Result.get_ok |> Runner.get_hypothesis_names
+          let* new_state_vars =
+            Result.map Runner.get_hypothesis_names
+              (Runner.get_current_goal token new_state)
           in
           let new_vars =
             List.filter
@@ -760,9 +766,8 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
               new_state_vars
           in
           let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
-          let explicit_intro_node =
-            Result.get_ok
-              (Syntax_node.syntax_node_of_string explicit_intro node.range.start)
+          let* explicit_intro_node =
+            Syntax_node.syntax_node_of_string explicit_intro node.range.start
           in
           let r = Replace (node.id, explicit_intro_node) in
           Ok (new_state, r :: acc)
