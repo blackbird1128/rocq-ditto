@@ -6,6 +6,10 @@ let rec equal_nary_tree (equal_a : 'a -> 'a -> bool) (Node (a1, children1))
     equal_a a1 a2 && List.for_all2 (equal_nary_tree equal_a) children1 children2
   with Invalid_argument _ -> false
 
+let rec sexp_of_nary_tree (sexp_of_a : 'a -> Sexplib.Sexp.t)
+    (Node (v, children)) : Sexplib.Sexp.t =
+  List [ sexp_of_a v; List (List.map (sexp_of_nary_tree sexp_of_a) children) ]
+
 let rec pp_nary_tree (pp_a : Format.formatter -> 'a -> unit)
     (fmt : Format.formatter) (Node (a, children)) : unit =
   (* Print the current node value *)

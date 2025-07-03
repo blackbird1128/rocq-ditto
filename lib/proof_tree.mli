@@ -7,6 +7,8 @@ val equal_nary_tree : ('a -> 'a -> bool) -> 'a nary_tree -> 'a nary_tree -> bool
     returns [true] if [tree1] and [tree2] are structurally equal and their
     elements satisfy [equal_a]. *)
 
+val sexp_of_nary_tree : ('a -> Sexplib.Sexp.t) -> 'a nary_tree -> Sexplib.Sexp.t
+
 val pp_nary_tree :
   (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a nary_tree -> unit
 (** [pp_nary_tree pp_a fmt (Node (a, children))] prints the n-ary tree with root
