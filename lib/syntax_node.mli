@@ -29,7 +29,7 @@ val comment_syntax_node_of_string :
     specified point *)
 
 val syntax_node_of_string :
-  string -> Lang.Point.t -> (syntaxNode, string) result
+  string -> Lang.Point.t -> (syntaxNode, Error.t) result
 (** [syntax_node_of_string code start_point] returns a result [Ok Syntax_node]
     if [code] was parsed as only one syntax node that will be positioned
     starting at [start_point] or [Error string] with a string containing the

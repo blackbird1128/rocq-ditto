@@ -148,24 +148,26 @@ let comment_syntax_node_of_string (content : string)
       }
 
 let syntax_node_of_string (code : string) (start_point : Lang.Point.t) :
-    (syntaxNode, string) result =
+    (syntaxNode, Error.t) result =
   let length_code_offset = repr_to_offset_size code in
   let range = Range_utils.range_from_starting_point_and_repr start_point code in
   (*offset doesn't count the newline in*)
   if length_code_offset > range.end_.offset - range.start.offset then
     Error
-      "Incorrect range: range end offset minus range start offset smaller than \
-       node character size"
+      (Error.of_string
+         "Incorrect range: range end offset minus range start offset smaller \
+          than node character size")
   else if
     range.start.line = range.end_.line
     && String.length code > range.end_.character - range.start.character
   then
     Error
-      "Incorrect range: range end character minus range start character \
-       smaller than node character size"
+      (Error.of_string
+         "Incorrect range: range end character minus range start character \
+          smaller than node character size")
   else
     match generate_ast code with
-    | [] -> Error ("no node found in string " ^ code)
+    | [] -> Error (Error.of_string ("no node found in string " ^ code))
     | [ x ] ->
         let node_ast : Doc.Node.Ast.t =
           { v = Coq.Ast.of_coq x; ast_info = None }
@@ -181,7 +183,8 @@ let syntax_node_of_string (code : string) (start_point : Lang.Point.t) :
             proof_id = None;
             diagnostics = [];
           }
-    | _ -> Error ("more than one node found in string " ^ code)
+    | _ ->
+        Error (Error.of_string ("more than one node found in string " ^ code))
 
 let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
     (syntaxNode list, string) result =

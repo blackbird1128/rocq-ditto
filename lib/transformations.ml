@@ -4,6 +4,7 @@ open Proof
 open Syntax_node
 open Vernacexpr
 open Runner
+open Sexplib.Conv
 
 let depth_to_bullet_type (depth : int) =
   let bullet_number = 1 + (depth / 3) in
@@ -460,7 +461,6 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
             let info_auto = "info_auto" ^ node_args ^ "." in
             let* info_auto_node =
               Syntax_node.syntax_node_of_string info_auto node.range.start
-              |> Error.of_result
             in
 
             let* _, diagnostics =
@@ -519,7 +519,6 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
 
             let* default_node =
               Syntax_node.syntax_node_of_string "idtac." node.range.start
-              |> Error.of_result
             in
 
             let default_node_tuple =
@@ -650,109 +649,108 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
   in
   res
 
+let tag_error (res : ('a, string) result) : ('a, Error.t) result =
+  res |> Error.of_result |> Result.map_error Error.tag_with_debug_infos
+
+let ( let*! ) res f = Result.bind (tag_error res) f
+
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
-  let* cleaned_tree =
-    Option.cata
-      (fun x -> Ok x)
-      (Error.string_to_or_error_err "An error happened during tree filtering")
-      (Proof_tree.filter
-         (fun node ->
-           (not (is_syntax_node_bullet node))
-           && (not (is_syntax_node_proof_intro_or_end node))
-           && Option.has_some node.ast)
-         proof_tree)
-  in
 
-  Proof_tree.pp_nary_tree Syntax_node.pp_syntax_node Format.std_formatter
-    cleaned_tree;
-
-  let rec get_oneliner (tree : syntaxNode nary_tree) : string =
-    match tree with
-    | Node (x, childrens) ->
-        let x_without_dot = String.sub x.repr 0 (String.length x.repr - 1) in
-
-        let last_children_opt =
-          if List.length childrens > 0 then
-            List.nth_opt childrens (List.length childrens - 1)
-          else None
-        in
-
-        let childrens_length_without_proof_end =
-          match last_children_opt with
-          | Some (Node (last_children, _)) ->
-              if is_syntax_node_ast_proof_end last_children then
-                List.length childrens - 1
-              else List.length childrens
-          | None -> 0
-        in
-
-        if is_syntax_node_proof_intro_or_end x then
-          String.concat "" (List.map get_oneliner childrens)
-        else if childrens_length_without_proof_end > 1 then
-          x_without_dot ^ ";\n" ^ "["
-          ^ String.concat "\n| " (List.map get_oneliner childrens)
-          ^ "]"
-        else if childrens_length_without_proof_end = 1 then
-          x_without_dot ^ ";\n"
-          ^ String.concat " " (List.map get_oneliner childrens)
-        else x_without_dot
-  in
-  let one_liner_repr = get_oneliner cleaned_tree ^ "." in
-
-  print_endline "----------";
-  print_endline one_liner_repr;
-  print_endline "----------";
-  let flattened = Proof_tree.flatten proof_tree in
-  let remove_steps =
-    List.filter_map
+  print_tree proof_tree " ";
+  let cleaned_tree =
+    Proof_tree.filter
       (fun node ->
-        if
-          is_syntax_node_ast_proof_start node
-          || is_syntax_node_ast_proof_end node
-        then None
-        else Some (Remove node.id))
-      flattened
+        (not (is_syntax_node_bullet node))
+        && (not (is_syntax_node_ast_proof_command node))
+        && ((not (node_can_open_proof node)) && not (node_can_close_proof node))
+        && Option.has_some node.ast)
+      proof_tree
   in
 
-  let first_step_node =
-    List.find (fun node -> node_can_open_proof node) flattened
-  in
+  if Option.is_empty cleaned_tree then Ok []
+  else
+    let cleaned_tree = Option.get cleaned_tree in
 
-  let* oneliner_node =
-    Syntax_node.syntax_node_of_string one_liner_repr first_step_node.range.start
-    |> Error.of_result
-  in
-  let strip_parens s =
-    let len = String.length s in
-    if len >= 3 && s.[0] = '(' && s.[len - 2] = ')' then
-      String.sub s 1 (len - 3) ^ "."
-    else s
-  in
+    let rec get_oneliner (tree : syntaxNode nary_tree) : string =
+      match tree with
+      | Node (x, childrens) ->
+          let x_without_dot = String.sub x.repr 0 (String.length x.repr - 1) in
 
-  let* reformatted_oneliner_node =
-    Syntax_node.reformat_node oneliner_node |> Error.of_result
-  in
+          let last_children_opt =
+            if List.length childrens > 0 then
+              List.nth_opt childrens (List.length childrens - 1)
+            else None
+          in
 
-  let reformatted_repr = reformatted_oneliner_node.repr |> strip_parens in
-  let* reformatted_oneliner_node =
-    Syntax_node.syntax_node_of_string reformatted_repr
-      reformatted_oneliner_node.range.start
-    |> Error.of_result
-  in
+          let childrens_length_without_proof_end =
+            match last_children_opt with
+            | Some (Node (last_children, _)) ->
+                if is_syntax_node_ast_proof_end last_children then
+                  List.length childrens - 1
+                else List.length childrens
+            | None -> 0
+          in
 
-  let* proof_node =
-    syntax_node_of_string "Proof." first_step_node.range.end_ |> Error.of_result
-  in
+          if is_syntax_node_proof_intro_or_end x then
+            String.concat "" (List.map get_oneliner childrens)
+          else if childrens_length_without_proof_end > 1 then
+            x_without_dot ^ ";\n" ^ "["
+            ^ String.concat "\n| " (List.map get_oneliner childrens)
+            ^ "]"
+          else if childrens_length_without_proof_end = 1 then
+            x_without_dot ^ ";\n"
+            ^ String.concat " " (List.map get_oneliner childrens)
+          else x_without_dot
+    in
+    let one_liner_repr = get_oneliner cleaned_tree ^ "." in
 
-  Ok
-    (remove_steps
-    @ [
-        Attach (proof_node, LineAfter, first_step_node.id);
-        Attach (reformatted_oneliner_node, LineAfter, proof_node.id);
-      ])
+    let flattened = Proof_tree.flatten proof_tree in
+    let remove_steps =
+      List.filter_map
+        (fun node ->
+          if node_can_open_proof node || node_can_close_proof node then None
+          else Some (Remove node.id))
+        flattened
+    in
+
+    let first_step_node =
+      List.find (fun node -> node_can_open_proof node) flattened
+    in
+
+    let* oneliner_node =
+      Syntax_node.syntax_node_of_string one_liner_repr
+        first_step_node.range.start
+    in
+    let strip_parens s =
+      let len = String.length s in
+      if len >= 3 && s.[0] = '(' && s.[len - 2] = ')' then
+        String.sub s 1 (len - 3) ^ "."
+      else s
+    in
+
+    let* reformatted_oneliner_node =
+      Syntax_node.reformat_node oneliner_node |> tag_error
+    in
+
+    let reformatted_repr = reformatted_oneliner_node.repr |> strip_parens in
+    let* reformatted_oneliner_node =
+      Syntax_node.syntax_node_of_string reformatted_repr
+        reformatted_oneliner_node.range.start
+    in
+
+    let* proof_node =
+      syntax_node_of_string "Proof." first_step_node.range.end_
+    in
+
+    Ok
+      (remove_steps
+      @ [
+          Attach (proof_node, LineAfter, first_step_node.id);
+          Attach (reformatted_oneliner_node, LineAfter, proof_node.id);
+        ])
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
@@ -774,12 +772,10 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
           let* old_state_vars =
             Result.map Runner.get_hypothesis_names
               (Runner.get_current_goal token state)
-            |> Error.of_result
           in
           let* new_state_vars =
             Result.map Runner.get_hypothesis_names
               (Runner.get_current_goal token new_state)
-            |> Error.of_result
           in
           let new_vars =
             List.filter
@@ -789,7 +785,6 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
           let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
           let* explicit_intro_node =
             Syntax_node.syntax_node_of_string explicit_intro node.range.start
-            |> Error.of_result
           in
           let r = Replace (node.id, explicit_intro_node) in
           Ok (new_state, r :: acc)
@@ -826,7 +821,7 @@ let apply_proof_transformation
               | Error err -> Error err)
           | Error err -> Error err)
         (Ok doc) proofs
-  | Error err -> Error (Error.of_string err)
+  | Error err -> Error err
 
 let apply_proof_tree_transformation
     (transformation :
@@ -860,4 +855,4 @@ let apply_proof_tree_transformation
               | Error err -> Error err)
           | Error err -> Error err)
         (Ok doc) proof_trees
-  | Error err -> Error (Error.of_string err)
+  | Error err -> Error err

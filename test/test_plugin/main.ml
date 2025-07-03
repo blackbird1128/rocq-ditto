@@ -636,15 +636,6 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
 
   let start_point : Lang.Point.t = { line = 1; character = 0; offset = 1 } in
 
-  let _ =
-    match
-      Syntax_node.syntax_node_of_string
-        "Theorem th : forall n : nat,\nn + 0 = n." start_point
-    with
-    | Ok node -> print_endline "everything great !"
-    | Error err -> print_endline err
-  in
-
   let node =
     Result.get_ok
       (Syntax_node.syntax_node_of_string
