@@ -31,15 +31,20 @@ let pp_syntax_node (fmt : Format.formatter) (node : syntaxNode) : unit =
     node.proof_id;
   Format.fprintf fmt "@ }"
 
-let generate_ast (code : string) : Vernacexpr.vernac_control list =
+let generate_ast (code : string) :
+    (Vernacexpr.vernac_control list, Error.t) result =
   let mode = Ltac_plugin.G_ltac.classic_proof_mode in
   let entry = Pvernac.main_entry (Some mode) in
   let code_stream = Gramlib.Stream.of_string code in
   let init_parser = Pcoq.Parsable.make code_stream in
   let rec f parser =
-    match Pcoq.Entry.parse entry parser with
-    | None -> []
-    | Some ast -> ast :: f parser
+    try
+      match Pcoq.Entry.parse entry parser with
+      | None -> Ok []
+      | Some ast -> (
+          let res = f parser in
+          match res with Ok elem -> Ok (ast :: elem) | Error err -> Error err)
+    with Gramlib.Grammar.Error exn -> Error (Error.of_string exn)
   in
   f init_parser
 
@@ -169,8 +174,8 @@ let syntax_node_of_string (code : string) (start_point : Lang.Point.t) :
           smaller than node character size")
   else
     match generate_ast code with
-    | [] -> Error (Error.of_string ("no node found in string " ^ code))
-    | [ x ] ->
+    | Ok [] -> Error (Error.of_string ("no node found in string " ^ code))
+    | Ok [ x ] ->
         let node_ast : Doc.Node.Ast.t =
           { v = Coq.Ast.of_coq x; ast_info = None }
         in
@@ -185,14 +190,15 @@ let syntax_node_of_string (code : string) (start_point : Lang.Point.t) :
             proof_id = None;
             diagnostics = [];
           }
-    | _ ->
+    | Ok (a :: b :: tail) ->
         Error (Error.of_string ("more than one node found in string " ^ code))
+    | Error err -> Error err
 
 let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
     (syntaxNode list, string) result =
   match generate_ast code with
-  | [] -> Ok []
-  | l ->
+  | Ok [] -> Ok []
+  | Ok l ->
       let length_l = List.length l in
       let num_ranges = List.length ranges in
 
@@ -220,6 +226,7 @@ let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
                  diagnostics = [];
                })
              l ranges)
+  | Error err -> Error.to_string_result err
 
 let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Lang.Point.t) :
     syntaxNode =
