@@ -13,7 +13,10 @@ val of_string : string -> t
 val of_exn : exn -> t
 val tag : t -> tag:string -> t
 val tag_arg : t -> string -> 'a -> ('a -> Sexp.t) -> t
-val tag_with_debug_infos : string -> string -> int -> t -> t
+
+val tag_with_debug_infos :
+  ?file:string -> ?funcname:string -> ?line:int -> t -> t
+
 val to_string_hum : t -> string
 val to_string_mach : t -> string
 val pp : Format.formatter -> t -> unit

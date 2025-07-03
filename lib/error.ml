@@ -13,8 +13,8 @@ let of_string (s : string) = String s
 let of_exn (exn : exn) = Of_exn exn
 let tag (t : t) ~(tag : string) = Tag_t (tag, t)
 
-let tag_with_debug_infos (file : string) (funcname : string) (line : int)
-    (t : t) =
+let tag_with_debug_infos ?(file = __FILE__) ?(funcname = __FUNCTION__)
+    ?(line = __LINE__) (t : t) =
   let loc =
     Format.sprintf "File: %s, function: %s, line: %d" file funcname line
   in
