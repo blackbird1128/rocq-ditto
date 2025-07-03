@@ -208,15 +208,15 @@ let can_reduce_to_zero_goals (init_state : Coq.State.t)
   | Error _ -> false
 
 let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
-    (string Coq.Goals.Reified_goal.t, string) result =
+    (string Coq.Goals.Reified_goal.t, Error.t) result =
   let goals_err_opt = goals ~token ~st:state in
   match goals_err_opt with
   | Ok (Some goals) -> (
       match List.nth_opt goals.goals 0 with
       | Some goal -> Ok goal
-      | None -> Error "zero goal at this state")
-  | Ok None -> Error "zero goal at this state"
-  | Error err -> Error (running_error_to_string err)
+      | None -> Error.string_to_or_error_err "zero goal at this state")
+  | Ok None -> Error.string_to_or_error_err "zero goal at this state"
+  | Error err -> Error.string_to_or_error_err (running_error_to_string err)
 
 let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
     unit =
@@ -304,7 +304,7 @@ let rec proof_tree_from_parents (cur_node : int * syntaxNode)
       List.rev_map (fun node -> proof_tree_from_parents node parents) childs )
 
 let treeify_proof (doc : Coq_document.t) (p : proof) :
-    (syntaxNode nary_tree, string) result =
+    (syntaxNode nary_tree, Error.t) result =
   let token = Coq.Limits.Token.create () in
   match get_init_state doc p.proposition token with
   | Ok init_state ->
@@ -313,12 +313,9 @@ let treeify_proof (doc : Coq_document.t) (p : proof) :
       in
 
       let parents = Hashtbl.create (List.length steps_with_goals) in
-      let _ = get_parents_rec steps_with_goals 1 [] 0 parents in
-      Ok
-        (Node
-           ( p.proposition,
-             [ proof_tree_from_parents (0, p.proposition) parents ] ))
-  | Error err -> Error "Unable to retrieve initial state"
+      let _ = get_parents_rec steps_with_goals 0 [] 0 parents in
+      Ok (proof_tree_from_parents (0, p.proposition) parents)
+  | Error err -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
 let is_valid_proof (doc : Coq_document.t) (p : proof) : bool =
   let token = Coq.Limits.Token.create () in

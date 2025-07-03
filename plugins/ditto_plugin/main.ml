@@ -62,6 +62,7 @@ let print_help (transformation_help : (transformation_kind * string) list) :
     transformation_help
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
+  Printexc.record_backtrace true;
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
@@ -161,7 +162,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
 
                   let out = open_out filename in
                   Result.fold ~ok:(output_string out)
-                    ~error:(fun e -> print_endline e)
+                    ~error:(fun e -> print_endline (Error.to_string_hum e))
                     (Coq_document.dump_to_string res)
               | Error err -> print_endline (Error.to_string_hum err))
         | None ->

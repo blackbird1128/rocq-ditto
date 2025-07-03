@@ -290,7 +290,7 @@ let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
                 ("All transformations applied, writing to file" ^ filename);
               let out = open_out filename in
               Result.fold ~ok:(output_string out)
-                ~error:(fun e -> print_endline e)
+                ~error:(fun e -> print_endline (Error.to_string_hum e))
                 (Coq_document.dump_to_string res)
           | Error err -> print_endline (Error.to_string_hum err))
       | Error err -> (
@@ -371,9 +371,7 @@ let replace_proofs_by_fol_proofs (doc : Coq_document.t) (raw_doc : Doc.t)
   match other_doc with
   | Ok second_doc ->
       let other_doc_parsed = Coq_document.parse_document second_doc in
-      let* other_proofs =
-        Coq_document.get_proofs other_doc_parsed |> Error.of_result
-      in
+      let* other_proofs = Coq_document.get_proofs other_doc_parsed in
 
       let proof_replacing_steps =
         List.filter_map
@@ -490,7 +488,7 @@ let experiment_theorem ~io ~token ~(doc : Doc.t) =
             ("All transformations applied, writing to file" ^ filename);
           let out = open_out filename in
           Result.fold ~ok:(output_string out)
-            ~error:(fun e -> print_endline e)
+            ~error:(fun e -> print_endline (Error.to_string_hum e))
             (Coq_document.dump_to_string res)
       | Error err -> print_endline (Error.to_string_hum err))
 

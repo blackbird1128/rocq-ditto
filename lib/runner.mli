@@ -66,7 +66,7 @@ val get_hypothesis_names : string Coq.Goals.Reified_goal.t -> string list
 val get_current_goal :
   Coq.Limits.Token.t ->
   Coq.State.t ->
-  (string Coq.Goals.Reified_goal.t, string) result
+  (string Coq.Goals.Reified_goal.t, Error.t) result
 
 val can_reduce_to_zero_goals : Coq.State.t -> syntaxNode list -> bool
 val is_valid_proof : Coq_document.t -> proof -> bool
@@ -78,7 +78,7 @@ val proof_tree_from_parents :
   syntaxNode nary_tree
 
 val treeify_proof :
-  Coq_document.t -> proof -> (syntaxNode nary_tree, string) result
+  Coq_document.t -> proof -> (syntaxNode nary_tree, Error.t) result
 
 val fold_nodes_with_state :
   Coq_document.t ->

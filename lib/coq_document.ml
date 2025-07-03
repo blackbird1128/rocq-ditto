@@ -25,10 +25,10 @@ let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
     doc.elements;
   Format.fprintf fmt "document repr: %s" doc.document_repr
 
-let get_proofs (doc : t) : (proof list, string) result =
+let get_proofs (doc : t) : (proof list, Error.t) result =
   let rec aux (nodes : syntaxNode list) (cur_proof_acc : syntaxNode list)
-      (proofs_acc : (proof, string) result list) (cur_state : proofState) :
-      (proof, string) result list =
+      (proofs_acc : (proof, Error.t) result list) (cur_state : proofState) :
+      (proof, Error.t) result list =
     match nodes with
     | [] -> proofs_acc
     | x :: tail -> (
@@ -215,7 +215,7 @@ let parse_document (doc : Doc.t) : t =
     initial_state = doc.root;
   }
 
-let rec dump_to_string (doc : t) : (string, string) result =
+let rec dump_to_string (doc : t) : (string, Error.t) result =
   let rec aux (repr_nodes : syntaxNode list) (doc_repr : string)
       (previous_node : syntaxNode) : string * string option =
     match repr_nodes with
@@ -263,7 +263,7 @@ let rec dump_to_string (doc : t) : (string, string) result =
   let sorted_elements = List.sort compare_nodes doc.elements in
 
   let res, possible_err = aux sorted_elements "" (List.hd sorted_elements) in
-  Option.cata (fun x -> Error x) (Ok res) possible_err
+  Option.cata (fun x -> Error.string_to_or_error_err x) (Ok res) possible_err
 
 let element_before_id_opt (target_id : Uuidm.t) (doc : t) : syntaxNode option =
   match List.find_index (fun elem -> elem.id = target_id) doc.elements with

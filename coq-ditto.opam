@@ -17,6 +17,7 @@ depends: [
   "re"
   "alcotest"
   "uuidm"
+  "ppx_sexp_message"
   "odoc" {with-doc}
 ]
 build: [

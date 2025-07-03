@@ -69,13 +69,13 @@ val replace_proof : Uuidm.t -> proof -> t -> transformation_step list option
     transformation steps to replace a proof wrapped in [Some] if a proof
     proposition with the id [target_id] exists and [None] otherwise *)
 
-val get_proofs : t -> (proof list, string) result
+val get_proofs : t -> (proof list, Error.t) result
 (** Extract proofs from a document. [get_proofs doc] takes a document [doc] of
     type [t] and returns a list of proofs. Each proof is constructed by
     aggregating elements of the document that share the same proof identifier.
 *)
 
-val dump_to_string : t -> (string, string) result
+val dump_to_string : t -> (string, Error.t) result
 (** Convert an annotated document to a string representation.
     [dump_to_string doc] returns a string wrapped in [Ok] that represents the
     structure of the annotated document [doc], formatting the nodes according to
