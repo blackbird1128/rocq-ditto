@@ -132,6 +132,7 @@ val node_can_open_proof : syntaxNode -> bool
     - a sentence starting with: Theorem | Lemma | Fact | Remark | Property |
       Proposition | Corollary
     - a sentence starting with Goal (anonymous goal)
+    - a definition with a proof
     - an Instance with a proof
     - a Function with a proof *)
 
