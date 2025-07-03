@@ -8,7 +8,15 @@ open Vernacexpr
 let normalize_strings (strings : string list) : string list =
   List.map (fun str -> String.trim str) strings
 
-let testable_nary_tree pp_a equal_a =
+let sexp_of_syntax_node (x : syntaxNode) : Sexplib.Sexp.t =
+  let open Sexplib in
+  Sexp.(Atom x.repr)
+
+let sexp_of_proof_tree (x : syntaxNode nary_tree) =
+  Proof_tree.sexp_of_nary_tree sexp_of_syntax_node x
+
+let testable_nary_tree (pp_a : Format.formatter -> 'a -> unit)
+    (equal_a : 'a -> 'a -> bool) =
   Alcotest.testable (pp_nary_tree pp_a) (equal_nary_tree equal_a)
 
 let document_to_range_representation_pairs (doc : Coq_document.t) :
@@ -29,15 +37,16 @@ let get_target (uri_str : string) =
   let target_doc = Yojson.Safe.from_file target in
   parse_json_target target_doc
 
-let pp_int fmt x = Format.fprintf fmt "%d" x
+let pp_int (fmt : Format.formatter) (x : int) = Format.fprintf fmt "%d" x
 let int_tree = testable_nary_tree pp_int ( = )
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
 let range_testable = Alcotest.testable Lang.Range.pp ( = )
 let uuidm_testable = Alcotest.testable Uuidm.pp ( = )
 let error_testable = Alcotest.testable Error.pp ( = )
+let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
 
-let make_dummy_node start_line start_char start_offset end_line end_char
-    end_offset : syntaxNode =
+let make_dummy_node (start_line : int) (start_char : int) (start_offset : int)
+    (end_line : int) (end_char : int) (end_offset : int) : syntaxNode =
   {
     ast = None;
     repr = "dummy";
@@ -52,8 +61,8 @@ let make_dummy_node start_line start_char start_offset end_line end_char
       };
   }
 
-let make_dummy_node_from_repr start_line start_char start_offset repr :
-    syntaxNode =
+let make_dummy_node_from_repr (start_line : int) (start_char : int)
+    (start_offset : int) (repr : string) : syntaxNode =
   let start_point : Lang.Point.t =
     { line = start_line; character = start_char; offset = start_offset }
   in
@@ -67,7 +76,8 @@ let make_dummy_node_from_repr start_line start_char start_offset repr :
     range;
   }
 
-let check_list_sorted ~cmp ~pp lst =
+let check_list_sorted ~(cmp : 'a -> 'a -> int) ~(pp : 'a Fmt.t) (lst : 'a list)
+    =
   let rec find_failure idx = function
     | [] | [ _ ] -> None
     | x :: y :: rest ->
@@ -269,6 +279,31 @@ let test_parsing_instance (doc : Doc.t) () : unit =
   let first_proof = List.hd proofs in
   Alcotest.check proof_status_testable "The proof should be proved" Proof.Proved
     first_proof.status
+
+let test_creating_valid_syntax_node_from_string (doc : Doc.t) () : unit =
+  let point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." point in
+  let node_repr = Result.map (fun node -> node.repr) node in
+
+  Alcotest.(
+    check
+      (result string error_testable)
+      "The node should be created without error" (Ok "Compute 1 + 1.") node_repr)
+
+let test_creating_invalid_syntax_node_from_string (doc : Doc.t) () : unit =
+  let point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let node =
+    Syntax_node.syntax_node_of_string "Compute Illegal grammar" point
+  in
+  let node_repr = Result.map (fun node -> node.repr) node in
+
+  Alcotest.(
+    check
+      (result string error_testable)
+      "The node creation should return an error"
+      (Error
+         (Error.of_string "'.' expected after [lconstr] (in [query_command])"))
+      node_repr)
 
 let test_searching_node (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
@@ -753,6 +788,47 @@ let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
+let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
+  let open Sexplib.Conv in
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+
+  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+
+  let proof_tree = Runner.treeify_proof doc first_proof in
+
+  let proof_tree_sexp =
+    Result.map (Proof_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree
+  in
+
+  let expected_tree =
+    [%sexp
+      "Theorem th: forall n : nat, n + 0 = n.",
+      [
+        ( "Proof.",
+          [
+            ( "intros.",
+              [
+                ( "induction n.",
+                  [
+                    ("reflexivity.", []);
+                    [
+                      "simpl.";
+                      [
+                        ("rewrite IHn.", [ ("reflexivity.", [ ("Qed.", []) ]) ]);
+                      ];
+                    ];
+                  ] );
+              ] );
+          ] );
+      ]]
+  in
+
+  Alcotest.(
+    check
+      (result sexp_testable error_testable)
+      "Tree should match the expected tree" (Ok expected_tree) proof_tree_sexp)
+
 let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if simply ordered nodes are sorted correctly"
@@ -780,6 +856,17 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if reformat keep the same id"
        test_reformat_keep_id doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating a simple node without error"
+       test_creating_valid_syntax_node_from_string doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating an invalid node"
+       test_creating_invalid_syntax_node_from_string doc);
+
+  Hashtbl.add table "ex_proof_tree1.v"
+    (create_fixed_test "test creating a simple proof tree"
+       test_parse_simple_proof_to_proof_tree doc);
+
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
   Hashtbl.add table "ex_parsing2.v"
@@ -800,6 +887,7 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_instance1.v"
     (create_fixed_test "test parsing an instance proof" test_parsing_instance
        doc);
+
   Hashtbl.add table "ex_parsing2.v"
     (create_fixed_test "test names and steps retrival ex 2"
        test_proof_parsing_name_and_steps_ex2 doc);
@@ -887,6 +975,7 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_auto2.v"
     (create_fixed_test "test replacing branching auto with all the taken steps"
        test_replace_multiple_branch_auto_by_steps doc);
+
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
   (*      test_replace_auto_using_zarith_by_steps doc); *)
