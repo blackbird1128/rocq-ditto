@@ -385,7 +385,7 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
               comment_start_point
           with
           | Ok comment_node -> Ok (new_state, Add comment_node :: acc)
-          | Error err -> Error (Error.of_string err)
+          | Error err -> Error err
         else Ok (new_state, acc))
       [] proof
   with

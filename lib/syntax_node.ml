@@ -119,7 +119,7 @@ let validate_syntax_node (x : syntaxNode) : (syntaxNode, string) result =
 
 (* TODO, is this even necessary ? *)
 let comment_syntax_node_of_string (content : string)
-    (start_point : Lang.Point.t) : (syntaxNode, string) result =
+    (start_point : Lang.Point.t) : (syntaxNode, Error.t) result =
   let length_content_offset = repr_to_offset_size content in
   let range =
     Range_utils.range_from_starting_point_and_repr start_point content
@@ -127,15 +127,17 @@ let comment_syntax_node_of_string (content : string)
 
   if length_content_offset > range.end_.offset - range.start.offset then
     Error
-      "Incorrect range: range end offset minus range start offset smaller than \
-       node character size"
+      (Error.of_string
+         "Incorrect range: range end offset minus range start offset smaller \
+          than node character size")
   else if
     range.start.line = range.end_.line
     && String.length content > range.end_.character - range.start.character
   then
     Error
-      "Incorrect range: range end character minus range start character \
-       smaller than node character size"
+      (Error.of_string
+         "Incorrect range: range end character minus range start character \
+          smaller than node character size")
   else
     Ok
       {
