@@ -790,7 +790,6 @@ let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
 
 let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
   let open Sexplib.Conv in
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
 
   let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
@@ -823,7 +822,49 @@ let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
           ] );
       ]]
   in
+  Alcotest.(
+    check
+      (result sexp_testable error_testable)
+      "Tree should match the expected tree" (Ok expected_tree) proof_tree_sexp)
 
+let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
+  let open Sexplib.Conv in
+  let doc = Coq_document.parse_document doc in
+
+  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+
+  let proof_tree = Runner.treeify_proof doc first_proof in
+
+  let proof_tree_sexp =
+    Result.map (Proof_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree
+  in
+
+  let expected_tree =
+    [%sexp
+      "Theorem th: forall n : nat, n * 1 = n.",
+      [
+        ( "Proof.",
+          [
+            ( "intros.",
+              [
+                ( "induction n.",
+                  [
+                    [ ("-", ("reflexivity.", [])) ];
+                    [
+                      ( "-",
+                        [
+                          "simpl.";
+                          [
+                            ( "rewrite IHn.",
+                              [ ("reflexivity.", [ ("Qed.", []) ]) ] );
+                          ];
+                        ] );
+                    ];
+                  ] );
+              ] );
+          ] );
+      ]]
+  in
   Alcotest.(
     check
       (result sexp_testable error_testable)
@@ -866,6 +907,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_proof_tree1.v"
     (create_fixed_test "test creating a simple proof tree"
        test_parse_simple_proof_to_proof_tree doc);
+  Hashtbl.add table "ex_proof_tree2.v"
+    (create_fixed_test "test creating a proof tree with bullets"
+       test_parse_proof_with_bullets_to_proof_tree doc);
 
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
