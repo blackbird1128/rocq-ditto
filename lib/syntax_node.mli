@@ -88,28 +88,28 @@ val shift_node : int -> int -> int -> syntaxNode -> syntaxNode
 (** [shift_node n_line n_char n_offset node] shift the range of [node] by
     [n_line], [n_char] and [n_offset] using [shift_range] *)
 
-val is_syntax_node_ast_proof_command : syntaxNode -> bool
-(** [is_syntax_node_ast_proof_command x] checks if [x] represents the command
-    Proof. *)
+val is_syntax_node_proof_command : syntaxNode -> bool
+(** [is_syntax_node_proof_command x] checks if [x] represents the command Proof.
+*)
 
-val is_syntax_node_ast_tactic : syntaxNode -> bool
-(** [is_syntax_node_ast_tactic x] checks if [x] represents a tactic. *)
+val is_syntax_node_tactic : syntaxNode -> bool
+(** [is_syntax_node_tactic x] checks if [x] represents a tactic. *)
 
 val is_syntax_node_bullet : syntaxNode -> bool
 (** [is_syntax_node_bullet x] check if [x] is a Coq bullet made of repeated -,
     + or * symbols *)
 
-val is_syntax_node_ast_proof_start : syntaxNode -> bool
-(** [is_syntax_node_ast_proof_start x] checks if [x] marks the start of a proof.
+val is_syntax_node_proof_start : syntaxNode -> bool
+(** [is_syntax_node_proof_start x] checks if [x] marks the start of a proof.
     meaning if it's a sentence starting with: Theorem | Lemma | Fact | Remark |
     Property | Proposition | Corollary *)
 
-val is_syntax_node_ast_proof_end : syntaxNode -> bool
-(** [is_syntax_node_ast_proof_end x] checks if [x] marks the end of a proof.
-    meaning if it's either Qed. or Admitted. *)
+val is_syntax_node_proof_end : syntaxNode -> bool
+(** [is_syntax_node_proof_end x] checks if [x] marks the end of a proof. meaning
+    if it's either Qed. or Admitted. *)
 
-val is_syntax_node_ast_proof_command : syntaxNode -> bool
-(** [is_syntax_node_ast_proof_command x] check if [x] is the command Proof. *)
+val is_syntax_node_proof_command : syntaxNode -> bool
+(** [is_syntax_node_proof_command x] check if [x] is the command Proof. *)
 
 val is_syntax_node_context : syntaxNode -> bool
 (** [is_syntax_node_context x] check if [x] is a context command. *)
@@ -123,8 +123,8 @@ val is_syntax_node_proof_intro_or_end : syntaxNode -> bool
     Theorem | Lemma | Fact | Remark | Property | Proposition | Corollary or the
     command Proof, Qed or Admitted *)
 
-val is_syntax_node_ast_proof_abort : syntaxNode -> bool
-(** [is_syntax_node_ast_proof_abort x] check if [x] abort a proof, meaning it's
+val is_syntax_node_proof_abort : syntaxNode -> bool
+(** [is_syntax_node_proof_abort x] check if [x] abort a proof, meaning it's
     either Abort or Abort all *)
 
 val node_can_open_proof : syntaxNode -> bool

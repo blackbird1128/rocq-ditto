@@ -320,7 +320,7 @@ let shift_node (n_line : int) (n_char : int) (n_offset : int) (x : syntaxNode) :
     syntaxNode =
   { x with range = shift_range n_line n_char n_offset x.range }
 
-let is_syntax_node_ast_tactic (x : syntaxNode) : bool =
+let is_syntax_node_tactic (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -332,7 +332,7 @@ let is_syntax_node_ast_tactic (x : syntaxNode) : bool =
       | VernacSynPure _ -> false)
   | None -> false
 
-let is_syntax_node_ast_proof_command (x : syntaxNode) : bool =
+let is_syntax_node_proof_command (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -404,7 +404,7 @@ let is_syntax_node_bullet (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacBullet _ -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_ast_proof_start (x : syntaxNode) : bool =
+let is_syntax_node_proof_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -415,7 +415,7 @@ let is_syntax_node_ast_proof_start (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
-let is_syntax_node_ast_proof_end (x : syntaxNode) : bool =
+let is_syntax_node_proof_end (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -424,7 +424,7 @@ let is_syntax_node_ast_proof_end (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_ast_proof_abort (x : syntaxNode) : bool =
+let is_syntax_node_proof_abort (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -463,15 +463,15 @@ let get_tactic_raw_generic_arguments (x : syntaxNode) :
 (*     let control = mk_vernac_control synterp_expr in  *)
 
 let node_can_open_proof (x : syntaxNode) : bool =
-  is_syntax_node_ast_proof_start x
+  is_syntax_node_proof_start x
   || is_syntax_node_definition_with_proof x
   || is_syntax_node_instance_start x
   || is_syntax_node_function_start x
 
 let node_can_close_proof (x : syntaxNode) : bool =
-  is_syntax_node_ast_proof_abort x || is_syntax_node_ast_proof_end x
+  is_syntax_node_proof_abort x || is_syntax_node_proof_end x
 
 let is_syntax_node_proof_intro_or_end (x : syntaxNode) : bool =
-  is_syntax_node_ast_proof_start x
-  || is_syntax_node_ast_proof_command x
-  || is_syntax_node_ast_proof_end x
+  is_syntax_node_proof_start x
+  || is_syntax_node_proof_command x
+  || is_syntax_node_proof_end x

@@ -664,7 +664,7 @@ let turn_into_oneliner (doc : Coq_document.t)
     Proof_tree.filter
       (fun node ->
         (not (is_syntax_node_bullet node))
-        && (not (is_syntax_node_ast_proof_command node))
+        && (not (is_syntax_node_proof_command node))
         && ((not (node_can_open_proof node)) && not (node_can_close_proof node))
         && Option.has_some node.ast)
       proof_tree
@@ -688,7 +688,7 @@ let turn_into_oneliner (doc : Coq_document.t)
           let childrens_length_without_proof_end =
             match last_children_opt with
             | Some (Node (last_children, _)) ->
-                if is_syntax_node_ast_proof_end last_children then
+                if is_syntax_node_proof_end last_children then
                   List.length childrens - 1
                 else List.length childrens
             | None -> 0
