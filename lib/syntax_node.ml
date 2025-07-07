@@ -404,6 +404,15 @@ let is_syntax_node_bullet (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacBullet _ -> true | _ -> false))
   | None -> false
 
+let is_syntax_node_focus_command (x : syntaxNode) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with Vernacexpr.VernacFocus _ -> true | _ -> false))
+  | None -> false
+
 let is_syntax_node_proof_start (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
