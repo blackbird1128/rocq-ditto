@@ -99,6 +99,10 @@ val is_syntax_node_bullet : syntaxNode -> bool
 (** [is_syntax_node_bullet x] check if [x] is a Coq bullet made of repeated -,
     + or * symbols *)
 
+val is_syntax_node_opening_bracket : syntaxNode -> bool
+val is_syntax_node_closing_bracket : syntaxNode -> bool
+val is_syntax_node_focusing_goal : syntaxNode -> bool
+
 val is_syntax_node_focus_command : syntaxNode -> bool
 (** [is_syntax_node_focus_command] check if [x] is the command [Focus] *)
 

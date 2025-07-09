@@ -404,6 +404,24 @@ let is_syntax_node_bullet (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacBullet _ -> true | _ -> false))
   | None -> false
 
+let is_syntax_node_opening_bracket (x : syntaxNode) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with Vernacexpr.VernacSubproof _ -> true | _ -> false))
+  | None -> false
+
+let is_syntax_node_closing_bracket (x : syntaxNode) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with Vernacexpr.VernacEndSubproof -> true | _ -> false))
+  | None -> false
+
 let is_syntax_node_focus_command (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (
@@ -412,6 +430,11 @@ let is_syntax_node_focus_command (x : syntaxNode) : bool =
       | VernacSynPure expr -> (
           match expr with Vernacexpr.VernacFocus _ -> true | _ -> false))
   | None -> false
+
+let is_syntax_node_focusing_goal (x : syntaxNode) : bool =
+  is_syntax_node_bullet x
+  || is_syntax_node_focus_command x
+  || is_syntax_node_opening_bracket x
 
 let is_syntax_node_proof_start (x : syntaxNode) : bool =
   match x.ast with
