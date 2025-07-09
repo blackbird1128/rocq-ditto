@@ -788,6 +788,197 @@ let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
+let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
+  let doc = Coq_document.parse_document doc in
+  let token = Coq.Limits.Token.create () in
+
+  let steps_with_goalcount =
+    Runner.proof_steps_with_goalcount token doc.initial_state doc.elements
+  in
+  let repr_with_goalcount =
+    List.map
+      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      steps_with_goalcount
+  in
+
+  let expected =
+    [
+      ("Theorem th: forall n : nat, n + 0 = n.", 1);
+      ("Proof.", 1);
+      ("intros.", 1);
+      ("induction n.", 2);
+      ("reflexivity.", 1);
+      ("simpl.", 1);
+      ("rewrite IHn.", 1);
+      ("reflexivity.", 0);
+      ("Qed.", 0);
+    ]
+  in
+
+  Alcotest.(
+    check
+      (list (pair string int))
+      "The two lists should be the same" expected repr_with_goalcount)
+
+let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
+  let doc = Coq_document.parse_document doc in
+  let token = Coq.Limits.Token.create () in
+
+  let steps_with_goalcount =
+    Runner.proof_steps_with_goalcount token doc.initial_state doc.elements
+  in
+  let repr_with_goalcount =
+    List.map
+      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      steps_with_goalcount
+  in
+
+  let expected =
+    [
+      ("Theorem th: forall n : nat, n * 1 = n.", 1);
+      ("Proof.", 1);
+      ("intros.", 1);
+      ("induction n.", 2);
+      ("-", 2);
+      ("reflexivity.", 1);
+      ("-", 1);
+      ("simpl.", 1);
+      ("rewrite IHn.", 1);
+      ("reflexivity.", 0);
+      ("Qed.", 0);
+    ]
+  in
+
+  Alcotest.(
+    check
+      (list (pair string int))
+      "The two lists should be the same" expected repr_with_goalcount)
+
+let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
+  let doc = Coq_document.parse_document doc in
+  let token = Coq.Limits.Token.create () in
+  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+
+  let state =
+    Runner.get_init_state doc first_proof.proposition token |> Result.get_ok
+  in
+
+  let steps_with_goalcount =
+    Runner.proof_steps_with_goalcount token state
+      (Proof.proof_nodes first_proof)
+  in
+  let repr_with_goalcount =
+    List.map
+      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      steps_with_goalcount
+  in
+
+  let expected =
+    [
+      ("Theorem fact_pos : forall n : nat, n! > 0.", 1);
+      ("Proof.", 1);
+      ("induction n.", 2);
+      ("{", 2);
+      ("simpl.", 2);
+      ("lia.", 1);
+      ("}", 1);
+      ("{", 1);
+      ("simpl.", 1);
+      ("lia.", 0);
+      ("}", 0);
+      ("Qed.", 0);
+    ]
+  in
+
+  Alcotest.(
+    check
+      (list (pair string int))
+      "The two lists should be the same" expected repr_with_goalcount)
+
+let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
+    unit =
+  let doc = Coq_document.parse_document doc in
+  let token = Coq.Limits.Token.create () in
+  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+
+  let state =
+    Runner.get_init_state doc first_proof.proposition token |> Result.get_ok
+  in
+
+  let steps_with_goalcount =
+    Runner.proof_steps_with_goalcount token state
+      (Proof.proof_nodes first_proof)
+  in
+  let repr_with_goalcount =
+    List.map
+      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      steps_with_goalcount
+  in
+  let expected =
+    [
+      ("Goal (1=1 /\\ 2=2) /\\ 3=3.", 1);
+      ("Proof.", 1);
+      ("split.", 2);
+      ("-", 2);
+      ("split.", 3);
+      ("+", 3);
+      ("trivial.", 2);
+      ("+", 2);
+      ("trivial.", 1);
+      ("-", 1);
+      ("trivial.", 0);
+      ("Qed.", 0);
+    ]
+  in
+
+  Alcotest.(
+    check
+      (list (pair string int))
+      "The two lists should be the same" expected repr_with_goalcount)
+
+let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
+    : unit =
+  let doc = Coq_document.parse_document doc in
+  let token = Coq.Limits.Token.create () in
+  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+
+  let state =
+    Runner.get_init_state doc first_proof.proposition token |> Result.get_ok
+  in
+
+  let steps_with_goalcount =
+    Runner.proof_steps_with_goalcount token state
+      (Proof.proof_nodes first_proof)
+  in
+  let repr_with_goalcount =
+    List.map
+      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      steps_with_goalcount
+  in
+  let expected =
+    [
+      ("Theorem fact_pos : forall n : nat, n! > 0.", 1);
+      ("Proof.", 1);
+      ("induction n.", 2);
+      ("-", 2);
+      ("{", 2);
+      ("simpl.", 2);
+      ("lia.", 1);
+      ("}", 1);
+      ("-", 1);
+      ("{", 1);
+      ("simpl.", 1);
+      ("lia.", 0);
+      ("}", 0);
+      ("Qed.", 0);
+    ]
+  in
+
+  Alcotest.(
+    check
+      (list (pair string int))
+      "The two lists should be the same" expected repr_with_goalcount)
+
 let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
   let open Sexplib.Conv in
   let doc = Coq_document.parse_document doc in
@@ -850,16 +1041,14 @@ let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
                 ( "induction n.",
                   [
                     [ ("-", ("reflexivity.", [])) ];
-                    [
-                      ( "-",
+                    ( "-",
+                      [
+                        "simpl.";
                         [
-                          "simpl.";
-                          [
-                            ( "rewrite IHn.",
-                              [ ("reflexivity.", [ ("Qed.", []) ]) ] );
-                          ];
-                        ] );
-                    ];
+                          ( "rewrite IHn.",
+                            [ ("reflexivity.", [ ("Qed.", []) ]) ] );
+                        ];
+                      ] );
                   ] );
               ] );
           ] );
@@ -905,12 +1094,30 @@ let setup_test_table table (doc : Doc.t) =
        test_creating_invalid_syntax_node_from_string doc);
 
   Hashtbl.add table "ex_proof_tree1.v"
+    (create_fixed_test "test counting the goals of each steps of a simple proof"
+       test_count_goals_simple_proof_without_focus doc);
+  Hashtbl.add table "ex_proof_tree2.v"
+    (create_fixed_test
+       "test counting the goals of each steps of a proof with bullets"
+       test_count_goals_proof_with_bullets_without_focus doc);
+  Hashtbl.add table "ex_proof_with_brackets.v"
+    (create_fixed_test "test counting the goals of a proof with brackets"
+       test_count_goals_proof_with_brackets_without_focus doc);
+  Hashtbl.add table "ex_proof_brackets_bullets.v"
+    (create_fixed_test
+       "test counting the goals of a proof with brackets and bullets"
+       test_count_goals_proof_with_brackets_bullets_without_focus doc);
+  Hashtbl.add table "ex_proof_nested_bullets.v"
+    (create_fixed_test "test counting the goals of a proof with nested bullets"
+       test_count_goals_proof_with_nested_bullets_without_focus doc);
+
+  Hashtbl.add table "ex_proof_tree1.v"
     (create_fixed_test "test creating a simple proof tree"
        test_parse_simple_proof_to_proof_tree doc);
+
   Hashtbl.add table "ex_proof_tree2.v"
     (create_fixed_test "test creating a proof tree with bullets"
        test_parse_proof_with_bullets_to_proof_tree doc);
-
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
   Hashtbl.add table "ex_parsing2.v"
