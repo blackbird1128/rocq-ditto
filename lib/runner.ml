@@ -175,18 +175,98 @@ let count_goals (token : Coq.Limits.Token.t) (st : Coq.State.t) : int =
   | Ok None -> 0
   | Error _ -> 0
 
+(* let remove_focus (proof_steps : (int * syntaxNode * int) list) : *)
+(*     (int * syntaxNode * int) list = *)
+(*   let rec aux (proof_steps : (int * syntaxNode * int) list) *)
+(*       (focus_stack : focus_state list) (real_goal_count : int) = *)
+(*     match proof_steps with *)
+(*     | [] -> [] *)
+(*     | (prev_goals, step, after_goals) :: tail -> *)
+(*         let focus_stack = *)
+(*           if is_syntax_node_opening_bracket step then *)
+(*             BracketFocus (max 0 (prev_goals - 1)) :: focus_stack *)
+(*           else if is_syntax_node_bullet step then *)
+(*             if prev_goals = 0 then BulletFocus 1 :: focus_stack *)
+(*             else BulletFocus (max 0 (prev_goals - 1)) :: focus_stack *)
+(*           else if is_syntax_node_closing_bracket step then ( *)
+(*             print_endline "DROPPING"; *)
+(*             List.drop 1 focus_stack) *)
+(*           else focus_stack *)
+(*         in *)
+
+(*         let sum = focus_stack_sum focus_stack in *)
+
+(*         print_endline ("prev goals: " ^ string_of_int prev_goals); *)
+(*         print_endline ("after goals: " ^ string_of_int after_goals); *)
+
+(*         print_endline ("step: " ^ step.repr); *)
+(*         print_endline ("sum " ^ string_of_int sum); *)
+(*         print_focus_stack focus_stack; *)
+
+(*         let focus_stack = *)
+(*           if after_goals < prev_goals && not (is_syntax_node_focusing_goal step) *)
+(*           then *)
+(*             match List.nth_opt focus_stack 0 with *)
+(*             | Some (BulletFocus _) -> *)
+(*                 print_endline "DROPPING BIS"; *)
+(*                 List.drop 1 focus_stack *)
+(*             | _ -> focus_stack *)
+(*           else focus_stack *)
+(*         in *)
+(*         print_newline (); *)
+
+(*         sum :: aux tail focus_stack *)
+(*   in *)
+(*   let sums = aux proof_steps [] 0 in *)
+(*   List.map2 (fun sum_n (p, s, a) -> (p + sum_n, s, a + sum_n)) sums proof_steps *)
+
+type focus_state = BracketFocus of int | BulletFocus of int
+
+(*
+  BracketFocus:
+  If a bracket is opened: Take the number of goals we had before - 1, that our real numbers of goals inside the bracket
+  Ex: induction: (2-1) = 1,  Add that to every goal count until we close a bracket
+  BulletFocus:
+  If a bullet is used: take the number of goals we had before - 1, that our real numbers of goals inside a bracket
+
+  We can enter a bullet or a bracket inside a bracket or bullet:
+  need a stack to track which bullet to use ? 
+ *)
+
+let focus_stack_sum (focus_stack : focus_state list) =
+  List.fold_left
+    (fun acc x ->
+      match x with BracketFocus n -> acc + n | BulletFocus n -> acc + n)
+    0 focus_stack
+
+let print_focus_stack (focus_stack : focus_state list) : unit =
+  List.iter
+    (fun x ->
+      match x with
+      | BracketFocus n -> print_endline ("Bracket Focus " ^ string_of_int n)
+      | BulletFocus n -> print_endline ("Bullet Focus " ^ string_of_int n))
+    focus_stack
+
 let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
     (st : Coq.State.t) (steps : syntaxNode list) : (int * syntaxNode * int) list
     =
-  match steps with
-  | [] -> []
-  | step :: tail ->
-      let before_count = count_goals token st in
-      let state = Fleche.Doc.run ~token ~st step.repr in
-      let agent_state = get_proof_state state in
-      let goal_count = count_goals token agent_state in
-      (before_count, step, goal_count)
-      :: proof_steps_with_goalcount token agent_state tail
+  let rec aux (token : Coq.Limits.Token.t) (st : Coq.State.t)
+      (steps : syntaxNode list) =
+    match steps with
+    | [] -> []
+    | step :: tail ->
+        let before_count = count_goals token st in
+        if
+          is_syntax_node_focusing_goal step
+          || is_syntax_node_closing_bracket step
+        then (before_count, step, before_count) :: aux token st tail
+        else
+          let state = Fleche.Doc.run ~token ~st step.repr in
+          let agent_state = get_proof_state state in
+          let goal_count = count_goals token agent_state in
+          (before_count, step, goal_count) :: aux token agent_state tail
+  in
+  aux token st steps
 
 let can_reduce_to_zero_goals (init_state : Coq.State.t)
     (nodes : syntaxNode list) : bool =

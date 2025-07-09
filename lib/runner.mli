@@ -61,6 +61,9 @@ val proof_steps_with_goalcount :
   syntaxNode list ->
   (int * syntaxNode * int) list
 
+(* val remove_focus : *)
+(*   (int * syntaxNode * int) list -> (int * syntaxNode * int) list *)
+
 val get_hypothesis_names : string Coq.Goals.Reified_goal.t -> string list
 
 val get_current_goal :
