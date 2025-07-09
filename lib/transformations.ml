@@ -83,6 +83,87 @@ let fold_inspect (doc : Coq_document.t) (proof_tree : syntaxNode nary_tree) :
 
 type op_type = Cut | Keep
 
+let admit_branch_at_error (doc : Coq_document.t)
+    (proof_tree : syntaxNode nary_tree) :
+    (transformation_step list, Error.t) result =
+  let token = Coq.Limits.Token.create () in
+  let admit_creator =
+   fun node ->
+    Result.get_ok (Syntax_node.syntax_node_of_string "admit" node.range.start)
+  in
+  let rec aux state_acc tree steps_acc =
+    match tree with
+    | Node (x, children) -> (
+        if is_syntax_node_proof_intro_or_end x then
+          let state = Result.get_ok (Runner.run_node token state_acc x) in
+          List.fold_left
+            (fun (state, acc) child ->
+              let new_state, new_acc = aux state child acc in
+              (new_state, new_acc))
+            (state, steps_acc) children
+        else
+          let state = Runner.run_node token state_acc x in
+
+          (* Fold over the children using the updated state and accumulator *)
+          match state with
+          | Ok state ->
+              List.fold_left
+                (fun (state, acc) child ->
+                  let new_state, new_acc = aux state child acc in
+                  (new_state, new_acc))
+                (state, steps_acc) children
+          | Error err ->
+              let admit_node = admit_creator x in
+              let cut_node_state =
+                Runner.run_node token state_acc admit_node |> Result.get_ok
+              in
+
+              let cut_node_goals_count =
+                Runner.count_goals token cut_node_state
+              in
+              let children_nodes =
+                List.concat (List.map Proof_tree.flatten children)
+              in
+
+              let next_state =
+                List.fold_left
+                  (fun state_acc node ->
+                    if node_can_close_proof node then state_acc
+                    else Result.get_ok (Runner.run_node token state_acc node))
+                  cut_node_state children_nodes
+              in
+
+              let next_state_goals = Runner.count_goals token next_state in
+
+              if cut_node_goals_count = next_state_goals then
+                let children_nodes =
+                  List.concat (List.map Proof_tree.flatten children)
+                in
+
+                let remove_steps =
+                  List.filter_map
+                    (fun node ->
+                      if node_can_open_proof node || node_can_close_proof node
+                      then None
+                      else Some (Remove node.id))
+                    (x :: children_nodes)
+                in
+                (cut_node_state, steps_acc @ (Add admit_node :: remove_steps))
+              else
+                List.fold_left
+                  (fun (state, acc) child ->
+                    let new_state, new_acc = aux state child acc in
+                    (new_state, new_acc))
+                  (cut_node_state, steps_acc)
+                  children)
+  in
+  let cur_proof = Runner.tree_to_proof proof_tree in
+  match get_init_state doc cur_proof.proposition token with
+  | Ok state ->
+      let _, steps = aux state proof_tree [] in
+      Ok steps
+  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
+
 let cut_replace_branch (cut_tactic : string) (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, Error.t) result =
@@ -245,6 +326,27 @@ let id_transform (doc : Coq_document.t) (proof : proof) :
   Ok []
 
 let admit_proof (doc : Coq_document.t) (proof : proof) :
+    (transformation_step list, Error.t) result =
+  let ( let* ) = Result.bind in
+  let proof_close_node =
+    List.find Syntax_node.is_syntax_node_proof_end proof.proof_steps
+  in
+  let* admitted_node =
+    syntax_node_of_string "Admitted." proof_close_node.range.start
+  in
+  Ok [ Replace (proof_close_node.id, admitted_node) ]
+
+let remove_random_step (doc : Coq_document.t) (proof : proof) :
+    (transformation_step list, Error.t) result =
+  let num_steps = List.length proof.proof_steps in
+  if num_steps <= 2 then Ok []
+  else
+    let rand_num = Random.int_in_range ~min:1 ~max:(num_steps - 1) in
+    let rand_node = List.nth proof.proof_steps rand_num in
+    print_endline ("removing " ^ rand_node.repr);
+    Ok [ Remove rand_node.id ]
+
+let admit_and_comment_proof_steps (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let remove_all_steps =
     List.map (fun step -> Remove step.id) proof.proof_steps
@@ -842,6 +944,7 @@ let apply_proof_tree_transformation
              (proof_tree : syntaxNode nary_tree) ->
           match doc_acc with
           | Ok acc -> (
+              print_endline ("treating: " ^ (Proof_tree.root proof_tree).repr);
               let transformation_steps = transformation acc proof_tree in
               match transformation_steps with
               | Ok steps ->

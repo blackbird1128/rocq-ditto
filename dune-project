@@ -31,6 +31,13 @@
  )
 
 (package
+  (name shelley-plugin)
+  (synopsis "Plugin used to test proof repairs methods" )
+  (allow_empty)
+  (depends ocaml dune coq-lsp base-unix re coq-ditto)
+ )
+
+(package
  (name constructive-plugin)
  (synopsis "Plugin to constructivise GeoCoq")
  (allow_empty)

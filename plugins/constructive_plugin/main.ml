@@ -330,7 +330,8 @@ let admit_exists_proof_in_doc (doc : Coq_document.t) :
       | Ok doc_acc ->
           if Theorem_query.matches exists_query proof_sexps then
             let steps =
-              Result.get_ok (Transformations.admit_proof doc_acc proof)
+              Result.get_ok
+                (Transformations.admit_and_comment_proof_steps doc_acc proof)
             in
             Coq_document.apply_transformations_steps steps doc_acc
           else Ok doc_acc
