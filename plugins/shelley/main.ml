@@ -1,6 +1,45 @@
 open Fleche
 open Ditto
+open Ditto.Syntax_node
+open Ditto.Proof_tree
 open Ditto.Diagnostic_utils
+
+let sexp_of_syntax_node (x : syntaxNode) : Sexplib.Sexp.t =
+  let open Sexplib in
+  Sexp.(Atom x.repr)
+
+let sexp_of_proof_tree (x : syntaxNode nary_tree) =
+  Proof_tree.sexp_of_nary_tree sexp_of_syntax_node x
+
+let rec simplify sexp =
+  let open Sexplib.Sexp in
+  match sexp with
+  | List [ x ] -> simplify x
+  | List xs -> List (List.map simplify xs)
+  | Atom _ as a -> a
+
+let rec print_tree ?(prefix = "") sexp =
+  let open Sexplib.Sexp in
+  let rec aux prefix sexp =
+    match sexp with
+    | Atom s -> Printf.printf "%s%s\n" prefix s
+    | List lst ->
+        let len = List.length lst in
+        List.iteri
+          (fun i x ->
+            let is_last = i = len - 1 in
+            let branch = if is_last then "└── " else "├── " in
+            let next_prefix =
+              if is_last then prefix ^ "    " else prefix ^ "│   "
+            in
+            match x with
+            | Atom s -> Printf.printf "%s%s%s\n" prefix branch s
+            | List _ ->
+                Printf.printf "%s%s()\n" prefix branch;
+                aux next_prefix x)
+          lst
+  in
+  aux prefix (simplify sexp)
 
 let neat_compile ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -40,12 +79,18 @@ let neat_compile ~io ~token:_ ~(doc : Doc.t) =
           |> Result.get_ok
         in
 
-        let res =
-          Transformations.apply_proof_transformation
-            Transformations.remove_random_step res
-          |> Result.get_ok
+        let proof_trees =
+          List.map (Runner.treeify_proof res)
+            (Coq_document.get_proofs res |> Result.get_ok)
         in
 
+        List.iter
+          (fun tree -> print_tree (sexp_of_proof_tree (Result.get_ok tree)))
+          proof_trees;
+
+        (* let remove_steps = *)
+        (*   List.map Transformations.remove_random_step res |> Result.get_ok *)
+        (* in *)
         let res =
           Transformations.apply_proof_tree_transformation
             Transformations.admit_branch_at_error res
