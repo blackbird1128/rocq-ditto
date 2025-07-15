@@ -1,7 +1,7 @@
 open Fleche
 open Syntax_node
 open Vernacexpr
-open Proof_tree
+open Nary_tree
 
 type proof_status = Admitted | Proved | Aborted
 

@@ -1,6 +1,6 @@
 open Fleche
 open Ditto
-open Ditto.Proof_tree
+open Ditto.Nary_tree
 open Ditto.Proof
 open Ditto.Syntax_node
 open Vernacexpr

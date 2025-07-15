@@ -1,6 +1,6 @@
 open Fleche
 open Ditto
-open Ditto.Proof_tree
+open Ditto.Nary_tree
 open Ditto.Proof
 open Ditto.Syntax_node
 open Vernacexpr
@@ -13,7 +13,7 @@ let sexp_of_syntax_node (x : syntaxNode) : Sexplib.Sexp.t =
   Sexp.(Atom x.repr)
 
 let sexp_of_proof_tree (x : syntaxNode nary_tree) =
-  Proof_tree.sexp_of_nary_tree sexp_of_syntax_node x
+  Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
 
 let testable_nary_tree (pp_a : Format.formatter -> 'a -> unit)
     (equal_a : 'a -> 'a -> bool) =
@@ -988,7 +988,7 @@ let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
   let proof_tree = Runner.treeify_proof doc first_proof in
 
   let proof_tree_sexp =
-    Result.map (Proof_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree
+    Result.map (Nary_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree
   in
 
   let expected_tree =
@@ -1027,7 +1027,7 @@ let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
   let proof_tree = Runner.treeify_proof doc first_proof in
 
   let proof_tree_sexp =
-    Result.map (Proof_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree
+    Result.map (Nary_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree
   in
 
   let expected_tree =

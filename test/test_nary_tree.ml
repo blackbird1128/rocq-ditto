@@ -1,4 +1,4 @@
-open Ditto.Proof_tree
+open Ditto.Nary_tree
 
 let testable_nary_tree pp_a equal_a =
   Alcotest.testable (pp_nary_tree pp_a) (equal_nary_tree equal_a)
