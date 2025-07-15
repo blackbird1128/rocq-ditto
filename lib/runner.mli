@@ -1,6 +1,6 @@
 open Syntax_node
 open Proof
-open Proof_tree
+open Nary_tree
 
 type runningError =
   | Interrupted
@@ -15,42 +15,40 @@ val running_error_to_string : runningError -> string
 val run_with_timeout :
   token:Coq.Limits.Token.t ->
   timeout:int ->
-  f:('a -> ('b, runningError) result) ->
+  f:('a -> ('b, Error.t) result) ->
   'a ->
-  ('b, runningError) result
+  ('b, Error.t) result
 
-val protect_to_result : ('a, 'b) Coq.Protect.E.t -> ('a, runningError) result
+val protect_to_result : ('a, 'b) Coq.Protect.E.t -> ('a, Error.t) result
 
 val protect_to_result_with_feedback :
   ('a, 'b) Coq.Protect.E.t ->
-  ('a * 'b Coq.Message.t list, runningError * 'b Coq.Message.t list) Result.t
+  ('a * 'b Coq.Message.t list, Error.t * 'b Coq.Message.t list) Result.t
 
 val run_node :
   Coq.Limits.Token.t ->
   Coq.State.t ->
   syntaxNode ->
-  (Coq.State.t, runningError) result
+  (Coq.State.t, Error.t) result
 
 val run_node_with_diagnostics :
   Coq.Limits.Token.t ->
   Coq.State.t ->
   syntaxNode ->
   ( Coq.State.t * Lang.Diagnostic.t list,
-    runningError * Lang.Diagnostic.t list )
+    Error.t * Lang.Diagnostic.t list )
   result
 
 val get_init_state :
   Coq_document.t ->
   syntaxNode ->
   Coq.Limits.Token.t ->
-  (Coq.State.t, runningError) result
+  (Coq.State.t, Error.t) result
 
 val goals :
   token:Coq.Limits.Token.t ->
   st:Coq.State.t ->
-  ( (string Coq.Goals.Reified_goal.t, string) Coq.Goals.t option,
-    runningError )
-  result
+  ((string Coq.Goals.Reified_goal.t, string) Coq.Goals.t option, Error.t) result
 
 val get_proof_state : (Coq.State.t, Loc.t) Coq.Protect.E.t -> Coq.State.t
 val count_goals : Coq.Limits.Token.t -> Coq.State.t -> int

@@ -1,5 +1,5 @@
 open Syntax_node
-open Proof_tree
+open Nary_tree
 open Proof
 
 type runningError =
@@ -18,28 +18,28 @@ let running_error_to_string = function
   | System msg -> Format.asprintf "System: %s" msg
   | Theorem_not_found msg -> Format.asprintf "Theorem_not_found: %s" msg
 
-let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) :
-    ('a, runningError) Result.t =
+let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) Result.t =
   match r with
-  | { r = Interrupted; feedback = _ } -> Error Interrupted
+  | { r = Interrupted; feedback = _ } -> Error (Error.of_string "Interrupted")
   | { r = Completed (Error (User { msg; _ })); feedback = _ } ->
-      Error (Coq (Pp.string_of_ppcmds msg))
+      Error (Error.of_string (Pp.string_of_ppcmds msg))
   | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
-      Error (Anomaly (Pp.string_of_ppcmds msg))
+      Error (Error.of_string ("Anomaly " ^ Pp.string_of_ppcmds msg))
   | { r = Completed (Ok r); feedback = msgs } -> Ok r
 
 let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
-    ('a * 'b Coq.Message.t list, runningError * 'b Coq.Message.t list) Result.t
-    =
+    ('a * 'b Coq.Message.t list, Error.t * 'b Coq.Message.t list) Result.t =
   match r with
-  | { r = Interrupted; feedback } -> Error (Interrupted, feedback)
+  | { r = Interrupted; feedback } ->
+      Error (Error.of_string "Interrupted", feedback)
   | { r = Completed (Error (User { msg; _ })); feedback } ->
-      Error (Coq (Pp.string_of_ppcmds msg), feedback)
+      Error (Error.of_string (Pp.string_of_ppcmds msg), feedback)
   | { r = Completed (Error (Anomaly { msg; _ })); feedback } ->
-      Error (Anomaly (Pp.string_of_ppcmds msg), feedback)
+      Error (Error.of_string ("Anomaly " ^ Pp.string_of_ppcmds msg), feedback)
   | { r = Completed (Ok r); feedback } -> Ok (r, feedback)
 
-let run_with_timeout ~token ~timeout ~f x =
+let run_with_timeout ~(token : Coq.Limits.Token.t) ~(timeout : int)
+    ~(f : 'a -> ('b, Error.t) result) x : ('b, Error.t) result =
   (* Start a timeout thread *)
   let completed = ref false in
 
@@ -51,18 +51,18 @@ let run_with_timeout ~token ~timeout ~f x =
       ()
   in
 
-  if Coq.Limits.Token.is_set token then Error Interrupted
+  if Coq.Limits.Token.is_set token then Error (Error.of_string "Interrupted")
   else
     let () = Control.interrupt := false in
     try
       let y = f x in
       completed := true;
       y
-    with Sys.Break -> Error Interrupted
+    with Sys.Break -> Error (Error.of_string "Interrupted")
 
 let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
     ( (string Coq.Goals.Reified_goal.t, string) Coq.Goals.t option,
-      runningError )
+      Error.t )
     result =
   let f goals =
     let f = Coq.Goals.Reified_goal.map ~f:Pp.string_of_ppcmds in
@@ -108,7 +108,7 @@ let run_with_diagnostics ~token ?loc ?(memo = true) ~st cmds =
     st
 
 let run_node (token : Coq.Limits.Token.t) (prev_state : Coq.State.t)
-    (node : syntaxNode) : (Coq.State.t, runningError) result =
+    (node : syntaxNode) : (Coq.State.t, Error.t) result =
   let execution =
     let open Coq.Protect.E.O in
     let st =
@@ -122,7 +122,7 @@ let run_node (token : Coq.Limits.Token.t) (prev_state : Coq.State.t)
 let run_node_with_diagnostics (token : Coq.Limits.Token.t)
     (prev_state : Coq.State.t) (node : syntaxNode) :
     ( Coq.State.t * Lang.Diagnostic.t list,
-      runningError * Lang.Diagnostic.t list )
+      Error.t * Lang.Diagnostic.t list )
     result =
   let execution =
     let open Coq.Protect.E.O in
@@ -144,7 +144,7 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
       Error (err, List.map (message_to_diagnostic node.range) messages)
 
 let get_init_state (doc : Coq_document.t) (node : syntaxNode)
-    (token : Coq.Limits.Token.t) : (Coq.State.t, runningError) result =
+    (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
   let nodes_before, _ = Coq_document.split_at_id node.id doc in
   let init_state = doc.initial_state in
   List.fold_left
@@ -165,7 +165,7 @@ let get_proof_state (start_result : (Coq.State.t, Loc.t) Coq.Protect.E.t) :
   match protect_to_result start_result with
   | Ok run_result -> run_result
   | Error err ->
-      Printf.eprintf "Error: %s\n" (running_error_to_string err);
+      Printf.eprintf "Error: %s\n" (Error.to_string_hum err);
       raise (Failure "Failed to start proof")
 
 let count_goals (token : Coq.Limits.Token.t) (st : Coq.State.t) : int =
@@ -175,63 +175,7 @@ let count_goals (token : Coq.Limits.Token.t) (st : Coq.State.t) : int =
   | Ok None -> 0
   | Error _ -> 0
 
-(* let remove_focus (proof_steps : (int * syntaxNode * int) list) : *)
-(*     (int * syntaxNode * int) list = *)
-(*   let rec aux (proof_steps : (int * syntaxNode * int) list) *)
-(*       (focus_stack : focus_state list) (real_goal_count : int) = *)
-(*     match proof_steps with *)
-(*     | [] -> [] *)
-(*     | (prev_goals, step, after_goals) :: tail -> *)
-(*         let focus_stack = *)
-(*           if is_syntax_node_opening_bracket step then *)
-(*             BracketFocus (max 0 (prev_goals - 1)) :: focus_stack *)
-(*           else if is_syntax_node_bullet step then *)
-(*             if prev_goals = 0 then BulletFocus 1 :: focus_stack *)
-(*             else BulletFocus (max 0 (prev_goals - 1)) :: focus_stack *)
-(*           else if is_syntax_node_closing_bracket step then ( *)
-(*             print_endline "DROPPING"; *)
-(*             List.drop 1 focus_stack) *)
-(*           else focus_stack *)
-(*         in *)
-
-(*         let sum = focus_stack_sum focus_stack in *)
-
-(*         print_endline ("prev goals: " ^ string_of_int prev_goals); *)
-(*         print_endline ("after goals: " ^ string_of_int after_goals); *)
-
-(*         print_endline ("step: " ^ step.repr); *)
-(*         print_endline ("sum " ^ string_of_int sum); *)
-(*         print_focus_stack focus_stack; *)
-
-(*         let focus_stack = *)
-(*           if after_goals < prev_goals && not (is_syntax_node_focusing_goal step) *)
-(*           then *)
-(*             match List.nth_opt focus_stack 0 with *)
-(*             | Some (BulletFocus _) -> *)
-(*                 print_endline "DROPPING BIS"; *)
-(*                 List.drop 1 focus_stack *)
-(*             | _ -> focus_stack *)
-(*           else focus_stack *)
-(*         in *)
-(*         print_newline (); *)
-
-(*         sum :: aux tail focus_stack *)
-(*   in *)
-(*   let sums = aux proof_steps [] 0 in *)
-(*   List.map2 (fun sum_n (p, s, a) -> (p + sum_n, s, a + sum_n)) sums proof_steps *)
-
 type focus_state = BracketFocus of int | BulletFocus of int
-
-(*
-  BracketFocus:
-  If a bracket is opened: Take the number of goals we had before - 1, that our real numbers of goals inside the bracket
-  Ex: induction: (2-1) = 1,  Add that to every goal count until we close a bracket
-  BulletFocus:
-  If a bullet is used: take the number of goals we had before - 1, that our real numbers of goals inside a bracket
-
-  We can enter a bullet or a bracket inside a bracket or bullet:
-  need a stack to track which bullet to use ? 
- *)
 
 let focus_stack_sum (focus_stack : focus_state list) =
   List.fold_left
@@ -296,7 +240,7 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
       | Some goal -> Ok goal
       | None -> Error.string_to_or_error_err "zero goal at this state")
   | Ok None -> Error.string_to_or_error_err "zero goal at this state"
-  | Error err -> Error.string_to_or_error_err (running_error_to_string err)
+  | Error err -> Error err
 
 let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
     unit =
