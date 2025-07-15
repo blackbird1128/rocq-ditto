@@ -261,8 +261,8 @@ let rec dump_to_string (doc : t) : (string, Error.t) result =
   in
 
   let sorted_elements = List.sort compare_nodes doc.elements in
-
   let res, possible_err = aux sorted_elements "" (List.hd sorted_elements) in
+  Option.iter print_endline possible_err;
   Option.cata (fun x -> Error.string_to_or_error_err x) (Ok res) possible_err
 
 let element_before_id_opt (target_id : Uuidm.t) (doc : t) : syntaxNode option =

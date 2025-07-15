@@ -1,7 +1,7 @@
 open Fleche
 open Ditto
 open Ditto.Syntax_node
-open Ditto.Proof_tree
+open Ditto.Nary_tree
 open Ditto.Diagnostic_utils
 
 let sexp_of_syntax_node (x : syntaxNode) : Sexplib.Sexp.t =
@@ -9,7 +9,7 @@ let sexp_of_syntax_node (x : syntaxNode) : Sexplib.Sexp.t =
   Sexp.(Atom x.repr)
 
 let sexp_of_proof_tree (x : syntaxNode nary_tree) =
-  Proof_tree.sexp_of_nary_tree sexp_of_syntax_node x
+  Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
 
 let rec simplify sexp =
   let open Sexplib.Sexp in
@@ -42,6 +42,7 @@ let rec print_tree ?(prefix = "") sexp =
   aux prefix (simplify sexp)
 
 let neat_compile ~io ~token:_ ~(doc : Doc.t) =
+  Random.self_init ();
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
 
@@ -61,52 +62,123 @@ let neat_compile ~io ~token:_ ~(doc : Doc.t) =
   | Doc.Completion.Yes _ -> (
       if List.length errors != 0 then print_diagnostics first_errors
       else
+        let ( let* ) = Result.bind in
+
         let parsed_document = Coq_document.parse_document doc in
-        let proofs = Coq_document.get_proofs parsed_document |> Result.get_ok in
 
-        let steps =
-          List.fold_left
-            (fun step_acc proof ->
-              let steps =
-                Transformations.admit_proof parsed_document proof
-                |> Result.get_ok
-              in
-              steps @ step_acc)
-            [] proofs
+        let final_res =
+          let* proofs = Coq_document.get_proofs parsed_document in
+
+          let steps =
+            List.fold_left
+              (fun step_acc proof ->
+                let steps =
+                  Transformations.admit_proof parsed_document proof
+                  |> Result.get_ok
+                in
+                steps @ step_acc)
+              [] proofs
+          in
+          let* res =
+            Coq_document.apply_transformations_steps steps parsed_document
+          in
+          List.iter
+            (fun x ->
+              print_endline
+                (x.repr ^ " "
+                ^ Lang.Range.to_string x.range
+                ^ " " ^ Uuidm.to_string x.id))
+            (List.sort Syntax_node.compare_nodes res.elements);
+
+          let* proofs = Coq_document.get_proofs res in
+          let proof_trees =
+            List.map (Runner.treeify_proof res) proofs |> List.map Result.get_ok
+          in
+          List.iter (fun x -> print_tree (sexp_of_proof_tree x)) proof_trees;
+
+          let remove_random_tactics_steps =
+            List.fold_left
+              (fun step_acc tree ->
+                let proof_of_tree = Runner.tree_to_proof tree in
+                let step =
+                  Transformations.remove_random_step res proof_of_tree
+                  |> Result.get_ok |> List.hd
+                in
+                step :: step_acc)
+              [] proof_trees
+            |> List.rev
+          in
+
+          let* res =
+            Coq_document.apply_transformations_steps remove_random_tactics_steps
+              res
+          in
+          List.iter
+            (fun x ->
+              print_endline
+                (x.repr ^ " "
+                ^ Lang.Range.to_string x.range
+                ^ " " ^ Uuidm.to_string x.id))
+            (List.sort Syntax_node.compare_nodes res.elements);
+
+          Ok res
         in
-        let res =
-          Coq_document.apply_transformations_steps steps parsed_document
-          |> Result.get_ok
-        in
 
-        let proof_trees =
-          List.map (Runner.treeify_proof res)
-            (Coq_document.get_proofs res |> Result.get_ok)
-        in
-
-        List.iter
-          (fun tree -> print_tree (sexp_of_proof_tree (Result.get_ok tree)))
-          proof_trees;
-
-        (* let remove_steps = *)
-        (*   List.map Transformations.remove_random_step res |> Result.get_ok *)
+        (* let transformed_trees = *)
+        (*   List.map2 *)
+        (*     (fun tree step -> *)
+        (*       Proof_tree.apply_transformation_step step tree |> Result.get_ok) *)
+        (*     proof_trees remove_random_tactics_steps *)
         (* in *)
-        let res =
-          Transformations.apply_proof_tree_transformation
-            Transformations.admit_branch_at_error res
-        in
+        (* List.iter *)
+        (*   (fun x -> print_tree (sexp_of_proof_tree x)) *)
+        (*   transformed_trees; *)
 
-        match res with
+        (* let simple_repair_apply_steps = *)
+        (*   List.fold_left *)
+        (*     (fun step_acc tree -> *)
+        (*       let steps = *)
+        (*         Transformations.simple_proof_repair res tree |> Result.get_ok *)
+        (*       in *)
+        (*       steps :: step_acc) *)
+        (*     [] transformed_trees *)
+        (*   |> List.rev |> List.concat *)
+        (* in *)
+
+        (* (\* List.iter (fun x -> print_endline x.repr) transformed_doc.elements; *\) *)
+        (* let* res_bis = *)
+        (*   Coq_document.apply_transformations_steps remove_random_tactics_steps *)
+        (*     res *)
+        (* in *)
+        (* List.iter *)
+        (*   (fun x -> *)
+        (*     print_endline *)
+        (*       (x.repr ^ " " *)
+        (*       ^ Lang.Range.to_string x.range *)
+        (*       ^ " " ^ Uuidm.to_string x.id)) *)
+        (*   (List.sort Syntax_node.compare_nodes res.elements); *)
+        (* Ok res *)
+        (* (\* Coq_document.apply_transformations_steps simple_repair_apply_steps *\) *)
+        (* (\*   transformed_doc *\) *)
+        (* in *)
+        match final_res with
         | Ok res ->
             let filename = Filename.remove_extension uri_str ^ "_bis.v" in
             print_endline
               ("All transformations applied, writing to file" ^ filename);
 
             let out = open_out filename in
-            Result.fold ~ok:(output_string out)
-              ~error:(fun e -> print_endline (Error.to_string_hum e))
+            Result.fold
+              ~ok:
+                (print_endline "ok";
+                 output_string out)
+              ~error:(fun e ->
+                print_endline "Error:";
+                print_endline (Error.to_string_hum e))
               (Coq_document.dump_to_string res)
-        | Error err -> print_endline (Error.to_string_hum err))
+        | Error err ->
+            print_endline "In error case";
+            print_endline (Error.to_string_hum err))
 
 let main () = Theory.Register.Completed.add neat_compile
 let () = main ()
