@@ -420,11 +420,31 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
                        element_after_new_node_start;
             }
   | ShiftVertically ->
+      let colliding_nds = colliding_nodes new_node doc.elements in
+      print_endline "colliding nodes : ";
+      List.iter (fun x -> print_endline x.repr) colliding_nds;
+      print_endline "-------------------";
       let line_shift =
         if List.length (colliding_nodes new_node doc.elements) = 0 then 0
         else new_node.range.end_.line - new_node.range.start.line + 1
       in
+      print_endline ("line shift " ^ string_of_int line_shift);
 
+      let shifted_doc =
+        {
+          doc with
+          elements =
+            element_before_new_node_start
+            @ new_node
+              :: List.map
+                   (fun node -> shift_node line_shift 0 total_shift node)
+                   element_after_new_node_start;
+        }
+      in
+      print_endline "---------- shifted doc ---------------";
+      List.iter (fun x -> print_endline x.repr) shifted_doc.elements;
+
+      print_endline "---------------------------------------";
       (*there can be less offset but still space *)
       Ok
         {
@@ -452,15 +472,21 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
                   target.range.start replacement.repr;
             }
           in
+          print_endline
+            ("replacemet shifted range : "
+            ^ Lang.Range.to_string replacement_shifted.range);
 
           let replacement_height =
             replacement_shifted.range.end_.line
             - replacement_shifted.range.start.line + 1
           in
 
+          print_endline
+            ("replacement height : " ^ string_of_int replacement_height);
+
           let removed_node_doc =
-            Result.get_ok
-              (remove_node_with_id ~remove_method:ShiftNode target.id doc)
+            remove_node_with_id ~remove_method:ShiftNode target.id doc
+            |> Result.get_ok
             (* we already checked for the node existence *)
           in
 
@@ -472,12 +498,14 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
               doc.elements
           in
 
-          if has_same_lines_elements && replacement_height = 1 then
+          if has_same_lines_elements && replacement_height = 1 then (
+            print_endline "Horizontal shift";
             insert_node replacement_shifted ~shift_method:ShiftHorizontally
-              removed_node_doc
-          else
+              removed_node_doc)
+          else (
+            print_endline "vertical shift";
             insert_node replacement_shifted ~shift_method:ShiftVertically
-              removed_node_doc
+              removed_node_doc)
       | None ->
           Error.string_to_or_error_err
             ("The target node with id : " ^ Uuidm.to_string target_id

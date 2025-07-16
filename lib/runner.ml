@@ -20,11 +20,12 @@ let running_error_to_string = function
 
 let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) Result.t =
   match r with
-  | { r = Interrupted; feedback = _ } -> Error (Error.of_string "Interrupted")
+  | { r = Interrupted; feedback = _ } ->
+      Error.string_to_or_error_err "Interrupted"
   | { r = Completed (Error (User { msg; _ })); feedback = _ } ->
-      Error (Error.of_string (Pp.string_of_ppcmds msg))
+      Error.string_to_or_error_err (Pp.string_of_ppcmds msg)
   | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
-      Error (Error.of_string ("Anomaly " ^ Pp.string_of_ppcmds msg))
+      Error.string_to_or_error_err ("Anomaly " ^ Pp.string_of_ppcmds msg)
   | { r = Completed (Ok r); feedback = msgs } -> Ok r
 
 let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
@@ -58,7 +59,7 @@ let run_with_timeout ~(token : Coq.Limits.Token.t) ~(timeout : int)
       let y = f x in
       completed := true;
       y
-    with Sys.Break -> Error (Error.of_string "Interrupted")
+    with Sys.Break -> Error.string_to_or_error_err "Interrupted"
 
 let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
     ( (string Coq.Goals.Reified_goal.t, string) Coq.Goals.t option,
@@ -339,13 +340,13 @@ let treeify_proof (doc : Coq_document.t) (p : proof) :
       let parents = Hashtbl.create (List.length steps_with_goals) in
       let _ = get_parents_rec steps_with_goals 0 [] 0 parents in
       Ok (proof_tree_from_parents (0, p.proposition) parents)
-  | Error err -> Error.string_to_or_error_err "Unable to retrieve initial state"
+  | Error _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
 let is_valid_proof (doc : Coq_document.t) (p : proof) : bool =
   let token = Coq.Limits.Token.create () in
   match get_init_state doc p.proposition token with
   | Ok init_state -> can_reduce_to_zero_goals init_state p.proof_steps
-  | Error err -> false
+  | Error _ -> false
 
 let rec proof_tree_to_node_list (Node (value, children)) : syntaxNode list =
   value :: List.concat (List.map proof_tree_to_node_list children)
@@ -436,4 +437,4 @@ let rec fold_proof_with_state (doc : Coq_document.t)
 
   match get_init_state doc p.proposition token with
   | Ok state -> fold_nodes_with_state doc token f state acc proof_nodes
-  | _ -> Error.of_result (Error "Unable to retrieve initial state")
+  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"

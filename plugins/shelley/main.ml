@@ -113,16 +113,18 @@ let neat_compile ~io ~token:_ ~(doc : Doc.t) =
             Coq_document.apply_transformations_steps remove_random_tactics_steps
               res
           in
-          List.iter
-            (fun x ->
-              print_endline
-                (x.repr ^ " "
-                ^ Lang.Range.to_string x.range
-                ^ " " ^ Uuidm.to_string x.id))
-            (List.sort Syntax_node.compare_nodes res.elements);
-
           Ok res
         in
+
+        (* List.iter *)
+        (*   (fun x -> *)
+        (*     print_endline *)
+        (*       (x.repr ^ " " *)
+        (*       ^ Lang.Range.to_string x.range *)
+        (*       ^ " " ^ Uuidm.to_string x.id)) *)
+        (*   (List.sort Syntax_node.compare_nodes res.elements); *)
+
+        (* Ok res *)
 
         (* let transformed_trees = *)
         (*   List.map2 *)

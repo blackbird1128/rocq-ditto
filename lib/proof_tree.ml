@@ -10,8 +10,8 @@ let apply_transformation_step (step : transformation_step)
   | Remove node_to_remove_id ->
       Option.cata
         (fun x -> Ok x)
-        (Error
-           (Error.of_string "Removed the last node of the tree or the tree root"))
+        (Error.string_to_or_error_err
+           "Removed the last node of the tree or the tree root")
         (filter (fun node -> node.id != node_to_remove_id) proof_tree)
   | Replace (node_to_replace_id, new_node) ->
       Ok
@@ -19,14 +19,12 @@ let apply_transformation_step (step : transformation_step)
            (fun node -> if node.id = node_to_replace_id then new_node else node)
            proof_tree)
   | Add new_node ->
-      Error
-        (Error.of_string
-           "WIP: adding a new node throught a transformation step not \
-            supported yet")
+      Error.string_to_or_error_err
+        "WIP: adding a new node throught a transformation step not supported \
+         yet"
   | Attach (new_node, attach_position, anchor_id) ->
-      Error
-        (Error.of_string
-           "WIP: applying attach transformation step not supported yet")
+      Error.string_to_or_error_err
+        "WIP: applying attach transformation step not supported yet"
 
 let apply_transformations_steps (steps : transformation_step list)
     (proof_tree : proof_tree) : (proof_tree, Error.t) result =
