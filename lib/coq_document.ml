@@ -140,11 +140,8 @@ let get_comments (content : string) :
 
 let second_node_included_in (a : syntaxNode) (b : syntaxNode) : bool =
   if a.range.start.offset < b.range.start.offset then
-    if
-      b.range.start.offset < a.range.end_.offset
-      && b.range.end_.offset < a.range.end_.offset
-    then true
-    else false
+    b.range.start.offset < a.range.end_.offset
+    && b.range.end_.offset < a.range.end_.offset
   else false
 
 let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
@@ -217,53 +214,54 @@ let parse_document (doc : Doc.t) : t =
 
 let rec dump_to_string (doc : t) : (string, Error.t) result =
   let rec aux (repr_nodes : syntaxNode list) (doc_repr : string)
-      (previous_node : syntaxNode) : string * string option =
+      (previous_node : syntaxNode) : (string, Error.t) result =
     match repr_nodes with
-    | [] -> (doc_repr, None)
-    | node :: tail ->
+    | [] -> Ok doc_repr
+    | node :: tail -> (
         let line_diff = node.range.start.line - previous_node.range.end_.line in
-        let repr, err =
+        let result =
           if previous_node.range = node.range then
-            (* treating the first node as a special case to deal with eventual empty lines before *)
-            ( doc_repr
+            (* first node: potentially empty lines before *)
+            Ok
+              (doc_repr
               ^ String.make node.range.start.line '\n'
               ^ String.make node.range.start.character ' '
-              ^ node.repr,
-              None )
+              ^ node.repr)
           else if node.range.start.line = previous_node.range.end_.line then
             let char_diff =
               node.range.start.character - previous_node.range.end_.character
             in
             if char_diff <= 0 then
-              ( "",
-                Some
-                  ("Error: node start - previous en char negative or zero "
-                  ^ ("\nprevious node range: "
-                    ^ Lang.Range.to_string previous_node.range)
-                  ^ "\ncurrent node range: "
-                  ^ Lang.Range.to_string node.range) )
-            else (doc_repr ^ String.make char_diff ' ' ^ node.repr, None)
+              Error
+                (Error.of_string
+                   ("Error: node start - previous end char negative or zero "
+                  ^ "\nprevious node range: "
+                   ^ Lang.Range.to_string previous_node.range
+                   ^ "\ncurrent node range: "
+                   ^ Lang.Range.to_string node.range))
+            else Ok (doc_repr ^ String.make char_diff ' ' ^ node.repr)
           else if line_diff <= 0 then
-            ( "",
-              Some
-                ("line diff negative"
-                ^ ("\nprevious node range: "
-                  ^ Lang.Range.to_string previous_node.range)
-                ^ "\ncurrent node range: "
-                ^ Lang.Range.to_string node.range) )
+            Error
+              (Error.of_string
+                 ("line diff negative" ^ "\nprevious node range: "
+                 ^ Lang.Range.to_string previous_node.range
+                 ^ "\ncurrent node range: "
+                 ^ Lang.Range.to_string node.range))
           else
-            ( doc_repr ^ String.make line_diff '\n'
+            Ok
+              (doc_repr ^ String.make line_diff '\n'
               ^ String.make node.range.start.character ' '
-              ^ node.repr,
-              None )
+              ^ node.repr)
         in
-        aux tail repr node
+        match result with
+        | Error _ as e -> e
+        | Ok updated_doc -> aux tail updated_doc node)
   in
-
-  let sorted_elements = List.sort compare_nodes doc.elements in
-  let res, possible_err = aux sorted_elements "" (List.hd sorted_elements) in
-  Option.iter print_endline possible_err;
-  Option.cata (fun x -> Error.string_to_or_error_err x) (Ok res) possible_err
+  match doc.elements with
+  | [] -> Ok "" (* or maybe Error "Empty document"? *)
+  | first :: tail ->
+      let sorted_elements = List.sort compare_nodes (first :: tail) in
+      aux (List.tl sorted_elements) "" first
 
 let element_before_id_opt (target_id : Uuidm.t) (doc : t) : syntaxNode option =
   match List.find_index (fun elem -> elem.id = target_id) doc.elements with
@@ -318,19 +316,51 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
       Error.string_to_or_error_err
         ("The element with id: " ^ Uuidm.to_string target_id
        ^ " wasn't found in the document")
-  | Some elem -> (
+  | Some removed_node -> (
       let before, after = split_at_id target_id doc in
-      let offset_shift = elem.range.start.offset - elem.range.end_.offset in
+      let block_height =
+        removed_node.range.end_.line - removed_node.range.start.line + 1
+      in
+      let offset_shift =
+        removed_node.range.start.offset - removed_node.range.end_.offset
+      in
       (* the offset shift is negative as we are moving back nodes *)
-      let block_height = elem.range.end_.line - elem.range.start.line + 1 in
-      (* each block is at least a line high *)
 
+      (* each block is at least a line high *)
       match remove_method with
-      | LeaveBlank -> Ok { doc with elements = before @ after }
+      | LeaveBlank ->
+          let newline_count_in_node =
+            String.fold_left
+              (fun acc_count c -> if c = '\n' then acc_count + 1 else acc_count)
+              0 removed_node.repr
+          in
+          let nodes_after_on_same_line =
+            List.exists
+              (fun x -> x.range.start.line = removed_node.range.end_.line)
+              after
+          in
+          let added_shift = if block_height = 1 then 1 else 0 in
+          (* added shift seem to matter when we remove a one line node, not sure why yet, this is still empiric *)
+          if nodes_after_on_same_line then
+            Ok { doc with elements = before @ after }
+          else
+            Ok
+              {
+                doc with
+                elements =
+                  before
+                  @ List.map
+                      (fun node ->
+                        shift_node 0 0
+                          (offset_shift + newline_count_in_node - added_shift)
+                          node)
+                      after;
+              }
       | ShiftNode ->
           if
             List.length
-              (elements_starting_at_line elem.range.start.line doc.elements)
+              (elements_starting_at_line removed_node.range.start.line
+                 doc.elements)
             > 1
           then
             Ok
@@ -342,8 +372,10 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
                       before;
                       List.map
                         (fun node ->
-                          if node.range.start.line = elem.range.start.line then
-                            shift_node 0 offset_shift 0 node
+                          if
+                            node.range.start.line
+                            = removed_node.range.start.line
+                          then shift_node 0 offset_shift 0 node
                           else shift_node 0 0 offset_shift node)
                         after;
                     ];
@@ -364,6 +396,7 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
 
 let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
+  print_endline "--------------------- CALL ----------------------------";
   let element_before_new_node_start, element_after_new_node_start =
     List.partition (fun node -> compare_nodes node new_node < 0) doc.elements
   in
@@ -422,14 +455,16 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
   | ShiftVertically ->
       let colliding_nds = colliding_nodes new_node doc.elements in
       print_endline "colliding nodes : ";
-      List.iter (fun x -> print_endline x.repr) colliding_nds;
+      List.iter
+        (fun x -> print_endline (x.repr ^ " " ^ Lang.Range.to_string x.range))
+        colliding_nds;
       print_endline "-------------------";
       let line_shift =
         if List.length (colliding_nodes new_node doc.elements) = 0 then 0
         else new_node.range.end_.line - new_node.range.start.line + 1
       in
       print_endline ("line shift " ^ string_of_int line_shift);
-
+      print_endline "";
       let shifted_doc =
         {
           doc with
@@ -472,17 +507,11 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
                   target.range.start replacement.repr;
             }
           in
-          print_endline
-            ("replacemet shifted range : "
-            ^ Lang.Range.to_string replacement_shifted.range);
 
           let replacement_height =
             replacement_shifted.range.end_.line
             - replacement_shifted.range.start.line + 1
           in
-
-          print_endline
-            ("replacement height : " ^ string_of_int replacement_height);
 
           let removed_node_doc =
             remove_node_with_id ~remove_method:ShiftNode target.id doc
@@ -498,10 +527,9 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
               doc.elements
           in
 
-          if has_same_lines_elements && replacement_height = 1 then (
-            print_endline "Horizontal shift";
+          if has_same_lines_elements && replacement_height = 1 then
             insert_node replacement_shifted ~shift_method:ShiftHorizontally
-              removed_node_doc)
+              removed_node_doc
           else (
             print_endline "vertical shift";
             insert_node replacement_shifted ~shift_method:ShiftVertically
