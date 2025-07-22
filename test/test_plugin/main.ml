@@ -433,6 +433,58 @@ let test_colliding_nodes_multiple_common_lines_collision (doc : Doc.t) () : unit
   Alcotest.(check (list uuidm_testable))
     "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
 
+let test_removing_and_leaving_blank (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+
+  let second_node = List.nth doc.elements 3 in
+  let parsed_target = get_target uri_str in
+
+  let new_doc =
+    Result.get_ok
+      (Coq_document.remove_node_with_id ~remove_method:LeaveBlank second_node.id
+         doc)
+  in
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (list (pair string range_testable)))
+    "The two lists should be the same" parsed_target new_doc_res
+
+let test_removing_and_leaving_blank_multiple_line_nodes (doc : Doc.t) () : unit
+    =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+
+  let second_node = List.nth doc.elements 1 in
+  let parsed_target = get_target uri_str in
+
+  let new_doc =
+    Result.get_ok
+      (Coq_document.remove_node_with_id ~remove_method:LeaveBlank second_node.id
+         doc)
+  in
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (list (pair string range_testable)))
+    "The two lists should be the same" parsed_target new_doc_res
+
+let test_removing_and_leaving_blank_middle_of_line (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+
+  let fourth_node = List.nth doc.elements 4 in
+  let parsed_target = get_target uri_str in
+
+  let new_doc =
+    Result.get_ok
+      (Coq_document.remove_node_with_id ~remove_method:LeaveBlank fourth_node.id
+         doc)
+  in
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (list (pair string range_testable)))
+    "The two lists should be the same" parsed_target new_doc_res
+
 let test_removing_only_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
@@ -464,7 +516,7 @@ let test_removing_multiple_line_node (doc : Doc.t) () : unit =
   Alcotest.(check (list (pair string range_testable)))
     "The two lists should be the same" parsed_target new_doc_res
 
-let test_removing_node_same_line_as_other (doc : Doc.t) () : unit =
+let test_removing_node_middle_of_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
@@ -472,6 +524,19 @@ let test_removing_node_same_line_as_other (doc : Doc.t) () : unit =
   let second_node = List.nth doc.elements 1 in
   let new_doc =
     Result.get_ok (Coq_document.remove_node_with_id second_node.id doc)
+  in
+  let new_doc_res = document_to_range_representation_pairs new_doc in
+  Alcotest.(check (list (pair string range_testable)))
+    "The two lists should be the same" parsed_target new_doc_res
+
+let test_removing_node_with_one_node_left_same_line (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Coq_document.parse_document doc in
+  let parsed_target = get_target uri_str in
+
+  let removed_node = List.nth doc.elements 4 in
+  let new_doc =
+    Result.get_ok (Coq_document.remove_node_with_id removed_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
   Alcotest.(check (list (pair string range_testable)))
@@ -1174,8 +1239,21 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test removing a node spanning multiple lines"
        test_removing_multiple_line_node doc);
   Hashtbl.add table "ex_removing3.v"
-    (create_fixed_test "test removing a node on the same line as another one"
-       test_removing_node_same_line_as_other doc);
+    (create_fixed_test "test removing a node in the middle of a line"
+       test_removing_node_middle_of_line doc);
+  Hashtbl.add table "ex_removing4.v"
+    (create_fixed_test "test removing a node on the right of a line"
+       test_removing_node_with_one_node_left_same_line doc);
+  Hashtbl.add table "ex_removing_and_leaving_blank1.v"
+    (create_fixed_test "test removing a node and leaving blank"
+       test_removing_and_leaving_blank doc);
+  Hashtbl.add table "ex_removing_and_leaving_blank2.v"
+    (create_fixed_test "test removing a multi-lines node and leave it blank"
+       test_removing_and_leaving_blank_multiple_line_nodes doc);
+  Hashtbl.add table "ex_removing_and_leaving_blank3.v"
+    (create_fixed_test
+       "test removing a node and leaving a blank in the middle of a line"
+       test_removing_and_leaving_blank_middle_of_line doc);
   Hashtbl.add table "ex_adding1.v"
     (create_fixed_test "test searching node" test_searching_node doc);
   Hashtbl.add table "ex_adding1.v"
