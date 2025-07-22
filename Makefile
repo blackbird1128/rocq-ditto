@@ -1,5 +1,11 @@
 
+V_TARGET_SRC := $(shell find test/fixtures/unit_test_fixtures/ -name '*_target.v')
+
+# Define their corresponding generated files
+V_TARGET_GEN := $(V_TARGET_SRC:%=%.target.json)
+
 .PHONY: all test install uninstall dump-json clean
+
 
 all:
 	dune build --profile=release
@@ -10,11 +16,14 @@ all:
 
 proof_repair:
 	dune build --profile=release
-	dune exec fcc -- --plugin=shelley-plugin ../coq_proofs/fact.v
+	dune exec fcc -- --plugin=shelley-plugin ./test/fixtures/ex_this_or_that.v
 
-test:  
+# Rule to generate a .v.target.json from its .v source
+%.v.target.json: %.v
+	dune exec fcc -- --plugin=target-generator-plugin $< 2>/dev/null
+
+test: $(V_TARGET_GEN)
 	dune build --profile=release
-	find test/fixtures/unit_test_fixtures/ -name "*_target.v"	-exec dune exec fcc -- --plugin=target-generator-plugin {} 2>/dev/null \;
 	find test/fixtures/unit_test_fixtures/ -not -name "*_target.v"  -not -path '*/ignore/*'  -name '*.v' -exec  dune exec fcc -- --plugin=ditto-test-plugin {} 2>/dev/null \;
 	dune runtest --profile=release	
 
@@ -34,7 +43,7 @@ uninstall:
 
 dump-json:
 	dune build ./test/json_dump_plugin/ --profile=release
-	dune exec fcc -- --plugin=json-dump-plugin ./test/fixtures/ex_bracket1.v
+	dune exec fcc -- --plugin=json-dump-plugin ./test/fixtures/ex_multiple_jumps.v
 
 clean:
 	dune clean
