@@ -3,7 +3,7 @@ open Vernacexpr
 
 type syntaxNode = {
   ast : Doc.Node.Ast.t option;
-  range : Lang.Range.t;
+  range : Code_range.t;
   repr : string;
   id : Uuidm.t;
   proof_id : int option;
@@ -23,7 +23,7 @@ let pp_syntax_node (fmt : Format.formatter) (node : syntaxNode) : unit =
   Format.fprintf fmt "ast: %a@ "
     (fun fmt ast -> Format.pp_print_option pp_doc_ast fmt ast)
     node.ast;
-  Format.fprintf fmt "range: %a@ " Lang.Range.pp node.range;
+  Format.fprintf fmt "range: %a@ " Code_range.pp node.range;
   Format.fprintf fmt "repr: %s@ " node.repr;
   Format.fprintf fmt "id: %s" (Uuidm.to_string node.id);
   Format.fprintf fmt "proof id: %a@ "
@@ -104,14 +104,8 @@ let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
   | None -> compare a.range.start.line b.range.start.line
 
 let validate_syntax_node (x : syntaxNode) : (syntaxNode, string) result =
-  if x.range.end_.offset < x.range.start.offset then
-    Error "Incorrect range: range end offset is smaller than range start offset"
-  else if x.range.end_.line < x.range.start.line then
+  if x.range.end_.line < x.range.start.line then
     Error "Incorrect range: range end line is smaller than the range start line"
-  else if String.length x.repr > x.range.end_.offset - x.range.start.offset then
-    Error
-      "Incorrect range: range end character minus range start character \
-       smaller than node character size"
   else if
     x.range.start.line = x.range.end_.line
     && String.length x.repr > x.range.end_.character - x.range.start.character
@@ -124,18 +118,12 @@ let validate_syntax_node (x : syntaxNode) : (syntaxNode, string) result =
 
 (* TODO, is this even necessary ? *)
 let comment_syntax_node_of_string (content : string)
-    (start_point : Lang.Point.t) : (syntaxNode, Error.t) result =
-  let length_content_offset = repr_to_offset_size content in
+    (start_point : Code_point.t) : (syntaxNode, Error.t) result =
   let range =
     Range_utils.range_from_starting_point_and_repr start_point content
   in
 
-  if length_content_offset > range.end_.offset - range.start.offset then
-    Error
-      (Error.of_string
-         "Incorrect range: range end offset minus range start offset smaller \
-          than node character size")
-  else if
+  if
     range.start.line = range.end_.line
     && String.length content > range.end_.character - range.start.character
   then
@@ -154,17 +142,11 @@ let comment_syntax_node_of_string (content : string)
         diagnostics = [];
       }
 
-let syntax_node_of_string (code : string) (start_point : Lang.Point.t) :
+let syntax_node_of_string (code : string) (start_point : Code_point.t) :
     (syntaxNode, Error.t) result =
-  let length_code_offset = repr_to_offset_size code in
   let range = Range_utils.range_from_starting_point_and_repr start_point code in
   (*offset doesn't count the newline in*)
-  if length_code_offset > range.end_.offset - range.start.offset then
-    Error
-      (Error.of_string
-         "Incorrect range: range end offset minus range start offset smaller \
-          than node character size")
-  else if
+  if
     range.start.line = range.end_.line
     && String.length code > range.end_.character - range.start.character
   then
@@ -194,7 +176,7 @@ let syntax_node_of_string (code : string) (start_point : Lang.Point.t) :
         Error (Error.of_string ("more than one node found in string " ^ code))
     | Error err -> Error err
 
-let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
+let nodes_of_string (code : string) (ranges : Code_range.t list) :
     (syntaxNode list, string) result =
   match generate_ast code with
   | Ok [] -> Ok []
@@ -228,7 +210,7 @@ let nodes_of_string (code : string) (ranges : Lang.Range.t list) :
              l ranges)
   | Error err -> Error.to_string_result err
 
-let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Lang.Point.t) :
+let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) :
     syntaxNode =
   let repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds in
   let range = Range_utils.range_from_starting_point_and_repr start_point repr in
@@ -251,7 +233,7 @@ let reformat_node (x : syntaxNode) : (syntaxNode, string) result =
       (* we return the same id, doesn't matter in the order of operation we do *)
   | None -> Error "The node need to have an AST to be reformatted"
 
-let qed_ast_node (start_point : Lang.Point.t) : syntaxNode =
+let qed_ast_node (start_point : Code_point.t) : syntaxNode =
   Result.get_ok (syntax_node_of_string "Qed." start_point)
 
 let string_of_syntax_node (node : syntaxNode) : string =
@@ -271,54 +253,43 @@ let doc_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
   }
 (* TODO treat AST info *)
 
-let point_to_yojson (point : Lang.Point.t) : Yojson.Safe.t =
-  `Assoc
-    [
-      ("line", `Int point.line);
-      ("character", `Int point.character);
-      ("offset", `Int point.offset);
-    ]
+let point_to_yojson (point : Code_point.t) : Yojson.Safe.t =
+  `Assoc [ ("line", `Int point.line); ("character", `Int point.character) ]
 
-let point_of_yojson (json : Yojson.Safe.t) : Lang.Point.t =
+let point_of_yojson (json : Yojson.Safe.t) : Code_point.t =
   let open Yojson.Safe.Util in
   {
     line = json |> member "line" |> to_int;
     character = json |> member "character" |> to_int;
-    offset = json |> member "offset" |> to_int;
   }
 
-let range_to_yojson (range : Lang.Range.t) : Yojson.Safe.t =
+let range_to_yojson (range : Code_range.t) : Yojson.Safe.t =
   `Assoc
     [
       ("start", point_to_yojson range.start);
       ("end_", point_to_yojson range.end_);
     ]
 
-let range_of_yojson (json : Yojson.Safe.t) : Lang.Range.t =
+let range_of_yojson (json : Yojson.Safe.t) : Code_range.t =
   let open Yojson.Safe.Util in
   {
     start = json |> member "start" |> point_of_yojson;
     end_ = json |> member "end_" |> point_of_yojson;
   }
 
-let shift_point (n_line : int) (n_char : int) (n_offset : int)
-    (x : Lang.Point.t) : Lang.Point.t =
+let shift_point (n_line : int) (n_char : int) (x : Code_point.t) : Code_point.t
+    =
+  { line = x.line + n_line; character = x.character + n_char }
+
+let shift_range (n_line : int) (n_char : int) (x : Code_range.t) : Code_range.t
+    =
   {
-    line = x.line + n_line;
-    character = x.character + n_char;
-    offset = x.offset + n_char + n_offset;
+    start = shift_point n_line n_char x.start;
+    end_ = shift_point n_line n_char x.end_;
   }
 
-let shift_range (n_line : int) (n_char : int) (n_offset : int)
-    (x : Lang.Range.t) : Lang.Range.t =
-  {
-    start = shift_point n_line n_char n_offset x.start;
-    end_ = shift_point n_line n_char n_offset x.end_;
-  }
-
-let shift_node (n_line : int) (n_char : int) (n_offset : int) (x : syntaxNode) :
-    syntaxNode =
-  { x with range = shift_range n_line n_char n_offset x.range }
+let shift_node (n_line : int) (n_char : int) (x : syntaxNode) : syntaxNode =
+  { x with range = shift_range n_line n_char x.range }
 
 let is_syntax_node_tactic (x : syntaxNode) : bool =
   match x.ast with

@@ -15,8 +15,8 @@ let push_range_n_char (n_char : int) (range : Lang.Range.t) : Lang.Range.t =
   in
   { start = new_start; end_ = new_end }
 
-let range_from_starting_point_and_repr (starting_point : Lang.Point.t)
-    (repr : string) : Lang.Range.t =
+let range_from_starting_point_and_repr (starting_point : Code_point.t)
+    (repr : string) : Code_range.t =
   let number_line_jump =
     String.fold_left
       (fun count char -> if char = '\n' then count + 1 else count)
@@ -33,7 +33,6 @@ let range_from_starting_point_and_repr (starting_point : Lang.Point.t)
           (if number_line_jump > 0 then
              String.length repr - Option.get last_jump - 1
            else starting_point.character + offset_length);
-        offset = starting_point.offset + offset_length;
       };
   }
 

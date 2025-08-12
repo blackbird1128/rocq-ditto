@@ -18,6 +18,7 @@ let tag_with_debug_infos ?(file = __FILE__) ?(funcname = __FUNCTION__)
   let loc =
     Format.sprintf "File: %s, function: %s, line: %d" file funcname line
   in
+
   tag t ~tag:loc
 
 let tag_arg (t : t) (tag : string) (arg : 'a) (sexp_of_arg : 'a -> Sexp.t) : t =

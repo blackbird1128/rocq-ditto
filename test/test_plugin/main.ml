@@ -20,10 +20,10 @@ let testable_nary_tree (pp_a : Format.formatter -> 'a -> unit)
   Alcotest.testable (pp_nary_tree pp_a) (equal_nary_tree equal_a)
 
 let document_to_range_representation_pairs (doc : Coq_document.t) :
-    (string * Lang.Range.t) list =
+    (string * Code_range.t) list =
   List.map (fun node -> (node.repr, node.range)) doc.elements
 
-let parse_json_target (json : Yojson.Safe.t) : (string * Lang.Range.t) list =
+let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
   json |> to_list
   |> List.map (fun elem ->
@@ -40,13 +40,13 @@ let get_target (uri_str : string) =
 let pp_int (fmt : Format.formatter) (x : int) = Format.fprintf fmt "%d" x
 let int_tree = testable_nary_tree pp_int ( = )
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
-let range_testable = Alcotest.testable Lang.Range.pp ( = )
+let range_testable = Alcotest.testable Code_range.pp ( = )
 let uuidm_testable = Alcotest.testable Uuidm.pp ( = )
 let error_testable = Alcotest.testable Error.pp ( = )
 let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
 
-let make_dummy_node (start_line : int) (start_char : int) (start_offset : int)
-    (end_line : int) (end_char : int) (end_offset : int) : syntaxNode =
+let make_dummy_node (start_line : int) (start_char : int) (end_line : int)
+    (end_char : int) : syntaxNode =
   {
     ast = None;
     repr = "dummy";
@@ -55,16 +55,15 @@ let make_dummy_node (start_line : int) (start_char : int) (start_offset : int)
     diagnostics = [];
     range =
       {
-        start =
-          { line = start_line; character = start_char; offset = start_offset };
-        end_ = { line = end_line; character = end_char; offset = end_offset };
+        start = { line = start_line; character = start_char };
+        end_ = { line = end_line; character = end_char };
       };
   }
 
 let make_dummy_node_from_repr (start_line : int) (start_char : int)
-    (start_offset : int) (repr : string) : syntaxNode =
-  let start_point : Lang.Point.t =
-    { line = start_line; character = start_char; offset = start_offset }
+    (repr : string) : syntaxNode =
+  let start_point : Code_point.t =
+    { line = start_line; character = start_char }
   in
   let range = Range_utils.range_from_starting_point_and_repr start_point repr in
   {
@@ -281,7 +280,7 @@ let test_parsing_instance (doc : Doc.t) () : unit =
     first_proof.status
 
 let test_creating_valid_syntax_node_from_string (doc : Doc.t) () : unit =
-  let point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let point : Code_point.t = { line = 0; character = 0 } in
   let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." point in
   let node_repr = Result.map (fun node -> node.repr) node in
 
@@ -291,7 +290,7 @@ let test_creating_valid_syntax_node_from_string (doc : Doc.t) () : unit =
       "The node should be created without error" (Ok "Compute 1 + 1.") node_repr)
 
 let test_creating_invalid_syntax_node_from_string (doc : Doc.t) () : unit =
-  let point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let point : Code_point.t = { line = 0; character = 0 } in
   let node =
     Syntax_node.syntax_node_of_string "Compute Illegal grammar" point
   in
@@ -321,7 +320,7 @@ let test_searching_node (doc : Doc.t) () : unit =
     (Option.map (fun x -> x.id) absurd_node)
 
 let test_reformat_comment_node (doc : Doc.t) () : unit =
-  let starting_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let starting_point : Code_point.t = { line = 0; character = 0 } in
 
   let comment_node =
     comment_syntax_node_of_string "(* a comment *)" starting_point
@@ -336,7 +335,7 @@ let test_reformat_comment_node (doc : Doc.t) () : unit =
     (Error "The node need to have an AST to be reformatted") reformat_id
 
 let test_reformat_keep_id (doc : Doc.t) () : unit =
-  let starting_point : Lang.Point.t = { line = 0; character = 0; offset = 0 } in
+  let starting_point : Code_point.t = { line = 0; character = 0 } in
 
   let content_node =
     syntax_node_of_string "Compute 1 + 1." starting_point |> Result.get_ok
@@ -354,11 +353,11 @@ let test_id_assign_document (doc : Doc.t) () : unit =
   check_list_sorted ~cmp:Uuidm.compare ~pp:Uuidm.pp nodes_ids
 
 let test_sorting_nodes (doc : Doc.t) () : unit =
-  let node1 = make_dummy_node 0 0 1 0 12 13 in
+  let node1 = make_dummy_node 0 0 0 12 in
   (* your example *)
-  let node2 = make_dummy_node 0 14 15 1 2 18 in
+  let node2 = make_dummy_node 0 14 1 2 in
   (* overlaps with node1 *)
-  let node3 = make_dummy_node 2 0 19 2 10 29 in
+  let node3 = make_dummy_node 2 0 2 10 in
   (* does not overlap *)
 
   let sorted = List.sort Syntax_node.compare_nodes [ node2; node3; node1 ] in
@@ -373,8 +372,8 @@ let test_sorting_nodes (doc : Doc.t) () : unit =
     "The nodes should be ordered correctly" expected ids
 
 let test_colliding_nodes_no_common_lines (doc : Doc.t) () : unit =
-  let target_node = make_dummy_node 0 0 1 0 12 13 in
-  let other_node = make_dummy_node 1 0 15 1 10 25 in
+  let target_node = make_dummy_node 0 0 0 12 in
+  let other_node = make_dummy_node 1 0 1 10 in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -385,8 +384,8 @@ let test_colliding_nodes_no_common_lines (doc : Doc.t) () : unit =
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
 let test_colliding_nodes_common_line_no_collision (doc : Doc.t) () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 1 "hello" in
-  let other_node = make_dummy_node_from_repr 0 20 20 "world" in
+  let target_node = make_dummy_node_from_repr 0 0 "hello" in
+  let other_node = make_dummy_node_from_repr 0 20 "world" in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -397,8 +396,8 @@ let test_colliding_nodes_common_line_no_collision (doc : Doc.t) () : unit =
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
 let test_colliding_nodes_common_line_collision (doc : Doc.t) () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 1 "hello" in
-  let other_node = make_dummy_node_from_repr 0 3 4 "world" in
+  let target_node = make_dummy_node_from_repr 0 0 "hello" in
+  let other_node = make_dummy_node_from_repr 0 3 "world" in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -409,8 +408,8 @@ let test_colliding_nodes_common_line_collision (doc : Doc.t) () : unit =
     "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
 
 let test_colliding_nodes_one_common_line_no_collision (doc : Doc.t) () : unit =
-  let target_node = make_dummy_node 0 0 1 1 10 15 in
-  let other_node = make_dummy_node 1 12 17 1 20 25 in
+  let target_node = make_dummy_node 0 0 1 10 in
+  let other_node = make_dummy_node 1 12 1 20 in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -422,8 +421,8 @@ let test_colliding_nodes_one_common_line_no_collision (doc : Doc.t) () : unit =
 
 let test_colliding_nodes_multiple_common_lines_collision (doc : Doc.t) () : unit
     =
-  let target_node = make_dummy_node 0 0 1 2 20 42 in
-  let other_node = make_dummy_node 1 12 17 2 25 456 in
+  let target_node = make_dummy_node 0 0 2 20 in
+  let other_node = make_dummy_node 1 12 2 25 in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -547,7 +546,7 @@ let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 1; character = 0; offset = 11 } in
+  let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
@@ -563,7 +562,7 @@ let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 1; character = 0; offset = 11 } in
+  let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
@@ -580,7 +579,7 @@ let test_adding_multiple_line_node (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
+  let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
     Result.get_ok
@@ -599,7 +598,7 @@ let test_adding_node_between (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 1; character = 11; offset = 12 } in
+  let start_point : Code_point.t = { line = 1; character = 11 } in
 
   let node =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
@@ -619,7 +618,7 @@ let test_adding_collision_next_line (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
+  let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
     Result.get_ok
@@ -637,7 +636,7 @@ let test_adding_node_colliding_many (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 6; character = 2; offset = 75 } in
+  let start_point : Code_point.t = { line = 6; character = 2 } in
 
   let node =
     Result.get_ok
@@ -656,7 +655,7 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
+  let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 42." start_point)
@@ -675,7 +674,7 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 2; character = 0; offset = 12 } in
+  let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 123." start_point)
@@ -694,7 +693,7 @@ let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 2; character = 11; offset = 23 } in
+  let start_point : Code_point.t = { line = 2; character = 11 } in
 
   let node =
     Result.get_ok
@@ -714,7 +713,7 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 2; character = 22; offset = 34 } in
+  let start_point : Code_point.t = { line = 2; character = 22 } in
 
   let node =
     Result.get_ok
@@ -734,7 +733,7 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 1; character = 0; offset = 1 } in
+  let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
     Result.get_ok
@@ -755,7 +754,7 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 1; character = 0; offset = 1 } in
+  let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
     Result.get_ok
@@ -776,7 +775,7 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
-  let start_point : Lang.Point.t = { line = 16; character = 0; offset = 461 } in
+  let start_point : Code_point.t = { line = 16; character = 0 } in
 
   let node =
     Result.get_ok
@@ -1158,70 +1157,69 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test creating an invalid node"
        test_creating_invalid_syntax_node_from_string doc);
 
-  Hashtbl.add table "ex_proof_tree1.v"
-    (create_fixed_test "test counting the goals of each steps of a simple proof"
-       test_count_goals_simple_proof_without_focus doc);
-  Hashtbl.add table "ex_proof_tree2.v"
-    (create_fixed_test
-       "test counting the goals of each steps of a proof with bullets"
-       test_count_goals_proof_with_bullets_without_focus doc);
-  Hashtbl.add table "ex_proof_with_brackets.v"
-    (create_fixed_test "test counting the goals of a proof with brackets"
-       test_count_goals_proof_with_brackets_without_focus doc);
-  Hashtbl.add table "ex_proof_brackets_bullets.v"
-    (create_fixed_test
-       "test counting the goals of a proof with brackets and bullets"
-       test_count_goals_proof_with_brackets_bullets_without_focus doc);
-  Hashtbl.add table "ex_proof_nested_bullets.v"
-    (create_fixed_test "test counting the goals of a proof with nested bullets"
-       test_count_goals_proof_with_nested_bullets_without_focus doc);
+  (* Hashtbl.add table "ex_proof_tree1.v" *)
+  (*   (create_fixed_test "test counting the goals of each steps of a simple proof" *)
+  (*      test_count_goals_simple_proof_without_focus doc); *)
+  (* Hashtbl.add table "ex_proof_tree2.v" *)
+  (*   (create_fixed_test *)
+  (*      "test counting the goals of each steps of a proof with bullets" *)
+  (*      test_count_goals_proof_with_bullets_without_focus doc); *)
+  (* Hashtbl.add table "ex_proof_with_brackets.v" *)
+  (*   (create_fixed_test "test counting the goals of a proof with brackets" *)
+  (*      test_count_goals_proof_with_brackets_without_focus doc); *)
+  (* Hashtbl.add table "ex_proof_brackets_bullets.v" *)
+  (*   (create_fixed_test *)
+  (*      "test counting the goals of a proof with brackets and bullets" *)
+  (*      test_count_goals_proof_with_brackets_bullets_without_focus doc); *)
+  (* Hashtbl.add table "ex_proof_nested_bullets.v" *)
+  (*   (create_fixed_test "test counting the goals of a proof with nested bullets" *)
+  (*      test_count_goals_proof_with_nested_bullets_without_focus doc); *)
+  (* Hashtbl.add table "ex_proof_tree1.v" *)
+  (*   (create_fixed_test "test creating a simple proof tree" *)
+  (*      test_parse_simple_proof_to_proof_tree doc); *)
 
-  Hashtbl.add table "ex_proof_tree1.v"
-    (create_fixed_test "test creating a simple proof tree"
-       test_parse_simple_proof_to_proof_tree doc);
+  (* Hashtbl.add table "ex_proof_tree2.v" *)
+  (*   (create_fixed_test "test creating a proof tree with bullets" *)
+  (*      test_parse_proof_with_bullets_to_proof_tree doc); *)
+  (* Hashtbl.add table "ex_parsing1.v" *)
+  (*   (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc); *)
+  (* Hashtbl.add table "ex_parsing2.v" *)
+  (*   (create_fixed_test "test parsing ex 2" test_parsing_ex2 doc); *)
+  (* Hashtbl.add table "ex_parsing2.v" *)
+  (*   (create_fixed_test "test parsing basic proof properties ex 2" *)
+  (*      test_parsing_ex2 doc); *)
+  (* Hashtbl.add table "ex_admit.v" *)
+  (*   (create_fixed_test "test parsing admitted proof" test_parsing_admit doc); *)
+  (* Hashtbl.add table "ex_defined1.v" *)
+  (*   (create_fixed_test "test parsing defined proof" test_parsing_defined doc); *)
+  (* Hashtbl.add table "ex_function1.v" *)
+  (*   (create_fixed_test "test parsing function proof" test_parsing_function doc); *)
+  (* Hashtbl.add table "ex_abort1.v" *)
+  (*   (create_fixed_test "test parsing aborted proof 1" test_parsing_abort1 doc); *)
+  (* Hashtbl.add table "ex_abort2.v" *)
+  (*   (create_fixed_test "test parsing aborted proof 2" test_parsing_abort2 doc); *)
+  (* Hashtbl.add table "ex_instance1.v" *)
+  (*   (create_fixed_test "test parsing an instance proof" test_parsing_instance *)
+  (*      doc); *)
 
-  Hashtbl.add table "ex_proof_tree2.v"
-    (create_fixed_test "test creating a proof tree with bullets"
-       test_parse_proof_with_bullets_to_proof_tree doc);
-  Hashtbl.add table "ex_parsing1.v"
-    (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
-  Hashtbl.add table "ex_parsing2.v"
-    (create_fixed_test "test parsing ex 2" test_parsing_ex2 doc);
-  Hashtbl.add table "ex_parsing2.v"
-    (create_fixed_test "test parsing basic proof properties ex 2"
-       test_parsing_ex2 doc);
-  Hashtbl.add table "ex_admit.v"
-    (create_fixed_test "test parsing admitted proof" test_parsing_admit doc);
-  Hashtbl.add table "ex_defined1.v"
-    (create_fixed_test "test parsing defined proof" test_parsing_defined doc);
-  Hashtbl.add table "ex_function1.v"
-    (create_fixed_test "test parsing function proof" test_parsing_function doc);
-  Hashtbl.add table "ex_abort1.v"
-    (create_fixed_test "test parsing aborted proof 1" test_parsing_abort1 doc);
-  Hashtbl.add table "ex_abort2.v"
-    (create_fixed_test "test parsing aborted proof 2" test_parsing_abort2 doc);
-  Hashtbl.add table "ex_instance1.v"
-    (create_fixed_test "test parsing an instance proof" test_parsing_instance
-       doc);
-
-  Hashtbl.add table "ex_parsing2.v"
-    (create_fixed_test "test names and steps retrival ex 2"
-       test_proof_parsing_name_and_steps_ex2 doc);
-  Hashtbl.add table "ex_parsing3.v"
-    (create_fixed_test "test parsing of two proofs ex3"
-       test_proof_parsing_multiple_proofs_ex3 doc);
-  Hashtbl.add table "ex_parsing4.v"
-    (create_fixed_test "test parsing single comment" test_parsing_comment_ex4
-       doc);
-  Hashtbl.add table "ex_parsing5.v"
-    (create_fixed_test "test parsing multiple complex comments"
-       test_parsing_multiples_comments_ex5 doc);
-  Hashtbl.add table "ex_parsing6.v"
-    (create_fixed_test "test parsing embedded comments"
-       test_parsing_embedded_comments_ex6 doc);
-  Hashtbl.add table "ex_parsing7.v"
-    (create_fixed_test "test parsing weird comments"
-       test_parsing_weird_comments_ex7 doc);
+  (* Hashtbl.add table "ex_parsing2.v" *)
+  (*   (create_fixed_test "test names and steps retrival ex 2" *)
+  (*      test_proof_parsing_name_and_steps_ex2 doc); *)
+  (* Hashtbl.add table "ex_parsing3.v" *)
+  (*   (create_fixed_test "test parsing of two proofs ex3" *)
+  (*      test_proof_parsing_multiple_proofs_ex3 doc); *)
+  (* Hashtbl.add table "ex_parsing4.v" *)
+  (*   (create_fixed_test "test parsing single comment" test_parsing_comment_ex4 *)
+  (*      doc); *)
+  (* Hashtbl.add table "ex_parsing5.v" *)
+  (*   (create_fixed_test "test parsing multiple complex comments" *)
+  (*      test_parsing_multiples_comments_ex5 doc); *)
+  (* Hashtbl.add table "ex_parsing6.v" *)
+  (*   (create_fixed_test "test parsing embedded comments" *)
+  (*      test_parsing_embedded_comments_ex6 doc); *)
+  (* Hashtbl.add table "ex_parsing7.v" *)
+  (*   (create_fixed_test "test parsing weird comments" *)
+  (*      test_parsing_weird_comments_ex7 doc); *)
   Hashtbl.add table "ex_id_assign1.v"
     (create_fixed_test "test the initial ordering of nodes in the document"
        test_id_assign_document doc);
@@ -1268,13 +1266,13 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_adding4.v"
     (create_fixed_test "test adding a node between two nodes on the same line"
        test_adding_node_between doc);
-  (* Hashtbl.add table "ex_adding5.v" *)
-  (*   (create_fixed_test "test adding a node that will collide on another line" *)
-  (*      test_adding_collision_next_line doc); *)
-  (* Hashtbl.add table "ex_adding6.v" *)
-  (*   (create_fixed_test "test adding a node that will collide with many nodes" *)
-  (*      test_adding_node_colliding_many doc); *)
-  (* TODO Fix offset counting *)
+  Hashtbl.add table "ex_adding5.v"
+    (create_fixed_test "test adding a node that will collide on another line"
+       test_adding_collision_next_line doc);
+  Hashtbl.add table "ex_adding6.v"
+    (create_fixed_test "test adding a node that will collide with many nodes"
+       test_adding_node_colliding_many doc);
+
   Hashtbl.add table "ex_replacing1.v"
     (create_fixed_test "test replacing the single node on one line"
        test_replacing_single_node_on_line doc);

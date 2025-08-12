@@ -3,7 +3,7 @@ open Vernacexpr
 
 type syntaxNode = {
   ast : Doc.Node.Ast.t option;
-  range : Lang.Range.t;
+  range : Code_range.t;
   repr : string;
   id : Uuidm.t;
   proof_id : int option;
@@ -18,18 +18,18 @@ val colliding_nodes : syntaxNode -> syntaxNode list -> syntaxNode list
 (** [colliding_nodes target nodes_list] return the nodes in [nodes_lists]
     colliding with [target] *)
 
-val syntax_node_of_coq_ast : Coq.Ast.t -> Lang.Point.t -> syntaxNode
+val syntax_node_of_coq_ast : Coq.Ast.t -> Code_point.t -> syntaxNode
 (** [syntax_node_of_coq_ast ast starting_point] create a syntax node from a Coq
     AST element and a point to start the node. *)
 
 val comment_syntax_node_of_string :
-  string -> Lang.Point.t -> (syntaxNode, Error.t) result
+  string -> Code_point.t -> (syntaxNode, Error.t) result
 (** [comment_syntax_node_of_string content range] create a syntax node
     representing a comment containing the string content starting at the
     specified point *)
 
 val syntax_node_of_string :
-  string -> Lang.Point.t -> (syntaxNode, Error.t) result
+  string -> Code_point.t -> (syntaxNode, Error.t) result
 (** [syntax_node_of_string code start_point] returns a result [Ok Syntax_node]
     if [code] was parsed as only one syntax node that will be positioned
     starting at [start_point] or [Error string] with a string containing the
@@ -46,7 +46,7 @@ val validate_syntax_node : syntaxNode -> (syntaxNode, string) result
 val mk_vernac_control :
   ?loc:Loc.t -> synterp_vernac_expr vernac_expr_gen -> vernac_control
 
-val qed_ast_node : Lang.Point.t -> syntaxNode
+val qed_ast_node : Code_point.t -> syntaxNode
 (** [qed_ast_node] create a syntax node containing the Coq command Qed starting
     at the specified point. *)
 
@@ -58,35 +58,33 @@ val doc_node_of_yojson : Yojson.Safe.t -> Doc.Node.Ast.t
 (** [doc_node_of_yojson json] convert a compatible element of type
     [Yojson.Safe.t] into an element of type [Doc.Node.Ast.t] *)
 
-val point_to_yojson : Lang.Point.t -> Yojson.Safe.t
-(** [point_to_yojson point] converts a point of type [Lang.Point.t] into a
+val point_to_yojson : Code_point.t -> Yojson.Safe.t
+(** [point_to_yojson point] converts a point of type [Code_point.t] into a
     [Yojson.Safe.t] representation. *)
 
-val point_of_yojson : Yojson.Safe.t -> Lang.Point.t
+val point_of_yojson : Yojson.Safe.t -> Code_point.t
 (** [point_of_yojson json] convert a compatible element of type [Yojson.Safe.t]
-    into an element of type [Lang.Point.t] *)
+    into an element of type [Code_point.t] *)
 
-val range_to_yojson : Lang.Range.t -> Yojson.Safe.t
-(** [range_to_yojson range] convert a range of type [Lang.Range.t] into a
+val range_to_yojson : Code_range.t -> Yojson.Safe.t
+(** [range_to_yojson range] convert a range of type [Code_range.t] into a
     [Yojson.Safe.t] representation. *)
 
-val range_of_yojson : Yojson.Safe.t -> Lang.Range.t
+val range_of_yojson : Yojson.Safe.t -> Code_range.t
 (** [range_of_yojson json] convert a compatible element of type [Yojson.Safe.t]
-    into an element of type [Lang.Range.t] *)
+    into an element of type [Code_range.t] *)
 
-val shift_point : int -> int -> int -> Lang.Point.t -> Lang.Point.t
-(** [shift_point n_line n_char n_offset point] shift [point] by [n_line],
-    [n_char] and [n_offset]. shifting by [n_char] cause the offset to also shift
-    by [n_char] in addition to [n_offset] *)
+val shift_point : int -> int -> Code_point.t -> Code_point.t
+(** [shift_point n_line n_char point] shift [point] by [n_line], and [n_char].
+*)
 
-val shift_range : int -> int -> int -> Lang.Range.t -> Lang.Range.t
-(** [shift_range n_line n_char n_offset range] shift both points of [range] by
-    [n_line], [n_char] and [n_offset]. shifting by [n_char] cause both points
-    offset to also shift by [n_char] in addition to [n_offset] *)
+val shift_range : int -> int -> Code_range.t -> Code_range.t
+(** [shift_range n_line n_char range] shift both points of [range] by [n_line],
+    [n_char] *)
 
-val shift_node : int -> int -> int -> syntaxNode -> syntaxNode
+val shift_node : int -> int -> syntaxNode -> syntaxNode
 (** [shift_node n_line n_char n_offset node] shift the range of [node] by
-    [n_line], [n_char] and [n_offset] using [shift_range] *)
+    [n_line], [n_char] using [shift_range] *)
 
 val is_syntax_node_proof_command : syntaxNode -> bool
 (** [is_syntax_node_proof_command x] checks if [x] represents the command Proof.

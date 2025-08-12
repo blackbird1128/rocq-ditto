@@ -3,7 +3,7 @@ open Ditto.Syntax_node
 
 let pp_int fmt x = Format.fprintf fmt "%d" x
 
-let create_dummy_node (range : Lang.Range.t) : syntaxNode =
+let create_dummy_node (range : Code_range.t) : syntaxNode =
   {
     ast = None;
     range;

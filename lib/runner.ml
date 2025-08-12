@@ -73,10 +73,20 @@ let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
 
   Coq.Protect.E.map ~f (Fleche.Info.Goals.goals ~token ~st) |> protect_to_result
 
-let message_to_diagnostic (range : Lang.Range.t) (msg : Loc.t Coq.Message.t) :
+let message_to_diagnostic (range : Code_range.t) (msg : Loc.t Coq.Message.t) :
     Lang.Diagnostic.t =
+  (* TODO: remove dummy value use *)
+  let lang_start_point : Lang.Point.t =
+    { line = range.start.line; character = range.start.character; offset = -1 }
+  in
+  let lang_end_point : Lang.Point.t =
+    { line = range.end_.line; character = range.end_.character; offset = -1 }
+  in
+  let lang_range : Lang.Range.t =
+    { start = lang_start_point; end_ = lang_end_point }
+  in
   let severity, payload = msg in
-  { severity; message = payload.msg; data = None; range }
+  { severity; message = payload.msg; data = None; range = lang_range }
 
 (* Adaptor, should be supported in memo directly *)
 let eval_no_memo ~token (st, cmd) =

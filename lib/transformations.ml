@@ -14,7 +14,7 @@ let depth_to_bullet_type (depth : int) =
   | 2 -> VernacBullet (Proof_bullet.Star bullet_number)
   | _ -> VernacBullet (Proof_bullet.Dash bullet_number)
 
-let create_annotated_ast_bullet (depth : int) (starting_point : Lang.Point.t) :
+let create_annotated_ast_bullet (depth : int) (starting_point : Code_point.t) :
     syntaxNode =
   let control_r =
     {
@@ -407,7 +407,7 @@ let remove_empty_lines (proof : proof) : proof =
               let shift_value =
                 prev_node.range.end_.line - node.range.start.line + 1 + shift
               in
-              let shifted = shift_node shift_value 0 0 node in
+              let shifted = shift_node shift_value 0 node in
               (node, shifted :: acc_nodes, shift_value))
           (first_node, [], 0) nodes
       in
@@ -447,8 +447,8 @@ let remove_random_step (doc : Coq_document.t) (proof : proof) :
       ^ Uuidm.to_string rand_node.id
       ^ " with "
       ^ Uuidm.to_string incorrect_node.id);
-    print_endline ("rand node pos " ^ Lang.Range.to_string rand_node.range);
-    print_endline ("new node pos " ^ Lang.Range.to_string incorrect_node.range);
+    print_endline ("rand node pos " ^ Code_range.to_string rand_node.range);
+    print_endline ("new node pos " ^ Code_range.to_string incorrect_node.range);
     Ok [ Replace (rand_node.id, incorrect_node) ]
 
 let admit_and_comment_proof_steps (doc : Coq_document.t) (proof : proof) :
@@ -475,7 +475,7 @@ let admit_and_comment_proof_steps (doc : Coq_document.t) (proof : proof) :
   in
 
   let admitted_start =
-    shift_point 1 (-comment_node.range.end_.character) 0 comment_node.range.end_
+    shift_point 1 (-comment_node.range.end_.character) comment_node.range.end_
   in
 
   let admitted_node =
@@ -585,7 +585,7 @@ let fold_add_time_taken (doc : Coq_document.t) (proof : proof) :
           in
 
           let comment_start_point =
-            shift_point 0 5 0 furthest_char_node.range.end_
+            shift_point 0 5 furthest_char_node.range.end_
           in
           match
             Syntax_node.comment_syntax_node_of_string comment_content
@@ -826,7 +826,7 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
                 (fun i repr ->
                   Result.get_ok
                     (Syntax_node.syntax_node_of_string repr
-                       (shift_point i 0 0 node.range.start)))
+                       (shift_point i 0 node.range.start)))
                 filtered_tactics
             in
             let shifted_nodes =
@@ -836,8 +836,7 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
                      let char_shift =
                        if acc != 0 then node.range.start.character else 0
                      in
-                     ( acc + char_shift + String.length node.repr + 1,
-                       (shift_node 0 0 (acc + char_shift)) node ))
+                     (acc + char_shift + String.length node.repr + 1, node))
                    0 tactic_nodes)
             in
 

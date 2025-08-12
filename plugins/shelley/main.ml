@@ -86,7 +86,7 @@ let neat_compile ~io ~token:_ ~(doc : Doc.t) =
             (fun x ->
               print_endline
                 (x.repr ^ " "
-                ^ Lang.Range.to_string x.range
+                ^ Code_range.to_string x.range
                 ^ " " ^ Uuidm.to_string x.id))
             (List.sort Syntax_node.compare_nodes res.elements);
 
@@ -120,7 +120,7 @@ let neat_compile ~io ~token:_ ~(doc : Doc.t) =
         (*   (fun x -> *)
         (*     print_endline *)
         (*       (x.repr ^ " " *)
-        (*       ^ Lang.Range.to_string x.range *)
+        (*       ^ Code_range.to_string x.range *)
         (*       ^ " " ^ Uuidm.to_string x.id)) *)
         (*   (List.sort Syntax_node.compare_nodes res.elements); *)
 
@@ -156,7 +156,7 @@ let neat_compile ~io ~token:_ ~(doc : Doc.t) =
         (*   (fun x -> *)
         (*     print_endline *)
         (*       (x.repr ^ " " *)
-        (*       ^ Lang.Range.to_string x.range *)
+        (*       ^ Code_range.to_string x.range *)
         (*       ^ " " ^ Uuidm.to_string x.id)) *)
         (*   (List.sort Syntax_node.compare_nodes res.elements); *)
         (* Ok res *)

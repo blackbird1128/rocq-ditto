@@ -28,10 +28,10 @@ let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
       if new_node.range.start.line != new_node.range.end_.line then
         Format.fprintf fmt "Replacing node with id: %s by node: %s at %s"
           (Uuidm.to_string id) new_node.repr
-          (Lang.Range.to_string new_node.range)
+          (Code_range.to_string new_node.range)
   | Add new_node ->
       Format.fprintf fmt "Adding new node: %s at %s" new_node.repr
-        (Lang.Range.to_string new_node.range)
+        (Code_range.to_string new_node.range)
   | Attach (attached_node, attach_position, anchor_id) ->
       Format.fprintf fmt "Attaching node %s to node with id: %s "
         attached_node.repr
@@ -46,11 +46,11 @@ let print_transformation_step (step : transformation_step) : unit =
         print_endline
           ("Replacing node with id: " ^ Uuidm.to_string id ^ " by node: "
          ^ new_node.repr ^ " at "
-          ^ Lang.Range.to_string new_node.range)
+          ^ Code_range.to_string new_node.range)
   | Add new_node ->
       print_endline
         ("Adding new node: " ^ new_node.repr ^ " at "
-        ^ Lang.Range.to_string new_node.range)
+        ^ Code_range.to_string new_node.range)
   | Attach (attached_node, attach_position, anchor_id) ->
       print_endline
         ("Attaching node " ^ attached_node.repr ^ " to node with id: "
@@ -138,7 +138,7 @@ let get_theorem_components (x : proof) : theorem_components option =
   | None -> None
 
 let syntax_node_from_theorem_components (c : theorem_components)
-    (start_point : Lang.Point.t) : syntaxNode =
+    (start_point : Code_point.t) : syntaxNode =
   let expr_syn =
     Vernacexpr.VernacStartTheoremProof
       (c.kind, [ ((c.name, c.universe), (c.binders, c.expr)) ])
