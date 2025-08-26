@@ -10,23 +10,6 @@ open Result
 
 let wrap_to_treeify doc x = Result.get_ok (Runner.treeify_proof doc x)
 
-let remove_loc sexp =
-  let open Sexplib.Sexp in
-  let rec aux sexp =
-    match sexp with
-    | Atom _ -> sexp
-    | List (Atom "loc" :: _) -> List [] (* or List [] *)
-    | List l ->
-        let filtered =
-          List.filter_map
-            (fun s ->
-              match s with List (Atom "loc" :: _) -> None | _ -> Some (aux s))
-            l
-        in
-        List filtered
-  in
-  aux sexp
-
 let print_prim_token (x : Constrexpr.prim_token) =
   match x with
   | Constrexpr.Number num -> print_endline (NumTok.Signed.to_string num)
@@ -90,19 +73,21 @@ let replace_or_by_constructive_or_map (term : Constrexpr.constr_expr) :
 let replace_bet_by_betl_in_proof (x : proof) : transformation_step option =
   let x_start = x.proposition.range.start in
   let components = Option.get (Proof.get_theorem_components x) in
+
   let expr = components.expr in
 
   let replace_by_betl_map = replace_func_map "Bet" "BetL" in
   let new_expr, did_replace =
     Expr_substitution.constr_expr_map replace_by_betl_map expr
   in
-  if did_replace then
+  if did_replace then (
+    print_endline "in here";
     let new_components = { components with expr = new_expr } in
     let new_node =
       Proof.syntax_node_from_theorem_components new_components x_start
     in
 
-    Some (Replace (x.proposition.id, new_node))
+    Some (Replace (x.proposition.id, new_node)))
   else None
 
 let replace_or_by_constructive_or (x : proof) : transformation_step option =
@@ -213,94 +198,6 @@ let replace_require (x : syntaxNode) : transformation_step option =
       | VernacSynPure _ -> None)
   | None -> None
 
-let by_load ~(io : Io.CallBack.t) ~token:tok ~(doc : Doc.t) =
-  let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
-  let errors = List.filter Lang.Diagnostic.is_error diags in
-
-  let uri = doc.uri in
-  let uri_str = Lang.LUri.File.to_string_uri uri in
-
-  match doc.completed with
-  | Doc.Completion.Stopped range_stop ->
-      prerr_endline ("parsing stopped at " ^ Lang.Range.to_string range_stop);
-      print_diagnostics errors
-  | Doc.Completion.Failed range_failed ->
-      prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
-      print_diagnostics errors
-  | Doc.Completion.Yes _ -> (
-      let parsed_document = Coq_document.parse_document doc in
-      (* let require_nodes = *)
-      (*   List.filter Syntax_node.is_syntax_node_require parsed_document.elements *)
-      (* in *)
-
-      let require_transform_steps =
-        List.filter_map replace_require parsed_document.elements
-      in
-      let context_transform_steps =
-        List.filter_map replace_context parsed_document.elements
-      in
-      let new_doc =
-        Coq_document.apply_transformations_steps
-          (require_transform_steps @ context_transform_steps)
-          parsed_document
-        |> Result.get_ok
-      in
-
-      let other_doc_path = "../dedukti-tarski-dev/coq/ch04_cong_bet.v" in
-      let compiler_args =
-        Compile.file_and_plugin_args_to_compiler_args other_doc_path io tok doc
-        |> Result.get_ok
-      in
-
-      let other_doc = Compile.compile_file compiler_args other_doc_path in
-
-      match other_doc with
-      | Ok second_doc -> (
-          let other_doc_parsed = Coq_document.parse_document second_doc in
-          let other_proofs =
-            Coq_document.get_proofs other_doc_parsed |> Result.get_ok
-          in
-          print_endline "there";
-          let proof_replacing_steps =
-            List.filter_map
-              (fun p ->
-                let name = Proof.get_proof_name p |> Option.get in
-                let reg = Re.compile (Re.str "__") in
-                let new_name = Re.replace_string reg ~by:"_" name in
-                print_endline p.proposition.repr;
-                match Coq_document.proof_with_name_opt new_name new_doc with
-                | Some proof ->
-                    Coq_document.replace_proof proof.proposition.id p new_doc
-                | None -> None)
-              other_proofs
-            |> List.concat
-          in
-          let new_doc =
-            Coq_document.apply_transformations_steps proof_replacing_steps
-              new_doc
-          in
-          match new_doc with
-          | Ok res ->
-              let filename =
-                "../private-geocoq/theories/Constructive/"
-                ^ (Filename.basename uri_str |> Filename.remove_extension)
-                ^ "_bis.v"
-              in
-              print_endline
-                ("All transformations applied, writing to file" ^ filename);
-              let out = open_out filename in
-              Result.fold ~ok:(output_string out)
-                ~error:(fun e -> print_endline (Error.to_string_hum e))
-                (Coq_document.dump_to_string res)
-          | Error err -> print_endline (Error.to_string_hum err))
-      | Error err -> (
-          match err with
-          | Compile.IncorrectURI -> print_endline "incorrect URI"
-          | Compile.ParsingStopped (stopped_range, errors) ->
-              print_diagnostics errors
-          | Compile.ParsingFailed (failed_range, errors) ->
-              print_diagnostics errors))
-
 let admit_exists_proof_in_doc (doc : Coq_document.t) :
     (Coq_document.t, Error.t) result =
   let proofs = Result.get_ok (Coq_document.get_proofs doc) in
@@ -341,11 +238,17 @@ let admit_exists_proof_in_doc (doc : Coq_document.t) :
 let replace_bet_by_betl_in_doc (doc : Coq_document.t) :
     (Coq_document.t, Error.t) result =
   let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+
   let replace_bet_by_betl_steps =
     List.filter_map (fun proof -> replace_bet_by_betl_in_proof proof) proofs
   in
+  print_endline "entering apply transformation steps in replace bet by betL";
 
-  Coq_document.apply_transformations_steps replace_bet_by_betl_steps doc
+  let r =
+    Coq_document.apply_transformations_steps replace_bet_by_betl_steps doc
+  in
+  print_endline "exiting apply transformation steps";
+  r
 
 let replace_or_by_constructive_or_in_doc (doc : Coq_document.t) :
     (Coq_document.t, Error.t) result =
@@ -356,48 +259,6 @@ let replace_or_by_constructive_or_in_doc (doc : Coq_document.t) :
 
   Coq_document.apply_transformations_steps replace_or_by_constructive_or_steps
     doc
-
-let replace_proofs_by_fol_proofs (doc : Coq_document.t) (raw_doc : Doc.t)
-    (io : Io.CallBack.t) (token : Coq.Limits.Token.t) :
-    (Coq_document.t, Error.t) result =
-  let ( let* ) = Result.bind in
-  let other_doc_path = "../dedukti-tarski-dev/coq/ch04_cong_bet.v" in
-  let* compiler_args =
-    Compile.file_and_plugin_args_to_compiler_args other_doc_path io token
-      raw_doc
-    |> Error.of_result
-  in
-
-  let other_doc = Compile.compile_file compiler_args other_doc_path in
-  match other_doc with
-  | Ok second_doc ->
-      let other_doc_parsed = Coq_document.parse_document second_doc in
-      let* other_proofs = Coq_document.get_proofs other_doc_parsed in
-
-      let proof_replacing_steps =
-        List.filter_map
-          (fun p ->
-            let name = Proof.get_proof_name p |> Option.get in
-            let reg = Re.compile (Re.str "__") in
-            let new_name = Re.replace_string reg ~by:"_" name in
-            print_endline p.proposition.repr;
-            match Coq_document.proof_with_name_opt new_name doc with
-            | Some proof ->
-                Coq_document.replace_proof proof.proposition.id p doc
-            | None -> None)
-          other_proofs
-        |> List.concat
-      in
-
-      Coq_document.apply_transformations_steps proof_replacing_steps doc
-  | Error err -> (
-      match err with
-      | Compile.IncorrectURI -> Error.string_to_or_error_err "incorrect URI"
-      | Compile.ParsingStopped (stopped_range, errors) ->
-          Error.string_to_or_error_err "parsing of the second file stopped"
-      | Compile.ParsingFailed (failed_range, errors) ->
-          print_diagnostics errors;
-          Error.string_to_or_error_err "parsing of the second file failed")
 
 let replace_non_constructive_tactics_in_doc (doc : Coq_document.t) :
     (Coq_document.t, Error.t) result =
@@ -421,7 +282,11 @@ let replace_non_constructive_tactics_in_doc (doc : Coq_document.t) :
 let replace_context_in_doc (doc : Coq_document.t) :
     (Coq_document.t, Error.t) result =
   let context_transform_steps = List.filter_map replace_context doc.elements in
-
+  print_endline "replace context steps ";
+  List.iter
+    (fun x -> print_endline (transformation_step_to_string x))
+    context_transform_steps;
+  print_endline "----------------------------------";
   Coq_document.apply_transformations_steps context_transform_steps doc
 
 let replace_requires_in_doc (doc : Coq_document.t) :
@@ -450,32 +315,45 @@ let experiment_theorem ~io ~token ~(doc : Doc.t) =
       let parsed_document = Coq_document.parse_document doc in
 
       let res =
-        let* doc_with_fol_proofs =
-          replace_proofs_by_fol_proofs parsed_document doc io token
-        in
-
         let* doc_with_exists_proof_admitted =
-          admit_exists_proof_in_doc doc_with_fol_proofs
+          admit_exists_proof_in_doc parsed_document
         in
 
+        (* List.iter *)
+        (*   (fun x -> *)
+        (*     print_endline (x.repr ^ " " ^ Code_range.to_string x.range); *)
+        (*     print_endline "") *)
+        (*   doc_with_exists_proof_admitted.elements; *)
+        (* print_endline "------------------------------------------------------"; *)
         let* doc_with_requires_replaced =
           replace_requires_in_doc doc_with_exists_proof_admitted
+        in
+
+        let* string_dump =
+          Coq_document.dump_to_string doc_with_requires_replaced
         in
 
         let* doc_with_context_replaced =
           replace_context_in_doc doc_with_requires_replaced
         in
 
-        let* doc_with_bet_replaced_by_betl =
-          replace_bet_by_betl_in_doc doc_with_context_replaced
-        in
+        (* let* string_dump = *)
+        (*   Coq_document.dump_to_string doc_with_context_replaced *)
+        (* in *)
 
-        let* doc_with_or_replaced_by_constructive_or =
-          replace_or_by_constructive_or_in_doc doc_with_bet_replaced_by_betl
-        in
+        (* print_endline string_dump; *)
 
-        replace_non_constructive_tactics_in_doc
-          doc_with_or_replaced_by_constructive_or
+        (* print_endline "entering replace bet with betL"; *)
+
+        (* let* doc_with_bet_replaced_by_betl = *)
+        (*   replace_bet_by_betl_in_doc doc_with_context_replaced *)
+        (* in *)
+
+        (* print_endline "ending replacing bet with betL"; *)
+        (* let* doc_with_or_replaced_by_constructive_or = *)
+        (*   replace_or_by_constructive_or_in_doc doc_with_bet_replaced_by_betl *)
+        (* in *)
+        Ok doc_with_context_replaced
       in
 
       match res with
