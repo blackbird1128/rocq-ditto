@@ -11,10 +11,6 @@ type syntaxNode = {
   diagnostics : Lang.Diagnostic.t list;
 }
 
-let repr_to_offset_size (repr : string) : int = String.length repr
-(* - String.fold_left (fun acc c -> if c = '\n' then acc + 1 else acc) 0 repr *)
-(*  for now we don't remove \n even tho we did it before ??*)
-
 let pp_doc_ast (fmt : Format.formatter) (ast : Doc.Node.Ast.t) : unit =
   Pp.pp_with fmt (Coq.Ast.print ast.v)
 
