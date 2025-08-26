@@ -37,6 +37,9 @@ let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
         attached_node.repr
         (Uuidm.to_string anchor_id)
 
+let transformation_step_to_string (step : transformation_step) : string =
+  Format.asprintf "%a" pp_transformation_step step
+
 let print_transformation_step (step : transformation_step) : unit =
   match step with
   | Remove id ->

@@ -16,6 +16,7 @@ type transformation_step =
 
 val pp_transformation_step : Format.formatter -> transformation_step -> unit
 val print_transformation_step : transformation_step -> unit
+val transformation_step_to_string : transformation_step -> string
 
 type proof = {
   proposition : syntaxNode;
