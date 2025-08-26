@@ -18,6 +18,10 @@ proof_repair:
 	dune build --profile=release
 	dune exec fcc -- --plugin=shelley-plugin ./test/fixtures/ex_this_or_that.v
 
+lens:
+	dune build --profile=release
+	dune exec fcc -- --plugin=lens-query-plugin ./test/fixtures/ex_this_or_that.v
+
 # Rule to generate a .v.target.json from its .v source
 %.v.target.json: %.v
 	dune exec fcc -- --plugin=target-generator-plugin $< 2>/dev/null

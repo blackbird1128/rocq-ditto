@@ -35,6 +35,13 @@
   (synopsis "Plugin used to test proof repairs methods" )
   (allow_empty)
   (depends ocaml dune coq-lsp base-unix re coq-ditto)
+)
+
+(package
+  (name lens-query-plugin)
+  (synopsis "Plugin used to test the lens datastructure as a theorem query" )
+  (allow_empty)
+  (depends ocaml dune coq-lsp base-unix re coq-ditto)
  )
 
 (package

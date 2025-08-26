@@ -1,0 +1,5 @@
+(library
+ (public_name lens-query-plugin)
+ (name lens_plugin)
+ (libraries coq-ditto coq-core.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche )	
+)
