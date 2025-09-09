@@ -114,6 +114,7 @@ let simple_proof_repair (doc : Coq_document.t)
       let* _, steps_acc, ignore_acc, _ =
         Nary_tree.depth_first_fold_with_children_as_trees
           (fun acc node children ->
+            print_endline ("treating " ^ node.repr);
             match acc with
             | Ok (state_acc, steps_acc, ignore_acc, prev_goal_count) -> (
                 if SyntaxNodeSet.mem node ignore_acc then
@@ -124,7 +125,7 @@ let simple_proof_repair (doc : Coq_document.t)
                   | Ok new_state ->
                       let num_goals = Runner.count_goals token new_state in
                       if
-                        List.length children == 0
+                        List.length children = 0
                         && (not
                               (Syntax_node.is_syntax_node_proof_intro_or_end
                                  node))
@@ -170,6 +171,8 @@ let simple_proof_repair (doc : Coq_document.t)
       let removed_steps =
         SyntaxNodeSet.to_list ignore_acc |> List.map (fun x -> Remove x.id)
       in
+      print_endline
+        ("length removed steps: " ^ string_of_int (List.length removed_steps));
       print_endline "steps acc: ";
       List.iter print_transformation_step steps_acc;
       Ok (steps_acc @ removed_steps)
@@ -436,19 +439,11 @@ let remove_random_step (doc : Coq_document.t) (proof : proof) :
   if num_steps <= 2 then Ok []
   else
     let rand_num = Random.int_in_range ~min:1 ~max:(num_steps - 2) in
-    let rand_num = 6 in
     let rand_node = List.nth proof.proof_steps rand_num in
     let incorrect_node =
       Syntax_node.syntax_node_of_string "fail." rand_node.range.start
       |> Result.get_ok
     in
-    print_endline
-      ("replacing "
-      ^ Uuidm.to_string rand_node.id
-      ^ " with "
-      ^ Uuidm.to_string incorrect_node.id);
-    print_endline ("rand node pos " ^ Code_range.to_string rand_node.range);
-    print_endline ("new node pos " ^ Code_range.to_string incorrect_node.range);
     Ok [ Replace (rand_node.id, incorrect_node) ]
 
 let admit_and_comment_proof_steps (doc : Coq_document.t) (proof : proof) :

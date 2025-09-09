@@ -256,22 +256,24 @@ let dump_elements_to_string (elements : syntaxNode list) :
             let char_diff =
               node.range.start.character - previous_node.range.end_.character
             in
-            if char_diff <= 0 then
+            if char_diff <= 0 then (
+              print_endline "ERROR";
               Error
                 (Error.of_string
                    ("Error: node start - previous end char negative or zero "
                   ^ "\nprevious node range: "
                    ^ Code_range.to_string previous_node.range
                    ^ "\ncurrent node range: "
-                   ^ Code_range.to_string node.range))
+                   ^ Code_range.to_string node.range)))
             else Ok (doc_repr ^ String.make char_diff ' ' ^ node.repr)
-          else if line_diff <= 0 then
+          else if line_diff <= 0 then (
+            print_endline "ERROR !";
             Error
               (Error.of_string
                  ("line diff negative" ^ "\nprevious node range: "
                  ^ Code_range.to_string previous_node.range
                  ^ "\ncurrent node range: "
-                 ^ Code_range.to_string node.range))
+                 ^ Code_range.to_string node.range)))
           else
             Ok
               (doc_repr ^ String.make line_diff '\n'
@@ -286,7 +288,7 @@ let dump_elements_to_string (elements : syntaxNode list) :
   | [] -> Ok "" (* or maybe Error "Empty document"? *)
   | first :: tail ->
       let sorted_elements = List.sort compare_nodes (first :: tail) in
-      aux (List.tl sorted_elements) "" first
+      aux sorted_elements "" first
 
 let rec dump_to_string (doc : t) : (string, Error.t) result =
   dump_elements_to_string doc.elements
@@ -367,7 +369,6 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
         removed_node.range.end_.line - removed_node.range.start.line + 1
       in
 
-      (* the offset shift is negative as we are moving back nodes *)
       let node_before_on_start_line =
         List.exists
           (fun x -> x.range.end_.line = removed_node.range.start.line)
@@ -395,41 +396,25 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
             if node_before_on_start_line then -(block_height - 1)
             else -block_height
           in
-          print_endline ("line shift: " ^ string_of_int line_shift);
-          List.iter
-            (fun x ->
-              print_endline (x.repr ^ " " ^ Code_range.to_string x.range))
-            before;
-
-          print_endline "---";
-          List.iter
-            (fun x ->
-              print_endline (x.repr ^ " " ^ Code_range.to_string x.range))
-            after;
-
-          let elements =
-            before
-            @ List.map
-                (fun x ->
-                  if x.range.start.line = removed_node.range.end_.line then
-                    shift_node_first_line (-num_chars_last_line removed_node) x
-                  else shift_node line_shift 0 x)
-                after
-          in
-
-          if nodes_after_on_end_line then (
-            print_endline "NODES AFTER ON END LINE";
-            List.iter
-              (fun x ->
-                print_endline (x.repr ^ " " ^ Code_range.to_string x.range))
-              elements;
+          if nodes_after_on_end_line then
+            let elements =
+              before
+              @ List.map
+                  (fun x ->
+                    if x.range.start.line = removed_node.range.end_.line then
+                      shift_node_first_line
+                        (-num_chars_last_line removed_node)
+                        x
+                    else x)
+                  after
+            in
             Ok
               {
                 doc with
                 elements;
                 document_repr =
                   dump_elements_to_string elements |> Result.get_ok;
-              })
+              }
           else
             let elements = before @ List.map (shift_node line_shift 0) after in
             Ok
@@ -442,6 +427,13 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
 
 let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
+  print_endline "--------------------";
+  List.iter
+    (fun x -> print_endline (x.repr ^ " " ^ Code_range.to_string x.range))
+    doc.elements;
+  print_endline "------------------------------";
+  print_endline ("new node start " ^ Code_range.to_string new_node.range);
+
   let element_before_new_node_start, element_after_new_node_start =
     List.partition (fun node -> compare_nodes node new_node < 0) doc.elements
   in
@@ -451,7 +443,6 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
   in
 
   let node_offset_size = String.length new_node.repr in
-  print_endline ("node offset size " ^ string_of_int node_offset_size);
 
   let offset_space =
     match element_after_range_opt with
@@ -462,13 +453,24 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
     | None -> 0
   in
 
-  print_endline ("offset space " ^ string_of_int offset_space);
+  let offset_string =
+    match element_after_range_opt with
+    | Some element_after_range ->
+        let elem_after = List.hd element_after_new_node_start in
+        print_endline ("element after start repr " ^ elem_after.repr);
+        let offset_elem_after_start =
+          offset_of_code_point doc element_after_range.start
+        in
+        String.sub doc.document_repr offset_elem_after_start
+          (max 0 offset_space)
+    | None -> ""
+  in
+  print_endline ("offset string " ^ offset_string ^ "end");
 
   let total_shift = node_offset_size - offset_space in
 
   match shift_method with
   | ShiftHorizontally ->
-      print_endline "horizontal shift ! ";
       if new_node.range.start.line != new_node.range.end_.line then
         Error.string_to_or_error_err
           ("Error when trying to shift " ^ new_node.repr ^ " at : "
@@ -510,6 +512,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
         if List.length (colliding_nodes new_node doc.elements) = 0 then 0
         else new_node.range.end_.line - new_node.range.start.line + 1
       in
+      print_endline ("vertical line shift " ^ string_of_int line_shift);
       let elements =
         element_before_new_node_start
         @ new_node
@@ -530,7 +533,7 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
   | Error err -> Error.string_to_or_error_err err
   | Ok replacement -> (
       match element_with_id_opt target_id doc with
-      | Some target ->
+      | Some target -> (
           let replacement_shifted =
             {
               replacement with
@@ -540,31 +543,61 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
             }
           in
 
+          let removed_height =
+            target.range.end_.line - target.range.start.line + 1
+          in
+
           let replacement_height =
             replacement_shifted.range.end_.line
             - replacement_shifted.range.start.line + 1
           in
+          Printf.printf "target repr: %s\n" target.repr;
 
           let removed_node_doc =
-            remove_node_with_id ~remove_method:ShiftNode target.id doc
+            remove_node_with_id ~remove_method:LeaveBlank target.id doc
             |> Result.get_ok
             (* we already checked for the node existence *)
           in
+          print_endline "after removed node doc";
 
           let has_same_lines_elements =
             List.exists
               (fun node ->
                 node.id != target.id
                 && node.range.start.line = target.range.end_.line)
-              doc.elements
+              removed_node_doc.elements
           in
 
           if has_same_lines_elements && replacement_height = 1 then
             insert_node replacement_shifted ~shift_method:ShiftHorizontally
               removed_node_doc
           else
-            insert_node replacement_shifted ~shift_method:ShiftVertically
-              removed_node_doc
+            let new_doc =
+              insert_node replacement_shifted ~shift_method:ShiftVertically
+                removed_node_doc
+            in
+            match new_doc with
+            | Ok new_doc ->
+                List.iter
+                  (fun x ->
+                    print_endline (x.repr ^ " " ^ Code_range.to_string x.range))
+                  new_doc.elements;
+
+                let before_replacement, after_replacement =
+                  (split_at_id replacement_shifted.id) new_doc
+                in
+                let line_shift = replacement_height - removed_height in
+                print_endline ("line shift: " ^ string_of_int line_shift);
+
+                Ok
+                  {
+                    new_doc with
+                    elements =
+                      before_replacement
+                      @ replacement_shifted
+                        :: List.map (shift_node line_shift 0) after_replacement;
+                  }
+            | Error err -> Error err)
       | None ->
           Error.string_to_or_error_err
             ("The target node with id : " ^ Uuidm.to_string target_id
@@ -646,16 +679,6 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
           Error.string_to_or_error_err
             ("Can't find the node with id: " ^ Uuidm.to_string anchor_id
            ^ " to attach to"))
-
-let transformation_step_to_string (step : transformation_step) : string =
-  match step with
-  | Remove id -> "Removing " ^ Uuidm.to_string id
-  | Replace (id, new_node) ->
-      "Replacing " ^ Uuidm.to_string id ^ " with " ^ new_node.repr
-  | Add node -> "Adding " ^ node.repr
-  | Attach (attached_node, attach_position, anchor_id) ->
-      "Attaching node " ^ attached_node.repr ^ " to node with id: "
-      ^ Uuidm.to_string anchor_id
 
 let apply_transformations_steps (steps : transformation_step list) (doc : t) :
     (t, Error.t) result =
