@@ -82,19 +82,14 @@ let neat_compile ~io ~token:_ ~(doc : Doc.t) =
           let* res =
             Coq_document.apply_transformations_steps steps parsed_document
           in
-          List.iter
-            (fun x ->
-              print_endline
-                (x.repr ^ " "
-                ^ Code_range.to_string x.range
-                ^ " " ^ Uuidm.to_string x.id))
-            (List.sort Syntax_node.compare_nodes res.elements);
 
           let* proofs = Coq_document.get_proofs res in
+          List.iter
+            (fun (x : Proof.proof) -> print_endline x.proposition.repr)
+            proofs;
           let proof_trees =
             List.map (Runner.treeify_proof res) proofs |> List.map Result.get_ok
           in
-          List.iter (fun x -> print_tree (sexp_of_proof_tree x)) proof_trees;
 
           let remove_random_tactics_steps =
             List.fold_left
@@ -113,56 +108,34 @@ let neat_compile ~io ~token:_ ~(doc : Doc.t) =
             Coq_document.apply_transformations_steps remove_random_tactics_steps
               res
           in
+
+          let transformed_trees =
+            List.map2
+              (fun tree step ->
+                Proof_tree.apply_transformation_step step tree |> Result.get_ok)
+              proof_trees remove_random_tactics_steps
+          in
+
+          let simple_repair_apply_steps, res =
+            List.fold_left
+              (fun (step_acc, doc_acc) tree ->
+                let steps = Transformations.simple_proof_repair doc_acc tree in
+                match steps with
+                | Ok steps ->
+                    let new_doc =
+                      Coq_document.apply_transformations_steps steps doc_acc
+                      |> Result.get_ok
+                    in
+                    (steps :: step_acc, new_doc)
+                | Error err ->
+                    print_endline (Error.to_string_hum err);
+                    (step_acc, doc_acc))
+              ([], res) transformed_trees
+          in
+
           Ok res
         in
 
-        (* List.iter *)
-        (*   (fun x -> *)
-        (*     print_endline *)
-        (*       (x.repr ^ " " *)
-        (*       ^ Code_range.to_string x.range *)
-        (*       ^ " " ^ Uuidm.to_string x.id)) *)
-        (*   (List.sort Syntax_node.compare_nodes res.elements); *)
-
-        (* Ok res *)
-
-        (* let transformed_trees = *)
-        (*   List.map2 *)
-        (*     (fun tree step -> *)
-        (*       Proof_tree.apply_transformation_step step tree |> Result.get_ok) *)
-        (*     proof_trees remove_random_tactics_steps *)
-        (* in *)
-        (* List.iter *)
-        (*   (fun x -> print_tree (sexp_of_proof_tree x)) *)
-        (*   transformed_trees; *)
-
-        (* let simple_repair_apply_steps = *)
-        (*   List.fold_left *)
-        (*     (fun step_acc tree -> *)
-        (*       let steps = *)
-        (*         Transformations.simple_proof_repair res tree |> Result.get_ok *)
-        (*       in *)
-        (*       steps :: step_acc) *)
-        (*     [] transformed_trees *)
-        (*   |> List.rev |> List.concat *)
-        (* in *)
-
-        (* (\* List.iter (fun x -> print_endline x.repr) transformed_doc.elements; *\) *)
-        (* let* res_bis = *)
-        (*   Coq_document.apply_transformations_steps remove_random_tactics_steps *)
-        (*     res *)
-        (* in *)
-        (* List.iter *)
-        (*   (fun x -> *)
-        (*     print_endline *)
-        (*       (x.repr ^ " " *)
-        (*       ^ Code_range.to_string x.range *)
-        (*       ^ " " ^ Uuidm.to_string x.id)) *)
-        (*   (List.sort Syntax_node.compare_nodes res.elements); *)
-        (* Ok res *)
-        (* (\* Coq_document.apply_transformations_steps simple_repair_apply_steps *\) *)
-        (* (\*   transformed_doc *\) *)
-        (* in *)
         match final_res with
         | Ok res ->
             let filename = Filename.remove_extension uri_str ^ "_bis.v" in
