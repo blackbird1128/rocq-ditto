@@ -534,6 +534,15 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
   | Ok replacement -> (
       match element_with_id_opt target_id doc with
       | Some target -> (
+          let _, after_replaced = (split_at_id target.id) doc in
+          let node_after_opt = List.nth_opt after_replaced 0 in
+          let dist_to_node_after =
+            Option.cata
+              (fun node_after ->
+                max 0 (node_after.range.start.line - target.range.end_.line - 1))
+              0 node_after_opt
+          in
+
           let replacement_shifted =
             {
               replacement with
@@ -543,15 +552,10 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
             }
           in
 
-          let removed_height =
-            target.range.end_.line - target.range.start.line + 1
-          in
-
           let replacement_height =
             replacement_shifted.range.end_.line
             - replacement_shifted.range.start.line + 1
           in
-          Printf.printf "target repr: %s\n" target.repr;
 
           let removed_node_doc =
             remove_node_with_id ~remove_method:LeaveBlank target.id doc
@@ -586,8 +590,18 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
                 let before_replacement, after_replacement =
                   (split_at_id replacement_shifted.id) new_doc
                 in
-                let line_shift = replacement_height - removed_height in
-                print_endline ("line shift: " ^ string_of_int line_shift);
+                let new_node_after_opt = List.nth_opt after_replacement 0 in
+
+                let new_dist_to_node_after =
+                  Option.cata
+                    (fun node_after ->
+                      max 0
+                        (node_after.range.start.line - target.range.end_.line
+                       - 1))
+                    0 node_after_opt
+                in
+
+                let diff_dist = dist_to_node_after - new_dist_to_node_after in
 
                 Ok
                   {
@@ -595,7 +609,7 @@ let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
                     elements =
                       before_replacement
                       @ replacement_shifted
-                        :: List.map (shift_node line_shift 0) after_replacement;
+                        :: List.map (shift_node diff_dist 0) after_replacement;
                   }
             | Error err -> Error err)
       | None ->
