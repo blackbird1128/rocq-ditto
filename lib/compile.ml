@@ -7,13 +7,16 @@ type compilerArgs = {
   env : Doc.Env.t;
 }
 
-type compilerError = IncorrectURI | ParsingStopped of Lang.Range.t * Lang.Diagnostic.t list | ParsingFailed of Lang.Range.t * Lang.Diagnostic.t list
+type compilerError =
+  | IncorrectURI
+  | ParsingStopped of Lang.Range.t * Lang.Diagnostic.t list
+  | ParsingFailed of Lang.Range.t * Lang.Diagnostic.t list
 
 let compiler_error_to_string (error : compilerError) : string =
   match error with
   | IncorrectURI -> "incorrect URI"
   | ParsingStopped (stopped_range, errors) -> "parsing stopped"
-  | ParsingFailed (failed_range, errors)  -> "parsing failed"
+  | ParsingFailed (failed_range, errors) -> "parsing failed"
 
 let rec find_coqproject (dir : string) : string option =
   let coqproject_filename = "_CoqProject" in
@@ -84,6 +87,27 @@ let workspace_to_cmdline (workspace : Coq.Workspace.t) : Coq.Workspace.CmdLine.t
       List.map require_t_to_cmdline_format workspace.require_libs;
   }
 
+let read_all ic =
+  let rec loop acc =
+    match input_line ic with
+    | line -> loop (line :: acc)
+    | exception End_of_file -> List.rev acc
+  in
+  loop []
+
+let coqproject_sorted_files (coqproject_file : string) :
+    (string list, Error.t) result =
+  let cmd = Printf.sprintf "coqdep -f %s -sort" coqproject_file in
+  let ic = Unix.open_process_in cmd in
+  let lines = read_all ic in
+  match Unix.close_process_in ic with
+  | Unix.WEXITED 0 -> Ok (String.split_on_char ' ' (List.hd lines))
+  | Unix.WEXITED n ->
+      Error.string_to_or_error_err
+        (Printf.sprintf "coqdep exited with %d; output:\n%s" n
+           (String.concat "\n" lines))
+  | _ -> Error.string_to_or_error_err "coqdep terminated abnormally"
+
 let file_and_plugin_args_to_compiler_args (filepath : string)
     (io : Io.CallBack.t) (token : Coq.Limits.Token.t) (doc : Doc.t) :
     (compilerArgs, string) result =
@@ -130,10 +154,14 @@ let compile_file (cc : compilerArgs) (filepath : string) :
       match doc.completed with
       | Yes _ -> Ok doc
       | Stopped stopped_range ->
-           let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
-           let errors = List.filter Lang.Diagnostic.is_error diags in
-           Error (ParsingStopped (stopped_range, errors))
+          let diags =
+            List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes
+          in
+          let errors = List.filter Lang.Diagnostic.is_error diags in
+          Error (ParsingStopped (stopped_range, errors))
       | Failed failed_range ->
-         let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
-         let errors = List.filter Lang.Diagnostic.is_error diags in
-         Error (ParsingFailed (failed_range, errors) ))
+          let diags =
+            List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes
+          in
+          let errors = List.filter Lang.Diagnostic.is_error diags in
+          Error (ParsingFailed (failed_range, errors)))
