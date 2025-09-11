@@ -6,9 +6,13 @@ type compilerArgs = {
   env : Doc.Env.t;
 }
 
-type compilerError = IncorrectURI | ParsingStopped of Lang.Range.t * Lang.Diagnostic.t list | ParsingFailed of Lang.Range.t * Lang.Diagnostic.t list
+type compilerError =
+  | IncorrectURI
+  | ParsingStopped of Lang.Range.t * Lang.Diagnostic.t list
+  | ParsingFailed of Lang.Range.t * Lang.Diagnostic.t list
 
 val compiler_error_to_string : compilerError -> string
+val find_coqproject : string -> string option
 
 val file_and_plugin_args_to_compiler_args :
   string ->
