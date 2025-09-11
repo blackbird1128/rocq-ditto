@@ -3,3 +3,6 @@ _opam/
 _ignore/
 **.diags
 **.vo
+**.target.json
+**.lia.cache
+**.jsondump.json
