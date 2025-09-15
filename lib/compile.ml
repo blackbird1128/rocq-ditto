@@ -93,7 +93,7 @@ let read_all ic =
 
 let coqproject_sorted_files (coqproject_file : string) :
     (string list, Error.t) result =
-  let cmd = Printf.sprintf "coqdep -f %s -sort" coqproject_file in
+  let cmd = Printf.sprintf "rocq dep -f %s -sort" coqproject_file in
   let ic = Unix.open_process_in cmd in
   let lines = read_all ic in
   match Unix.close_process_in ic with
