@@ -238,13 +238,13 @@ let string_of_syntax_node (node : syntaxNode) : string =
   | None -> node.repr
 
 let syntax_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
-  `Assoc [ ("v", Lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
+  `Assoc [ ("v", Fleche_lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
 (* TODO treat info *)
 
 let doc_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
   let open Yojson.Safe.Util in
   {
-    v = json |> member "v" |> Lsp.JCoq.Ast.of_yojson |> Result.get_ok;
+    v = json |> member "v" |> Fleche_lsp.JCoq.Ast.of_yojson |> Result.get_ok;
     ast_info = None;
   }
 (* TODO treat AST info *)

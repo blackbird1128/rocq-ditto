@@ -32,7 +32,6 @@ let create_vo_path_from_filepath (filepath : string) : Loadpath.vo_path =
   {
     implicit = false;
     recursive = true;
-    has_ml = false;
     unix_path = Option.default (Sys.getcwd ()) (get_workspace_folder filepath);
     coq_path = Names.DirPath.make [ Names.Id.of_string "Coq" ];
   }
@@ -44,7 +43,6 @@ let cmdline_from_coqproject ~(base_cmdline : Coq.Workspace.CmdLine.t)
     let open Loadpath in
     let unix_path, coq_path = f in
     {
-      has_ml = false;
       implicit;
       recursive = true;
       unix_path = unix_path.path;
@@ -77,11 +75,9 @@ let workspace_to_cmdline (workspace : Coq.Workspace.t) : Coq.Workspace.CmdLine.t
     =
   {
     coqlib = workspace.coqlib;
-    coqcorelib = workspace.coqcorelib;
     findlib_config = workspace.findlib_config;
     ocamlpath = workspace.ocamlpath;
     vo_load_path = workspace.vo_load_path;
-    ml_include_path = workspace.ml_include_path;
     args = [];
     require_libraries =
       List.map require_t_to_cmdline_format workspace.require_libs;

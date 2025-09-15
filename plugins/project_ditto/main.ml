@@ -122,7 +122,7 @@ let transform_project () : (int, Error.t) result =
             copy_file coqproject_file
               (Filename.concat !output_folder "_CoqProject")
           in
-          (* DITTO_TRANSFORMATION=T1 dune exec fcc -- --root=files_root_folder --plugin=ditto-plugin $(coqdep -sort -f files_root_folder/_CoqProject)  *)
+
           let env =
             Array.append (Unix.environment ())
               [|
