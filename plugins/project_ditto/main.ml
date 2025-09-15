@@ -126,7 +126,7 @@ let transform_project () : (int, Error.t) result =
           let env =
             Array.append (Unix.environment ())
               [|
-                "DITTO_TRANSFORMATION=make_intros_explicit"; "FILE_POSTFIX=.v";
+                "DITTO_TRANSFORMATION=id_transformation"; "FILE_POSTFIX=.v";
               |]
           in
 
