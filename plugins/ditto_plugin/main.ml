@@ -61,6 +61,23 @@ let print_help (transformation_help : (transformation_kind * string) list) :
       print_newline ())
     transformation_help
 
+let transformations_help =
+  [
+    ( MakeIntrosExplicit,
+      "Transform intros. into intros X_1 ... X_n where X are the variables \
+       introduced by intros." );
+    ( TurnIntoOneliner,
+      "Remove all commands from the proof and turn all steps into a single \
+       tactic call using the ';' and '[]' tacticals." );
+    ( ReplaceAutoWithSteps,
+      "Replace all calls to the 'auto' tactic with the steps effectively used \
+       by auto using 'info_auto' trace." );
+    ( CompressIntro,
+      "Replace consecutive calls to the 'intro' tactic with one call to \
+       'intros'." );
+    (IdTransformation, "Keep the file the same.");
+  ]
+
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   Printexc.record_backtrace true;
   let uri = doc.uri in
@@ -80,24 +97,6 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         let first_errors = List.filteri (fun i _ -> i < 5) errors in
         print_diagnostics first_errors
       else
-        let transformations_help =
-          [
-            ( MakeIntrosExplicit,
-              "Transform intros. into intros X_1 ... X_n where X are the \
-               variables introduced by intros." );
-            ( TurnIntoOneliner,
-              "Remove all commands from the proof and turn all steps into a \
-               single tactic call using the ';' and '[]' tacticals." );
-            ( ReplaceAutoWithSteps,
-              "Replace all calls to the 'auto' tactic with the steps \
-               effectively used by auto using 'info_auto' trace." );
-            ( CompressIntro,
-              "Replace consecutive calls to the 'intro' tactic with one call \
-               to 'intros'." );
-            (IdTransformation, "Keep the file the same.");
-          ]
-        in
-
         match Sys.getenv_opt "DITTO_TRANSFORMATION" with
         | Some args -> (
             let args = String.split_on_char ',' args in
@@ -154,9 +153,14 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                   (Ok parsed_document) transformations
               in
 
+              let file_postfix =
+                Option.default "_bis.v" (Sys.getenv_opt "FILE_POSTFIX")
+              in
               match res with
               | Ok res ->
-                  let filename = Filename.remove_extension uri_str ^ "_bis.v" in
+                  let filename =
+                    Filename.remove_extension uri_str ^ file_postfix
+                  in
                   print_endline
                     ("All transformations applied, writing to file" ^ filename);
 

@@ -101,7 +101,11 @@ let coqproject_sorted_files (coqproject_file : string) :
   let ic = Unix.open_process_in cmd in
   let lines = read_all ic in
   match Unix.close_process_in ic with
-  | Unix.WEXITED 0 -> Ok (String.split_on_char ' ' (List.hd lines))
+  | Unix.WEXITED 0 ->
+      Ok
+        (List.filter
+           (fun x -> String.length x > 0)
+           (String.split_on_char ' ' (List.hd lines)))
   | Unix.WEXITED n ->
       Error.string_to_or_error_err
         (Printf.sprintf "coqdep exited with %d; output:\n%s" n

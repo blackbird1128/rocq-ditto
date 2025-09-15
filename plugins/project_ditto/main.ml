@@ -10,7 +10,7 @@ let is_directory (path : string) : bool =
     stats.Unix.st_kind = Unix.S_DIR
   with Unix.Unix_error _ -> false
 
-let copy_file src dst : (unit, string) result =
+let copy_file (src : string) (dst : string) : (unit, Error.t) result =
   let buffer_size = 8192 in
   let buffer = Bytes.create buffer_size in
   try
@@ -28,8 +28,8 @@ let copy_file src dst : (unit, string) result =
     close_out oc;
     Ok ()
   with
-  | Sys_error msg -> Error msg
-  | e -> Error (Printexc.to_string e)
+  | Sys_error msg -> Error.string_to_or_error_err msg
+  | e -> Error.string_to_or_error_err (Printexc.to_string e)
 
 type newDirState = AlreadyExists | Created
 
@@ -46,6 +46,16 @@ let make_dir dir_name : (newDirState, Error.t) result =
 let set_input_folder (path : string) =
   if is_directory path then input_folder := path
   else raise (Arg.Bad (Printf.sprintf "Invalid input folder: %s" path))
+
+let string_of_process_status = function
+  | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
+  | Unix.WSIGNALED signal -> Printf.sprintf "Killed by signal %d" signal
+  | Unix.WSTOPPED signal -> Printf.sprintf "Stopped by signal %d" signal
+
+(* Example usage *)
+let () =
+  let status = Unix.system "ls" in
+  print_endline (string_of_process_status status)
 
 let speclist =
   [
@@ -68,6 +78,7 @@ let transform_project () : (int, Error.t) result =
   Arg.parse speclist
     (fun anon -> Printf.printf "Ignoring anonymous arg: %s\n" anon)
     usage_msg;
+  let dev_null = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0o666 in
 
   if !input_folder = "" then
     Error.string_to_or_error_err "Please provide an input folder"
@@ -76,9 +87,9 @@ let transform_project () : (int, Error.t) result =
   else
     let coqproject_opt = Compile.find_coqproject !input_folder in
     match coqproject_opt with
-    | Some coqproject ->
+    | Some coqproject_folder ->
         let open CoqProject_file in
-        let coqproject_file = coqproject ^ "_CoqProject" in
+        let coqproject_file = coqproject_folder ^ "_CoqProject" in
         print_endline ("coq project file: " ^ coqproject_file);
         let p =
           CoqProject_file.read_project_file
@@ -87,14 +98,76 @@ let transform_project () : (int, Error.t) result =
         in
         let files = List.map (fun x -> x.thing) p.files in
         let filenames = List.map Filename.basename files in
-        List.iter print_endline files;
         print_endline "---------------------------";
         let* dep_files = Compile.coqproject_sorted_files coqproject_file in
-
+        let dep_filenames = List.map Filename.basename dep_files in
+        List.iter (fun x -> print_endline ("dep: " ^ x)) dep_files;
         let* new_dir_state = make_dir !output_folder in
         warn_if_exists new_dir_state;
 
-        exit 0
+        let copy_file_status =
+          List.mapi
+            (fun i x ->
+              copy_file x
+                (Filename.concat !output_folder (List.nth filenames i)))
+            files
+        in
+        let opt_err = List.find_opt Result.is_error copy_file_status in
+        if Option.has_some opt_err then
+          let err = Option.get opt_err in
+          let err_message = Result.get_error err in
+          Error err_message
+        else
+          let* coq_project_copy =
+            copy_file coqproject_file
+              (Filename.concat !output_folder "_CoqProject")
+          in
+          (* DITTO_TRANSFORMATION=T1 dune exec fcc -- --root=files_root_folder --plugin=ditto-plugin $(coqdep -sort -f files_root_folder/_CoqProject)  *)
+          let env =
+            Array.append (Unix.environment ())
+              [|
+                "DITTO_TRANSFORMATION=make_intros_explicit"; "FILE_POSTFIX=.v";
+              |]
+          in
+
+          let prog = "dune" in
+          let args =
+            [|
+              prog;
+              "exec";
+              "fcc";
+              "--";
+              "--root=" ^ !output_folder;
+              "--plugin=ditto-plugin";
+            |]
+          in
+
+          let transformations_status =
+            List.map
+              (fun x ->
+                let curr_args =
+                  Array.append args [| Filename.concat !output_folder x |]
+                in
+
+                let pid =
+                  Unix.create_process_env prog curr_args env Unix.stdin
+                    Unix.stdout Unix.stderr
+                in
+                let _, status = Unix.waitpid [] pid in
+                (status, x))
+              dep_filenames
+          in
+          let opt_err_transformation =
+            List.find_opt
+              (fun (status, x) ->
+                match status with Unix.WEXITED 0 -> false | _ -> true)
+              transformations_status
+          in
+          if Option.has_some opt_err_transformation then
+            let err = Option.get opt_err_transformation in
+            Error.string_to_or_error_err
+              (string_of_process_status (fst err) ^ " filename " ^ snd err)
+          else Ok 0
     | None ->
         prerr_endline
           (Printf.sprintf "No CoqProject_ file found in %s" !input_folder);
