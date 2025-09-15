@@ -1,5 +1,5 @@
 (library
  (public_name get-basic-tactics-plugin)
  (name get_basic_tactics_plugin)
- (libraries coq-ditto coq-core.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche )
+ (libraries coq-ditto rocq-runtime.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche )
  )

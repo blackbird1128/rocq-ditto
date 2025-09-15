@@ -1,5 +1,5 @@
 (library
  (public_name target-generator-plugin)
  (name ditto_target_generator)
- (libraries coq-ditto coq-core.plugins.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche)
+ (libraries coq-ditto rocq-runtime.plugins.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche)
  )
