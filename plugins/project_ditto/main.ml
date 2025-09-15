@@ -130,16 +130,9 @@ let transform_project () : (int, Error.t) result =
               |]
           in
 
-          let prog = "dune" in
+          let prog = "fcc" in
           let args =
-            [|
-              prog;
-              "exec";
-              "fcc";
-              "--";
-              "--root=" ^ !output_folder;
-              "--plugin=ditto-plugin";
-            |]
+            [| prog; "--root=" ^ !output_folder; "--plugin=ditto-plugin" |]
           in
 
           let transformations_status =
