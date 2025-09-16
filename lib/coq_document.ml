@@ -184,6 +184,7 @@ let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
 let parse_document (doc : Doc.t) : t =
   let nodes = doc.nodes in
   let document_repr = doc.contents.raw in
+  print_endline ("raw doc repr " ^ document_repr);
   let filename = Lang.LUri.File.to_string_uri doc.uri in
 
   let nodes_with_ast =
@@ -505,105 +506,87 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
 
 let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
     (t, Error.t) result =
-  match validate_syntax_node replacement with
-  | Error err -> Error.string_to_or_error_err err
-  | Ok replacement -> (
-      match element_with_id_opt target_id doc with
-      | Some target -> (
-          let _, after_replaced = (split_at_id target.id) doc in
-          let node_after_opt = List.nth_opt after_replaced 0 in
-          let dist_to_node_after =
-            Option.cata
-              (fun node_after ->
-                max 0 (node_after.range.start.line - target.range.end_.line - 1))
-              0 node_after_opt
-          in
-          print_endline ("node after repr: " ^ (Option.get node_after_opt).repr);
-          print_endline
-            ("node after "
-            ^ Code_range.to_string (Option.get node_after_opt).range);
-          print_endline
-            ("dist to node after " ^ string_of_int dist_to_node_after);
+  let ( let* ) = Result.bind in
+  let* replacement = validate_syntax_node replacement in
+  match element_with_id_opt target_id doc with
+  | Some target ->
+      let _, after_replaced = (split_at_id target.id) doc in
+      let node_after_opt = List.nth_opt after_replaced 0 in
 
-          let replacement_shifted =
-            {
-              replacement with
-              range =
-                Range_utils.range_from_starting_point_and_repr
-                  target.range.start replacement.repr;
-            }
-          in
-          print_endline ("replacement_shifted: " ^ replacement_shifted.repr);
-          print_endline
-            ("replacement shifted range: "
-            ^ Code_range.to_string replacement_shifted.range);
+      let replacement_shifted =
+        {
+          replacement with
+          range =
+            Range_utils.range_from_starting_point_and_repr target.range.start
+              replacement.repr;
+        }
+      in
 
-          let replacement_height =
-            replacement_shifted.range.end_.line
-            - replacement_shifted.range.start.line + 1
-          in
+      let replacement_height =
+        replacement_shifted.range.end_.line
+        - replacement_shifted.range.start.line + 1
+      in
 
-          let removed_node_doc =
-            remove_node_with_id ~remove_method:LeaveBlank target.id doc
-            |> Result.get_ok
-            (* we already checked for the node existence *)
-          in
+      let removed_node_doc =
+        remove_node_with_id ~remove_method:LeaveBlank target.id doc
+        |> Result.get_ok
+        (* we already checked for the node existence *)
+      in
 
-          let has_same_lines_elements =
-            List.exists
-              (fun node ->
-                node.id != target.id
-                && node.range.start.line = target.range.end_.line)
-              removed_node_doc.elements
-          in
+      let has_same_lines_elements =
+        List.exists
+          (fun node ->
+            node.id != target.id
+            && node.range.start.line = target.range.end_.line)
+          removed_node_doc.elements
+      in
 
-          if has_same_lines_elements && replacement_height = 1 then
-            insert_node replacement_shifted ~shift_method:ShiftHorizontally
-              removed_node_doc
-          else
-            let new_doc =
-              insert_node replacement_shifted ~shift_method:ShiftVertically
-                removed_node_doc
-            in
-            match new_doc with
-            | Ok new_doc ->
-                let before_replacement, after_replacement =
-                  (split_at_id replacement_shifted.id) new_doc
-                in
-                let new_node_after_opt = List.nth_opt after_replacement 0 in
+      if has_same_lines_elements && replacement_height = 1 then
+        insert_node replacement_shifted ~shift_method:ShiftHorizontally
+          removed_node_doc
+      else
+        let* new_doc =
+          insert_node replacement_shifted ~shift_method:ShiftVertically
+            removed_node_doc
+        in
 
-                let new_dist_to_node_after =
-                  Option.cata
-                    (fun node_after ->
-                      max 0
-                        (node_after.range.start.line
-                       - replacement_shifted.range.end_.line - 1))
-                    0 node_after_opt
-                in
-                print_endline
-                  ("new dist " ^ string_of_int new_dist_to_node_after);
-
-                let diff_dist = dist_to_node_after - new_dist_to_node_after in
-
-                print_endline ("diff dist " ^ string_of_int diff_dist);
-                print_endline
-                  ("new node after " ^ (Option.get new_node_after_opt).repr);
-                print_endline
-                  ("new node after range "
-                  ^ Code_range.to_string (Option.get new_node_after_opt).range);
-                Ok
-                  {
-                    new_doc with
-                    elements =
-                      before_replacement
-                      @ replacement_shifted
-                        :: List.map (shift_node diff_dist 0) after_replacement;
-                  }
-            | Error err -> Error err)
-      | None ->
+        let before_replacement, after_replacement =
+          (split_at_id replacement_shifted.id) new_doc
+        in
+        let new_node_after_opt = List.nth_opt after_replacement 0 in
+        if
+          not
+            (Option.equal
+               (fun x y -> x.id = y.id)
+               node_after_opt new_node_after_opt)
+        then
           Error.string_to_or_error_err
-            ("The target node with id : " ^ Uuidm.to_string target_id
-           ^ " doesn't exists"))
+            "This should not happen, please report this bug if you see it"
+        else
+          let dist =
+            match (node_after_opt, new_node_after_opt) with
+            | Some before, Some after ->
+                let dist_before =
+                  before.range.start.line - target.range.end_.line
+                in
+                let dist_after =
+                  after.range.start.line - replacement_shifted.range.end_.line
+                in
+                dist_before - dist_after
+            | _ -> 0
+          in
+          Ok
+            {
+              new_doc with
+              elements =
+                before_replacement
+                @ replacement_shifted
+                  :: List.map (shift_node dist 0) after_replacement;
+            }
+  | None ->
+      Error.string_to_or_error_err
+        ("The target node with id : " ^ Uuidm.to_string target_id
+       ^ " doesn't exists")
 
 let replace_proof (target_id : Uuidm.t) (new_proof : proof) (doc : t) :
     transformation_step list option =

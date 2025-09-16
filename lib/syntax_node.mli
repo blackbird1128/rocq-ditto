@@ -41,7 +41,7 @@ val reformat_node : syntaxNode -> (syntaxNode, string) result
     [Error] if [node.ast] is none. *)
 
 val string_of_syntax_node : syntaxNode -> string
-val validate_syntax_node : syntaxNode -> (syntaxNode, string) result
+val validate_syntax_node : syntaxNode -> (syntaxNode, Error.t) result
 
 val mk_vernac_control :
   ?loc:Loc.t -> synterp_vernac_expr vernac_expr_gen -> vernac_control

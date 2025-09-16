@@ -99,14 +99,15 @@ let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
       else compare a.range.start.character b.range.start.character
   | None -> compare a.range.start.line b.range.start.line
 
-let validate_syntax_node (x : syntaxNode) : (syntaxNode, string) result =
+let validate_syntax_node (x : syntaxNode) : (syntaxNode, Error.t) result =
   if x.range.end_.line < x.range.start.line then
-    Error "Incorrect range: range end line is smaller than the range start line"
+    Error.string_to_or_error_err
+      "Incorrect range: range end line is smaller than the range start line"
   else if
     x.range.start.line = x.range.end_.line
     && String.length x.repr > x.range.end_.character - x.range.start.character
   then
-    Error
+    Error.string_to_or_error_err
       "Incorrect range: the height of the node is one and the range end \
        character minus range start character is smaller than the node \
        character size"
