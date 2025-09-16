@@ -279,6 +279,18 @@ let test_parsing_instance (doc : Doc.t) () : unit =
   Alcotest.check proof_status_testable "The proof should be proved" Proof.Proved
     first_proof.status
 
+let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
+  let doc = Coq_document.parse_document doc in
+  print_endline ("filename " ^ doc.filename);
+  List.iter (fun x -> print_endline x.repr) doc.elements;
+  let reconstructed = Coq_document.dump_to_string doc in
+  Alcotest.(check (result string error_testable))
+    "The document should be correctly reconstructed"
+    (Ok
+       "Lemma a:forall n:nat,n*0=0.Proof.induction n.reflexivity.simpl.rewrite \
+        IHn.reflexivity.")
+    reconstructed
+
 let test_creating_valid_syntax_node_from_string (doc : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." point in
@@ -1157,69 +1169,73 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test creating an invalid node"
        test_creating_invalid_syntax_node_from_string doc);
 
-  (* Hashtbl.add table "ex_proof_tree1.v" *)
-  (*   (create_fixed_test "test counting the goals of each steps of a simple proof" *)
-  (*      test_count_goals_simple_proof_without_focus doc); *)
-  (* Hashtbl.add table "ex_proof_tree2.v" *)
-  (*   (create_fixed_test *)
-  (*      "test counting the goals of each steps of a proof with bullets" *)
-  (*      test_count_goals_proof_with_bullets_without_focus doc); *)
-  (* Hashtbl.add table "ex_proof_with_brackets.v" *)
-  (*   (create_fixed_test "test counting the goals of a proof with brackets" *)
-  (*      test_count_goals_proof_with_brackets_without_focus doc); *)
-  (* Hashtbl.add table "ex_proof_brackets_bullets.v" *)
-  (*   (create_fixed_test *)
-  (*      "test counting the goals of a proof with brackets and bullets" *)
-  (*      test_count_goals_proof_with_brackets_bullets_without_focus doc); *)
-  (* Hashtbl.add table "ex_proof_nested_bullets.v" *)
-  (*   (create_fixed_test "test counting the goals of a proof with nested bullets" *)
-  (*      test_count_goals_proof_with_nested_bullets_without_focus doc); *)
-  (* Hashtbl.add table "ex_proof_tree1.v" *)
-  (*   (create_fixed_test "test creating a simple proof tree" *)
-  (*      test_parse_simple_proof_to_proof_tree doc); *)
+  Hashtbl.add table "ex_proof_tree1.v"
+    (create_fixed_test "test counting the goals of each steps of a simple proof"
+       test_count_goals_simple_proof_without_focus doc);
+  Hashtbl.add table "ex_proof_tree2.v"
+    (create_fixed_test
+       "test counting the goals of each steps of a proof with bullets"
+       test_count_goals_proof_with_bullets_without_focus doc);
+  Hashtbl.add table "ex_proof_with_brackets.v"
+    (create_fixed_test "test counting the goals of a proof with brackets"
+       test_count_goals_proof_with_brackets_without_focus doc);
+  Hashtbl.add table "ex_proof_brackets_bullets.v"
+    (create_fixed_test
+       "test counting the goals of a proof with brackets and bullets"
+       test_count_goals_proof_with_brackets_bullets_without_focus doc);
+  Hashtbl.add table "ex_proof_nested_bullets.v"
+    (create_fixed_test "test counting the goals of a proof with nested bullets"
+       test_count_goals_proof_with_nested_bullets_without_focus doc);
+  Hashtbl.add table "ex_proof_tree1.v"
+    (create_fixed_test "test creating a simple proof tree"
+       test_parse_simple_proof_to_proof_tree doc);
 
-  (* Hashtbl.add table "ex_proof_tree2.v" *)
-  (*   (create_fixed_test "test creating a proof tree with bullets" *)
-  (*      test_parse_proof_with_bullets_to_proof_tree doc); *)
-  (* Hashtbl.add table "ex_parsing1.v" *)
-  (*   (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc); *)
-  (* Hashtbl.add table "ex_parsing2.v" *)
-  (*   (create_fixed_test "test parsing ex 2" test_parsing_ex2 doc); *)
-  (* Hashtbl.add table "ex_parsing2.v" *)
-  (*   (create_fixed_test "test parsing basic proof properties ex 2" *)
-  (*      test_parsing_ex2 doc); *)
-  (* Hashtbl.add table "ex_admit.v" *)
-  (*   (create_fixed_test "test parsing admitted proof" test_parsing_admit doc); *)
-  (* Hashtbl.add table "ex_defined1.v" *)
-  (*   (create_fixed_test "test parsing defined proof" test_parsing_defined doc); *)
-  (* Hashtbl.add table "ex_function1.v" *)
-  (*   (create_fixed_test "test parsing function proof" test_parsing_function doc); *)
-  (* Hashtbl.add table "ex_abort1.v" *)
-  (*   (create_fixed_test "test parsing aborted proof 1" test_parsing_abort1 doc); *)
-  (* Hashtbl.add table "ex_abort2.v" *)
-  (*   (create_fixed_test "test parsing aborted proof 2" test_parsing_abort2 doc); *)
-  (* Hashtbl.add table "ex_instance1.v" *)
-  (*   (create_fixed_test "test parsing an instance proof" test_parsing_instance *)
-  (*      doc); *)
+  Hashtbl.add table "ex_proof_tree2.v"
+    (create_fixed_test "test creating a proof tree with bullets"
+       test_parse_proof_with_bullets_to_proof_tree doc);
+  Hashtbl.add table "ex_parsing1.v"
+    (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
+  Hashtbl.add table "ex_parsing2.v"
+    (create_fixed_test "test parsing ex 2" test_parsing_ex2 doc);
+  Hashtbl.add table "ex_parsing2.v"
+    (create_fixed_test "test parsing basic proof properties ex 2"
+       test_parsing_ex2 doc);
+  Hashtbl.add table "ex_admit.v"
+    (create_fixed_test "test parsing admitted proof" test_parsing_admit doc);
+  Hashtbl.add table "ex_defined1.v"
+    (create_fixed_test "test parsing defined proof" test_parsing_defined doc);
+  Hashtbl.add table "ex_function1.v"
+    (create_fixed_test "test parsing function proof" test_parsing_function doc);
+  Hashtbl.add table "ex_abort1.v"
+    (create_fixed_test "test parsing aborted proof 1" test_parsing_abort1 doc);
+  Hashtbl.add table "ex_abort2.v"
+    (create_fixed_test "test parsing aborted proof 2" test_parsing_abort2 doc);
+  Hashtbl.add table "ex_instance1.v"
+    (create_fixed_test "test parsing an instance proof" test_parsing_instance
+       doc);
 
-  (* Hashtbl.add table "ex_parsing2.v" *)
-  (*   (create_fixed_test "test names and steps retrival ex 2" *)
-  (*      test_proof_parsing_name_and_steps_ex2 doc); *)
-  (* Hashtbl.add table "ex_parsing3.v" *)
-  (*   (create_fixed_test "test parsing of two proofs ex3" *)
-  (*      test_proof_parsing_multiple_proofs_ex3 doc); *)
-  (* Hashtbl.add table "ex_parsing4.v" *)
-  (*   (create_fixed_test "test parsing single comment" test_parsing_comment_ex4 *)
-  (*      doc); *)
-  (* Hashtbl.add table "ex_parsing5.v" *)
-  (*   (create_fixed_test "test parsing multiple complex comments" *)
-  (*      test_parsing_multiples_comments_ex5 doc); *)
-  (* Hashtbl.add table "ex_parsing6.v" *)
-  (*   (create_fixed_test "test parsing embedded comments" *)
-  (*      test_parsing_embedded_comments_ex6 doc); *)
-  (* Hashtbl.add table "ex_parsing7.v" *)
-  (*   (create_fixed_test "test parsing weird comments" *)
-  (*      test_parsing_weird_comments_ex7 doc); *)
+  Hashtbl.add table "ex_parsing2.v"
+    (create_fixed_test "test names and steps retrival ex 2"
+       test_proof_parsing_name_and_steps_ex2 doc);
+  Hashtbl.add table "ex_parsing3.v"
+    (create_fixed_test "test parsing of two proofs ex3"
+       test_proof_parsing_multiple_proofs_ex3 doc);
+  Hashtbl.add table "ex_parsing4.v"
+    (create_fixed_test "test parsing single comment" test_parsing_comment_ex4
+       doc);
+  Hashtbl.add table "ex_parsing5.v"
+    (create_fixed_test "test parsing multiple complex comments"
+       test_parsing_multiples_comments_ex5 doc);
+  Hashtbl.add table "ex_parsing6.v"
+    (create_fixed_test "test parsing embedded comments"
+       test_parsing_embedded_comments_ex6 doc);
+  Hashtbl.add table "ex_parsing7.v"
+    (create_fixed_test "test parsing weird comments"
+       test_parsing_weird_comments_ex7 doc);
+  Hashtbl.add table "ex_reconstructing_stuck_together.v"
+    (create_fixed_test "test reconstructing nodes glued together"
+       test_reconstructing_stuck_together doc);
+
   Hashtbl.add table "ex_id_assign1.v"
     (create_fixed_test "test the initial ordering of nodes in the document"
        test_id_assign_document doc);
