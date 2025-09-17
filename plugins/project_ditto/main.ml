@@ -1,8 +1,41 @@
 open Ditto
+open Ditto.Diagnostic_utils
+open Ditto.Proof
+
+type transformation_kind =
+  | Help
+  | MakeIntrosExplicit
+  | TurnIntoOneliner
+  | ReplaceAutoWithSteps
+  | CompressIntro
+  | IdTransformation
 
 let input_folder = ref ""
 let output_folder = ref ""
+let transformation_arg = ref ""
 let verbose = ref false
+
+let arg_to_transformation_kind (arg : string) :
+    (transformation_kind, string) result =
+  let normalized = String.lowercase_ascii arg in
+  if normalized = "help" then Ok Help
+  else if normalized = "make_intros_explicit" then Ok MakeIntrosExplicit
+  else if normalized = "turn_into_one_liner" then Ok TurnIntoOneliner
+  else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
+  else if normalized = "compress_intro" then Ok CompressIntro
+  else if normalized = "id_transformation" then Ok IdTransformation
+  else
+    Error
+      ("transformation " ^ arg ^ "wasn't recognized as a valid transformation")
+
+let transformation_kind_to_string (kind : transformation_kind) : string =
+  match kind with
+  | Help -> "HELP"
+  | MakeIntrosExplicit -> "MAKE_INTROS_EXPLICIT"
+  | TurnIntoOneliner -> "TURN_INTO_ONELINER"
+  | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
+  | CompressIntro -> "COMPRESS_INTROS"
+  | IdTransformation -> "ID_TRANSFORMATION"
 
 let is_directory (path : string) : bool =
   try
@@ -43,9 +76,14 @@ let make_dir dir_name : (newDirState, Error.t) result =
     with Unix.Unix_error (err, _, _) ->
       Error.string_to_or_error_err (Unix.error_message err)
 
-let set_input_folder (path : string) =
+let set_input_folder (path : string) : unit =
   if is_directory path then input_folder := path
   else raise (Arg.Bad (Printf.sprintf "Invalid input folder: %s" path))
+
+let set_transformation (t : string) : unit =
+  match arg_to_transformation_kind t with
+  | Ok arg -> transformation_arg := transformation_kind_to_string arg
+  | Error err -> raise (Arg.Bad err)
 
 let string_of_process_status = function
   | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
@@ -62,6 +100,7 @@ let speclist =
     ("-v", Arg.Set verbose, "Enable verbose output");
     ("-i", Arg.String set_input_folder, "Input folder");
     ("-o", Arg.Set_string output_folder, "Output folder");
+    ("-t", Arg.String set_transformation, "Transformation to apply");
   ]
 
 let usage_msg = "Usage: project_ditto [options]"
@@ -84,6 +123,8 @@ let transform_project () : (int, Error.t) result =
     Error.string_to_or_error_err "Please provide an input folder"
   else if !output_folder = "" then
     Error.string_to_or_error_err "Please provide an output folder"
+  else if !transformation_arg = "" then
+    Error.string_to_or_error_err "Please provide a transformation"
   else
     let coqproject_opt = Compile.find_coqproject !input_folder in
     match coqproject_opt with
@@ -126,7 +167,7 @@ let transform_project () : (int, Error.t) result =
           let env =
             Array.append (Unix.environment ())
               [|
-                "DITTO_TRANSFORMATION=id_transformation"; "FILE_POSTFIX=.v";
+                "DITTO_TRANSFORMATION=make_intros_explicit"; "FILE_POSTFIX=.v";
               |]
           in
 
