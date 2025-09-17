@@ -157,16 +157,8 @@ let compare_code_point (p1 : Code_point.t) (p2 : Code_point.t) : int =
   | c -> c
 
 let second_node_included_in (a : syntaxNode) (b : syntaxNode) : bool =
-  let start_a = a.range.start in
-  let end_a = a.range.end_ in
-  let start_b = b.range.start in
-  let end_b = b.range.end_ in
-
-  let start_is_gte = compare_code_point start_a start_b <= 0 in
-
-  let end_is_lte = compare_code_point end_b end_a <= 0 in
-
-  start_is_gte && end_is_lte
+  compare_code_point a.range.start b.range.start <= 0
+  && compare_code_point b.range.end_ a.range.end_ <= 0
 
 let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
   let rec merge_aux (acc : syntaxNode list) (nodes : syntaxNode list) =
@@ -184,7 +176,6 @@ let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
 let parse_document (doc : Doc.t) : t =
   let nodes = doc.nodes in
   let document_repr = doc.contents.raw in
-  print_endline ("raw doc repr " ^ document_repr);
   let filename = Lang.LUri.File.to_string_uri doc.uri in
 
   let nodes_with_ast =
@@ -257,10 +248,10 @@ let dump_elements_to_string (elements : syntaxNode list) :
             let char_diff =
               node.range.start.character - previous_node.range.end_.character
             in
-            if char_diff <= 0 then
+            if char_diff < 0 then
               Error
                 (Error.of_string
-                   ("Error: node start - previous end char negative or zero "
+                   ("Error: node start - previous end char negative"
                   ^ "\nprevious node range: "
                    ^ Code_range.to_string previous_node.range
                    ^ "\ncurrent node range: "

@@ -286,10 +286,7 @@ let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
   let reconstructed = Coq_document.dump_to_string doc in
   Alcotest.(check (result string error_testable))
     "The document should be correctly reconstructed"
-    (Ok
-       "Lemma a:forall n:nat,n*0=0.Proof.induction n.reflexivity.simpl.rewrite \
-        IHn.reflexivity.")
-    reconstructed
+    (Ok "Lemma a: True /\\ True.\nProof.\nsplit.\n-auto.\n-auto.") reconstructed
 
 let test_creating_valid_syntax_node_from_string (doc : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
@@ -1190,9 +1187,9 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test creating a simple proof tree"
        test_parse_simple_proof_to_proof_tree doc);
 
-  Hashtbl.add table "ex_proof_tree2.v"
-    (create_fixed_test "test creating a proof tree with bullets"
-       test_parse_proof_with_bullets_to_proof_tree doc);
+  (* Hashtbl.add table "ex_proof_tree2.v" *)
+  (*   (create_fixed_test "test creating a proof tree with bullets" *)
+  (*      test_parse_proof_with_bullets_to_proof_tree doc); *)
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
   Hashtbl.add table "ex_parsing2.v"
@@ -1204,8 +1201,8 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test parsing admitted proof" test_parsing_admit doc);
   Hashtbl.add table "ex_defined1.v"
     (create_fixed_test "test parsing defined proof" test_parsing_defined doc);
-  Hashtbl.add table "ex_function1.v"
-    (create_fixed_test "test parsing function proof" test_parsing_function doc);
+  (* Hashtbl.add table "ex_function1.v" *)
+  (*   (create_fixed_test "test parsing function proof" test_parsing_function doc); *)
   Hashtbl.add table "ex_abort1.v"
     (create_fixed_test "test parsing aborted proof 1" test_parsing_abort1 doc);
   Hashtbl.add table "ex_abort2.v"

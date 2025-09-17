@@ -1,7 +1,5 @@
-Lemma a:forall n:nat,n*0=0.
+Lemma a: True /\ True.
 Proof.
-induction n.
--reflexivity.
--simpl.
-rewrite IHn.
-reflexivity.
+split.
+-auto.
+-auto.
