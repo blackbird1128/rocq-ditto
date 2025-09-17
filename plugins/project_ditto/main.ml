@@ -15,6 +15,23 @@ let output_folder = ref ""
 let transformation_arg = ref ""
 let verbose = ref false
 
+let transformations_help =
+  [
+    ( MakeIntrosExplicit,
+      "Transform intros. into intros X_1 ... X_n where X are the variables \
+       introduced by intros." );
+    ( TurnIntoOneliner,
+      "Remove all commands from the proof and turn all steps into a single \
+       tactic call using the ';' and '[]' tacticals." );
+    ( ReplaceAutoWithSteps,
+      "Replace all calls to the 'auto' tactic with the steps effectively used \
+       by auto using 'info_auto' trace." );
+    ( CompressIntro,
+      "Replace consecutive calls to the 'intro' tactic with one call to \
+       'intros'." );
+    (IdTransformation, "Keep the file the same.");
+  ]
+
 let arg_to_transformation_kind (arg : string) :
     (transformation_kind, string) result =
   let normalized = String.lowercase_ascii arg in
@@ -26,16 +43,23 @@ let arg_to_transformation_kind (arg : string) :
   else if normalized = "id_transformation" then Ok IdTransformation
   else
     Error
-      ("transformation " ^ arg ^ "wasn't recognized as a valid transformation")
+      ("transformation " ^ arg ^ " wasn't recognized as a valid transformation")
 
 let transformation_kind_to_string (kind : transformation_kind) : string =
   match kind with
   | Help -> "HELP"
   | MakeIntrosExplicit -> "MAKE_INTROS_EXPLICIT"
-  | TurnIntoOneliner -> "TURN_INTO_ONELINER"
+  | TurnIntoOneliner -> "TURN_INTO_ONE_LINER"
   | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
   | CompressIntro -> "COMPRESS_INTROS"
   | IdTransformation -> "ID_TRANSFORMATION"
+
+let help_to_string (transformation_help : (transformation_kind * string) list) :
+    string =
+  List.fold_left
+    (fun acc (kind, help) ->
+      acc ^ (transformation_kind_to_string kind ^ ": " ^ help) ^ "\n")
+    "" transformation_help
 
 let is_directory (path : string) : bool =
   try
@@ -83,7 +107,11 @@ let set_input_folder (path : string) : unit =
 let set_transformation (t : string) : unit =
   match arg_to_transformation_kind t with
   | Ok arg -> transformation_arg := transformation_kind_to_string arg
-  | Error err -> raise (Arg.Bad err)
+  | Error err ->
+      raise
+        (Arg.Bad
+           (err ^ "\nvalid transformations:\n"
+           ^ help_to_string transformations_help))
 
 let string_of_process_status = function
   | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
@@ -131,7 +159,6 @@ let transform_project () : (int, Error.t) result =
     | Some coqproject_folder ->
         let open CoqProject_file in
         let coqproject_file = coqproject_folder ^ "_CoqProject" in
-        print_endline ("coq project file: " ^ coqproject_file);
         let p =
           CoqProject_file.read_project_file
             ~warning_fn:(fun _ -> ())
@@ -139,10 +166,8 @@ let transform_project () : (int, Error.t) result =
         in
         let files = List.map (fun x -> x.thing) p.files in
         let filenames = List.map Filename.basename files in
-        print_endline "---------------------------";
         let* dep_files = Compile.coqproject_sorted_files coqproject_file in
         let dep_filenames = List.map Filename.basename dep_files in
-        List.iter (fun x -> print_endline ("dep: " ^ x)) dep_files;
         let* new_dir_state = make_dir !output_folder in
         warn_if_exists new_dir_state;
 
@@ -167,7 +192,7 @@ let transform_project () : (int, Error.t) result =
           let env =
             Array.append (Unix.environment ())
               [|
-                "DITTO_TRANSFORMATION=make_intros_explicit"; "FILE_POSTFIX=.v";
+                "DITTO_TRANSFORMATION=" ^ !transformation_arg; "FILE_POSTFIX=.v";
               |]
           in
 
