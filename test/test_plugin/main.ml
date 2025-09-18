@@ -1238,7 +1238,7 @@ let setup_test_table table (doc : Doc.t) =
        test_parsing_ex2 doc);
   Hashtbl.add table "ex_admit.v"
     (create_fixed_test "test parsing admitted proof" test_parsing_admit doc);
-  Hashtbl.add table "ex_defined1.v"
+  Hashtbl.add table "ex_definition1.v"
     (create_fixed_test "test parsing defined proof" test_parsing_defined doc);
   Hashtbl.add table "ex_function1.v"
     (create_fixed_test "test parsing function proof" test_parsing_function doc);
