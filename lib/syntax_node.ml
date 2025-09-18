@@ -334,7 +334,8 @@ let is_syntax_node_function_start (x : syntaxNode) : bool =
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, _) ->
-              ext.ext_plugin = "coq-core.plugins.funind"
+              (ext.ext_plugin = "coq-core.plugins.funind"
+              || ext.ext_plugin = "rocq-runtime.plugins.funind")
               && ext.ext_entry = "Function"
           | _ -> false)
       | VernacSynPure _ -> false)
@@ -446,7 +447,10 @@ let get_tactic_raw_generic_arguments (x : syntaxNode) :
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, args) ->
-              if ext.ext_plugin = "coq-core.plugins.ltac" then Some args
+              if
+                ext.ext_plugin = "coq-core.plugins.ltac"
+                || ext.ext_plugin = "rocq-runtime.plugins.ltac"
+              then Some args
               else None
           | _ -> None)
       | VernacSynPure _ -> None)

@@ -180,6 +180,12 @@ let test_parsing_defined (doc : Doc.t) () : unit =
 
 let test_parsing_function (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
+  List.iter
+    (fun x ->
+      print_endline
+        (x.repr ^ "can open proof "
+        ^ string_of_bool (Syntax_node.node_can_open_proof x)))
+    doc.elements;
   let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
@@ -1234,8 +1240,8 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test parsing admitted proof" test_parsing_admit doc);
   Hashtbl.add table "ex_defined1.v"
     (create_fixed_test "test parsing defined proof" test_parsing_defined doc);
-  (* Hashtbl.add table "ex_function1.v" *)
-  (*   (create_fixed_test "test parsing function proof" test_parsing_function doc); *)
+  Hashtbl.add table "ex_function1.v"
+    (create_fixed_test "test parsing function proof" test_parsing_function doc);
   Hashtbl.add table "ex_abort1.v"
     (create_fixed_test "test parsing aborted proof 1" test_parsing_abort1 doc);
   Hashtbl.add table "ex_abort2.v"
