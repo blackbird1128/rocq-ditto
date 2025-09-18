@@ -25,7 +25,7 @@
 
 (package
   (name ditto-plugin)
-  (synopsis "Base Fleche plugin used to run transformation" )
+  (synopsis "Basic Fleche plugin used by coq-ditto to run transformation" )
   (allow_empty)
   (depends ocaml dune coq-lsp base-unix re coq-ditto)
  )

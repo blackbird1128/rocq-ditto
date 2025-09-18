@@ -1,6 +1,6 @@
 (executable
  (name main)
  (package coq-ditto)
- (public_name ditto_project)
+ (public_name coq-ditto)
  (libraries unix coq-ditto coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche)
  )
