@@ -153,14 +153,13 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                   (Ok parsed_document) transformations
               in
 
-              let file_postfix =
-                Option.default "_bis.v" (Sys.getenv_opt "FILE_POSTFIX")
+              let filename =
+                Option.default
+                  (Filename.remove_extension uri_str ^ "_bis.v")
+                  (Sys.getenv_opt "OUTPUT_FILENAME")
               in
               match res with
               | Ok res ->
-                  let filename =
-                    Filename.remove_extension uri_str ^ file_postfix
-                  in
                   print_endline
                     ("All transformations applied, writing to file" ^ filename);
 

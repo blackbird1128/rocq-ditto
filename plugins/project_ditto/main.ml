@@ -10,8 +10,10 @@ type transformation_kind =
   | CompressIntro
   | IdTransformation
 
-let input_folder = ref ""
-let output_folder = ref ""
+type path_kind = Dir | File
+
+let input_arg = ref ""
+let output_arg = ref ""
 let transformation_arg = ref ""
 let verbose = ref false
 
@@ -67,6 +69,9 @@ let is_directory (path : string) : bool =
     stats.Unix.st_kind = Unix.S_DIR
   with Unix.Unix_error _ -> false
 
+let get_pathkind (path : string) : path_kind =
+  if is_directory path then Dir else File
+
 let copy_file (src : string) (dst : string) : (unit, Error.t) result =
   let buffer_size = 8192 in
   let buffer = Bytes.create buffer_size in
@@ -100,9 +105,9 @@ let make_dir dir_name : (newDirState, Error.t) result =
     with Unix.Unix_error (err, _, _) ->
       Error.string_to_or_error_err (Unix.error_message err)
 
-let set_input_folder (path : string) : unit =
-  if is_directory path then input_folder := path
-  else raise (Arg.Bad (Printf.sprintf "Invalid input folder: %s" path))
+let set_input_arg (path : string) : unit =
+  if is_directory path || Sys.file_exists path then input_arg := path
+  else raise (Arg.Bad (Printf.sprintf "Invalid input file or folder: %s" path))
 
 let set_transformation (t : string) : unit =
   match arg_to_transformation_kind t with
@@ -126,8 +131,8 @@ let () =
 let speclist =
   [
     ("-v", Arg.Set verbose, "Enable verbose output");
-    ("-i", Arg.String set_input_folder, "Input folder");
-    ("-o", Arg.Set_string output_folder, "Output folder");
+    ("-i", Arg.String set_input_arg, "Input folder or filename");
+    ("-o", Arg.Set_string output_arg, "Output folder or filename");
     ("-t", Arg.String set_transformation, "Transformation to apply");
   ]
 
@@ -147,91 +152,124 @@ let transform_project () : (int, Error.t) result =
     usage_msg;
   let dev_null = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0o666 in
 
-  if !input_folder = "" then
-    Error.string_to_or_error_err "Please provide an input folder"
-  else if !output_folder = "" then
-    Error.string_to_or_error_err "Please provide an output folder"
+  if !input_arg = "" then
+    Error.string_to_or_error_err "Please provide an input folder or file"
+  else if !output_arg = "" then
+    Error.string_to_or_error_err "Please provide an output folder or filename"
   else if !transformation_arg = "" then
     Error.string_to_or_error_err "Please provide a transformation"
   else
-    let coqproject_opt = Compile.find_coqproject_dir_and_file !input_folder in
-    match coqproject_opt with
-    | Some (coqproject_dir, coqproject_file) ->
-        let open CoqProject_file in
-        let coqproject_path = Filename.concat coqproject_dir coqproject_file in
-        let p =
-          CoqProject_file.read_project_file
-            ~warning_fn:(fun _ -> ())
-            coqproject_path
-        in
-        let files = List.map (fun x -> x.thing) p.files in
-        let filenames = List.map Filename.basename files in
-        let* dep_files = Compile.coqproject_sorted_files coqproject_path in
-        let dep_filenames = List.map Filename.basename dep_files in
-        let* new_dir_state = make_dir !output_folder in
-        warn_if_exists new_dir_state;
-
-        let copy_file_status =
-          List.mapi
-            (fun i x ->
-              copy_file x
-                (Filename.concat !output_folder (List.nth filenames i)))
-            files
-        in
-        let opt_err = List.find_opt Result.is_error copy_file_status in
-        if Option.has_some opt_err then
-          let err = Option.get opt_err in
-          let err_message = Result.get_error err in
-          Error err_message
+    match get_pathkind !input_arg with
+    | File -> (
+        if is_directory !output_arg then
+          Error.string_to_or_error_err
+            "Please provide a filename as output when providing a file as input"
         else
-          let* coq_project_copy =
-            copy_file coqproject_path
-              (Filename.concat !output_folder coqproject_file)
-          in
-
+          let input_dir = Filename.dirname !input_arg in
+          let output_dir = Filename.dirname !output_arg in
           let env =
             Array.append (Unix.environment ())
               [|
-                "DITTO_TRANSFORMATION=" ^ !transformation_arg; "FILE_POSTFIX=.v";
+                "DITTO_TRANSFORMATION=" ^ !transformation_arg;
+                "OUTPUT_FILENAME=" ^ !output_arg;
               |]
           in
 
           let prog = "fcc" in
           let args =
-            [| prog; "--root=" ^ !output_folder; "--plugin=ditto-plugin" |]
+            [|
+              prog; "--root=" ^ input_dir; "--plugin=ditto-plugin"; !input_arg;
+            |]
           in
+          let pid =
+            Unix.create_process_env prog args env Unix.stdin Unix.stdout
+              Unix.stderr
+          in
+          let _, status = Unix.waitpid [] pid in
+          match status with
+          | Unix.WEXITED 0 -> Ok 0
+          | _ -> Error.string_to_or_error_err (string_of_process_status status))
+    | Dir -> (
+        let coqproject_opt = Compile.find_coqproject_dir_and_file !input_arg in
+        match coqproject_opt with
+        | Some (coqproject_dir, coqproject_file) ->
+            let open CoqProject_file in
+            let coqproject_path =
+              Filename.concat coqproject_dir coqproject_file
+            in
+            let p =
+              CoqProject_file.read_project_file
+                ~warning_fn:(fun _ -> ())
+                coqproject_path
+            in
+            let files = List.map (fun x -> x.thing) p.files in
+            let filenames = List.map Filename.basename files in
+            let* dep_files = Compile.coqproject_sorted_files coqproject_path in
+            let dep_filenames = List.map Filename.basename dep_files in
+            let* new_dir_state = make_dir !output_arg in
+            warn_if_exists new_dir_state;
 
-          let transformations_status =
-            List.map
-              (fun x ->
-                let curr_args =
-                  Array.append args [| Filename.concat !output_folder x |]
-                in
+            let copy_file_status =
+              List.mapi
+                (fun i x ->
+                  copy_file x
+                    (Filename.concat !output_arg (List.nth filenames i)))
+                files
+            in
+            let opt_err = List.find_opt Result.is_error copy_file_status in
+            if Option.has_some opt_err then
+              let err = Option.get opt_err in
+              let err_message = Result.get_error err in
+              Error err_message
+            else
+              let* coq_project_copy =
+                copy_file coqproject_path
+                  (Filename.concat !output_arg coqproject_file)
+              in
 
-                let pid =
-                  Unix.create_process_env prog curr_args env Unix.stdin
-                    Unix.stdout Unix.stderr
-                in
-                let _, status = Unix.waitpid [] pid in
-                (status, x))
-              dep_filenames
-          in
-          let opt_err_transformation =
-            List.find_opt
-              (fun (status, x) ->
-                match status with Unix.WEXITED 0 -> false | _ -> true)
-              transformations_status
-          in
-          if Option.has_some opt_err_transformation then
-            let err = Option.get opt_err_transformation in
-            Error.string_to_or_error_err
-              (string_of_process_status (fst err) ^ " filename " ^ snd err)
-          else Ok 0
-    | None ->
-        prerr_endline
-          (Printf.sprintf "No _CoqProject or _RocqProject file found in %s"
-             !input_folder);
-        exit 1
+              let env =
+                Array.append (Unix.environment ())
+                  [| "DITTO_TRANSFORMATION=" ^ !transformation_arg |]
+              in
+
+              let prog = "fcc" in
+              let args =
+                [| prog; "--root=" ^ !output_arg; "--plugin=ditto-plugin" |]
+              in
+
+              let transformations_status =
+                List.map
+                  (fun x ->
+                    let curr_path = Filename.concat !output_arg x in
+                    let curr_args = Array.append args [| curr_path |] in
+                    let curr_env =
+                      Array.append env [| "OUTPUT_FILENAME=" ^ curr_path |]
+                    in
+
+                    let pid =
+                      Unix.create_process_env prog curr_args curr_env Unix.stdin
+                        Unix.stdout Unix.stderr
+                    in
+                    let _, status = Unix.waitpid [] pid in
+                    (status, x))
+                  dep_filenames
+              in
+              let opt_err_transformation =
+                List.find_opt
+                  (fun (status, x) ->
+                    match status with Unix.WEXITED 0 -> false | _ -> true)
+                  transformations_status
+              in
+              if Option.has_some opt_err_transformation then
+                let err = Option.get opt_err_transformation in
+                Error.string_to_or_error_err
+                  (string_of_process_status (fst err) ^ " filename " ^ snd err)
+              else Ok 0
+        | None ->
+            prerr_endline
+              (Printf.sprintf "No _CoqProject or _RocqProject file found in %s"
+                 !input_arg);
+            exit 1)
 
 let () =
   match transform_project () with
