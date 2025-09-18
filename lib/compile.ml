@@ -18,15 +18,39 @@ let compiler_error_to_string (error : compilerError) : string =
   | ParsingStopped (stopped_range, errors) -> "parsing stopped"
   | ParsingFailed (failed_range, errors) -> "parsing failed"
 
-let rec find_coqproject (dir : string) : string option =
+let rec find_coqproject_dir (dir : string) : string option =
   let coqproject_filename = "_CoqProject" in
-  if Sys.file_exists (Filename.concat dir coqproject_filename) then Some dir
+  let rocqproject_filename = "_RocqProject" in
+  if
+    Sys.file_exists (Filename.concat dir coqproject_filename)
+    || Sys.file_exists (Filename.concat dir rocqproject_filename)
+  then Some dir
   else if dir = "/" || dir = "." then None
-  else find_coqproject (Filename.dirname dir)
+  else find_coqproject_dir (Filename.dirname dir)
+
+let rec find_coqproject_file (dir : string) : string option =
+  let coqproject_filename = "_CoqProject" in
+  let rocqproject_filename = "_RocqProject" in
+  if Sys.file_exists (Filename.concat dir coqproject_filename) then
+    Some (Filename.concat dir coqproject_filename)
+  else if Sys.file_exists (Filename.concat dir rocqproject_filename) then
+    Some (Filename.concat dir rocqproject_filename)
+  else if dir = "/" || dir = "." then None
+  else find_coqproject_file (Filename.dirname dir)
+
+let rec find_coqproject_dir_and_file (dir : string) : (string * string) option =
+  let coqproject_filename = "_CoqProject" in
+  let rocqproject_filename = "_RocqProject" in
+  if Sys.file_exists (Filename.concat dir coqproject_filename) then
+    Some (dir, coqproject_filename)
+  else if Sys.file_exists (Filename.concat dir rocqproject_filename) then
+    Some (dir, rocqproject_filename)
+  else if dir = "/" || dir = "." then None
+  else find_coqproject_dir_and_file (Filename.dirname dir)
 
 let get_workspace_folder (filepath : string) : string option =
   let dirname = Filename.dirname filepath in
-  find_coqproject dirname
+  find_coqproject_dir dirname
 
 let create_vo_path_from_filepath (filepath : string) : Loadpath.vo_path =
   {

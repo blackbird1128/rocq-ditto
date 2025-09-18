@@ -154,19 +154,19 @@ let transform_project () : (int, Error.t) result =
   else if !transformation_arg = "" then
     Error.string_to_or_error_err "Please provide a transformation"
   else
-    let coqproject_opt = Compile.find_coqproject !input_folder in
+    let coqproject_opt = Compile.find_coqproject_dir_and_file !input_folder in
     match coqproject_opt with
-    | Some coqproject_folder ->
+    | Some (coqproject_dir, coqproject_file) ->
         let open CoqProject_file in
-        let coqproject_file = coqproject_folder ^ "_CoqProject" in
+        let coqproject_path = Filename.concat coqproject_dir coqproject_file in
         let p =
           CoqProject_file.read_project_file
             ~warning_fn:(fun _ -> ())
-            coqproject_file
+            coqproject_path
         in
         let files = List.map (fun x -> x.thing) p.files in
         let filenames = List.map Filename.basename files in
-        let* dep_files = Compile.coqproject_sorted_files coqproject_file in
+        let* dep_files = Compile.coqproject_sorted_files coqproject_path in
         let dep_filenames = List.map Filename.basename dep_files in
         let* new_dir_state = make_dir !output_folder in
         warn_if_exists new_dir_state;
@@ -185,8 +185,8 @@ let transform_project () : (int, Error.t) result =
           Error err_message
         else
           let* coq_project_copy =
-            copy_file coqproject_file
-              (Filename.concat !output_folder "_CoqProject")
+            copy_file coqproject_path
+              (Filename.concat !output_folder coqproject_file)
           in
 
           let env =
@@ -229,7 +229,8 @@ let transform_project () : (int, Error.t) result =
           else Ok 0
     | None ->
         prerr_endline
-          (Printf.sprintf "No CoqProject_ file found in %s" !input_folder);
+          (Printf.sprintf "No _CoqProject or _RocqProject file found in %s"
+             !input_folder);
         exit 1
 
 let () =
