@@ -15,6 +15,36 @@ let sexp_of_syntax_node (x : syntaxNode) : Sexplib.Sexp.t =
 let sexp_of_proof_tree (x : syntaxNode nary_tree) =
   Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
 
+let rec simplify sexp =
+  let open Sexplib.Sexp in
+  match sexp with
+  | List [ x ] -> simplify x
+  | List xs -> List (List.map simplify xs)
+  | Atom _ as a -> a
+
+let rec print_tree ?(prefix = "") sexp =
+  let open Sexplib.Sexp in
+  let rec aux prefix sexp =
+    match sexp with
+    | Atom s -> Printf.printf "%s%s\n" prefix s
+    | List lst ->
+        let len = List.length lst in
+        List.iteri
+          (fun i x ->
+            let is_last = i = len - 1 in
+            let branch = if is_last then "└── " else "├── " in
+            let next_prefix =
+              if is_last then prefix ^ "    " else prefix ^ "│   "
+            in
+            match x with
+            | Atom s -> Printf.printf "%s%s%s\n" prefix branch s
+            | List _ ->
+                Printf.printf "%s%s()\n" prefix branch;
+                aux next_prefix x)
+          lst
+  in
+  aux prefix (simplify sexp)
+
 let testable_nary_tree (pp_a : Format.formatter -> 'a -> unit)
     (equal_a : 'a -> 'a -> bool) =
   Alcotest.testable (pp_nary_tree pp_a) (equal_nary_tree equal_a)
@@ -1113,20 +1143,23 @@ let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
               [
                 ( "induction n.",
                   [
-                    [ ("-", ("reflexivity.", [])) ];
+                    ("-", [ ("reflexivity.", []) ]);
                     ( "-",
                       [
-                        "simpl.";
-                        [
-                          ( "rewrite IHn.",
-                            [ ("reflexivity.", [ ("Qed.", []) ]) ] );
-                        ];
+                        ( "simpl.",
+                          [
+                            ( "rewrite IHn.",
+                              [ ("reflexivity.", [ ("Qed.", []) ]) ] );
+                          ] );
                       ] );
                   ] );
               ] );
           ] );
       ]]
   in
+
+  print_tree expected_tree;
+
   Alcotest.(
     check
       (result sexp_testable error_testable)
@@ -1187,9 +1220,9 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test creating a simple proof tree"
        test_parse_simple_proof_to_proof_tree doc);
 
-  (* Hashtbl.add table "ex_proof_tree2.v" *)
-  (*   (create_fixed_test "test creating a proof tree with bullets" *)
-  (*      test_parse_proof_with_bullets_to_proof_tree doc); *)
+  Hashtbl.add table "ex_proof_tree2.v"
+    (create_fixed_test "test creating a proof tree with bullets"
+       test_parse_proof_with_bullets_to_proof_tree doc);
   Hashtbl.add table "ex_parsing1.v"
     (create_fixed_test "test parsing ex 1" test_parsing_ex1 doc);
   Hashtbl.add table "ex_parsing2.v"
