@@ -71,7 +71,9 @@ let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
     Option.map (Coq.Goals.map ~f ~g) goals
   in
 
-  Coq.Protect.E.map ~f (Fleche.Info.Goals.goals ~token ~st) |> protect_to_result
+  Coq.Protect.E.map ~f
+    (Fleche.Info.Goals.goals ~pr:Fleche.Info.Goals.to_pp ~token ~st)
+  |> protect_to_result
 
 let message_to_diagnostic (range : Code_range.t) (msg : Loc.t Coq.Message.t) :
     Lang.Diagnostic.t =

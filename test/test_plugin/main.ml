@@ -180,12 +180,7 @@ let test_parsing_defined (doc : Doc.t) () : unit =
 
 let test_parsing_function (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
-  List.iter
-    (fun x ->
-      print_endline
-        (x.repr ^ "can open proof "
-        ^ string_of_bool (Syntax_node.node_can_open_proof x)))
-    doc.elements;
+
   let proofs = Result.get_ok (Coq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);

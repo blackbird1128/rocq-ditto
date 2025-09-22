@@ -172,7 +172,9 @@ let compile_file (cc : compilerArgs) (filepath : string) :
         Coq.Compat.Ocaml_414.In_channel.(with_open_bin filepath input_all)
       in
 
-      let doc = Fleche.Doc.create ~token ~env ~uri ~version:0 ~raw in
+      let doc =
+        Fleche.Doc.create ~token ~env ~uri ~languageId:"Coq" ~version:0 ~raw
+      in
       let doc = Fleche.Doc.check ~io ~token ~target:Doc.Target.End ~doc () in
 
       match doc.completed with
