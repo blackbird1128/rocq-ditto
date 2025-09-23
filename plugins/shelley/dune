@@ -1,5 +1,13 @@
 (library
  (public_name shelley-plugin)
  (name shelley_plugin)
- (libraries coq-ditto rocq-runtime.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche )
+ (libraries coq-ditto rocq-runtime.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche)
+ (enabled_if (= %{coq:version.major} 9))
+)
+
+(library
+ (public_name shelley-plugin)
+ (name shelley_plugin)
+ (libraries coq-ditto coq-core.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche )
+ (enabled_if (< %{coq:version.major} 9))
 )

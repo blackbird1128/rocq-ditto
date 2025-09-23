@@ -3,4 +3,13 @@
  (name ditto_test_plugin)
  (preprocess (pps ppx_sexp_value))
  (libraries coq-ditto rocq-runtime.plugins.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche alcotest uuidm )
- )
+ (enabled_if (= %{coq:version.major} 9))
+)
+
+(library
+ (public_name ditto-test-plugin)
+ (name ditto_test_plugin)
+ (preprocess (pps ppx_sexp_value))
+ (libraries coq-ditto coq-core.plugins.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche alcotest uuidm )
+ (enabled_if (< %{coq:version.major} 9))
+)
