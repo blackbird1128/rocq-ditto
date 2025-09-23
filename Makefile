@@ -6,6 +6,8 @@ V_TARGET_GEN := $(V_TARGET_SRC:%=%.target.json)
 
 .PHONY: all test install uninstall dump-json clean
 
+build:
+	dune build --profile=release
 
 all:
 	dune build --profile=release
