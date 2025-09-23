@@ -853,7 +853,6 @@ let turn_into_oneliner (doc : Coq_document.t)
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
 
-  print_tree proof_tree " ";
   let cleaned_tree =
     Nary_tree.filter
       (fun node ->

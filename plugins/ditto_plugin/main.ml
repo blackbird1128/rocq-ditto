@@ -84,18 +84,25 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri_str = Lang.LUri.File.to_string_uri uri in
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
   let errors = List.filter Lang.Diagnostic.is_error diags in
+  let max_errors = 5 in
 
   match doc.completed with
   | Doc.Completion.Stopped range_stop ->
       prerr_endline ("parsing stopped at " ^ Lang.Range.to_string range_stop);
-      print_diagnostics errors
+      print_diagnostics (List.filteri (fun i x -> i < max_errors) errors);
+      print_endline
+        "NOTE: errors after the first might be due to the first error."
   | Doc.Completion.Failed range_failed ->
       prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
-      print_diagnostics errors
+      print_diagnostics (List.filteri (fun i x -> i < max_errors) errors);
+      print_endline
+        "NOTE: errors after the first might be due to the first error."
   | Doc.Completion.Yes _ -> (
-      if List.length errors > 0 then
+      if List.length errors > 0 then (
         let first_errors = List.filteri (fun i _ -> i < 5) errors in
-        print_diagnostics first_errors
+        print_diagnostics first_errors;
+        print_endline
+          "NOTE: errors after the first might be due to the first error.")
       else
         match Sys.getenv_opt "DITTO_TRANSFORMATION" with
         | Some args -> (

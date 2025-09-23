@@ -123,11 +123,6 @@ let string_of_process_status = function
   | Unix.WSIGNALED signal -> Printf.sprintf "Killed by signal %d" signal
   | Unix.WSTOPPED signal -> Printf.sprintf "Stopped by signal %d" signal
 
-(* Example usage *)
-let () =
-  let status = Unix.system "ls" in
-  print_endline (string_of_process_status status)
-
 let speclist =
   [
     ("-v", Arg.Set verbose, "Enable verbose output");
@@ -202,6 +197,7 @@ let transform_project () : (int, Error.t) result =
                 ~warning_fn:(fun _ -> ())
                 coqproject_path
             in
+
             let files = List.map (fun x -> x.thing) p.files in
             let filenames = List.map Filename.basename files in
             let* dep_files = Compile.coqproject_sorted_files coqproject_path in
@@ -238,32 +234,31 @@ let transform_project () : (int, Error.t) result =
               in
 
               let transformations_status =
-                List.map
-                  (fun x ->
-                    let curr_path = Filename.concat !output_arg x in
-                    let curr_args = Array.append args [| curr_path |] in
-                    let curr_env =
-                      Array.append env [| "OUTPUT_FILENAME=" ^ curr_path |]
-                    in
+                List.fold_left
+                  (fun err_acc x ->
+                    match err_acc with
+                    | Unix.WEXITED 0, _ ->
+                        let curr_path = Filename.concat !output_arg x in
+                        let curr_args = Array.append args [| curr_path |] in
+                        let curr_env =
+                          Array.append env [| "OUTPUT_FILENAME=" ^ curr_path |]
+                        in
 
-                    let pid =
-                      Unix.create_process_env prog curr_args curr_env Unix.stdin
-                        Unix.stdout Unix.stderr
-                    in
-                    let _, status = Unix.waitpid [] pid in
-                    (status, x))
+                        let pid =
+                          Unix.create_process_env prog curr_args curr_env
+                            Unix.stdin Unix.stdout Unix.stderr
+                        in
+                        let _, status = Unix.waitpid [] pid in
+                        (status, x)
+                    | err -> err)
+                  (Unix.WEXITED 0, "default")
                   dep_filenames
               in
-              let opt_err_transformation =
-                List.find_opt
-                  (fun (status, x) ->
-                    match status with Unix.WEXITED 0 -> false | _ -> true)
-                  transformations_status
-              in
-              if Option.has_some opt_err_transformation then
-                let err = Option.get opt_err_transformation in
+
+              if fst transformations_status != Unix.WEXITED 0 then
                 Error.string_to_or_error_err
-                  (string_of_process_status (fst err) ^ " filename " ^ snd err)
+                  (string_of_process_status (fst transformations_status)
+                  ^ " filename " ^ snd transformations_status)
               else Ok 0
         | None ->
             prerr_endline
