@@ -4,6 +4,7 @@ open Ditto.Nary_tree
 open Ditto.Proof
 open Ditto.Syntax_node
 open Vernacexpr
+module Lsp = Fleche_lsp
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -16,7 +17,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   in
   let parsed_asts_json =
     List.map
-      (fun (ast : Doc.Node.Ast.t) -> Fleche_lsp.JCoq.Ast.to_yojson ast.v)
+      (fun (ast : Doc.Node.Ast.t) -> Lsp.JCoq.Ast.to_yojson ast.v)
       parsed_asts
   in
 
