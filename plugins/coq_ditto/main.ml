@@ -145,7 +145,6 @@ let transform_project () : (int, Error.t) result =
   Arg.parse speclist
     (fun anon -> Printf.printf "Ignoring anonymous arg: %s\n" anon)
     usage_msg;
-  let dev_null = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0o666 in
 
   if !input_arg = "" then
     Error.string_to_or_error_err "Please provide an input folder or file"

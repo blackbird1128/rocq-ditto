@@ -79,27 +79,6 @@ let transformations_help =
     (IdTransformation, "Keep the file the same.");
   ]
 
-let process_proof (doc_acc, count) fn kind proof_total proof =
-  match doc_acc with
-  | Error _ as e -> (e, count)
-  | Ok acc -> (
-      let name = Option.default "anonymous" (Proof.get_proof_name proof) in
-      print_endline
-        ("running transformation "
-        ^ transformation_kind_to_arg kind
-        ^ " on " ^ name ^ " (" ^ string_of_int count ^ "/"
-        ^ string_of_int proof_total ^ ")");
-      match fn acc proof with
-      | Error err -> (Error err, count)
-      | Ok steps ->
-          let res =
-            List.fold_left
-              (fun acc step ->
-                Result.bind acc (Coq_document.apply_transformation_step step))
-              (Ok acc) steps
-          in
-          (res, count + 1))
-
 let local_apply_proof_transformation (doc_acc : Coq_document.t)
     (transformation :
       Coq_document.t -> proof -> (transformation_step list, Error.t) result)
@@ -116,7 +95,6 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
               let proof_name =
                 Option.default "anonymous" (Proof.get_proof_name proof)
               in
-              let padding = String.make 80 ' ' in
 
               Printf.printf
                 "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
