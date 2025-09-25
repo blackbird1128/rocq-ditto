@@ -1,0 +1,5 @@
+(executable
+ (package coq-ditto)
+ (name print_coq_version)
+ (public_name print-coq-version)
+ (libraries unix))

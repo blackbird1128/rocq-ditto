@@ -19,6 +19,7 @@ depends: [
   "uuidm"
   "ppx_sexp_message"
   "ppx_sexp_value"
+  "ppx_optcomp"
   "odoc" {with-doc}
 ]
 build: [

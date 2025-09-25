@@ -1,13 +1,20 @@
+(rule
+ (targets coq_version.sexp)
+ (deps ../config/print_coq_version.exe)
+ (action (with-stdout-to coq_version.sexp (run dune exec print-coq-version))))
+
 (library
  (name ditto)
  (public_name coq-ditto)
- (preprocess (pps ppx_sexp_conv ppx_sexp_message))
+ (preprocessor_deps coq_version.sexp)
+ (preprocess (pps ppx_sexp_conv ppx_sexp_message ppx_optcomp))
  (libraries rocq-runtime.lib coq-lsp.fleche rocq-runtime.plugins.ltac coq-lsp.serlib.ltac coq-lsp.serlib coq-lsp.coq coq-lsp.lsp unix re uuidm )
  (enabled_if (= %{coq:version.major} 9)))
 
 (library
  (name ditto)
  (public_name coq-ditto)
- (preprocess (pps ppx_sexp_conv ppx_sexp_message))
+ (preprocessor_deps coq_version.sexp)
+ (preprocess (pps ppx_sexp_conv ppx_sexp_message ppx_optcomp))
  (libraries coq-core.lib coq-lsp.fleche coq-core.plugins.ltac coq-lsp.serlib.ltac coq-lsp.serlib coq-lsp.coq coq-lsp.lsp unix re uuidm )
  (enabled_if (< %{coq:version.major} 9)))
