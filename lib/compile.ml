@@ -51,7 +51,9 @@ let read_all ic =
 
 let coqproject_sorted_files (coqproject_file : string) :
     (string list, Error.t) result =
-  let cmd = Printf.sprintf "rocq dep -f %s -sort" coqproject_file in
+  let cmd =
+    Coq_version.dep_executable ^ Printf.sprintf " -f %s -sort" coqproject_file
+  in
   let ic = Unix.open_process_in cmd in
   let lines = read_all ic in
   match Unix.close_process_in ic with
@@ -62,9 +64,11 @@ let coqproject_sorted_files (coqproject_file : string) :
            (String.split_on_char ' ' (List.hd lines)))
   | Unix.WEXITED n ->
       Error.string_to_or_error_err
-        (Printf.sprintf "coqdep exited with %d; output:\n%s" n
-           (String.concat "\n" lines))
-  | _ -> Error.string_to_or_error_err "coqdep terminated abnormally"
+        (Printf.sprintf "%s exited with %d; output:\n%s"
+           Coq_version.dep_executable n (String.concat "\n" lines))
+  | _ ->
+      Error.string_to_or_error_err
+        (Coq_version.dep_executable ^ " terminated abnormally")
 
 let compile_file (io : Io.CallBack.t) (env : Doc.Env.t) (filepath : string) :
     (Doc.t, Error.t) result =

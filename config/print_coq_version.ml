@@ -1,4 +1,3 @@
-
 let () =
   let line =
     let ic = Unix.open_process_in "coqc --print-version" in
@@ -14,8 +13,16 @@ let () =
   in
   let major, minor, patch =
     match String.split_on_char '.' main_version with
-    | [maj; min; pat] -> int_of_string maj, int_of_string min, int_of_string pat
+    | [ maj; min; pat ] ->
+        (int_of_string maj, int_of_string min, int_of_string pat)
     | _ -> failwith "Unexpected main coqc version format"
   in
-  Printf.printf "((COQ_VERSION_MAJOR %d) (COQ_VERSION_MINOR %d) (COQ_VERSION_PATCH %d))\n"
-    major minor patch
+  Printf.printf
+    "let major_version = %d\nlet minor_version = %d\nlet patch_version = %d\n"
+    major minor patch;
+  if major >= 9 then
+    print_endline
+      "let executable_name = \"rocq\"\nlet dep_executable = \"rocq dep\""
+  else
+    print_endline
+      "let executable_name = \"coq\"\nlet dep_executable = \"coqdep\""
