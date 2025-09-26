@@ -853,7 +853,7 @@ let turn_into_oneliner (doc : Coq_document.t)
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let cleaned_tree =
+  let cleaned_tree_opt =
     Nary_tree.filter
       (fun node ->
         (not (is_syntax_node_bullet node))
@@ -863,87 +863,91 @@ let turn_into_oneliner (doc : Coq_document.t)
       proof_tree
   in
 
-  if Option.is_empty cleaned_tree then Ok []
-  else
-    let cleaned_tree = Option.get cleaned_tree in
+  match cleaned_tree_opt with
+  | None -> Ok []
+  | Some cleaned_tree ->
+      let rec get_oneliner (tree : syntaxNode nary_tree) : string =
+        match tree with
+        | Node (x, []) when is_syntax_node_proof_intro_or_end x -> ""
+        | Node (x, []) -> String.sub x.repr 0 (String.length x.repr - 1)
+        | Node (x, childrens) ->
+            let x_without_dot =
+              String.sub x.repr 0 (String.length x.repr - 1)
+            in
 
-    let rec get_oneliner (tree : syntaxNode nary_tree) : string =
-      match tree with
-      | Node (x, childrens) ->
-          let x_without_dot = String.sub x.repr 0 (String.length x.repr - 1) in
+            let last_children =
+              List.nth childrens (List.length childrens - 1)
+            in
 
-          let last_children_opt =
-            if List.length childrens > 0 then
-              List.nth_opt childrens (List.length childrens - 1)
-            else None
-          in
+            let childrens_length_without_proof_end =
+              match last_children with
+              | Node (last_children, _) ->
+                  if is_syntax_node_proof_end last_children then
+                    List.length childrens - 1
+                  else List.length childrens
+            in
 
-          let childrens_length_without_proof_end =
-            match last_children_opt with
-            | Some (Node (last_children, _)) ->
-                if is_syntax_node_proof_end last_children then
-                  List.length childrens - 1
-                else List.length childrens
-            | None -> 0
-          in
+            if is_syntax_node_proof_intro_or_end x then
+              String.concat "" (List.map get_oneliner childrens)
+            else if childrens_length_without_proof_end > 1 then
+              x_without_dot ^ ";\n" ^ "["
+              ^ String.concat "\n| " (List.map get_oneliner childrens)
+              ^ "]"
+            else if childrens_length_without_proof_end = 1 then
+              x_without_dot ^ ";\n"
+              ^ String.concat " " (List.map get_oneliner childrens)
+            else x_without_dot
+      in
+      let one_liner_repr = get_oneliner cleaned_tree ^ "." in
 
-          if is_syntax_node_proof_intro_or_end x then
-            String.concat "" (List.map get_oneliner childrens)
-          else if childrens_length_without_proof_end > 1 then
-            x_without_dot ^ ";\n" ^ "["
-            ^ String.concat "\n| " (List.map get_oneliner childrens)
-            ^ "]"
-          else if childrens_length_without_proof_end = 1 then
-            x_without_dot ^ ";\n"
-            ^ String.concat " " (List.map get_oneliner childrens)
-          else x_without_dot
-    in
-    let one_liner_repr = get_oneliner cleaned_tree ^ "." in
+      let flattened = Nary_tree.flatten proof_tree in
+      let remove_steps =
+        List.filter_map
+          (fun node ->
+            if node_can_open_proof node || node_can_close_proof node then None
+            else Some (Remove node.id))
+          flattened
+      in
 
-    let flattened = Nary_tree.flatten proof_tree in
-    let remove_steps =
-      List.filter_map
-        (fun node ->
-          if node_can_open_proof node || node_can_close_proof node then None
-          else Some (Remove node.id))
-        flattened
-    in
+      let first_step_node =
+        List.find (fun node -> node_can_open_proof node) flattened
+      in
 
-    let first_step_node =
-      List.find (fun node -> node_can_open_proof node) flattened
-    in
+      let* oneliner_node =
+        Syntax_node.syntax_node_of_string one_liner_repr
+          first_step_node.range.start
+      in
 
-    let* oneliner_node =
-      Syntax_node.syntax_node_of_string one_liner_repr
-        first_step_node.range.start
-    in
-    let strip_parens s =
-      let len = String.length s in
-      if len >= 3 && s.[0] = '(' && s.[len - 2] = ')' then
-        String.sub s 1 (len - 3) ^ "."
-      else s
-    in
+      let strip_parens s =
+        match s with
+        | s
+          when String.length s >= 3
+               && s.[0] = '('
+               && s.[String.length s - 2] = ')' ->
+            String.sub s 1 (String.length s - 3) ^ "."
+        | _ -> s
+      in
 
-    let* reformatted_oneliner_node =
-      Syntax_node.reformat_node oneliner_node |> tag_error
-    in
+      let* reformatted_oneliner_node =
+        Syntax_node.reformat_node oneliner_node |> tag_error
+      in
 
-    let reformatted_repr = reformatted_oneliner_node.repr |> strip_parens in
-    let* reformatted_oneliner_node =
-      Syntax_node.syntax_node_of_string reformatted_repr
-        reformatted_oneliner_node.range.start
-    in
+      let reformatted_repr = reformatted_oneliner_node.repr |> strip_parens in
+      let* reformatted_oneliner_node =
+        Syntax_node.syntax_node_of_string reformatted_repr
+          reformatted_oneliner_node.range.start
+      in
 
-    let* proof_node =
-      syntax_node_of_string "Proof." first_step_node.range.end_
-    in
+      let* proof_node =
+        syntax_node_of_string "Proof." first_step_node.range.end_
+      in
 
-    Ok
-      (remove_steps
-      @ [
-          Attach (proof_node, LineAfter, first_step_node.id);
-          Attach (reformatted_oneliner_node, LineAfter, proof_node.id);
-        ])
+      Ok
+        (remove_steps
+        @ [
+            Attach (proof_node, LineAfter, first_step_node.id);
+            Attach (reformatted_oneliner_node, LineAfter, proof_node.id);
+          ])
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
