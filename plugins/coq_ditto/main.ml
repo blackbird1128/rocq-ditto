@@ -93,6 +93,44 @@ let copy_file (src : string) (dst : string) : (unit, Error.t) result =
   | Sys_error msg -> Error.string_to_or_error_err msg
   | e -> Error.string_to_or_error_err (Printexc.to_string e)
 
+let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
+    : (unit, Error.t) result =
+  (* ensure target dir exists *)
+  (try Unix.mkdir dst 0o755 with Unix.Unix_error (EEXIST, _, _) -> ());
+
+  let dh = Unix.opendir src in
+  let rec loop () =
+    match Unix.readdir dh with
+    | exception End_of_file ->
+        Unix.closedir dh;
+        Ok ()
+    | entry -> (
+        if entry = "." || entry = ".." then loop ()
+        else
+          let src_path = Filename.concat src entry in
+          let dst_path = Filename.concat dst entry in
+          match (Unix.lstat src_path).st_kind with
+          | S_REG ->
+              (* TODO remove O(n^2) check *)
+              if List.mem (Filename.basename src_path) filenames_to_copy then (
+                match copy_file src_path dst_path with
+                | Ok () -> loop ()
+                | Error e ->
+                    Unix.closedir dh;
+                    Error e)
+              else loop ()
+          | S_DIR -> (
+              match copy_dir src_path dst_path filenames_to_copy with
+              | Ok () -> loop ()
+              | Error e ->
+                  Unix.closedir dh;
+                  Error e)
+          | _ ->
+              (* skip symlinks/devices/etc. *)
+              loop ())
+  in
+  loop ()
+
 type newDirState = AlreadyExists | Created
 
 let make_dir dir_name : (newDirState, Error.t) result =
@@ -122,6 +160,12 @@ let string_of_process_status = function
   | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
   | Unix.WSIGNALED signal -> Printf.sprintf "Killed by signal %d" signal
   | Unix.WSTOPPED signal -> Printf.sprintf "Stopped by signal %d" signal
+
+let remove_prefix (str : string) (prefix : string) =
+  let prefix_len = String.length prefix in
+  if String.length str >= prefix_len && String.sub str 0 prefix_len = prefix
+  then String.sub str prefix_len (String.length str - prefix_len)
+  else str
 
 let speclist =
   [
@@ -160,7 +204,6 @@ let transform_project () : (int, Error.t) result =
             "Please provide a filename as output when providing a file as input"
         else
           let input_dir = Filename.dirname !input_arg in
-          let output_dir = Filename.dirname !output_arg in
           let env =
             Array.append (Unix.environment ())
               [|
@@ -203,62 +246,55 @@ let transform_project () : (int, Error.t) result =
             let dep_filenames = List.map Filename.basename dep_files in
             let* new_dir_state = make_dir !output_arg in
             warn_if_exists new_dir_state;
+            let* copy_dir_status = copy_dir !input_arg !output_arg filenames in
 
-            let copy_file_status =
-              List.mapi
-                (fun i x ->
-                  copy_file x
-                    (Filename.concat !output_arg (List.nth filenames i)))
-                files
+            let* coq_project_copy =
+              copy_file coqproject_path
+                (Filename.concat !output_arg coqproject_file)
             in
-            let opt_err = List.find_opt Result.is_error copy_file_status in
-            if Option.has_some opt_err then
-              let err = Option.get opt_err in
-              let err_message = Result.get_error err in
-              Error err_message
-            else
-              let* coq_project_copy =
-                copy_file coqproject_path
-                  (Filename.concat !output_arg coqproject_file)
-              in
 
-              let env =
-                Array.append (Unix.environment ())
-                  [| "DITTO_TRANSFORMATION=" ^ !transformation_arg |]
-              in
+            let env =
+              Array.append (Unix.environment ())
+                [| "DITTO_TRANSFORMATION=" ^ !transformation_arg |]
+            in
 
-              let prog = "fcc" in
-              let args =
-                [| prog; "--root=" ^ !output_arg; "--plugin=ditto-plugin" |]
-              in
+            let prog = "fcc" in
+            let args =
+              [| prog; "--root=" ^ !output_arg; "--plugin=ditto-plugin" |]
+            in
 
-              let transformations_status =
-                List.fold_left
-                  (fun err_acc x ->
-                    match err_acc with
-                    | Unix.WEXITED 0, _ ->
-                        let curr_path = Filename.concat !output_arg x in
-                        let curr_args = Array.append args [| curr_path |] in
-                        let curr_env =
-                          Array.append env [| "OUTPUT_FILENAME=" ^ curr_path |]
-                        in
+            let transformations_status =
+              List.fold_left
+                (fun err_acc x ->
+                  match err_acc with
+                  | Unix.WEXITED 0, _ ->
+                      print_endline ("file " ^ x);
+                      print_endline ("input args:" ^ !input_arg);
+                      let rel_path = remove_prefix x !input_arg in
 
-                        let pid =
-                          Unix.create_process_env prog curr_args curr_env
-                            Unix.stdin Unix.stdout Unix.stderr
-                        in
-                        let _, status = Unix.waitpid [] pid in
-                        (status, x)
-                    | err -> err)
-                  (Unix.WEXITED 0, "default")
-                  dep_filenames
-              in
+                      let curr_path = Filename.concat !output_arg rel_path in
 
-              if fst transformations_status != Unix.WEXITED 0 then
-                Error.string_to_or_error_err
-                  (string_of_process_status (fst transformations_status)
-                  ^ " filename " ^ snd transformations_status)
-              else Ok 0
+                      let curr_args = Array.append args [| curr_path |] in
+                      let curr_env =
+                        Array.append env [| "OUTPUT_FILENAME=" ^ curr_path |]
+                      in
+
+                      let pid =
+                        Unix.create_process_env prog curr_args curr_env
+                          Unix.stdin Unix.stdout Unix.stderr
+                      in
+                      let _, status = Unix.waitpid [] pid in
+                      (status, x)
+                  | err -> err)
+                (Unix.WEXITED 0, "default")
+                dep_files
+            in
+
+            if fst transformations_status != Unix.WEXITED 0 then
+              Error.string_to_or_error_err
+                (string_of_process_status (fst transformations_status)
+                ^ " filename " ^ snd transformations_status)
+            else Ok 0
         | None ->
             prerr_endline
               (Printf.sprintf "No _CoqProject or _RocqProject file found in %s"
