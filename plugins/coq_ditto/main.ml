@@ -147,14 +147,20 @@ let set_input_arg (path : string) : unit =
   if is_directory path || Sys.file_exists path then input_arg := path
   else raise (Arg.Bad (Printf.sprintf "Invalid input file or folder: %s" path))
 
+
 let set_transformation (t : string) : unit =
   match arg_to_transformation_kind t with
+  | Ok Help ->
+      print_endline "Available transformations:";
+      print_endline (help_to_string transformations_help);
+      exit 0
   | Ok arg -> transformation_arg := transformation_kind_to_string arg
   | Error err ->
       raise
         (Arg.Bad
            (err ^ "\nvalid transformations:\n"
            ^ help_to_string transformations_help))
+
 
 let string_of_process_status = function
   | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
@@ -175,7 +181,7 @@ let speclist =
     ("-t", Arg.String set_transformation, "Transformation to apply");
   ]
 
-let usage_msg = "Usage: project_ditto [options]"
+let usage_msg = "Usage: coq-ditto [options]"
 
 let warn_if_exists (dir_state : newDirState) =
   match dir_state with
