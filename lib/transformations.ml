@@ -856,8 +856,7 @@ let turn_into_oneliner (doc : Coq_document.t)
   let cleaned_tree_opt =
     Nary_tree.filter
       (fun node ->
-        (not (is_syntax_node_bullet node))
-        && (not (is_syntax_node_proof_command node))
+        (not (is_syntax_node_command_allowed_in_proof node))
         && ((not (node_can_open_proof node)) && not (node_can_close_proof node))
         && Option.has_some node.ast)
       proof_tree

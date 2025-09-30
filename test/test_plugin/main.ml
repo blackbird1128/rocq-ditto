@@ -892,6 +892,22 @@ let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
+let test_turn_into_oneliner_with_commands (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+
+  let doc = Coq_document.parse_document doc in
+
+  let parsed_target = get_target uri_str in
+
+  let new_doc =
+    Transformations.apply_proof_tree_transformation
+      Transformations.turn_into_oneliner doc
+  in
+
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -1350,6 +1366,9 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test replacing branching auto with all the taken steps"
        test_replace_multiple_branch_auto_by_steps doc);
 
+  Hashtbl.add table "ex_command_oneliner.v"
+    (create_fixed_test "test turning into a oneliner a proof with commands "
+       test_turn_into_oneliner_with_commands doc);
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
   (*      test_replace_auto_using_zarith_by_steps doc); *)

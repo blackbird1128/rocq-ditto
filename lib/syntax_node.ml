@@ -289,6 +289,27 @@ let shift_range (n_line : int) (n_char : int) (x : Code_range.t) : Code_range.t
 let shift_node (n_line : int) (n_char : int) (x : syntaxNode) : syntaxNode =
   { x with range = shift_range n_line n_char x.range }
 
+let is_syntax_node_command_allowed_in_proof (x : syntaxNode) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with
+          (* Proof structuring *)
+          | VernacProof _ | VernacEndProof _ | VernacAbort | VernacAbortAll
+          | VernacRestart | VernacUndo _ | VernacUndoTo _ | VernacBack _
+          | VernacFocus _ | VernacUnfocus | VernacUnfocused | VernacBullet _
+          | VernacSubproof _ | VernacEndSubproof
+          (* Queries / utilities *)
+          | VernacShow _ | VernacCheckMayEval _ | VernacGlobalCheck _
+          | VernacPrint _ | VernacSearch _ | VernacLocate _
+          (* internal or rare ? *)
+          | VernacExactProof _ | VernacValidateProof | VernacCheckGuard ->
+              true
+          | _ -> false))
+  | None -> false
+
 let is_syntax_node_tactic (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (

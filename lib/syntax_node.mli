@@ -86,6 +86,10 @@ val shift_node : int -> int -> syntaxNode -> syntaxNode
 (** [shift_node n_line n_char node] shift the range of [node] by [n_line],
     [n_char] using [shift_range] *)
 
+val is_syntax_node_command_allowed_in_proof : syntaxNode -> bool
+(** [is_syntax_node_command_allowed_in_proof x] checks if [x] is a command
+    allowed inside a proof block context *)
+
 val is_syntax_node_proof_command : syntaxNode -> bool
 (** [is_syntax_node_proof_command x] checks if [x] represents the command Proof.
 *)
