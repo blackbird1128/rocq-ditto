@@ -867,38 +867,39 @@ let turn_into_oneliner (doc : Coq_document.t)
   | Some cleaned_tree ->
       let rec get_oneliner (tree : syntaxNode nary_tree) : string =
         match tree with
-        | Node (x, []) when is_syntax_node_proof_intro_or_end x -> ""
-        | Node (x, []) -> String.sub x.repr 0 (String.length x.repr - 1)
         | Node (x, childrens) ->
             let x_without_dot =
               String.sub x.repr 0 (String.length x.repr - 1)
             in
 
-            let last_children =
-              List.nth childrens (List.length childrens - 1)
+            let last_children_opt =
+              if List.length childrens > 0 then
+                List.nth_opt childrens (List.length childrens - 1)
+              else None
             in
 
             let childrens_length_without_proof_end =
-              match last_children with
-              | Node (last_children, _) ->
+              match last_children_opt with
+              | Some (Node (last_children, _)) ->
                   if is_syntax_node_proof_end last_children then
                     List.length childrens - 1
                   else List.length childrens
+              | None -> 0
             in
 
             if is_syntax_node_proof_intro_or_end x then
-              String.concat "" (List.map get_oneliner childrens)
+              String.concat " " (List.map get_oneliner childrens)
             else if childrens_length_without_proof_end > 1 then
-              x_without_dot ^ ";\n" ^ "["
-              ^ String.concat "\n| " (List.map get_oneliner childrens)
+              x_without_dot ^ "; " ^ "["
+              ^ String.concat " | " (List.map get_oneliner childrens)
               ^ "]"
             else if childrens_length_without_proof_end = 1 then
-              x_without_dot ^ ";\n"
+              x_without_dot ^ "; "
               ^ String.concat " " (List.map get_oneliner childrens)
             else x_without_dot
       in
-      let one_liner_repr = get_oneliner cleaned_tree ^ "." in
 
+      let one_liner_repr = get_oneliner cleaned_tree ^ "." in
       let flattened = Nary_tree.flatten proof_tree in
       let remove_steps =
         List.filter_map
@@ -932,6 +933,7 @@ let turn_into_oneliner (doc : Coq_document.t)
       in
 
       let reformatted_repr = reformatted_oneliner_node.repr |> strip_parens in
+
       let* reformatted_oneliner_node =
         Syntax_node.syntax_node_of_string reformatted_repr
           reformatted_oneliner_node.range.start
@@ -953,38 +955,32 @@ let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
-  match
-    Runner.fold_proof_with_state doc token
-      (fun state acc node ->
-        let* new_state = Runner.run_node token state node in
-        if
-          String.starts_with ~prefix:"intros." node.repr
-          && not (String.contains node.repr ';')
-        then
-          let* old_state_vars =
-            Result.map Runner.get_hypothesis_names
-              (Runner.get_current_goal token state)
-          in
-          let* new_state_vars =
-            Result.map Runner.get_hypothesis_names
-              (Runner.get_current_goal token new_state)
-          in
-          let new_vars =
-            List.filter
-              (fun x -> not (List.mem x old_state_vars))
-              new_state_vars
-          in
-          let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
-          let* explicit_intro_node =
-            Syntax_node.syntax_node_of_string explicit_intro node.range.start
-          in
-          let r = Replace (node.id, explicit_intro_node) in
-          Ok (new_state, r :: acc)
-        else Ok (new_state, acc))
-      [] proof
-  with
-  | Ok steps -> Ok steps
-  | Error err -> Error err
+  Runner.fold_proof_with_state doc token
+    (fun state acc node ->
+      let* new_state = Runner.run_node token state node in
+      if
+        String.starts_with ~prefix:"intros." node.repr
+        && not (String.contains node.repr ';')
+      then
+        let* old_state_vars =
+          Result.map Runner.get_hypothesis_names
+            (Runner.get_current_goal token state)
+        in
+        let* new_state_vars =
+          Result.map Runner.get_hypothesis_names
+            (Runner.get_current_goal token new_state)
+        in
+        let new_vars =
+          List.filter (fun x -> not (List.mem x old_state_vars)) new_state_vars
+        in
+        let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
+        let* explicit_intro_node =
+          Syntax_node.syntax_node_of_string explicit_intro node.range.start
+        in
+        let r = Replace (node.id, explicit_intro_node) in
+        Ok (new_state, r :: acc)
+      else Ok (new_state, acc))
+    [] proof
 
 let apply_proof_transformation
     (transformation :
