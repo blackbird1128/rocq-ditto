@@ -929,7 +929,7 @@ let turn_into_oneliner (doc : Coq_document.t)
       in
 
       let* reformatted_oneliner_node =
-        Syntax_node.reformat_node oneliner_node |> tag_error
+        Syntax_node.reformat_node oneliner_node
       in
 
       let reformatted_repr = reformatted_oneliner_node.repr |> strip_parens in

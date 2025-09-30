@@ -370,9 +370,11 @@ let test_reformat_comment_node (doc : Doc.t) () : unit =
   let reformatted_node = Syntax_node.reformat_node comment_node in
   let reformat_id = Result.map (fun x -> x.id) reformatted_node in
 
-  Alcotest.(check (result uuidm_testable string))
+  Alcotest.(check (result uuidm_testable error_testable))
     "Should return an error"
-    (Error "The node need to have an AST to be reformatted") reformat_id
+    (Error.string_to_or_error_err
+       "The node need to have an AST to be reformatted")
+    reformat_id
 
 let test_reformat_keep_id (doc : Doc.t) () : unit =
   let starting_point : Code_point.t = { line = 0; character = 0 } in
@@ -384,7 +386,7 @@ let test_reformat_keep_id (doc : Doc.t) () : unit =
   let reformatted_node = Syntax_node.reformat_node content_node in
   let reformat_id = Result.map (fun x -> x.id) reformatted_node in
 
-  Alcotest.(check (result uuidm_testable string))
+  Alcotest.(check (result uuidm_testable error_testable))
     "Should return the same id" (Ok content_node.id) reformat_id
 
 let test_id_assign_document (doc : Doc.t) () : unit =
