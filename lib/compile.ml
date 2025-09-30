@@ -1,5 +1,6 @@
 open Fleche
 open CoqProject_file
+open Sexplib.Std
 
 type compilerArgs = {
   io : Io.CallBack.t;
@@ -70,12 +71,23 @@ let coqproject_sorted_files (coqproject_file : string) :
       Error.string_to_or_error_err
         (Coq_version.dep_executable ^ " terminated abnormally")
 
+let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
+  let msg_string = Pp.string_of_ppcmds x.message in
+
+  let err = Error.of_string msg_string in
+  let err =
+    Error.tag_arg err "range"
+      (Code_range.code_range_from_lang_range x.range)
+      Code_range.sexp_of_t
+  in
+  Error.tag_arg err "severity" x.severity sexp_of_int
+
 let compile_file (io : Io.CallBack.t) (env : Doc.Env.t) (filepath : string) :
-    (Doc.t, Error.t) result =
+    (Doc.t, Error.t list) result =
   let token = Coq.Limits.Token.create () in
 
   match Lang.LUri.(File.of_uri (of_string filepath)) with
-  | Error _ -> Error.string_to_or_error_err "Invalid uri"
+  | Error _ -> Error [ Error.of_string "Invalid uri" ]
   | Ok uri -> (
       let raw =
         Coq.Compat.Ocaml_414.In_channel.(with_open_bin filepath input_all)
@@ -94,11 +106,11 @@ let compile_file (io : Io.CallBack.t) (env : Doc.Env.t) (filepath : string) :
           in
           let errors = List.filter Lang.Diagnostic.is_error diags in
           let err = Error.of_string "Parsing stopped" in
-          Error err
+          Error (err :: List.map diagnostic_to_error errors)
       | Failed failed_range ->
           let diags =
             List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes
           in
           let errors = List.filter Lang.Diagnostic.is_error diags in
           let err = Error.of_string "Parsing failed" in
-          Error err)
+          Error (err :: List.map diagnostic_to_error errors))

@@ -12,4 +12,4 @@ val find_coqproject_dir_and_file : string -> (string * string) option
 val coqproject_sorted_files : string -> (string list, Error.t) result
 
 val compile_file :
-  Io.CallBack.t -> Doc.Env.t -> string -> (Doc.t, Error.t) result
+  Io.CallBack.t -> Doc.Env.t -> string -> (Doc.t, Error.t list) result

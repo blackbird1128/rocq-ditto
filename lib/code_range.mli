@@ -1,6 +1,6 @@
 open Code_point
 
-type t = { start : Code_point.t; end_ : Code_point.t }
+type t = { start : Code_point.t; end_ : Code_point.t } [@@deriving sexp]
 
 val pp : Format.formatter -> t -> unit
 val to_string : t -> string
