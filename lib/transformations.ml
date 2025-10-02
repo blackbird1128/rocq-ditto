@@ -843,11 +843,6 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
   in
   res
 
-let tag_error (res : ('a, string) result) : ('a, Error.t) result =
-  res |> Error.of_result |> Result.map_error Error.tag_with_debug_infos
-
-let ( let*! ) res f = Result.bind (tag_error res) f
-
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, Error.t) result =
@@ -856,7 +851,8 @@ let turn_into_oneliner (doc : Coq_document.t)
   let cleaned_tree_opt =
     Nary_tree.filter
       (fun node ->
-        (not (is_syntax_node_command_allowed_in_proof node))
+        (not (is_syntax_node_bullet node))
+        && (not (is_syntax_node_proof_command node))
         && ((not (node_can_open_proof node)) && not (node_can_close_proof node))
         && Option.has_some node.ast)
       proof_tree
@@ -1030,7 +1026,6 @@ let apply_proof_tree_transformation
              (proof_tree : syntaxNode nary_tree) ->
           match doc_acc with
           | Ok acc -> (
-              print_endline ("treating: " ^ (Nary_tree.root proof_tree).repr);
               let transformation_steps = transformation acc proof_tree in
               match transformation_steps with
               | Ok steps ->
