@@ -129,6 +129,9 @@ let get_comments (content : string) :
                 match stack with
                 | ((idx3, '('), (idx4, '*')) :: t ->
                     Ok (t, ((idx3, idx4), (idx1, idx2)) :: res)
+                | [] ->
+                    acc
+                    (* we might have encountered: try (rewrite IHn in *\) for example *)
                 | _ -> Error "unmatched ending comment")
             | _ -> acc)
         | Error err -> Error err)
@@ -196,7 +199,6 @@ let parse_document (doc : Doc.t) : t =
       nodes_with_ast
   in
 
-  (* let comments = matches_with_line_col document_repr "\\(\\*.*\\*\\)$" in *)
   let comments = get_comments document_repr |> Result.get_ok in
 
   let comments_nodes =

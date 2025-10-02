@@ -290,8 +290,7 @@ let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
   let comment_nodes_repr = List.map (fun node -> node.repr) comment_nodes in
-  print_endline
-    ("comment nodes length : " ^ string_of_int (List.length comment_nodes));
+
   Alcotest.(check int)
     "The wrong number of comment nodes was parsed" 2
     (List.length comment_nodes);
@@ -299,6 +298,21 @@ let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
     "Comments badly parsed"
     [ "(*in the same line comment*)"; "(**weird comment*)" ]
     comment_nodes_repr
+
+let test_parsing_in_then_star_then_parenthesis (doc : Doc.t) () : unit =
+  let doc = Coq_document.parse_document doc in
+  let comment_nodes =
+    List.filter (fun node -> Option.is_empty node.ast) doc.elements
+  in
+  let other_nodes =
+    List.filter (fun node -> Option.has_some node.ast) doc.elements
+  in
+
+  Alcotest.(check int)
+    "The wrong number of comment nodes was parsed" 0
+    (List.length comment_nodes);
+  Alcotest.(check int)
+    "The wrong number of other nodes was parsed" 8 (List.length other_nodes)
 
 let test_parsing_instance (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
@@ -1297,6 +1311,10 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_parsing7.v"
     (create_fixed_test "test parsing weird comments"
        test_parsing_weird_comments_ex7 doc);
+  Hashtbl.add table "not_parsing_in_star_as_comment.v"
+    (create_fixed_test "test not parsing star as a comment ) "
+       test_parsing_in_then_star_then_parenthesis doc);
+
   Hashtbl.add table "ex_reconstructing_stuck_together.v"
     (create_fixed_test "test reconstructing nodes glued together"
        test_reconstructing_stuck_together doc);
