@@ -5,6 +5,7 @@ open Syntax_node
 open Vernacexpr
 open Runner
 open Sexplib.Conv
+open Re
 
 let depth_to_bullet_type (depth : int) =
   let bullet_number = 1 + (depth / 3) in
@@ -843,31 +844,52 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
   in
   res
 
+let chop_dot (x : string) : string = String.sub x 0 (String.length x - 1)
+
+let secure_node (x : syntaxNode) : syntaxNode =
+  let re =
+    Re.(seq [ str "by "; group (compl [ char '.' ] |> rep1); char '.' ])
+    |> Re.compile
+  in
+  let new_repr =
+    Re.replace ~all:true re
+      ~f:(fun g ->
+        let content = Re.Group.get g 1 |> String.trim in
+        if
+          String.length content > 0
+          && content.[0] = '('
+          && content.[String.length content - 1] = ')'
+        then
+          (* Already parenthesized, keep as-is *)
+          "by " ^ content ^ "."
+        else "by (" ^ content ^ ").")
+      x.repr
+  in
+
+  Syntax_node.syntax_node_of_string new_repr x.range.start |> Result.get_ok
+
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let cleaned_tree_opt =
+  let cleaned_tree =
     Nary_tree.filter
       (fun node ->
-        (not (is_syntax_node_bullet node))
-        && (not (is_syntax_node_proof_command node))
+        (not (is_syntax_node_command_allowed_in_proof node))
         && ((not (node_can_open_proof node)) && not (node_can_close_proof node))
         && Option.has_some node.ast)
       proof_tree
   in
 
-  match cleaned_tree_opt with
+  match cleaned_tree with
   | None -> Ok []
   | Some cleaned_tree ->
       let rec get_oneliner (tree : syntaxNode nary_tree) : string =
         match tree with
         | Node (x, childrens) ->
-            let x_without_dot =
-              String.sub x.repr 0 (String.length x.repr - 1)
-            in
-
+            let x_reformated = secure_node x in
+            let x_without_dot = chop_dot x_reformated.repr in
             let last_children_opt =
               if List.length childrens > 0 then
                 List.nth_opt childrens (List.length childrens - 1)
@@ -884,18 +906,18 @@ let turn_into_oneliner (doc : Coq_document.t)
             in
 
             if is_syntax_node_proof_intro_or_end x then
-              String.concat " " (List.map get_oneliner childrens)
+              String.concat "" (List.map get_oneliner childrens)
             else if childrens_length_without_proof_end > 1 then
-              x_without_dot ^ "; " ^ "["
-              ^ String.concat " | " (List.map get_oneliner childrens)
+              x_without_dot ^ ";\n" ^ "["
+              ^ String.concat "\n| " (List.map get_oneliner childrens)
               ^ "]"
             else if childrens_length_without_proof_end = 1 then
-              x_without_dot ^ "; "
+              x_without_dot ^ ";\n"
               ^ String.concat " " (List.map get_oneliner childrens)
             else x_without_dot
       in
-
       let one_liner_repr = get_oneliner cleaned_tree ^ "." in
+
       let flattened = Nary_tree.flatten proof_tree in
       let remove_steps =
         List.filter_map
@@ -914,27 +936,6 @@ let turn_into_oneliner (doc : Coq_document.t)
           first_step_node.range.start
       in
 
-      let strip_parens s =
-        match s with
-        | s
-          when String.length s >= 3
-               && s.[0] = '('
-               && s.[String.length s - 2] = ')' ->
-            String.sub s 1 (String.length s - 3) ^ "."
-        | _ -> s
-      in
-
-      let* reformatted_oneliner_node =
-        Syntax_node.reformat_node oneliner_node
-      in
-
-      let reformatted_repr = reformatted_oneliner_node.repr |> strip_parens in
-
-      let* reformatted_oneliner_node =
-        Syntax_node.syntax_node_of_string reformatted_repr
-          reformatted_oneliner_node.range.start
-      in
-
       let* proof_node =
         syntax_node_of_string "Proof." first_step_node.range.end_
       in
@@ -943,7 +944,7 @@ let turn_into_oneliner (doc : Coq_document.t)
         (remove_steps
         @ [
             Attach (proof_node, LineAfter, first_step_node.id);
-            Attach (reformatted_oneliner_node, LineAfter, proof_node.id);
+            Attach (oneliner_node, LineAfter, proof_node.id);
           ])
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
