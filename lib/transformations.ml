@@ -844,9 +844,18 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
   in
   res
 
-let chop_dot (x : string) : string = String.sub x 0 (String.length x - 1)
+let chop_dot (x : string) : (string, Error.t) result =
+  let len = String.length x in
+  if len = 0 then
+    Error (Error.tag (Error.of_string "chop_dot: empty string") ~tag:"chop_dot")
+  else if x.[len - 1] <> '.' then
+    Error
+      (Error.tag_arg
+         (Error.of_string "chop_dot: expected string ending with '.'")
+         "string" x [%sexp_of: string])
+  else Ok (String.sub x 0 (len - 1))
 
-let secure_node (x : syntaxNode) : syntaxNode =
+let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
   let re =
     Re.(seq [ str "by "; group (compl [ char '.' ] |> rep1); char '.' ])
     |> Re.compile
@@ -866,7 +875,7 @@ let secure_node (x : syntaxNode) : syntaxNode =
       x.repr
   in
 
-  Syntax_node.syntax_node_of_string new_repr x.range.start |> Result.get_ok
+  Syntax_node.syntax_node_of_string new_repr x.range.start
 
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
@@ -885,11 +894,13 @@ let turn_into_oneliner (doc : Coq_document.t)
   match cleaned_tree with
   | None -> Ok []
   | Some cleaned_tree ->
-      let rec get_oneliner (tree : syntaxNode nary_tree) : string =
+      let rec get_oneliner (tree : syntaxNode nary_tree) :
+          (string, Error.t) result =
         match tree with
         | Node (x, childrens) ->
-            let x_reformated = secure_node x in
-            let x_without_dot = chop_dot x_reformated.repr in
+            let* x_reformated = secure_node x in
+            let* x_without_dot = chop_dot x_reformated.repr in
+
             let last_children_opt =
               if List.length childrens > 0 then
                 List.nth_opt childrens (List.length childrens - 1)
@@ -905,18 +916,31 @@ let turn_into_oneliner (doc : Coq_document.t)
               | None -> 0
             in
 
+            (* Helper: map childrens with error propagation *)
+            let map_children f lst =
+              let rec aux acc = function
+                | [] -> Ok (List.rev acc)
+                | x :: xs ->
+                    let* v = f x in
+                    aux (v :: acc) xs
+              in
+              aux [] lst
+            in
+
             if is_syntax_node_proof_intro_or_end x then
-              String.concat "" (List.map get_oneliner childrens)
+              let* mapped = map_children get_oneliner childrens in
+              Ok (String.concat "" mapped)
             else if childrens_length_without_proof_end > 1 then
-              x_without_dot ^ ";\n" ^ "["
-              ^ String.concat "\n| " (List.map get_oneliner childrens)
-              ^ "]"
+              let* mapped = map_children get_oneliner childrens in
+              Ok (x_without_dot ^ ";\n[" ^ String.concat "\n| " mapped ^ "]")
             else if childrens_length_without_proof_end = 1 then
-              x_without_dot ^ ";\n"
-              ^ String.concat " " (List.map get_oneliner childrens)
-            else x_without_dot
+              let* mapped = map_children get_oneliner childrens in
+              Ok (x_without_dot ^ ";\n" ^ String.concat " " mapped)
+            else Ok x_without_dot
       in
-      let one_liner_repr = get_oneliner cleaned_tree ^ "." in
+
+      let* one_liner_repr = get_oneliner cleaned_tree in
+      let one_liner_repr = one_liner_repr ^ "." in
 
       let flattened = Nary_tree.flatten proof_tree in
       let remove_steps =
