@@ -175,9 +175,11 @@ let get_proof_name (p : proof) : string option =
 let get_proof_status (p : proof) : proof_status option =
   if List.length p.proof_steps < 1 then None
   else
-    Result.to_option
-      (proof_status_from_last_node
-         (List.nth p.proof_steps (List.length p.proof_steps - 1)))
+    let status =
+      proof_status_from_last_node
+        (List.nth p.proof_steps (List.length p.proof_steps - 1))
+    in
+    Result.to_option status
 
 let get_tree_name (Node (x, children)) : string option =
   List.nth_opt (get_names x) 0

@@ -868,13 +868,10 @@ let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
           String.length content > 0
           && content.[0] = '('
           && content.[String.length content - 1] = ')'
-        then
-          (* Already parenthesized, keep as-is *)
-          "by " ^ content ^ "."
+        then (* Already parenthesized, keep as-is *) "by " ^ content ^ "."
         else "by (" ^ content ^ ").")
       x.repr
   in
-
   Syntax_node.syntax_node_of_string new_repr x.range.start
 
 let turn_into_oneliner (doc : Coq_document.t)
@@ -882,94 +879,108 @@ let turn_into_oneliner (doc : Coq_document.t)
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let cleaned_tree =
-    Nary_tree.filter
-      (fun node ->
-        (not (is_syntax_node_command_allowed_in_proof node))
-        && ((not (node_can_open_proof node)) && not (node_can_close_proof node))
-        && Option.has_some node.ast)
-      proof_tree
-  in
+  let proof = Runner.tree_to_proof proof_tree in
 
-  match cleaned_tree with
-  | None -> Ok []
-  | Some cleaned_tree ->
-      let rec get_oneliner (tree : syntaxNode nary_tree) :
-          (string, Error.t) result =
-        match tree with
-        | Node (x, childrens) ->
-            let* x_reformated = secure_node x in
-            let* x_without_dot = chop_dot x_reformated.repr in
+  let proof_status : Proof.proof_status option = Proof.get_proof_status proof in
 
-            let last_children_opt =
-              if List.length childrens > 0 then
-                List.nth_opt childrens (List.length childrens - 1)
-              else None
-            in
-
-            let childrens_length_without_proof_end =
-              match last_children_opt with
-              | Some (Node (last_children, _)) ->
-                  if is_syntax_node_proof_end last_children then
-                    List.length childrens - 1
-                  else List.length childrens
-              | None -> 0
-            in
-
-            (* Helper: map childrens with error propagation *)
-            let map_children f lst =
-              let rec aux acc = function
-                | [] -> Ok (List.rev acc)
-                | x :: xs ->
-                    let* v = f x in
-                    aux (v :: acc) xs
-              in
-              aux [] lst
-            in
-
-            if is_syntax_node_proof_intro_or_end x then
-              let* mapped = map_children get_oneliner childrens in
-              Ok (String.concat "" mapped)
-            else if childrens_length_without_proof_end > 1 then
-              let* mapped = map_children get_oneliner childrens in
-              Ok (x_without_dot ^ ";\n[" ^ String.concat "\n| " mapped ^ "]")
-            else if childrens_length_without_proof_end = 1 then
-              let* mapped = map_children get_oneliner childrens in
-              Ok (x_without_dot ^ ";\n" ^ String.concat " " mapped)
-            else Ok x_without_dot
-      in
-
-      let* one_liner_repr = get_oneliner cleaned_tree in
-      let one_liner_repr = one_liner_repr ^ "." in
-
-      let flattened = Nary_tree.flatten proof_tree in
-      let remove_steps =
-        List.filter_map
+  match proof_status with
+  | Some Proof.Aborted | Some Proof.Admitted -> Ok []
+  | Some Proof.Proved -> (
+      let cleaned_tree =
+        Nary_tree.filter
           (fun node ->
-            if node_can_open_proof node || node_can_close_proof node then None
-            else Some (Remove node.id))
-          flattened
+            (not (is_syntax_node_command_allowed_in_proof node))
+            && ((not (node_can_open_proof node))
+               && not (node_can_close_proof node))
+            && Option.has_some node.ast)
+          proof_tree
       in
 
-      let first_step_node =
-        List.find (fun node -> node_can_open_proof node) flattened
-      in
+      match cleaned_tree with
+      | None -> Ok []
+      | Some cleaned_tree ->
+          let rec get_oneliner (tree : syntaxNode nary_tree) :
+              (string, Error.t) result =
+            match tree with
+            | Node (x, childrens) ->
+                let* safe_x = secure_node x in
+                let* x_without_dot = chop_dot safe_x.repr in
 
-      let* oneliner_node =
-        Syntax_node.syntax_node_of_string one_liner_repr
-          first_step_node.range.start
-      in
+                let last_children_opt =
+                  if List.length childrens > 0 then
+                    List.nth_opt childrens (List.length childrens - 1)
+                  else None
+                in
 
-      let* proof_node =
-        syntax_node_of_string "Proof." first_step_node.range.end_
-      in
+                let childrens_length_without_proof_end =
+                  match last_children_opt with
+                  | Some (Node (last_children, _)) ->
+                      if is_syntax_node_proof_end last_children then
+                        List.length childrens - 1
+                      else List.length childrens
+                  | None -> 0
+                in
 
-      Ok
-        (remove_steps
-        @ [
-            Attach (proof_node, LineAfter, first_step_node.id);
-            Attach (oneliner_node, LineAfter, proof_node.id);
-          ])
+                (* Helper: map childrens with error propagation *)
+                let map_children f lst =
+                  let rec aux acc = function
+                    | [] -> Ok (List.rev acc)
+                    | x :: xs ->
+                        let* v = f x in
+                        aux (v :: acc) xs
+                  in
+                  aux [] lst
+                in
+
+                if is_syntax_node_proof_intro_or_end safe_x then
+                  let* mapped = map_children get_oneliner childrens in
+                  Ok (String.concat " " mapped)
+                else if childrens_length_without_proof_end > 1 then
+                  let* mapped = map_children get_oneliner childrens in
+                  Ok (x_without_dot ^ ";\n[" ^ String.concat "\n| " mapped ^ "]")
+                else if childrens_length_without_proof_end = 1 then
+                  let* mapped = map_children get_oneliner childrens in
+                  Ok (x_without_dot ^ ";\n" ^ String.concat " " mapped)
+                else Ok x_without_dot
+          in
+
+          let* one_liner_repr = get_oneliner cleaned_tree in
+          let one_liner_repr = one_liner_repr ^ "." in
+          print_endline ("oneliner repr " ^ one_liner_repr);
+
+          let flattened = Nary_tree.flatten proof_tree in
+          let remove_steps =
+            List.filter_map
+              (fun node ->
+                if node_can_open_proof node || node_can_close_proof node then
+                  None
+                else Some (Remove node.id))
+              flattened
+          in
+
+          let first_step_node =
+            List.find (fun node -> node_can_open_proof node) flattened
+          in
+
+          let* oneliner_node =
+            Syntax_node.syntax_node_of_string one_liner_repr
+              first_step_node.range.start
+          in
+
+          let* proof_node =
+            Syntax_node.syntax_node_of_string "Proof."
+              first_step_node.range.end_
+          in
+
+          Ok
+            (remove_steps
+            @ [
+                Attach (proof_node, LineAfter, first_step_node.id);
+                Attach (oneliner_node, LineAfter, proof_node.id);
+              ]))
+  | None ->
+      Error.string_to_or_error_err
+        "Can't find the proof status of the proof: invalid proof"
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =

@@ -210,7 +210,7 @@ let nodes_of_string (code : string) (ranges : Code_range.t list) :
 
 let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) :
     syntaxNode =
-  let repr = Ppvernac.pr_vernac (Coq.Ast.to_coq ast) |> Pp.string_of_ppcmds in
+  let repr = Coq.Ast.to_coq ast |> Ppvernac.pr_vernac |> Pp.string_of_ppcmds in
   let range = Range_utils.range_from_starting_point_and_repr start_point repr in
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
   {
