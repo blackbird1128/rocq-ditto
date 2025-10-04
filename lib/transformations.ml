@@ -161,21 +161,14 @@ let simple_proof_repair (doc : Coq_document.t)
                           Replace (node.id, admit_node) :: steps_acc,
                           ignore_acc,
                           num_goals ))
-            | Error err ->
-                print_endline ("Err: " ^ Error.to_string_hum err);
-                Error err)
+            | Error err -> Error err)
           (Ok (state, [], ignore_set, 1))
           proof_tree
       in
-      print_endline "steps to remove:";
-      SyntaxNodeSet.iter (fun x -> print_endline x.repr) ignore_acc;
+
       let removed_steps =
         SyntaxNodeSet.to_list ignore_acc |> List.map (fun x -> Remove x.id)
       in
-      print_endline
-        ("length removed steps: " ^ string_of_int (List.length removed_steps));
-      print_endline "steps acc: ";
-      List.iter print_transformation_step steps_acc;
       Ok (steps_acc @ removed_steps)
   | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
@@ -857,21 +850,32 @@ let chop_dot (x : string) : (string, Error.t) result =
 
 let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
   let re =
-    Re.(seq [ str "by "; group (compl [ char '.' ] |> rep1); char '.' ])
+    Re.(
+      seq
+        [
+          str "by";
+          rep1 (char ' ');
+          group (compl [ set ".;" ] |> rep1);
+          (* group 1: content *)
+          group (set ".;");
+          (* group 2: final punctuation *)
+        ])
     |> Re.compile
   in
   let new_repr =
     Re.replace ~all:true re
       ~f:(fun g ->
         let content = Re.Group.get g 1 |> String.trim in
+        let ending = Re.Group.get g 2 in
         if
           String.length content > 0
           && content.[0] = '('
           && content.[String.length content - 1] = ')'
-        then (* Already parenthesized, keep as-is *) "by " ^ content ^ "."
-        else "by (" ^ content ^ ").")
+        then "by " ^ content ^ ending
+        else "by (" ^ content ^ ")" ^ ending)
       x.repr
   in
+
   Syntax_node.syntax_node_of_string new_repr x.range.start
 
 let turn_into_oneliner (doc : Coq_document.t)
