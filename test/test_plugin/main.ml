@@ -358,6 +358,29 @@ let test_creating_invalid_syntax_node_from_string (doc : Doc.t) () : unit =
          (Error.of_string "'.' expected after [lconstr] (in [query_command])"))
       node_repr)
 
+let test_detecting_proof_with (doc : Doc.t) () : unit =
+  let point : Code_point.t = { line = 0; character = 0 } in
+  let node =
+    Syntax_node.syntax_node_of_string "Proof with easy." point |> Result.get_ok
+  in
+
+  let is_node_proof_with = Syntax_node.is_syntax_node_proof_with node in
+  Alcotest.(
+    check bool "The node should be detected as a \"Proof with\"" true
+      is_node_proof_with)
+
+let test_not_detecting_simple_proof_command_with_proof_with (doc : Doc.t) () :
+    unit =
+  let point : Code_point.t = { line = 0; character = 0 } in
+  let node =
+    Syntax_node.syntax_node_of_string "Proof." point |> Result.get_ok
+  in
+
+  let is_node_proof_with = Syntax_node.is_syntax_node_proof_with node in
+  Alcotest.(
+    check bool "The node should not have been detected as a \"Proof with\""
+      false is_node_proof_with)
+
 let test_searching_node (doc : Doc.t) () : unit =
   let doc = Coq_document.parse_document doc in
   let first_node_id = (List.hd doc.elements).id in
@@ -1262,6 +1285,14 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating an invalid node"
        test_creating_invalid_syntax_node_from_string doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test checking if detecting \"Proof with\" is correct"
+       test_detecting_proof_with doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test
+       "test checking if detecting Proof with doesnt detect normal Proof \
+        commands"
+       test_not_detecting_simple_proof_command_with_proof_with doc);
 
   Hashtbl.add table "ex_proof_tree1.v"
     (create_fixed_test "test counting the goals of each steps of a simple proof"

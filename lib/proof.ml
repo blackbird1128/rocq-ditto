@@ -173,13 +173,15 @@ let get_proof_name (p : proof) : string option =
   List.nth_opt (get_names p.proposition) 0
 
 let get_proof_status (p : proof) : proof_status option =
-  if List.length p.proof_steps < 1 then None
-  else
-    let status =
-      proof_status_from_last_node
-        (List.nth p.proof_steps (List.length p.proof_steps - 1))
-    in
-    Result.to_option status
+  match p.proof_steps with
+  | [] -> None
+  | steps ->
+      let rec last = function
+        | [ x ] -> x
+        | _ :: xs -> last xs
+        | [] -> assert false
+      in
+      proof_status_from_last_node (last steps) |> Result.to_option
 
 let get_tree_name (Node (x, children)) : string option =
   List.nth_opt (get_names x) 0

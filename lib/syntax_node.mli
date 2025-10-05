@@ -90,6 +90,8 @@ val is_syntax_node_command_allowed_in_proof : syntaxNode -> bool
 (** [is_syntax_node_command_allowed_in_proof x] checks if [x] is a command
     allowed inside a proof block context *)
 
+val is_syntax_node_proof_with : syntaxNode -> bool
+
 val is_syntax_node_proof_command : syntaxNode -> bool
 (** [is_syntax_node_proof_command x] checks if [x] represents the command Proof.
 *)
