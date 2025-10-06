@@ -118,6 +118,8 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
   | Error err -> (Error err, 0)
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
+  let debug_level = Option.default "true" (Sys.getenv_opt "DEBUG_LEVEL") in
+
   Printexc.record_backtrace true;
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
@@ -222,7 +224,9 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                 Result.fold ~ok:(output_string out)
                   ~error:(fun e -> print_endline (Error.to_string_hum e))
                   (Coq_document.dump_to_string res)
-            | Error err -> print_endline (Error.to_string_hum err)))
+            | Error err ->
+                print_endline (Error.to_string_hum err);
+                exit 1))
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()
