@@ -888,6 +888,9 @@ let turn_into_oneliner (doc : Coq_document.t)
   let proof_status : Proof.proof_status option = Proof.get_proof_status proof in
 
   match proof_status with
+  | None ->
+      Error.string_to_or_error_err
+        "Can't find the proof status of the proof: invalid proof"
   | Some Proof.Aborted | Some Proof.Admitted -> Ok []
   | Some Proof.Proved -> (
       let cleaned_tree =
@@ -950,7 +953,6 @@ let turn_into_oneliner (doc : Coq_document.t)
 
           let* one_liner_repr = get_oneliner cleaned_tree in
           let one_liner_repr = one_liner_repr ^ "." in
-          print_endline ("oneliner repr " ^ one_liner_repr);
 
           let flattened = Nary_tree.flatten proof_tree in
           let remove_steps =
@@ -982,9 +984,6 @@ let turn_into_oneliner (doc : Coq_document.t)
                 Attach (proof_node, LineAfter, first_step_node.id);
                 Attach (oneliner_node, LineAfter, proof_node.id);
               ]))
-  | None ->
-      Error.string_to_or_error_err
-        "Can't find the proof status of the proof: invalid proof"
 
 let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
