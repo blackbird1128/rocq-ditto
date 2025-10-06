@@ -83,7 +83,7 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
     (transformation :
       Coq_document.t -> proof -> (transformation_step list, Error.t) result)
     (transformation_kind : transformation_kind)
-    (proofs_rec : (proof list, Error.t) result) =
+    (proofs_rec : (proof list, Error.t) result) (verbose : bool) =
   match proofs_rec with
   | Ok proofs ->
       let proof_total = List.length proofs in
@@ -95,11 +95,17 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
               let proof_name =
                 Option.default "anonymous" (Proof.get_proof_name proof)
               in
-
-              Printf.printf
-                "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
-                (transformation_kind_to_arg transformation_kind)
-                proof_name (proof_count + 1) proof_total;
+              let _ =
+                if verbose then
+                  Printf.printf "Running transformation %s on %-20s(%d/%d)%!\n"
+                    (transformation_kind_to_arg transformation_kind)
+                    proof_name (proof_count + 1) proof_total
+                else
+                  Printf.printf
+                    "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
+                    (transformation_kind_to_arg transformation_kind)
+                    proof_name (proof_count + 1) proof_total
+              in
 
               let transformation_steps = transformation acc proof in
               match transformation_steps with
@@ -118,7 +124,15 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
   | Error err -> (Error err, 0)
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
-  let debug_level = Option.default "true" (Sys.getenv_opt "DEBUG_LEVEL") in
+  let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
+  print_endline ("verbose string " ^ verbose);
+  let verbose = Option.default false (bool_of_string_opt verbose) in
+
+  print_endline ("verbose ? " ^ string_of_bool verbose);
+  Logs.set_reporter (Logs_fmt.reporter ());
+
+  if verbose then Logs.set_level (Some Logs.Debug)
+  else Logs.set_level (Some Logs.Info);
 
   Printexc.record_backtrace true;
   let uri = doc.uri in
@@ -143,7 +157,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         let first_errors = List.filteri (fun i _ -> i < 5) errors in
         print_diagnostics first_errors;
         print_endline
-          "NOTE: errors after the first qmight be due to the first error.")
+          "NOTE: errors after the first might be due to the first error.")
       else
         let transformations_steps =
           Sys.getenv_opt "DITTO_TRANSFORMATION"
@@ -200,7 +214,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                       let proofs_rec = Coq_document.get_proofs doc_acc in
                       let doc_res =
                         local_apply_proof_transformation doc_acc transformation
-                          transformation_kind proofs_rec
+                          transformation_kind proofs_rec verbose
                       in
                       match doc_res with
                       | Ok new_doc, _ -> Ok new_doc

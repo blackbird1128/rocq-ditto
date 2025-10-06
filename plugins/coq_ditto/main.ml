@@ -147,7 +147,6 @@ let set_input_arg (path : string) : unit =
   if is_directory path || Sys.file_exists path then input_arg := path
   else raise (Arg.Bad (Printf.sprintf "Invalid input file or folder: %s" path))
 
-
 let set_transformation (t : string) : unit =
   match arg_to_transformation_kind t with
   | Ok Help ->
@@ -160,7 +159,6 @@ let set_transformation (t : string) : unit =
         (Arg.Bad
            (err ^ "\nvalid transformations:\n"
            ^ help_to_string transformations_help))
-
 
 let string_of_process_status = function
   | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
@@ -175,7 +173,7 @@ let remove_prefix (str : string) (prefix : string) =
 
 let speclist =
   [
-    ("-v", Arg.Set verbose, "Enable verbose output");
+    ("-v", Arg.Set verbose, "Enable debug output");
     ("-i", Arg.String set_input_arg, "Input folder or filename");
     ("-o", Arg.Set_string output_arg, "Output folder or filename");
     ("-t", Arg.String set_transformation, "Transformation to apply");
@@ -195,6 +193,10 @@ let transform_project () : (int, Error.t) result =
   Arg.parse speclist
     (fun anon -> Printf.printf "Ignoring anonymous arg: %s\n" anon)
     usage_msg;
+  Logs.set_reporter (Logs_fmt.reporter ());
+
+  if !verbose then Logs.set_level (Some Logs.Debug)
+  else Logs.set_level (Some Logs.Info);
 
   if !input_arg = "" then
     Error.string_to_or_error_err "Please provide an input folder or file"
@@ -215,6 +217,7 @@ let transform_project () : (int, Error.t) result =
               [|
                 "DITTO_TRANSFORMATION=" ^ !transformation_arg;
                 "OUTPUT_FILENAME=" ^ !output_arg;
+                "DEBUG_LEVEL=" ^ string_of_bool !verbose;
               |]
           in
 
@@ -249,7 +252,6 @@ let transform_project () : (int, Error.t) result =
             let files = List.map (fun x -> x.thing) p.files in
             let filenames = List.map Filename.basename files in
             let* dep_files = Compile.coqproject_sorted_files coqproject_path in
-            let dep_filenames = List.map Filename.basename dep_files in
             let* new_dir_state = make_dir !output_arg in
             warn_if_exists new_dir_state;
             let* copy_dir_status = copy_dir !input_arg !output_arg filenames in
@@ -261,7 +263,10 @@ let transform_project () : (int, Error.t) result =
 
             let env =
               Array.append (Unix.environment ())
-                [| "DITTO_TRANSFORMATION=" ^ !transformation_arg |]
+                [|
+                  "DITTO_TRANSFORMATION=" ^ !transformation_arg;
+                  "DEBUG_LEVEL=" ^ string_of_bool !verbose;
+                |]
             in
 
             let prog = "fcc" in
