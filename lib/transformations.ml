@@ -975,14 +975,57 @@ let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
       Syntax_node.syntax_node_of_string new_repr x.range.start
   | _ -> Ok x
 
+let ( let* ) = Result.bind
+
+let map_children f lst =
+  let rec aux acc = function
+    | [] -> Ok (List.rev acc)
+    | x :: xs -> (
+        match f x with Ok v -> aux (v :: acc) xs | Error e -> Error e)
+  in
+  aux [] lst
+
+let last_and_len lst =
+  let rec aux last count = function
+    | [] -> (last, count)
+    | x :: xs -> aux (Some x) (count + 1) xs
+  in
+  aux None 0 lst
+
+let rec get_oneliner (tree : syntaxNode nary_tree) : (string, Error.t) result =
+  match tree with
+  | Node (x, childrens) -> (
+      let* safe_x = secure_node x in
+      let* x_without_dot = chop_dot safe_x.repr in
+
+      let last_children_opt, childrens_length = last_and_len childrens in
+
+      let childrens_length_without_proof_end =
+        match last_children_opt with
+        | Some (Node (last, _)) when is_syntax_node_proof_end last ->
+            childrens_length - 1
+        | _ -> childrens_length
+      in
+      let* mapped =
+        match childrens_length_without_proof_end with
+        | 0 -> Ok []
+        | _ -> map_children get_oneliner childrens
+      in
+
+      if is_syntax_node_proof_intro_or_end safe_x then
+        Ok (String.concat " " mapped)
+      else
+        match childrens_length_without_proof_end with
+        | 0 -> Ok x_without_dot
+        | 1 -> Ok (x_without_dot ^ ";\n" ^ String.concat " " mapped)
+        | _ -> Ok (x_without_dot ^ ";\n[" ^ String.concat "\n| " mapped ^ "]"))
+
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, Error.t) result =
-  let ( let* ) = Result.bind in
-
   let proof = Runner.tree_to_proof proof_tree in
 
-  let proof_status : Proof.proof_status option = Proof.get_proof_status proof in
+  let proof_status = Proof.get_proof_status proof in
 
   match proof_status with
   | None ->
@@ -1003,51 +1046,7 @@ let turn_into_oneliner (doc : Coq_document.t)
       match cleaned_tree with
       | None -> Ok []
       | Some cleaned_tree ->
-          let rec get_oneliner (tree : syntaxNode nary_tree) :
-              (string, Error.t) result =
-            match tree with
-            | Node (x, childrens) ->
-                let* safe_x = secure_node x in
-                let* x_without_dot = chop_dot safe_x.repr in
-
-                let last_children_opt =
-                  if List.length childrens > 0 then
-                    List.nth_opt childrens (List.length childrens - 1)
-                  else None
-                in
-
-                let childrens_length_without_proof_end =
-                  match last_children_opt with
-                  | Some (Node (last_children, _)) ->
-                      if is_syntax_node_proof_end last_children then
-                        List.length childrens - 1
-                      else List.length childrens
-                  | None -> 0
-                in
-
-                (* Helper: map childrens with error propagation *)
-                let map_children f lst =
-                  let rec aux acc = function
-                    | [] -> Ok (List.rev acc)
-                    | x :: xs ->
-                        let* v = f x in
-                        aux (v :: acc) xs
-                  in
-                  aux [] lst
-                in
-
-                if is_syntax_node_proof_intro_or_end safe_x then
-                  let* mapped = map_children get_oneliner childrens in
-                  Ok (String.concat " " mapped)
-                else if childrens_length_without_proof_end > 1 then
-                  let* mapped = map_children get_oneliner childrens in
-                  Ok (x_without_dot ^ ";\n[" ^ String.concat "\n| " mapped ^ "]")
-                else if childrens_length_without_proof_end = 1 then
-                  let* mapped = map_children get_oneliner childrens in
-                  Ok (x_without_dot ^ ";\n" ^ String.concat " " mapped)
-                else Ok x_without_dot
-          in
-
+          (* Helper: map childrens with error propagation *)
           let* one_liner_repr = get_oneliner cleaned_tree in
           let one_liner_repr = one_liner_repr ^ "." in
 
