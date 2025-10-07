@@ -848,6 +848,10 @@ let chop_dot (x : string) : (string, Error.t) result =
          "string" x [%sexp_of: string])
   else Ok (String.sub x 0 (len - 1))
 
+let parse_tactic_arg (s : string) : Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let entry = Ltac_plugin.Pltac.ltac_expr in
+  Pcoq.parse_string entry s
+
 let rec first_atomic_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) =
   let open Ltac_plugin.Tacexpr in
   match tac.CAst.v with
@@ -890,25 +894,6 @@ let get_base_tactic (x : syntaxNode) =
   in
   res
 
-let is_node_assert_by (x : syntaxNode) : bool =
-  let ( let* ) = Option.bind in
-  let open Raw_gen_args_converter in
-  let res =
-    let* args = Syntax_node.get_tactic_raw_generic_arguments x in
-    let* ltac = raw_arguments_to_ltac_elements args in
-    let raw_tac = ltac.raw_tactic_expr in
-    match raw_tac.CAst.v with
-    | Ltac_plugin.Tacexpr.TacAtom atom -> (
-        match atom with
-        | Ltac_plugin.Tacexpr.TacAssert (_, _, by_clause_opt, _, _) -> (
-            match by_clause_opt with
-            | Some (Some _) -> Some true (* assert _ by _ *)
-            | _ -> Some false)
-        | _ -> Some false)
-    | _ -> Some false
-  in
-  res = Some true
-
 type sentence_ending = Semicolon | Dot
 
 let get_ending (tac : Ltac_plugin.Tacexpr.raw_tactic_expr option) :
@@ -934,6 +919,7 @@ let string_of_raw_tactic_dummy (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
 let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
   let open Raw_gen_args_converter in
   let base_tactic = get_base_tactic x in
+  let v = Option.map (fun x -> x.CAst.v) base_tactic in
   match Option.map (fun x -> x.CAst.v) base_tactic with
   | Some
       (Ltac_plugin.Tacexpr.TacAtom
@@ -941,7 +927,6 @@ let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
       let base_tactic = Option.get base_tactic in
       let base_tactic_repr = string_of_raw_tactic_dummy base_tactic in
 
-      let open Raw_gen_args_converter in
       let args = Syntax_node.get_tactic_raw_generic_arguments x in
       let ltac =
         Option.cata Raw_gen_args_converter.raw_arguments_to_ltac_elements None
@@ -949,6 +934,14 @@ let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
       in
       let raw_tac = Option.map (fun x -> x.raw_tactic_expr) ltac in
       let raw_tac_repr = string_of_raw_tactic_dummy (Option.get raw_tac) in
+
+      let assert_dummy =
+        parse_tactic_arg "assert (H: n * 1 = n) by ((auto with arith))."
+      in
+      let assert_repr = string_of_raw_tactic_dummy assert_dummy in
+      Logs.debug (fun m -> m "assert dummy: %s" assert_repr);
+
+      Logs.debug (fun m -> m "x repr: %s" x.repr);
       Logs.debug (fun m ->
           m "all tactic repr: %s"
             (string_of_raw_tactic_dummy (Option.get raw_tac)));
@@ -962,7 +955,7 @@ let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
       Logs.debug (fun m -> m "len: %d" len);
       let rest_repr = String.sub raw_tac_repr pos len in
       Logs.debug (fun m -> m "rest repr: %s" rest_repr);
-
+      Logs.debug (fun m -> m "\n");
       let ending = get_ending raw_tac in
 
       Syntax_node.syntax_node_of_string x.repr x.range.start
@@ -1039,7 +1032,7 @@ let turn_into_oneliner (doc : Coq_document.t)
       match cleaned_tree with
       | None -> Ok []
       | Some cleaned_tree ->
-          (* Helper: map childrens with error propagation *)
+          (* Helper: map children with error propagation *)
           let* one_liner_repr = get_oneliner cleaned_tree in
           let one_liner_repr = one_liner_repr ^ "." in
 
