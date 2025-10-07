@@ -96,10 +96,11 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
                 Option.default "anonymous" (Proof.get_proof_name proof)
               in
               let _ =
-                if verbose then
+                if verbose then (
                   Printf.printf "Running transformation %s on %-20s(%d/%d)%!\n"
                     (transformation_kind_to_arg transformation_kind)
-                    proof_name (proof_count + 1) proof_total
+                    proof_name (proof_count + 1) proof_total;
+                  print_newline ())
                 else
                   Printf.printf
                     "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"

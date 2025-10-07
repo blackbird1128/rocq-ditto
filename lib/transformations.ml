@@ -848,11 +848,10 @@ let chop_dot (x : string) : (string, Error.t) result =
          "string" x [%sexp_of: string])
   else Ok (String.sub x 0 (len - 1))
 
-let rec first_atomic_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
-    'a Ltac_plugin.Tacexpr.gen_atomic_tactic_expr option =
+let rec first_atomic_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) =
   let open Ltac_plugin.Tacexpr in
   match tac.CAst.v with
-  | TacAtom atom -> Some atom
+  | TacAtom atom -> Some tac
   | TacThen (t1, _) -> first_atomic_tactic t1
   | TacThens (t1, _) -> first_atomic_tactic t1
   | TacThens3parts (t1, _, _, _) -> first_atomic_tactic t1
@@ -879,9 +878,7 @@ let rec first_atomic_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       None
   | TacDispatch [] | TacFirst [] | TacSolve [] -> None
 
-let get_base_tactic (x : syntaxNode) :
-    Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_atomic_tactic_expr
-    option =
+let get_base_tactic (x : syntaxNode) =
   let ( let* ) = Option.bind in
   let open Raw_gen_args_converter in
   let res =
@@ -912,24 +909,38 @@ let is_node_assert_by (x : syntaxNode) : bool =
   in
   res = Some true
 
-let get_ending (tac : Ltac_plugin.Tacexpr.raw_tactic_expr option) : string =
+type sentence_ending = Semicolon | Dot
+
+let get_ending (tac : Ltac_plugin.Tacexpr.raw_tactic_expr option) :
+    sentence_ending =
   match tac with
   | Some tac -> (
       match tac.CAst.v with
       | Ltac_plugin.Tacexpr.TacThen _ | Ltac_plugin.Tacexpr.TacThens _
       | Ltac_plugin.Tacexpr.TacDispatch _ | Ltac_plugin.Tacexpr.TacThens3parts _
         ->
-          ";"
-      | _ -> ".")
-  | None -> "."
+          Semicolon
+      | _ -> Dot)
+  | None -> Dot
+
+let string_of_raw_tactic_dummy (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    string =
+  (* 1. Create a dummy global environment *)
+  let env = Global.env () in
+  (* 2. Create an empty evar map *)
+  let evd = Evd.from_env env in
+  Ltac_plugin.Pptactic.pr_raw_tactic env evd tac |> Pp.string_of_ppcmds
 
 let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
   let open Raw_gen_args_converter in
   let base_tactic = get_base_tactic x in
-  match base_tactic with
-  | Some (Ltac_plugin.Tacexpr.TacAssert (_, _, Some (Some _), _, _)) as
-    base_tactic ->
-      Logs.debug (fun m -> m "old repr: %s" x.repr);
+  match Option.map (fun x -> x.CAst.v) base_tactic with
+  | Some
+      (Ltac_plugin.Tacexpr.TacAtom
+         (Ltac_plugin.Tacexpr.TacAssert (_, _, Some (Some expr), _, _))) ->
+      let base_tactic = Option.get base_tactic in
+      let base_tactic_repr = string_of_raw_tactic_dummy base_tactic in
+
       let open Raw_gen_args_converter in
       let args = Syntax_node.get_tactic_raw_generic_arguments x in
       let ltac =
@@ -937,42 +948,24 @@ let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
           args
       in
       let raw_tac = Option.map (fun x -> x.raw_tactic_expr) ltac in
+      let raw_tac_repr = string_of_raw_tactic_dummy (Option.get raw_tac) in
+      Logs.debug (fun m ->
+          m "all tactic repr: %s"
+            (string_of_raw_tactic_dummy (Option.get raw_tac)));
+      Logs.debug (fun m -> m "bas tactic repr: %s" base_tactic_repr);
+
+      let pos = String.length base_tactic_repr in
+      let len =
+        max 0 (String.length raw_tac_repr - String.length base_tactic_repr - 1)
+      in
+      Logs.debug (fun m -> m "pos: %d" pos);
+      Logs.debug (fun m -> m "len: %d" len);
+      let rest_repr = String.sub raw_tac_repr pos len in
+      Logs.debug (fun m -> m "rest repr: %s" rest_repr);
+
       let ending = get_ending raw_tac in
-      let content_char = Re.alt [ Re.compl [ Re.set ".;" ]; Re.char '\n' ] in
-      let re =
-        Re.(
-          seq
-            [
-              str "by";
-              rep1 (char ' ');
-              group (rep1 content_char);
-              rep (alt [ char ' '; char '\n' ]);
-              (* allow trailing whitespace *)
-              group (set ".;");
-              (* final punctuation *)
-            ])
-        |> Re.compile
-      in
-      let new_repr =
-        Re.replace ~all:true re
-          ~f:(fun g ->
-            let content = Re.Group.get g 1 |> String.trim in
 
-            Logs.debug (fun m -> m "ending: %s " ending);
-            Logs.debug (fun m -> m "content: %s" content);
-            if
-              String.length content > 0
-              && content.[0] = '('
-              && content.[String.length content - 1] = ')'
-            then (
-              Logs.debug (fun m -> m "parenthesis detected !");
-              "by " ^ content ^ ending)
-            else "by (" ^ content ^ ")" ^ ending)
-          x.repr
-      in
-
-      Logs.debug (fun m -> m "new repr %s" new_repr);
-      Syntax_node.syntax_node_of_string new_repr x.range.start
+      Syntax_node.syntax_node_of_string x.repr x.range.start
   | _ -> Ok x
 
 let ( let* ) = Result.bind
@@ -1049,8 +1042,6 @@ let turn_into_oneliner (doc : Coq_document.t)
           (* Helper: map childrens with error propagation *)
           let* one_liner_repr = get_oneliner cleaned_tree in
           let one_liner_repr = one_liner_repr ^ "." in
-
-          Logs.debug (fun m -> m "one liner repr %s" one_liner_repr);
 
           let flattened = Nary_tree.flatten proof_tree in
           let remove_steps =
