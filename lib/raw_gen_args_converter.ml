@@ -481,3 +481,9 @@ let raw_arguments_to_ltac_elements (args : Genarg.raw_generic_argument list) :
       Option.get (ltac_use_default_of_raw_generic_argument fourth_arg)
     in
     Some { selector; raw_tactic_expr; use_default }
+
+let raw_arguments_to_raw_tactic_expr (args : Genarg.raw_generic_argument list) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr option =
+  match args with
+  | [ _; _; arg; _ ] -> raw_tactic_expr_of_raw_generic_argument arg
+  | _ -> None

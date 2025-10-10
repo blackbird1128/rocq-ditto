@@ -103,3 +103,6 @@ type ltac_elements = {
 
 val raw_arguments_to_ltac_elements :
   Genarg.raw_generic_argument list -> ltac_elements option
+
+val raw_arguments_to_raw_tactic_expr :
+  Genarg.raw_generic_argument list -> Ltac_plugin.Tacexpr.raw_tactic_expr option

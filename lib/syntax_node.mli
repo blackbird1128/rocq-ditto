@@ -151,5 +151,12 @@ val node_can_close_proof : syntaxNode -> bool
 (** [node_can_close_proof x] check if [x] can close a proof, meaning it's either
     Qed, Admitted, Abort or Abort all *)
 
+open Raw_gen_args_converter
+
 val get_tactic_raw_generic_arguments :
   syntaxNode -> Genarg.raw_generic_argument list option
+
+val get_node_raw_tactic_expr :
+  syntaxNode -> Ltac_plugin.Tacexpr.raw_tactic_expr option
+
+val get_node_ltac_elements : syntaxNode -> ltac_elements option

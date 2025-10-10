@@ -320,7 +320,11 @@ let is_syntax_node_tactic (x : syntaxNode) : bool =
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, _) ->
-              if ext.ext_plugin = "coq-core.plugins.ltac" then true else false
+              if
+                ext.ext_plugin = "coq-core.plugins.ltac"
+                || ext.ext_plugin = "rocq-runtime.plugins.ltac"
+              then true
+              else false
           | _ -> false)
       | VernacSynPure _ -> false)
   | None -> false
@@ -491,6 +495,19 @@ let get_tactic_raw_generic_arguments (x : syntaxNode) :
           | _ -> None)
       | VernacSynPure _ -> None)
   | None -> None
+
+open Raw_gen_args_converter
+
+let get_node_ltac_elements (x : syntaxNode) : ltac_elements option =
+  get_tactic_raw_generic_arguments x
+  |> Option.map raw_arguments_to_ltac_elements
+  |> Option.flatten
+
+let get_node_raw_tactic_expr (x : syntaxNode) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr option =
+  get_tactic_raw_generic_arguments x
+  |> Option.map raw_arguments_to_raw_tactic_expr
+  |> Option.flatten
 
 (* let syntax_node_of_raw_gen
    eric_arguments (start_point: Lang.Point.t) (args: Genarg.raw_generic_argument list) : syntaxNode option= *)
