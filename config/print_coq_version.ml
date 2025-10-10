@@ -1,6 +1,25 @@
+let find_executable names =
+  let rec aux = function
+    | [] -> None
+    | name :: rest ->
+        let cmd = Printf.sprintf "command -v %s >/dev/null 2>&1" name in
+        let status = Sys.command cmd in
+        if status = 0 then Some name else aux rest
+  in
+  aux names
+
 let () =
+  let exe =
+    match find_executable [ "rocq"; "coqc" ] with
+    | Some e -> e
+    | None -> failwith "Neither 'rocq' nor 'coqc' executable found in PATH"
+  in
+
   let line =
-    let ic = Unix.open_process_in "coqc --print-version" in
+    let ic =
+      if exe = "coqc" then Unix.open_process_in "coqc --print-version"
+      else Unix.open_process_in "rocq c --print-version"
+    in
     let l = input_line ic in
     ignore (Unix.close_process_in ic);
     l
