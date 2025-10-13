@@ -4,7 +4,7 @@ open Ditto.Proof
 
 type transformation_kind =
   | Help
-  | MakeIntrosExplicit
+  | ExplicitFreshVariables
   | TurnIntoOneliner
   | ReplaceAutoWithSteps
   | CompressIntro
@@ -19,9 +19,11 @@ let verbose = ref false
 
 let transformations_help =
   [
-    ( MakeIntrosExplicit,
-      "Transform intros. into intros X_1 ... X_n where X are the variables \
-       introduced by intros." );
+    ( ExplicitFreshVariables,
+      "replace call to tactics creating fresh variables such as intros with \
+       intros V_1  V_2 V_n\n\
+       where each V_i corresponds to a variable automatically introduced by \
+       the tactic." );
     ( TurnIntoOneliner,
       "Remove all commands from the proof and turn all steps into a single \
        tactic call using the ';' and '[]' tacticals." );
@@ -38,7 +40,7 @@ let arg_to_transformation_kind (arg : string) :
     (transformation_kind, string) result =
   let normalized = String.lowercase_ascii arg in
   if normalized = "help" then Ok Help
-  else if normalized = "make_intros_explicit" then Ok MakeIntrosExplicit
+  else if normalized = "explicit_fresh_variables" then Ok ExplicitFreshVariables
   else if normalized = "turn_into_one_liner" then Ok TurnIntoOneliner
   else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
   else if normalized = "compress_intro" then Ok CompressIntro
@@ -50,7 +52,7 @@ let arg_to_transformation_kind (arg : string) :
 let transformation_kind_to_string (kind : transformation_kind) : string =
   match kind with
   | Help -> "HELP"
-  | MakeIntrosExplicit -> "MAKE_INTROS_EXPLICIT"
+  | ExplicitFreshVariables -> "EXPLICIT_FRESH_VARIABLES"
   | TurnIntoOneliner -> "TURN_INTO_ONE_LINER"
   | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
   | CompressIntro -> "COMPRESS_INTROS"

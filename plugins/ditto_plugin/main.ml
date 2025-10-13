@@ -9,7 +9,7 @@ open Theorem_query
 
 type transformation_kind =
   | Help
-  | MakeIntrosExplicit
+  | ExplicitFreshVariables
   | TurnIntoOneliner
   | ReplaceAutoWithSteps
   | CompressIntro
@@ -18,8 +18,8 @@ type transformation_kind =
 let transformation_kind_to_arg (kind : transformation_kind) : string =
   match kind with
   | Help -> "HELP"
-  | MakeIntrosExplicit -> "MAKE_INTROS_EXPLICIT"
-  | TurnIntoOneliner -> "TURN_INTO_ONELINER"
+  | ExplicitFreshVariables -> "EXPLICIT_FRESH_VARIABLES"
+  | TurnIntoOneliner -> "TURN_INTO_ONE_LINER"
   | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
   | CompressIntro -> "COMPRESS_INTROS"
   | IdTransformation -> "ID_TRANSFORMATION"
@@ -28,14 +28,14 @@ let arg_to_transformation_kind (arg : string) :
     (transformation_kind, string) result =
   let normalized = String.lowercase_ascii arg in
   if normalized = "help" then Ok Help
-  else if normalized = "make_intros_explicit" then Ok MakeIntrosExplicit
+  else if normalized = "explicit_fresh_variables" then Ok ExplicitFreshVariables
   else if normalized = "turn_into_one_liner" then Ok TurnIntoOneliner
   else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
   else if normalized = "compress_intro" then Ok CompressIntro
   else if normalized = "id_transformation" then Ok IdTransformation
   else
     Error
-      ("transformation " ^ arg ^ "wasn't recognized as a valid transformation")
+      ("transformation " ^ arg ^ " wasn't recognized as a valid transformation")
 
 let wrap_to_treeify (doc : Coq_document.t) (x : proof) =
   Result.get_ok (Runner.treeify_proof doc x)
@@ -46,7 +46,7 @@ let transformation_kind_to_function (doc : Coq_document.t)
     =
   match kind with
   | Help -> fun doc x -> Ok []
-  | MakeIntrosExplicit -> Transformations.make_intros_explicit
+  | ExplicitFreshVariables -> Transformations.implicit_fresh_variables
   | TurnIntoOneliner ->
       fun doc x ->
         Transformations.turn_into_oneliner doc (wrap_to_treeify doc x)
@@ -64,9 +64,11 @@ let print_help (transformation_help : (transformation_kind * string) list) :
 
 let transformations_help =
   [
-    ( MakeIntrosExplicit,
-      "Transform intros. into intros X_1 ... X_n where X are the variables \
-       introduced by intros." );
+    ( ExplicitFreshVariables,
+      "replace call to tactics creating fresh variables such as intros with \
+       intros V_1  V_2 V_n\n\
+       where each V_i corresponds to a variable automatically introduced by \
+       the tactic." );
     ( TurnIntoOneliner,
       "Remove all commands from the proof and turn all steps into a single \
        tactic call using the ';' and '[]' tacticals." );
@@ -182,7 +184,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             print_endline "Recognized transformations: ";
             let transformations =
               [
-                "make_intros_explicit";
+                "implicit_fresh_variables";
                 "turn_into_one_liner";
                 "replace_auto_with_steps";
                 "compress_intro";

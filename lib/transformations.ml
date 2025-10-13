@@ -1099,36 +1099,80 @@ let turn_into_oneliner (doc : Coq_document.t)
                 Attach (oneliner_node, LineAfter, proof_node.id);
               ]))
 
-let make_intros_explicit (doc : Coq_document.t) (proof : proof) :
+let implicit_fresh_variables (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
+  let rewrite_intros (node_repr : string) (new_vars : string list list option) :
+      string option =
+    match new_vars with
+    | Some new_vars ->
+        Some ("intros " ^ String.concat " " (List.hd new_vars) ^ ".")
+    | None -> None
+  in
+
+  let rewriters :
+      (string * (string -> string list list option -> string option)) list =
+    [ ("intros.", rewrite_intros) ]
+  in
+
+  let find_rewriter (node_repr : string) :
+      (string -> string list list option -> string option) option =
+    List.find_map
+      (fun (prefix, f) ->
+        if String.starts_with ~prefix node_repr then Some f else None)
+      rewriters
+  in
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
       let* new_state = Runner.run_node token state node in
-      if
-        String.starts_with ~prefix:"intros." node.repr
-        && not (String.contains node.repr ';')
-      then
-        let* old_state_vars =
-          Result.map Runner.get_hypothesis_names
-            (Runner.get_current_goal token state)
-        in
-        let* new_state_vars =
-          Result.map Runner.get_hypothesis_names
-            (Runner.get_current_goal token new_state)
-        in
-        let new_vars =
-          List.filter (fun x -> not (List.mem x old_state_vars)) new_state_vars
-        in
-        let explicit_intro = "intros " ^ String.concat " " new_vars ^ "." in
-        let* explicit_intro_node =
-          Syntax_node.syntax_node_of_string explicit_intro node.range.start
-        in
-        let r = Replace (node.id, explicit_intro_node) in
-        Ok (new_state, r :: acc)
-      else Ok (new_state, acc))
+      match find_rewriter node.repr with
+      | Some rewriter -> (
+          let* old_goals = Runner.goals ~token ~st:state in
+
+          let* new_goals = Runner.goals ~token ~st:new_state in
+
+          let old_goals_vars =
+            Option.map
+              (fun (x :
+                     ( scope_name Coq.Goals.Reified_goal.t,
+                       scope_name )
+                     Coq.Goals.t) ->
+                List.map Runner.get_hypothesis_names x.goals)
+              old_goals
+          in
+
+          let new_goals_vars =
+            Option.map
+              (fun (x :
+                     ( scope_name Coq.Goals.Reified_goal.t,
+                       scope_name )
+                     Coq.Goals.t) ->
+                List.map Runner.get_hypothesis_names x.goals)
+              new_goals
+          in
+
+          let new_vars =
+            match (old_goals_vars, new_goals_vars) with
+            | Some old_goals_vars, Some new_goals_vars ->
+                Some
+                  (List.map2
+                     (fun old_vars new_vars ->
+                       List.filter (fun x -> not (List.mem x old_vars)) new_vars)
+                     old_goals_vars new_goals_vars)
+            | _ -> None
+          in
+
+          match rewriter node.repr new_vars with
+          | Some x ->
+              let* explicit_node =
+                Syntax_node.syntax_node_of_string x node.range.start
+              in
+              let r = Replace (node.id, explicit_node) in
+              Ok (new_state, r :: acc)
+          | None -> Ok (new_state, acc))
+      | None -> Ok (new_state, acc))
     [] proof
 
 let apply_proof_transformation
