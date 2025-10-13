@@ -4,3 +4,9 @@
  (public_name coq-ditto)
  (libraries unix logs logs.fmt coq-ditto coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche)
  )
+
+(install
+ (package coq-ditto)
+ (section bin)
+ (files
+  (main.exe as rocq-ditto)))

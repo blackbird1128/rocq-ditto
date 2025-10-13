@@ -126,10 +126,9 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
-  print_endline ("verbose string " ^ verbose);
+
   let verbose = Option.default false (bool_of_string_opt verbose) in
 
-  print_endline ("verbose ? " ^ string_of_bool verbose);
   Logs.set_reporter (Logs_fmt.reporter ());
 
   if verbose then Logs.set_level (Some Logs.Debug)

@@ -179,7 +179,7 @@ let speclist =
     ("-t", Arg.String set_transformation, "Transformation to apply");
   ]
 
-let usage_msg = "Usage: coq-ditto [options]"
+let usage_msg = "Usage: rocq-ditto [options]"
 
 let warn_if_exists (dir_state : newDirState) =
   match dir_state with
@@ -190,6 +190,9 @@ let warn_if_exists (dir_state : newDirState) =
 let transform_project () : (int, Error.t) result =
   print_newline ();
   let ( let* ) = Result.bind in
+
+  let exec_name = Filename.basename Sys.argv.(0) in
+
   Arg.parse speclist
     (fun anon -> Printf.printf "Ignoring anonymous arg: %s\n" anon)
     usage_msg;
@@ -197,6 +200,17 @@ let transform_project () : (int, Error.t) result =
 
   if !verbose then Logs.set_level (Some Logs.Debug)
   else Logs.set_level (Some Logs.Info);
+
+  let _ =
+    match exec_name with
+    | "coq-ditto" ->
+        Logs.warn (fun m ->
+            m
+              "alias coq-ditto might disappear in the future, please use \
+               rocq-ditto as the command name")
+    | "rocq-ditto" -> ()
+    | _ -> assert false
+  in
 
   if !input_arg = "" then
     Error.string_to_or_error_err "Please provide an input folder or file"

@@ -17,7 +17,7 @@
 
 (package
  (name coq-ditto)
- (synopsis "Coq ditto lib")
+ (synopsis "Rocq ditto lib")
  (description "libraries used by the plugins")
  (depends ocaml dune coq-lsp base-unix re alcotest uuidm ppx_sexp_message ppx_sexp_value ppx_optcomp)
  (tags
@@ -25,7 +25,7 @@
 
 (package
   (name ditto-plugin)
-  (synopsis "Basic Fleche plugin used by coq-ditto to run transformation" )
+  (synopsis "Basic Fleche plugin used by rocq-ditto to run transformation" )
   (allow_empty)
   (depends ocaml dune coq-lsp base-unix re coq-ditto)
  )
@@ -79,7 +79,7 @@
 
 (package
  (name json-dump-plugin)
- (synopsis "dump a Coq-AST to JSON to explore internal representation")
+ (synopsis "dump a Rocq-AST to JSON to explore internal representation")
  (allow_empty)
  (depends ocaml dune coq-lsp base-unix re coq-ditto))
 
