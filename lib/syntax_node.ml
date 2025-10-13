@@ -349,6 +349,25 @@ let is_syntax_node_proof_with (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
+let get_syntax_node_proof_with_tactic (x : syntaxNode) : string option =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> None
+      | VernacSynPure expr -> (
+          match expr with
+          | Vernacexpr.VernacProof (Some raw_arg, _) ->
+              let empty_env = Environ.empty_env in
+              let empty_evd = Evd.empty in
+              Some
+                (Pp.string_of_ppcmds
+                   (Pputils.pr_raw_generic empty_env empty_evd raw_arg))
+          | _ -> None))
+  | None -> None
+
+let is_syntax_node_ending_with_elipsis (x : syntaxNode) : bool =
+  String.ends_with ~suffix:"..." x.repr
+
 let is_syntax_node_context (x : syntaxNode) : bool =
   match x.ast with
   | Some ast -> (

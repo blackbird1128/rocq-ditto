@@ -848,6 +848,20 @@ let chop_dot (x : string) : (string, Error.t) result =
          "string" x [%sexp_of: string])
   else Ok (String.sub x 0 (len - 1))
 
+let chop_ellipsis (x : string) : (string, Error.t) result =
+  let len = String.length x in
+  if len = 0 then
+    Error
+      (Error.tag
+         (Error.of_string "chop_ellipsis: empty string")
+         ~tag:"chop_ellipsis")
+  else if len < 3 || not (String.ends_with ~suffix:"..." x) then
+    Error
+      (Error.tag_arg
+         (Error.of_string "chop_ellipsis: expected string ending with '...'")
+         "string" x [%sexp_of: string])
+  else Ok (String.sub x 0 (len - 3))
+
 let parse_tactic_arg (s : string) : Ltac_plugin.Tacexpr.raw_tactic_expr =
   let entry = Ltac_plugin.Pltac.ltac_expr in
   Pcoq.parse_string entry s
@@ -978,11 +992,24 @@ let last_and_len lst =
   in
   aux None 0 lst
 
-let rec get_oneliner (tree : syntaxNode nary_tree) : (string, Error.t) result =
+let rec get_oneliner (suffix : string option) (tree : syntaxNode nary_tree) :
+    (string, Error.t) result =
   match tree with
   | Node (x, childrens) -> (
       let* safe_x = secure_node x in
-      let* x_without_dot = chop_dot safe_x.repr in
+      let* x_without_dots =
+        if Syntax_node.is_syntax_node_ending_with_elipsis x then
+          chop_ellipsis safe_x.repr
+        else chop_dot safe_x.repr
+      in
+      let x_repr =
+        if Syntax_node.is_syntax_node_ending_with_elipsis x then
+          Option.fold_left
+            (fun x suffix -> x ^ "; " ^ suffix)
+            x_without_dots suffix
+        else x_without_dots
+      in
+      Logs.debug (fun m -> m "x repr: %s" x_repr);
 
       let last_children_opt, childrens_length = last_and_len childrens in
 
@@ -995,16 +1022,16 @@ let rec get_oneliner (tree : syntaxNode nary_tree) : (string, Error.t) result =
       let* mapped =
         match childrens_length_without_proof_end with
         | 0 -> Ok []
-        | _ -> map_children get_oneliner childrens
+        | _ -> map_children (get_oneliner suffix) childrens
       in
 
       if is_syntax_node_proof_intro_or_end safe_x then
         Ok (String.concat " " mapped)
       else
         match childrens_length_without_proof_end with
-        | 0 -> Ok x_without_dot
-        | 1 -> Ok (x_without_dot ^ ";\n" ^ String.concat " " mapped)
-        | _ -> Ok (x_without_dot ^ ";\n[" ^ String.concat "\n| " mapped ^ "]"))
+        | 0 -> Ok x_repr
+        | 1 -> Ok (x_repr ^ ";\n" ^ String.concat " " mapped)
+        | _ -> Ok (x_repr ^ ";\n[" ^ String.concat "\n| " mapped ^ "]"))
 
 let turn_into_oneliner (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
@@ -1019,6 +1046,12 @@ let turn_into_oneliner (doc : Coq_document.t)
         "Can't find the proof status of the proof: invalid proof"
   | Some Proof.Aborted | Some Proof.Admitted -> Ok []
   | Some Proof.Proved -> (
+      let suffix =
+        List.find_opt Syntax_node.is_syntax_node_proof_command proof.proof_steps
+        |> Option.map Syntax_node.get_syntax_node_proof_with_tactic
+        |> Option.flatten
+      in
+
       let cleaned_tree =
         Nary_tree.filter
           (fun node ->
@@ -1033,7 +1066,7 @@ let turn_into_oneliner (doc : Coq_document.t)
       | None -> Ok []
       | Some cleaned_tree ->
           (* Helper: map children with error propagation *)
-          let* one_liner_repr = get_oneliner cleaned_tree in
+          let* one_liner_repr = get_oneliner suffix cleaned_tree in
           let one_liner_repr = one_liner_repr ^ "." in
 
           let flattened = Nary_tree.flatten proof_tree in
