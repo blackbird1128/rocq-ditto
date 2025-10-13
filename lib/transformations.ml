@@ -1009,7 +1009,6 @@ let rec get_oneliner (suffix : string option) (tree : syntaxNode nary_tree) :
             x_without_dots suffix
         else x_without_dots
       in
-      Logs.debug (fun m -> m "x repr: %s" x_repr);
 
       let last_children_opt, childrens_length = last_and_len childrens in
 
