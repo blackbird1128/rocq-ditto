@@ -19,7 +19,7 @@
  (name coq-ditto)
  (synopsis "Rocq ditto lib")
  (description "libraries used by the plugins")
- (depends ocaml dune coq-lsp base-unix re alcotest uuidm ppx_sexp_message ppx_sexp_value ppx_optcomp)
+ (depends ocaml dune coq-lsp base-unix re alcotest uuidm ppx_import ppx_sexp_message ppx_sexp_value)
  (tags
   (topics "to describe" your project)))
 

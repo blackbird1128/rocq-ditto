@@ -2,7 +2,7 @@
  (name main)
  (package coq-ditto)
  (public_name coq-ditto)
- (libraries unix logs logs.fmt coq-ditto coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.petanque coq-lsp.lsp coq-lsp.fleche)
+ (libraries unix logs logs.fmt coq-ditto coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche)
  )
 
 (install

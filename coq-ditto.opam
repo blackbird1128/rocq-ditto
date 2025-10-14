@@ -17,9 +17,9 @@ depends: [
   "re"
   "alcotest"
   "uuidm"
+  "ppx_import"
   "ppx_sexp_message"
   "ppx_sexp_value"
-  "ppx_optcomp"
   "odoc" {with-doc}
 ]
 build: [

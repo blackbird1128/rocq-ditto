@@ -1,9 +1,6 @@
 open Fleche
 open Ditto
-open Ditto.Nary_tree
-open Ditto.Proof
-open Ditto.Syntax_node
-open Vernacexpr
+open Fleche
 module Lsp = Fleche_lsp
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
