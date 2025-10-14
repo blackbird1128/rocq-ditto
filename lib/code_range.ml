@@ -1,7 +1,7 @@
 open Sexplib.Std
 open Code_point
 
-type t = { start : Code_point.t; end_ : Code_point.t } [@@deriving sexp]
+type t = { start : Code_point.t; end_ : Code_point.t } [@@deriving sexp, yojson]
 
 let pp (fmt : Format.formatter) (x : t) : unit =
   Format.fprintf fmt "{start_pos = %a; end_pos = %a}" Code_point.pp x.start

@@ -57,7 +57,9 @@ let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
   json |> to_list
   |> List.map (fun elem ->
-         let range = range_of_yojson (member "range" elem) in
+         let range =
+           Code_range.of_yojson (member "range" elem) |> Result.get_ok
+         in
          let repr = to_string (member "repr" elem) in
          (repr, range))
 

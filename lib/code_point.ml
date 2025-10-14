@@ -1,6 +1,6 @@
 open Sexplib.Std
 
-type t = { line : int; character : int } [@@deriving sexp]
+type t = { line : int; character : int } [@@deriving sexp, yojson]
 
 let pp (fmt : Format.formatter) (x : t) : unit =
   Format.fprintf fmt "(l: %d c: %d)" x.line x.character

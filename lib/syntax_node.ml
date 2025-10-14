@@ -254,30 +254,6 @@ let doc_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
   }
 (* TODO treat AST info *)
 
-let point_to_yojson (point : Code_point.t) : Yojson.Safe.t =
-  `Assoc [ ("line", `Int point.line); ("character", `Int point.character) ]
-
-let point_of_yojson (json : Yojson.Safe.t) : Code_point.t =
-  let open Yojson.Safe.Util in
-  {
-    line = json |> member "line" |> to_int;
-    character = json |> member "character" |> to_int;
-  }
-
-let range_to_yojson (range : Code_range.t) : Yojson.Safe.t =
-  `Assoc
-    [
-      ("start", point_to_yojson range.start);
-      ("end_", point_to_yojson range.end_);
-    ]
-
-let range_of_yojson (json : Yojson.Safe.t) : Code_range.t =
-  let open Yojson.Safe.Util in
-  {
-    start = json |> member "start" |> point_of_yojson;
-    end_ = json |> member "end_" |> point_of_yojson;
-  }
-
 let shift_point (n_line : int) (n_char : int) (x : Code_point.t) : Code_point.t
     =
   { line = x.line + n_line; character = x.character + n_char }

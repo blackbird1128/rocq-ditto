@@ -1,9 +1,6 @@
 open Fleche
 open Ditto
-open Ditto.Nary_tree
-open Ditto.Proof
 open Ditto.Syntax_node
-open Vernacexpr
 
 let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -18,7 +15,10 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
     List.map
       (fun node ->
         `Assoc
-          [ ("repr", `String node.repr); ("range", range_to_yojson node.range) ])
+          [
+            ("repr", `String node.repr);
+            ("range", Code_range.to_yojson node.range);
+          ])
       parsed_document.elements
   in
   let json_repr = `List repr_and_ranges in

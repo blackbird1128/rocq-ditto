@@ -58,22 +58,6 @@ val doc_node_of_yojson : Yojson.Safe.t -> Doc.Node.Ast.t
 (** [doc_node_of_yojson json] convert a compatible element of type
     [Yojson.Safe.t] into an element of type [Doc.Node.Ast.t] *)
 
-val point_to_yojson : Code_point.t -> Yojson.Safe.t
-(** [point_to_yojson point] converts a point of type [Code_point.t] into a
-    [Yojson.Safe.t] representation. *)
-
-val point_of_yojson : Yojson.Safe.t -> Code_point.t
-(** [point_of_yojson json] convert a compatible element of type [Yojson.Safe.t]
-    into an element of type [Code_point.t] *)
-
-val range_to_yojson : Code_range.t -> Yojson.Safe.t
-(** [range_to_yojson range] convert a range of type [Code_range.t] into a
-    [Yojson.Safe.t] representation. *)
-
-val range_of_yojson : Yojson.Safe.t -> Code_range.t
-(** [range_of_yojson json] convert a compatible element of type [Yojson.Safe.t]
-    into an element of type [Code_range.t] *)
-
 val shift_point : int -> int -> Code_point.t -> Code_point.t
 (** [shift_point n_line n_char point] shift [point] by [n_line], and [n_char].
 *)
