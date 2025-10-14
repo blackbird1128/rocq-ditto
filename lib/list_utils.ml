@@ -23,3 +23,20 @@ let take_while p l =
 let rec drop_while p = function
   | x :: l when p x -> drop_while p l
   | rest -> rest
+
+let map2_pad ?(pad1 = None) ?(pad2 = None) (f : 'a -> 'b -> 'c) (l1 : 'a list)
+    (l2 : 'b list) : 'c list =
+  let rec aux (acc : 'c list) (l1 : 'a list) (l2 : 'b list) =
+    match (l1, l2) with
+    | x1 :: t1, x2 :: t2 -> aux (f x1 x2 :: acc) t1 t2
+    | [], x2 :: t2 -> (
+        match pad1 with
+        | Some d1 -> aux (f d1 x2 :: acc) [] t2
+        | None -> aux acc [] t2)
+    | x1 :: t1, [] -> (
+        match pad2 with
+        | Some d2 -> aux (f x1 d2 :: acc) t1 []
+        | None -> aux acc t1 [])
+    | [], [] -> List.rev acc
+  in
+  aux [] l1 l2
