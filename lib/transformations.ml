@@ -1099,12 +1099,50 @@ let turn_into_oneliner (doc : Coq_document.t)
                 Attach (oneliner_node, LineAfter, proof_node.id);
               ]))
 
-let implicit_fresh_variables (doc : Coq_document.t) (proof : proof) :
+let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  let pp = Ppconstr.pr_constr_expr env sigma x in
+  Pp.string_of_ppcmds pp
+
+let log_bindings (x : Constrexpr.constr_expr Tactypes.with_bindings) : unit =
+  match x with
+  | expr, bindings -> (
+      Logs.debug (fun m -> m "expr: %s" (constrexpr_to_string expr));
+      match bindings with
+      | Tactypes.ImplicitBindings binds ->
+          Logs.debug (fun m -> m "implicit bindings");
+          List.iter
+            (fun x ->
+              Logs.debug (fun m -> m "bind: %s" (constrexpr_to_string x)))
+            binds
+      | Tactypes.ExplicitBindings binds ->
+          Logs.debug (fun m -> m "explicit bindings")
+      (* List.iter *)
+      (*   (fun x -> *)
+      (*     Logs.debug (fun m -> m "bind: %s" (constrexpr_to_string x))) *)
+      (*   binds *)
+      | Tactypes.NoBindings -> Logs.debug (fun m -> m "no binding"))
+
+let destruction_arg_to_string
+    (x : Constrexpr.constr_expr Tactypes.with_bindings Tactics.destruction_arg)
+    : string =
+  let _, with_bindings = x in
+  match with_bindings with
+  | Tactics.ElimOnConstr constr ->
+      let constr_expr, bindings = constr in
+      constrexpr_to_string constr_expr
+  | Tactics.ElimOnIdent ident ->
+      let id = ident.v in
+      Names.Id.to_string id
+  | Tactics.ElimOnAnonHyp anon_hyp -> "anonymous"
+
+let explicit_fresh_variables (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
-  let rewrite_intros (node_repr : string) (new_vars : string list list option) :
+  let rewrite_intros (node : syntaxNode) (new_vars : string list list option) :
       string option =
     match new_vars with
     | Some new_vars ->
@@ -1112,13 +1150,39 @@ let implicit_fresh_variables (doc : Coq_document.t) (proof : proof) :
     | None -> None
   in
 
+  let rewrite_induction (node : syntaxNode) (new_vars : string list list option)
+      : string option =
+    Logs.debug (fun m -> m "treating: %s" node.repr);
+    match new_vars with
+    | Some new_vars -> (
+        Logs.debug (fun m -> m "NEW VARS !");
+        let raw_expr =
+          Syntax_node.get_node_raw_tactic_expr node |> Option.get
+        in
+        let raw_atomic = Ltac.get_raw_atomic_tactic_expr raw_expr in
+        match raw_atomic with
+        | Some (TacInductionDestruct (rec_flag, eval_flag, ind_clause_list)) ->
+            let induction_clause_list, bindings = ind_clause_list in
+            List.iter
+              (fun ( destruction_arg,
+                     (as_opt, intro_pattern_opt),
+                     optional_binding ) ->
+                Logs.debug (fun m ->
+                    m "destruction arg: %s"
+                      (destruction_arg_to_string destruction_arg)))
+              induction_clause_list;
+            None
+        | _ -> None)
+    | _ -> None
+  in
+
   let rewriters :
-      (string * (string -> string list list option -> string option)) list =
-    [ ("intros.", rewrite_intros) ]
+      (string * (syntaxNode -> string list list option -> string option)) list =
+    [ ("intros.", rewrite_intros); ("induction", rewrite_induction) ]
   in
 
   let find_rewriter (node_repr : string) :
-      (string -> string list list option -> string option) option =
+      (syntaxNode -> string list list option -> string option) option =
     List.find_map
       (fun (prefix, f) ->
         if String.starts_with ~prefix node_repr then Some f else None)
@@ -1130,9 +1194,11 @@ let implicit_fresh_variables (doc : Coq_document.t) (proof : proof) :
       match find_rewriter node.repr with
       | Some rewriter -> (
           let* old_goals = Runner.goals ~token ~st:state in
-
+          Logs.debug (fun m ->
+              m "old goals len: %d" (List.length (Option.get old_goals).goals));
           let* new_goals = Runner.goals ~token ~st:new_state in
-
+          Logs.debug (fun m ->
+              m "new goals len: %d" (List.length (Option.get old_goals).goals));
           let old_goals_vars =
             Option.map
               (fun (x :
@@ -1156,15 +1222,20 @@ let implicit_fresh_variables (doc : Coq_document.t) (proof : proof) :
           let new_vars =
             match (old_goals_vars, new_goals_vars) with
             | Some old_goals_vars, Some new_goals_vars ->
+                Logs.debug (fun m ->
+                    m "old goals vars len: %d" (List.length old_goals_vars));
+                Logs.debug (fun m ->
+                    m "new goals vars len: %d" (List.length new_goals_vars));
                 Some
-                  (List.map2
+                  (List_utils.map2_pad
+                     ~pad2:(List.nth_opt old_goals_vars 0)
                      (fun old_vars new_vars ->
                        List.filter (fun x -> not (List.mem x old_vars)) new_vars)
                      old_goals_vars new_goals_vars)
             | _ -> None
           in
 
-          match rewriter node.repr new_vars with
+          match rewriter node new_vars with
           | Some x ->
               let* explicit_node =
                 Syntax_node.syntax_node_of_string x node.range.start

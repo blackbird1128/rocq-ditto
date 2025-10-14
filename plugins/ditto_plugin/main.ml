@@ -46,7 +46,7 @@ let transformation_kind_to_function (doc : Coq_document.t)
     =
   match kind with
   | Help -> fun doc x -> Ok []
-  | ExplicitFreshVariables -> Transformations.implicit_fresh_variables
+  | ExplicitFreshVariables -> Transformations.explicit_fresh_variables
   | TurnIntoOneliner ->
       fun doc x ->
         Transformations.turn_into_oneliner doc (wrap_to_treeify doc x)

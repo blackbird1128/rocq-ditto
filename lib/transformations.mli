@@ -47,7 +47,7 @@ val cut_replace_branch :
   syntaxNode nary_tree ->
   (transformation_step list, Error.t) result
 
-val implicit_fresh_variables :
+val explicit_fresh_variables :
   Coq_document.t -> proof -> (transformation_step list, Error.t) result
 
 val turn_into_oneliner :
