@@ -1,4 +1,3 @@
-open Fleche
 open Nary_tree
 open Proof
 open Syntax_node
@@ -138,7 +137,7 @@ let simple_proof_repair (doc : Coq_document.t)
                         in
                         Ok (admit_state, steps_acc, ignore_acc, prev_goal_count)
                       else Ok (new_state, steps_acc, ignore_acc, num_goals)
-                  | Error err ->
+                  | Error _ ->
                       let childs =
                         List.concat (List.map Nary_tree.flatten children)
                         |> List.filter (fun x ->
@@ -172,8 +171,6 @@ let simple_proof_repair (doc : Coq_document.t)
       Ok (steps_acc @ removed_steps)
   | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
-type op_type = Cut | Keep
-
 let admit_branch_at_error (doc : Coq_document.t)
     (proof_tree : syntaxNode nary_tree) :
     (transformation_step list, Error.t) result =
@@ -203,7 +200,7 @@ let admit_branch_at_error (doc : Coq_document.t)
                   let new_state, new_acc = aux state child acc in
                   (new_state, new_acc))
                 (state, steps_acc) children
-          | Error err ->
+          | Error _ ->
               let admit_node = admit_creator x in
               let cut_node_state =
                 Runner.run_node token state_acc admit_node |> Result.get_ok
@@ -318,7 +315,7 @@ let cut_replace_branch (cut_tactic : string) (doc : Coq_document.t)
                     let new_state, new_acc = aux state child acc in
                     (new_state, new_acc))
                   (state, steps_acc) children
-          | Error err ->
+          | Error _ ->
               List.fold_left
                 (fun (state, acc) child ->
                   let new_state, new_acc = aux state child acc in
@@ -384,39 +381,17 @@ let fold_replace_assumption_with_apply (doc : Coq_document.t)
               let new_node = fst replacement in
 
               Ok (state_node, Replace (node.id, new_node) :: acc)
-          | Error err -> Ok (state_node, acc)
+          | Error _ -> Ok (state_node, acc)
         else Ok (state_node, acc))
       [] proof_tree
   in
   res
 
-let remove_empty_lines (proof : proof) : proof =
-  let nodes = proof_nodes proof in
-  let first_node_opt = List.nth_opt nodes 0 in
-  match first_node_opt with
-  | Some first_node ->
-      let res =
-        List.fold_left
-          (fun acc node ->
-            let prev_node, acc_nodes, shift = acc in
-            if prev_node = node then (node, node :: acc_nodes, shift)
-            else
-              let shift_value =
-                prev_node.range.end_.line - node.range.start.line + 1 + shift
-              in
-              let shifted = shift_node shift_value 0 node in
-              (node, shifted :: acc_nodes, shift_value))
-          (first_node, [], 0) nodes
-      in
-      let _, res_func, _ = res in
-      Result.get_ok (proof_from_nodes (List.rev res_func))
-  | None -> proof
-
-let id_transform (doc : Coq_document.t) (proof : proof) :
+let id_transform (_ : Coq_document.t) (_ : proof) :
     (transformation_step list, Error.t) result =
   Ok []
 
-let admit_proof (doc : Coq_document.t) (proof : proof) :
+let admit_proof (_ : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
   let proof_close_node =
@@ -427,7 +402,7 @@ let admit_proof (doc : Coq_document.t) (proof : proof) :
   in
   Ok [ Replace (proof_close_node.id, admitted_node) ]
 
-let remove_random_step (doc : Coq_document.t) (proof : proof) :
+let remove_random_step (_ : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let num_steps = List.length proof.proof_steps in
   if num_steps <= 2 then Ok []
@@ -440,7 +415,7 @@ let remove_random_step (doc : Coq_document.t) (proof : proof) :
     in
     Ok [ Replace (rand_node.id, incorrect_node) ]
 
-let admit_and_comment_proof_steps (doc : Coq_document.t) (proof : proof) :
+let admit_and_comment_proof_steps (_ : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let remove_all_steps =
     List.map (fun step -> Remove step.id) proof.proof_steps
@@ -604,8 +579,7 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
   let re =
-    Re.Perl.compile_pat "auto(.*?)\\."
-      ~opts:[ Re.Perl.(`Multiline); Re.Perl.(`Dotall); Re.Perl.(`Ungreedy) ]
+    Re.Perl.compile_pat "auto(.*?)\\." ~opts:[ `Multiline; `Dotall; `Ungreedy ]
   in
 
   let re_in_remove = Str.regexp " (in.*)\\." in
@@ -773,12 +747,7 @@ let replace_auto_with_steps (doc : Coq_document.t) (proof : proof) :
                       pop_until_prev_depth steps_stack depth
                     else steps_stack
                   in
-                  let ( prev_node,
-                        prev_state,
-                        prev_depth,
-                        prev_num_children,
-                        prev_goal_count,
-                        prev_reduced_goals ) =
+                  let _, prev_state, _, _, prev_goal_count, _ =
                     List.hd steps_stack
                   in
 
@@ -869,7 +838,7 @@ let parse_tactic_arg (s : string) : Ltac_plugin.Tacexpr.raw_tactic_expr =
 let rec first_atomic_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) =
   let open Ltac_plugin.Tacexpr in
   match tac.CAst.v with
-  | TacAtom atom -> Some tac
+  | TacAtom _ -> Some tac
   | TacThen (t1, _) -> first_atomic_tactic t1
   | TacThens (t1, _) -> first_atomic_tactic t1
   | TacThens3parts (t1, _, _, _) -> first_atomic_tactic t1
@@ -1032,9 +1001,8 @@ let rec get_oneliner (suffix : string option) (tree : syntaxNode nary_tree) :
         | 1 -> Ok (x_repr ^ ";\n" ^ String.concat " " mapped)
         | _ -> Ok (x_repr ^ ";\n[" ^ String.concat "\n| " mapped ^ "]"))
 
-let turn_into_oneliner (doc : Coq_document.t)
-    (proof_tree : syntaxNode nary_tree) :
-    (transformation_step list, Error.t) result =
+let turn_into_oneliner (_ : Coq_document.t) (proof_tree : syntaxNode nary_tree)
+    : (transformation_step list, Error.t) result =
   let proof = Runner.tree_to_proof proof_tree in
 
   let proof_status = Proof.get_proof_status proof in
@@ -1130,19 +1098,19 @@ let destruction_arg_to_string
   let _, with_bindings = x in
   match with_bindings with
   | Tactics.ElimOnConstr constr ->
-      let constr_expr, bindings = constr in
+      let constr_expr, _ = constr in
       constrexpr_to_string constr_expr
   | Tactics.ElimOnIdent ident ->
       let id = ident.v in
       Names.Id.to_string id
-  | Tactics.ElimOnAnonHyp anon_hyp -> "anonymous"
+  | Tactics.ElimOnAnonHyp _ -> "anonymous"
 
 let explicit_fresh_variables (doc : Coq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
-  let rewrite_intros (node : syntaxNode) (new_vars : string list list option) :
+  let rewrite_intros (_ : syntaxNode) (new_vars : string list list option) :
       string option =
     match new_vars with
     | Some new_vars ->

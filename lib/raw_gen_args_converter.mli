@@ -1,6 +1,4 @@
-open Sexplib.Sexp
 open Ltac_plugin
-open Serlib.Ser_extend
 
 val raw_tactic_expr_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Tacexpr.raw_tactic_expr option

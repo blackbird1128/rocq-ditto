@@ -82,8 +82,6 @@ val treeify_proof :
   Coq_document.t -> proof -> (syntaxNode nary_tree, Error.t) result
 
 val fold_nodes_with_state :
-  Coq_document.t ->
-  Coq.Limits.Token.t ->
   (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result) ->
   Coq.State.t ->
   'acc ->

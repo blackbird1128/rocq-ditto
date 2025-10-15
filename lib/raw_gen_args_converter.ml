@@ -1,6 +1,5 @@
 open Sexplib.Sexp
 open Ltac_plugin
-open Serlib.Ser_extend
 
 let raw_tactic_expr_of_raw_generic_argument (arg : Genarg.raw_generic_argument)
     : Tacexpr.raw_tactic_expr option =

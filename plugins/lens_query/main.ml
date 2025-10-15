@@ -1,7 +1,7 @@
 open Fleche
 open Ditto.Diagnostic_utils
 
-let lens_query ~io ~token:_ ~(doc : Doc.t) =
+let lens_query ~io:_ ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
 

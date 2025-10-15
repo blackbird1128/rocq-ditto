@@ -1,6 +1,3 @@
-open Fleche
-open Vernacexpr
-
 let rec constr_expr_map (m : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (term : Constrexpr.constr_expr) : Constrexpr.constr_expr * bool =
   let open Constrexpr in

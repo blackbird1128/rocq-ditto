@@ -1,5 +1,4 @@
 open Sexplib
-open Sexplib.Std
 
 type t =
   | String of string

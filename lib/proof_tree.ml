@@ -18,11 +18,11 @@ let apply_transformation_step (step : transformation_step)
         (map
            (fun node -> if node.id = node_to_replace_id then new_node else node)
            proof_tree)
-  | Add new_node ->
+  | Add _ ->
       Error.string_to_or_error_err
         "WIP: adding a new node throught a transformation step not supported \
          yet"
-  | Attach (new_node, attach_position, anchor_id) ->
+  | Attach _ ->
       Error.string_to_or_error_err
         "WIP: applying attach transformation step not supported yet"
 

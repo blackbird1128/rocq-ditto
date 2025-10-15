@@ -1,7 +1,6 @@
 open Proof
 open Fleche
 open Syntax_node
-open Sexplib
 
 type proofState = NoProof | ProofOpened
 
@@ -78,27 +77,6 @@ let offset_of_code_point (doc : t) (p : Code_point.t) =
   let before_lines_len = sum_lengths 0 p.line in
   before_lines_len + p.character
 
-let matches_with_line_col content pattern : (string * Code_range.t) list =
-  let re =
-    Re.Perl.compile_pat
-      ~opts:[ Re.Perl.(`Multiline); Re.Perl.(`Dotall); Re.Perl.(`Ungreedy) ]
-      pattern
-  in
-
-  let matches =
-    Re.all re content
-    |> List.map (fun g ->
-           let start_pos = Re.Group.start g 0 in
-           let end_pos = Re.Group.stop g 0 in
-           let start_point = get_line_col_positions content start_pos in
-           let end_point = get_line_col_positions content end_pos in
-           let range : Code_range.t =
-             { start = start_point; end_ = end_point }
-           in
-           (Re.Group.get g 0, range))
-  in
-  matches
-
 let get_comments (content : string) :
     ((string * Code_range.t) list, string) result =
   let explode s =
@@ -118,13 +96,13 @@ let get_comments (content : string) :
   in
 
   let pairs = pairwise repr in
-  let* stack, res =
+  let* _, res =
     List.fold_left
       (fun acc pair ->
         match acc with
         | Ok (stack, res) as acc -> (
             match pair with
-            | ((idx1, '('), (idx2, '*')) as x -> Ok (x :: stack, res)
+            | ((_, '('), (_, '*')) as x -> Ok (x :: stack, res)
             | (idx1, '*'), (idx2, ')') -> (
                 match stack with
                 | ((idx3, '('), (idx4, '*')) :: t ->
@@ -141,7 +119,7 @@ let get_comments (content : string) :
 
   Ok
     (List.map
-       (fun ((a, b), (c, d)) ->
+       (fun ((a, _), (_, d)) ->
          let len = d - a + 1 in
          let str = String.sub content a len in
 
@@ -169,8 +147,7 @@ let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
     | [] -> List.rev acc
     | curr_node :: rest -> (
         match acc with
-        | acc_node :: acc_tail when second_node_included_in acc_node curr_node
-          ->
+        | acc_node :: _ when second_node_included_in acc_node curr_node ->
             merge_aux acc rest
         | _ -> merge_aux (curr_node :: acc) rest)
   in
@@ -282,18 +259,8 @@ let dump_elements_to_string (elements : syntaxNode list) :
       let sorted_elements = List.sort compare_nodes (first :: tail) in
       aux sorted_elements "" first
 
-let rec dump_to_string (doc : t) : (string, Error.t) result =
+let dump_to_string (doc : t) : (string, Error.t) result =
   dump_elements_to_string doc.elements
-
-let element_before_id_opt (target_id : Uuidm.t) (doc : t) : syntaxNode option =
-  match List.find_index (fun elem -> elem.id = target_id) doc.elements with
-  | Some elem_id ->
-      if elem_id - 1 < 0 then None
-      else
-        List.find_mapi
-          (fun i elem -> if i = elem_id - 1 then Some elem else None)
-          doc.elements
-  | None -> None
 
 let element_with_id_opt (element_id : Uuidm.t) (doc : t) : syntaxNode option =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
@@ -303,7 +270,7 @@ let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) : proof option =
   match proofs_res with
   | Ok proofs ->
       List.find_opt (fun elem -> elem.proposition.id = proof_id) proofs
-  | Error err -> None
+  | Error _ -> None
 
 let proof_with_name_opt (proof_name : string) (doc : t) : proof option =
   let proof_res = get_proofs doc in
@@ -315,7 +282,7 @@ let proof_with_name_opt (proof_name : string) (doc : t) : proof option =
           | Some name -> name = proof_name
           | None -> false)
         proofs
-  | Error err -> None
+  | Error _ -> None
 
 let split_at_id (target_id : Uuidm.t) (doc : t) :
     syntaxNode list * syntaxNode list =

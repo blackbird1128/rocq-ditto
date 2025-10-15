@@ -3,7 +3,6 @@ open Ditto
 open Ditto.Nary_tree
 open Ditto.Proof
 open Ditto.Syntax_node
-open Vernacexpr
 
 let normalize_strings (strings : string list) : string list =
   List.map (fun str -> String.trim str) strings
@@ -22,7 +21,7 @@ let rec simplify sexp =
   | List xs -> List (List.map simplify xs)
   | Atom _ as a -> a
 
-let rec print_tree ?(prefix = "") sexp =
+let print_tree ?(prefix = "") sexp =
   let open Sexplib.Sexp in
   let rec aux prefix sexp =
     match sexp with
@@ -335,7 +334,7 @@ let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
     "The document should be correctly reconstructed"
     (Ok "Lemma a: True /\\ True.\nProof.\nsplit.\n-auto.\n-auto.") reconstructed
 
-let test_creating_valid_syntax_node_from_string (doc : Doc.t) () : unit =
+let test_creating_valid_syntax_node_from_string (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." point in
   let node_repr = Result.map (fun node -> node.repr) node in
@@ -345,7 +344,7 @@ let test_creating_valid_syntax_node_from_string (doc : Doc.t) () : unit =
       (result string error_testable)
       "The node should be created without error" (Ok "Compute 1 + 1.") node_repr)
 
-let test_creating_invalid_syntax_node_from_string (doc : Doc.t) () : unit =
+let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
     Syntax_node.syntax_node_of_string "Compute Illegal grammar" point
@@ -360,7 +359,7 @@ let test_creating_invalid_syntax_node_from_string (doc : Doc.t) () : unit =
          (Error.of_string "'.' expected after [lconstr] (in [query_command])"))
       node_repr)
 
-let test_detecting_proof_with (doc : Doc.t) () : unit =
+let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
     Syntax_node.syntax_node_of_string "Proof with easy." point |> Result.get_ok
@@ -371,7 +370,7 @@ let test_detecting_proof_with (doc : Doc.t) () : unit =
     check bool "The node should be detected as a \"Proof with\"" true
       is_node_proof_with)
 
-let test_not_detecting_simple_proof_command_with_proof_with (doc : Doc.t) () :
+let test_not_detecting_simple_proof_command_with_proof_with (_ : Doc.t) () :
     unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
@@ -398,7 +397,7 @@ let test_searching_node (doc : Doc.t) () : unit =
     "No element should be retrieved" None
     (Option.map (fun x -> x.id) absurd_node)
 
-let test_reformat_comment_node (doc : Doc.t) () : unit =
+let test_reformat_comment_node (_ : Doc.t) () : unit =
   let starting_point : Code_point.t = { line = 0; character = 0 } in
 
   let comment_node =
@@ -415,7 +414,7 @@ let test_reformat_comment_node (doc : Doc.t) () : unit =
        "The node need to have an AST to be reformatted")
     reformat_id
 
-let test_reformat_keep_id (doc : Doc.t) () : unit =
+let test_reformat_keep_id (_ : Doc.t) () : unit =
   let starting_point : Code_point.t = { line = 0; character = 0 } in
 
   let content_node =
@@ -433,7 +432,7 @@ let test_id_assign_document (doc : Doc.t) () : unit =
   let nodes_ids = List.map (fun x -> x.id) doc.elements in
   check_list_sorted ~cmp:Uuidm.compare ~pp:Uuidm.pp nodes_ids
 
-let test_sorting_nodes (doc : Doc.t) () : unit =
+let test_sorting_nodes (_ : Doc.t) () : unit =
   let node1 = make_dummy_node 0 0 0 12 in
   (* your example *)
   let node2 = make_dummy_node 0 14 1 2 in
@@ -452,7 +451,7 @@ let test_sorting_nodes (doc : Doc.t) () : unit =
   Alcotest.(check (list uuidm_testable))
     "The nodes should be ordered correctly" expected ids
 
-let test_colliding_nodes_no_common_lines (doc : Doc.t) () : unit =
+let test_colliding_nodes_no_common_lines (_ : Doc.t) () : unit =
   let target_node = make_dummy_node 0 0 0 12 in
   let other_node = make_dummy_node 1 0 1 10 in
 
@@ -464,7 +463,7 @@ let test_colliding_nodes_no_common_lines (doc : Doc.t) () : unit =
   Alcotest.(check (list uuidm_testable))
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
-let test_colliding_nodes_common_line_no_collision (doc : Doc.t) () : unit =
+let test_colliding_nodes_common_line_no_collision (_ : Doc.t) () : unit =
   let target_node = make_dummy_node_from_repr 0 0 "hello" in
   let other_node = make_dummy_node_from_repr 0 20 "world" in
 
@@ -476,7 +475,7 @@ let test_colliding_nodes_common_line_no_collision (doc : Doc.t) () : unit =
   Alcotest.(check (list uuidm_testable))
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
-let test_colliding_nodes_common_line_collision (doc : Doc.t) () : unit =
+let test_colliding_nodes_common_line_collision (_ : Doc.t) () : unit =
   let target_node = make_dummy_node_from_repr 0 0 "hello" in
   let other_node = make_dummy_node_from_repr 0 3 "world" in
 
@@ -488,7 +487,7 @@ let test_colliding_nodes_common_line_collision (doc : Doc.t) () : unit =
   Alcotest.(check (list uuidm_testable))
     "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
 
-let test_colliding_nodes_one_common_line_no_collision (doc : Doc.t) () : unit =
+let test_colliding_nodes_one_common_line_no_collision (_ : Doc.t) () : unit =
   let target_node = make_dummy_node 0 0 1 10 in
   let other_node = make_dummy_node 1 12 1 20 in
 
@@ -500,8 +499,7 @@ let test_colliding_nodes_one_common_line_no_collision (doc : Doc.t) () : unit =
   Alcotest.(check (list uuidm_testable))
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
-let test_colliding_nodes_multiple_common_lines_collision (doc : Doc.t) () : unit
-    =
+let test_colliding_nodes_multiple_common_lines_collision (_ : Doc.t) () : unit =
   let target_node = make_dummy_node 0 0 2 20 in
   let other_node = make_dummy_node 1 12 2 25 in
 
@@ -1005,7 +1003,7 @@ let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   in
   let repr_with_goalcount =
     List.map
-      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (step.repr, goal_count))
       steps_with_goalcount
   in
 
@@ -1037,7 +1035,7 @@ let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
   in
   let repr_with_goalcount =
     List.map
-      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (step.repr, goal_count))
       steps_with_goalcount
   in
 
@@ -1077,7 +1075,7 @@ let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
   in
   let repr_with_goalcount =
     List.map
-      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (step.repr, goal_count))
       steps_with_goalcount
   in
 
@@ -1119,7 +1117,7 @@ let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
   in
   let repr_with_goalcount =
     List.map
-      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (step.repr, goal_count))
       steps_with_goalcount
   in
   let expected =
@@ -1160,7 +1158,7 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
   in
   let repr_with_goalcount =
     List.map
-      (fun (goal_before, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (step.repr, goal_count))
       steps_with_goalcount
   in
   let expected =
@@ -1188,7 +1186,6 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
       "The two lists should be the same" expected repr_with_goalcount)
 
 let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
-  let open Sexplib.Conv in
   let doc = Coq_document.parse_document doc in
 
   let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
@@ -1227,7 +1224,6 @@ let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
       "Tree should match the expected tree" (Ok expected_tree) proof_tree_sexp)
 
 let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
-  let open Sexplib.Conv in
   let doc = Coq_document.parse_document doc in
 
   let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
@@ -1489,7 +1485,7 @@ let setup_test_table table (doc : Doc.t) =
   (* TODO commit files *)
   ()
 
-let test_runner ~io ~token:_ ~(doc : Doc.t) =
+let test_runner ~io:_ ~token:_ ~(doc : Doc.t) =
   let test_hash_table = Hashtbl.create 50 in
 
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in

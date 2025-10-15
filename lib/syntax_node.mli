@@ -50,10 +50,6 @@ val qed_ast_node : Code_point.t -> syntaxNode
 (** [qed_ast_node] create a syntax node containing the Coq command Qed starting
     at the specified point. *)
 
-val syntax_node_to_yojson : Doc.Node.Ast.t -> Yojson.Safe.t
-(** [syntax_node_to_yojson ast_node] converts a syntax node of type
-    [Doc.Node.Ast.t] into a [Yojson.Safe.t] representation. *)
-
 val doc_node_of_yojson : Yojson.Safe.t -> Doc.Node.Ast.t
 (** [doc_node_of_yojson json] convert a compatible element of type
     [Yojson.Safe.t] into an element of type [Doc.Node.Ast.t] *)
@@ -77,10 +73,6 @@ val is_syntax_node_command_allowed_in_proof : syntaxNode -> bool
 val is_syntax_node_proof_with : syntaxNode -> bool
 val get_syntax_node_proof_with_tactic : syntaxNode -> string option
 val is_syntax_node_ending_with_elipsis : syntaxNode -> bool
-
-val is_syntax_node_proof_command : syntaxNode -> bool
-(** [is_syntax_node_proof_command x] checks if [x] represents the command Proof.
-*)
 
 val is_syntax_node_tactic : syntaxNode -> bool
 (** [is_syntax_node_tactic x] checks if [x] represents a tactic. *)

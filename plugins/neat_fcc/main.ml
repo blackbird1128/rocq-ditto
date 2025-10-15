@@ -1,7 +1,7 @@
 open Fleche
 open Ditto.Diagnostic_utils
 
-let neat_compile ~io ~token:_ ~(doc : Doc.t) =
+let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
 

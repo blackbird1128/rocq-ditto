@@ -1,7 +1,4 @@
-open Sexplib.Sexp
 open Proof
-open Vernacexpr
-open Fleche
 
 type sexp_query =
   | Q_anything

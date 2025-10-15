@@ -18,7 +18,7 @@ let rec simplify sexp =
   | List xs -> List (List.map simplify xs)
   | Atom _ as a -> a
 
-let rec print_tree ?(prefix = "") sexp =
+let print_tree ?(prefix = "") sexp =
   let open Sexplib.Sexp in
   let rec aux prefix sexp =
     match sexp with
@@ -41,7 +41,7 @@ let rec print_tree ?(prefix = "") sexp =
   in
   aux prefix (simplify sexp)
 
-let neat_compile ~io ~token:_ ~(doc : Doc.t) =
+let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
   Random.self_init ();
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in

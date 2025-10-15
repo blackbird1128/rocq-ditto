@@ -62,7 +62,7 @@ let rec depth_first_fold_with_children (f : 'acc -> 'a -> 'a list -> 'acc)
   match tree with
   | Node (x, children) ->
       let children_nodes =
-        List.map (fun t -> match t with Node (x, children) -> x) children
+        List.map (fun t -> match t with Node (x, _) -> x) children
       in
       let new_acc = f acc x children_nodes in
       List.fold_left (depth_first_fold_with_children f) new_acc children
@@ -110,4 +110,4 @@ let rec bottom_n (n : int) (Node (_, children) as tree) : 'a nary_tree list =
   if n = 0 then [ tree ]
   else List.flatten (List.map (bottom_n (n - 1)) children)
 
-let root (tree : 'a nary_tree) : 'a = match tree with Node (x, children) -> x
+let root (tree : 'a nary_tree) : 'a = match tree with Node (x, _) -> x

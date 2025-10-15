@@ -170,7 +170,7 @@ let syntax_node_of_string (code : string) (start_point : Code_point.t) :
             proof_id = None;
             diagnostics = [];
           }
-    | Ok (a :: b :: tail) ->
+    | Ok (_ :: _ :: _) ->
         Error (Error.of_string ("more than one node found in string " ^ code))
     | Error err -> Error err
 
@@ -241,10 +241,6 @@ let string_of_syntax_node (node : syntaxNode) : string =
   match node.ast with
   | Some ast -> Ppvernac.pr_vernac (Coq.Ast.to_coq ast.v) |> Pp.string_of_ppcmds
   | None -> node.repr
-
-let syntax_node_to_yojson (ast_node : Doc.Node.Ast.t) : Yojson.Safe.t =
-  `Assoc [ ("v", Lsp.JCoq.Ast.to_yojson ast_node.v); ("info", `Null) ]
-(* TODO treat info *)
 
 let doc_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
   let open Yojson.Safe.Util in
@@ -321,7 +317,7 @@ let is_syntax_node_proof_with (x : syntaxNode) : bool =
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with
-          | Vernacexpr.VernacProof (Some raw_arg, _) -> true
+          | Vernacexpr.VernacProof (Some _, _) -> true
           | _ -> false))
   | None -> false
 

@@ -1,6 +1,4 @@
 open Ditto
-open Ditto.Diagnostic_utils
-open Ditto.Proof
 
 type transformation_kind =
   | Help
@@ -276,9 +274,9 @@ let transform_project () : (int, Error.t) result =
             let* dep_files = Compile.coqproject_sorted_files coqproject_path in
             let* new_dir_state = make_dir !output_arg in
             warn_if_exists new_dir_state;
-            let* copy_dir_status = copy_dir !input_arg !output_arg filenames in
+            let* _ = copy_dir !input_arg !output_arg filenames in
 
-            let* coq_project_copy =
+            let* _ =
               copy_file coqproject_path
                 (Filename.concat !output_arg coqproject_file)
             in

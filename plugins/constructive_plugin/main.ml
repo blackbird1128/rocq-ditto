@@ -1,6 +1,5 @@
 open Fleche
 open Ditto
-open Ditto.Nary_tree
 open Ditto.Proof
 open Ditto.Syntax_node
 open Ditto.Diagnostic_utils
@@ -45,7 +44,7 @@ let get_assert_constr_expr (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       | _ -> None)
   | _ -> None
 
-let rec replace_func_map (old_fun_name : string) (new_fun_name : string)
+let replace_func_map (old_fun_name : string) (new_fun_name : string)
     (term : Constrexpr.constr_expr) : Constrexpr.constr_expr =
   match term.v with
   | Constrexpr.CApp (f, args) -> (
@@ -165,7 +164,7 @@ let replace_require (x : syntaxNode) : transformation_step option =
                     String.starts_with ~prefix:"GeoCoq.Main.Tarski_dev."
                       qualid_str
                   then
-                    let prefix, postfix =
+                    let _, postfix =
                       Option.get
                         (split_prefix "GeoCoq.Main.Tarski_dev." qualid_str)
                     in
@@ -290,7 +289,7 @@ let replace_requires_in_doc (doc : Coq_document.t) :
 
   Coq_document.apply_transformations_steps require_transform_steps doc
 
-let experiment_theorem ~io ~token ~(doc : Doc.t) =
+let experiment_theorem ~io:_ ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
 
@@ -322,10 +321,6 @@ let experiment_theorem ~io ~token ~(doc : Doc.t) =
         (* print_endline "------------------------------------------------------"; *)
         let* doc_with_requires_replaced =
           replace_requires_in_doc doc_with_exists_proof_admitted
-        in
-
-        let* string_dump =
-          Coq_document.dump_to_string doc_with_requires_replaced
         in
 
         let* doc_with_context_replaced =

@@ -26,7 +26,7 @@ let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) Result.t =
       Error.string_to_or_error_err (Pp.string_of_ppcmds msg)
   | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
       Error.string_to_or_error_err ("Anomaly " ^ Pp.string_of_ppcmds msg)
-  | { r = Completed (Ok r); feedback = msgs } -> Ok r
+  | { r = Completed (Ok r); feedback = _ } -> Ok r
 
 let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
     ('a * 'b Coq.Message.t list, Error.t * 'b Coq.Message.t list) Result.t =
@@ -44,7 +44,7 @@ let run_with_timeout ~(token : Coq.Limits.Token.t) ~(timeout : int)
   (* Start a timeout thread *)
   let completed = ref false in
 
-  let timeout_thread =
+  let _ =
     Thread.create
       (fun () ->
         Unix.sleep timeout;
@@ -123,7 +123,6 @@ let run_with_diagnostics ~token ?loc ?(memo = true) ~st cmds =
 let run_node (token : Coq.Limits.Token.t) (prev_state : Coq.State.t)
     (node : syntaxNode) : (Coq.State.t, Error.t) result =
   let execution =
-    let open Coq.Protect.E.O in
     let st =
       Fleche.Doc.run ~token ~memo:true ?loc:None ~st:prev_state node.repr
     in
@@ -138,7 +137,6 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
       Error.t * Lang.Diagnostic.t list )
     result =
   let execution =
-    let open Coq.Protect.E.O in
     let st =
       run_with_diagnostics ~token ~memo:true ?loc:None ~st:prev_state node.repr
     in
@@ -188,25 +186,8 @@ let count_goals (token : Coq.Limits.Token.t) (st : Coq.State.t) : int =
   | Ok None -> 0
   | Error _ -> 0
 
-type focus_state = BracketFocus of int | BulletFocus of int
-
-let focus_stack_sum (focus_stack : focus_state list) =
-  List.fold_left
-    (fun acc x ->
-      match x with BracketFocus n -> acc + n | BulletFocus n -> acc + n)
-    0 focus_stack
-
-let print_focus_stack (focus_stack : focus_state list) : unit =
-  List.iter
-    (fun x ->
-      match x with
-      | BracketFocus n -> print_endline ("Bracket Focus " ^ string_of_int n)
-      | BulletFocus n -> print_endline ("Bullet Focus " ^ string_of_int n))
-    focus_stack
-
-let rec proof_steps_with_goalcount (token : Coq.Limits.Token.t)
-    (st : Coq.State.t) (steps : syntaxNode list) : (int * syntaxNode * int) list
-    =
+let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
+    (steps : syntaxNode list) : (int * syntaxNode * int) list =
   let rec aux (token : Coq.Limits.Token.t) (st : Coq.State.t)
       (steps : syntaxNode list) =
     match steps with
@@ -238,7 +219,7 @@ let can_reduce_to_zero_goals (init_state : Coq.State.t)
         in
         match state_node_res with
         | Ok state_node -> aux state_node state_node tail
-        | Error err -> Error "")
+        | Error _ -> Error "")
   in
   match aux init_state init_state nodes with
   | Ok state -> count_goals token state = 0
@@ -269,7 +250,7 @@ type parent_category = Fork | Linear
 let print_prev_pars
     (prev_pars : (int * int * syntaxNode * parent_category) list) : unit =
   List.iter
-    (fun (goal_count, id, node, cat) ->
+    (fun (goal_count, id, _, _) ->
       print_endline
         ("goal count: " ^ string_of_int goal_count ^ " node id: "
        ^ string_of_int id))
@@ -292,7 +273,6 @@ let rec pop_until_free_fork
       | Linear -> pop_until_free_fork tail_par parents)
 
 let rec get_parents_rec (steps_with_goals : (int * syntaxNode * int) list)
-    (prev_goals : int)
     (prev_pars : (int * int * syntaxNode * parent_category) list) (idx : int)
     (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) =
   match steps_with_goals with
@@ -301,33 +281,33 @@ let rec get_parents_rec (steps_with_goals : (int * syntaxNode * int) list)
       match prev_pars with
       | [] ->
           if new_goals > prev_goals then
-            get_parents_rec tail new_goals
+            get_parents_rec tail
               [ (new_goals - prev_goals + 1, idx, step, Fork) ]
               (idx + 1) parents
           else
-            get_parents_rec tail new_goals
+            get_parents_rec tail
               [ (new_goals, idx, step, Linear) ]
               (idx + 1) parents
-      | (prev_goals_par, idx_par, tactic_par, _) :: _ ->
+      | (_, idx_par, tactic_par, _) :: _ ->
           let par = (idx_par, tactic_par) in
           if new_goals < prev_goals then (
             Hashtbl.add parents par (idx, step);
             if new_goals > 0 then
-              get_parents_rec tail new_goals
+              get_parents_rec tail
                 (pop_until_free_fork prev_pars parents)
                 (idx + 1) parents
             else
-              get_parents_rec tail new_goals
+              get_parents_rec tail
                 [ (new_goals, idx, step, Linear) ]
                 (idx + 1) parents)
           else if new_goals = prev_goals then (
             Hashtbl.add parents par (idx, step);
-            get_parents_rec tail new_goals
+            get_parents_rec tail
               ((new_goals, idx, step, Linear) :: prev_pars)
               (idx + 1) parents)
           else (
             Hashtbl.add parents par (idx, step);
-            get_parents_rec tail new_goals
+            get_parents_rec tail
               ((new_goals - prev_goals + 1, idx, step, Fork) :: prev_pars)
               (idx + 1) parents))
 
@@ -350,7 +330,7 @@ let treeify_proof (doc : Coq_document.t) (p : proof) :
       in
 
       let parents = Hashtbl.create (List.length steps_with_goals) in
-      let _ = get_parents_rec steps_with_goals 0 [] 0 parents in
+      let _ = get_parents_rec steps_with_goals [] 0 parents in
       Ok (proof_tree_from_parents (0, p.proposition) parents)
   | Error _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
@@ -374,21 +354,9 @@ let tree_to_proof (tree : syntaxNode nary_tree) : proof =
     status = Result.get_ok last_node_status;
   }
 
-let previous_steps_from_tree (node : syntaxNode) (tree : syntaxNode nary_tree) :
-    syntaxNode list =
-  let nodes = proof_tree_to_node_list tree in
-  let steps = List.tl nodes in
-  let rec sublist_before_id lst target_id =
-    match lst with
-    | [] -> []
-    | x :: xs ->
-        if x.id = target_id then [] else x :: sublist_before_id xs target_id
-  in
-  sublist_before_id steps node.id
-
 (* take a full tree and return an acc *)
 (* fold over the proof while running the expr each time to get a new state *)
-let rec depth_first_fold_with_state (doc : Coq_document.t)
+let depth_first_fold_with_state (doc : Coq_document.t)
     (token : Coq.Limits.Token.t)
     (f :
       Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
@@ -419,12 +387,11 @@ let rec depth_first_fold_with_state (doc : Coq_document.t)
   let proof = tree_to_proof tree in
   match get_init_state doc proof.proposition token with
   | Ok state ->
-      let* state, acc = aux f state acc tree in
+      let* _, acc = aux f state acc tree in
       Ok acc
   | _ -> Error.of_result (Error "Unable to retrieve initial state")
 
-let rec fold_nodes_with_state (doc : Coq_document.t)
-    (token : Coq.Limits.Token.t)
+let fold_nodes_with_state
     (f :
       Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
     (init_state : Coq.State.t) (acc : 'acc) (l : syntaxNode list) :
@@ -438,15 +405,14 @@ let rec fold_nodes_with_state (doc : Coq_document.t)
         let* new_state, acc = f state acc x in
         aux tail new_state acc
   in
-  Result.map (fun (state, acc) -> acc) (aux l init_state acc)
+  Result.map (fun (_, acc) -> acc) (aux l init_state acc)
 
-let rec fold_proof_with_state (doc : Coq_document.t)
-    (token : Coq.Limits.Token.t)
+let fold_proof_with_state (doc : Coq_document.t) (token : Coq.Limits.Token.t)
     (f :
       Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
     (acc : 'acc) (p : Proof.proof) : ('acc, Error.t) result =
   let proof_nodes = Proof.proof_nodes p in
 
   match get_init_state doc p.proposition token with
-  | Ok state -> fold_nodes_with_state doc token f state acc proof_nodes
+  | Ok state -> fold_nodes_with_state f state acc proof_nodes
   | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"

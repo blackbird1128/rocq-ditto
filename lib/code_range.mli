@@ -1,5 +1,3 @@
-open Code_point
-
 type t = { start : Code_point.t; end_ : Code_point.t } [@@deriving sexp, yojson]
 
 val pp : Format.formatter -> t -> unit

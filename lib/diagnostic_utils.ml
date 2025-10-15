@@ -1,5 +1,3 @@
-open Fleche
-
 let error_location_to_string (location : Lang.Range.t) : string =
   if location.start.line = location.end_.line then
     "line "

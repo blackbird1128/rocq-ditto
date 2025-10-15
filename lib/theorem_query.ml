@@ -60,7 +60,7 @@ let rec matches (q : sexp_query) (sexp : Sexplib.Sexp.t) : bool =
       else List.for_all2 matches qs (List_utils.take len l)
   | Q_nth (n, qs), List l -> (
       match List.nth_opt l n with Some elem -> matches qs elem | None -> false)
-  | Q_hd qs, List (x :: t) -> matches qs x
+  | Q_hd qs, List (x :: _) -> matches qs x
   | Q_last qs, List l ->
       if List.length l < 1 then false
       else
@@ -106,7 +106,7 @@ let rec extract_match (q : sexp_query) (sexp : Sexplib.Sexp.t) :
       match List.nth_opt l n with
       | Some elem -> extract_match qs elem
       | None -> None)
-  | Q_hd qs, List (x :: t) -> extract_match qs x
+  | Q_hd qs, List (x :: _) -> extract_match qs x
   | Q_last qs, List l ->
       if List.length l < 1 then None
       else

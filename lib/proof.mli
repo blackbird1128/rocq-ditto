@@ -1,4 +1,3 @@
-open Fleche
 open Syntax_node
 open Nary_tree
 

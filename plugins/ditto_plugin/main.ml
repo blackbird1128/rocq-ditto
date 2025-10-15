@@ -1,11 +1,7 @@
 open Fleche
 open Ditto
-open Ditto.Nary_tree
 open Ditto.Proof
-open Ditto.Syntax_node
 open Ditto.Diagnostic_utils
-open Vernacexpr
-open Theorem_query
 
 type transformation_kind =
   | Help
@@ -46,12 +42,11 @@ let arg_to_transformation_kind (arg : string) :
 let wrap_to_treeify (doc : Coq_document.t) (x : proof) =
   Result.get_ok (Runner.treeify_proof doc x)
 
-let transformation_kind_to_function (doc : Coq_document.t)
-    (kind : transformation_kind) :
+let transformation_kind_to_function (kind : transformation_kind) :
     Coq_document.t -> Proof.proof -> (transformation_step list, Error.t) result
     =
   match kind with
-  | Help -> fun doc x -> Ok []
+  | Help -> fun _ _ -> Ok []
   | ExplicitFreshVariables -> Transformations.explicit_fresh_variables
   | TurnIntoOneliner ->
       fun doc x ->
@@ -132,7 +127,7 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
         (Ok doc_acc, 0) proofs
   | Error err -> (Error err, 0)
 
-let dump_ast ~io ~token:_ ~(doc : Doc.t) =
+let dump_ast ~io:_ ~token:_ ~(doc : Doc.t) =
   let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
 
   let verbose = Option.default false (bool_of_string_opt verbose) in
@@ -153,12 +148,12 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   match doc.completed with
   | Doc.Completion.Stopped range_stop ->
       prerr_endline ("parsing stopped at " ^ Lang.Range.to_string range_stop);
-      print_diagnostics (List.filteri (fun i x -> i < max_errors) errors);
+      print_diagnostics (List.filteri (fun i _ -> i < max_errors) errors);
       print_endline
         "NOTE: errors after the first might be due to the first error."
   | Doc.Completion.Failed range_failed ->
       prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
-      print_diagnostics (List.filteri (fun i x -> i < max_errors) errors);
+      print_diagnostics (List.filteri (fun i _ -> i < max_errors) errors);
       print_endline
         "NOTE: errors after the first might be due to the first error."
   | Doc.Completion.Yes _ -> (
@@ -207,8 +202,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
             let parsed_document = Coq_document.parse_document doc in
             let transformations =
               List.map
-                (fun x ->
-                  (x, transformation_kind_to_function parsed_document x))
+                (fun x -> (x, transformation_kind_to_function x))
                 transformations_steps
             in
 

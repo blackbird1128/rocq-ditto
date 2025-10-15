@@ -3,15 +3,8 @@ open Syntax_node
 open Vernacexpr
 open Nary_tree
 
-type proof_status = Admitted | Proved | Aborted
-
-let pp_proof_status (fmt : Format.formatter) (status : proof_status) : unit =
-  match status with
-  | Admitted -> Format.fprintf fmt "Admitted"
-  | Proved -> Format.fprintf fmt "Proved"
-  | Aborted -> Format.fprintf fmt "Aborted"
-
-type attach_position = LineAfter | LineBefore
+type proof_status = Admitted | Proved | Aborted [@@deriving show]
+type attach_position = LineAfter | LineBefore [@@deriving show]
 
 type transformation_step =
   | Remove of Uuidm.t
@@ -33,31 +26,17 @@ let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
       Format.fprintf fmt "Adding new node: %s at %s" new_node.repr
         (Code_range.to_string new_node.range)
   | Attach (attached_node, attach_position, anchor_id) ->
-      Format.fprintf fmt "Attaching node %s to node with id: %s "
+      Format.fprintf fmt
+        "Attaching node %s to node with id: %s with attach position: %s"
         attached_node.repr
         (Uuidm.to_string anchor_id)
+        (show_attach_position attach_position)
 
 let transformation_step_to_string (step : transformation_step) : string =
   Format.asprintf "%a" pp_transformation_step step
 
 let print_transformation_step (step : transformation_step) : unit =
-  match step with
-  | Remove id ->
-      print_endline ("Removing node with id : " ^ Uuidm.to_string id ^ ".")
-  | Replace (id, new_node) ->
-      if new_node.range.start.line != new_node.range.end_.line then
-        print_endline
-          ("Replacing node with id: " ^ Uuidm.to_string id ^ " by node: "
-         ^ new_node.repr ^ " at "
-          ^ Code_range.to_string new_node.range)
-  | Add new_node ->
-      print_endline
-        ("Adding new node: " ^ new_node.repr ^ " at "
-        ^ Code_range.to_string new_node.range)
-  | Attach (attached_node, attach_position, anchor_id) ->
-      print_endline
-        ("Attaching node " ^ attached_node.repr ^ " to node with id: "
-       ^ Uuidm.to_string anchor_id)
+  print_endline (transformation_step_to_string step)
 (* TODO add precisions *)
 
 type proof = {
@@ -182,13 +161,6 @@ let get_proof_status (p : proof) : proof_status option =
         | [] -> assert false
       in
       proof_status_from_last_node (last steps) |> Result.to_option
-
-let get_tree_name (Node (x, children)) : string option =
-  List.nth_opt (get_names x) 0
-
-let doc_node_to_string (d : Doc.Node.Ast.t) : string =
-  let pp_expr = Ppvernac.pr_vernac_expr (Coq.Ast.to_coq d.v).CAst.v.expr in
-  Pp.string_of_ppcmds pp_expr
 
 let print_proof (proof : proof) : unit =
   print_endline proof.proposition.repr;

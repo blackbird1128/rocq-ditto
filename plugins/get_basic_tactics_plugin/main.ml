@@ -1,7 +1,6 @@
 open Fleche
 open Ditto
 open Ditto.Proof
-open Vernacexpr
 open Ditto.Diagnostic_utils
 
 let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
@@ -10,7 +9,7 @@ let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
   let empty_evd = Evd.empty in
   let pp = Ltac_plugin.Pptactic.pr_raw_tactic empty_env empty_evd tac in
   match tac.v with
-  | Ltac_plugin.Tacexpr.TacAtom atom -> [ Pp.string_of_ppcmds pp ]
+  | Ltac_plugin.Tacexpr.TacAtom _ -> [ Pp.string_of_ppcmds pp ]
   | Ltac_plugin.Tacexpr.TacThen (tac1, tac2) ->
       (*x ; y can be nested*)
       get_basic_tactic_names tac1 @ get_basic_tactic_names tac2
@@ -57,14 +56,14 @@ let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       get_basic_tactic_names tac @ get_basic_tactic_names tac_or_else
   | Ltac_plugin.Tacexpr.TacDo (_, tactic_to_do) ->
       get_basic_tactic_names tactic_to_do
-  | Ltac_plugin.Tacexpr.TacTimeout (duration, tac) -> get_basic_tactic_names tac
+  | Ltac_plugin.Tacexpr.TacTimeout (_, tac) -> get_basic_tactic_names tac
   | Ltac_plugin.Tacexpr.TacTime (_, tacticTimed) ->
       get_basic_tactic_names tacticTimed
   | Ltac_plugin.Tacexpr.TacRepeat tactic_repeated ->
       get_basic_tactic_names tactic_repeated
   | Ltac_plugin.Tacexpr.TacProgress tac -> get_basic_tactic_names tac
   | Ltac_plugin.Tacexpr.TacAbstract (tac, _) -> get_basic_tactic_names tac
-  | Ltac_plugin.Tacexpr.TacId msg -> [ "idtac" ]
+  | Ltac_plugin.Tacexpr.TacId _ -> [ "idtac" ]
   | Ltac_plugin.Tacexpr.TacFail (_, _, _) -> [ Pp.string_of_ppcmds pp ]
   | Ltac_plugin.Tacexpr.TacLetIn (_, _, _) ->
       print_endline "tacLetIn not handled yet";
@@ -75,18 +74,17 @@ let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
   | Ltac_plugin.Tacexpr.TacMatchGoal (_, _, _) ->
       print_endline "tac match goal not handled yet";
       []
-  | Ltac_plugin.Tacexpr.TacFun l ->
+  | Ltac_plugin.Tacexpr.TacFun _ ->
       print_endline "fun call not handled yet";
       []
-  | Ltac_plugin.Tacexpr.TacArg arg -> [ Pp.string_of_ppcmds pp ]
-  | Ltac_plugin.Tacexpr.TacSelect (goal_select, tac) ->
-      get_basic_tactic_names tac
-  | Ltac_plugin.Tacexpr.TacML (_, list_tac) ->
+  | Ltac_plugin.Tacexpr.TacArg _ -> [ Pp.string_of_ppcmds pp ]
+  | Ltac_plugin.Tacexpr.TacSelect (_, tac) -> get_basic_tactic_names tac
+  | Ltac_plugin.Tacexpr.TacML (_, _) ->
       print_endline "what is a tac Ml ? ";
       []
-  | Ltac_plugin.Tacexpr.TacAlias (_, tactics) -> [ Pp.string_of_ppcmds pp ]
+  | Ltac_plugin.Tacexpr.TacAlias (_, _) -> [ Pp.string_of_ppcmds pp ]
 
-let tactic_count ~io ~token:_ ~(doc : Doc.t) =
+let tactic_count ~io:_ ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
   prerr_endline ("treating: " ^ uri_str);

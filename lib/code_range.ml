@@ -1,4 +1,3 @@
-open Sexplib.Std
 open Code_point
 
 type t = { start : Code_point.t; end_ : Code_point.t } [@@deriving sexp, yojson]
