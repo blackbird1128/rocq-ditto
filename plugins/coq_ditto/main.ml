@@ -9,6 +9,21 @@ type transformation_kind =
   | ReplaceAutoWithSteps
   | CompressIntro
   | IdTransformation
+[@@deriving variants]
+
+let camel_to_snake (s : string) : string =
+  let b = Buffer.create (String.length s * 2) in
+  String.iteri
+    (fun i c ->
+      if 'A' <= c && c <= 'Z' then (
+        if i > 0 then Buffer.add_char b '_';
+        Buffer.add_char b (Char.lowercase_ascii c))
+      else Buffer.add_char b c)
+    s;
+  Buffer.contents b
+
+let transformation_kind_to_string (kind : transformation_kind) : string =
+  Variants_of_transformation_kind.to_name kind |> camel_to_snake
 
 type path_kind = Dir | File
 
@@ -48,15 +63,6 @@ let arg_to_transformation_kind (arg : string) :
   else
     Error
       ("transformation " ^ arg ^ " wasn't recognized as a valid transformation")
-
-let transformation_kind_to_string (kind : transformation_kind) : string =
-  match kind with
-  | Help -> "HELP"
-  | ExplicitFreshVariables -> "EXPLICIT_FRESH_VARIABLES"
-  | TurnIntoOneliner -> "TURN_INTO_ONE_LINER"
-  | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
-  | CompressIntro -> "COMPRESS_INTROS"
-  | IdTransformation -> "ID_TRANSFORMATION"
 
 let help_to_string (transformation_help : (transformation_kind * string) list) :
     string =
@@ -295,8 +301,6 @@ let transform_project () : (int, Error.t) result =
                 (fun err_acc x ->
                   match err_acc with
                   | Unix.WEXITED 0, _ ->
-                      print_endline ("file " ^ x);
-                      print_endline ("input args:" ^ !input_arg);
                       let rel_path = remove_prefix x !input_arg in
 
                       let curr_path = Filename.concat !output_arg rel_path in

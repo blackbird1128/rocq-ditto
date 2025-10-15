@@ -282,11 +282,6 @@ let replace_non_constructive_tactics_in_doc (doc : Coq_document.t) :
 let replace_context_in_doc (doc : Coq_document.t) :
     (Coq_document.t, Error.t) result =
   let context_transform_steps = List.filter_map replace_context doc.elements in
-  print_endline "replace context steps ";
-  List.iter
-    (fun x -> print_endline (transformation_step_to_string x))
-    context_transform_steps;
-  print_endline "----------------------------------";
   Coq_document.apply_transformations_steps context_transform_steps doc
 
 let replace_requires_in_doc (doc : Coq_document.t) :

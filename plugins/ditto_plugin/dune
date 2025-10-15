@@ -1,6 +1,7 @@
 (library
  (public_name ditto-plugin)
  (name ditto_plugin)
+ (preprocess (pps ppx_deriving.show ppx_variants_conv))
  (libraries coq-ditto rocq-runtime.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche logs logs.fmt)
  (enabled_if (= %{coq:version.major} 9))
 )
@@ -8,6 +9,7 @@
 (library
  (public_name ditto-plugin)
  (name ditto_plugin)
+ (preprocess (pps ppx_deriving.show ppx_variants_conv))
  (libraries coq-ditto coq-core.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche logs logs.fmt)
  (enabled_if (< %{coq:version.major} 9))
 )

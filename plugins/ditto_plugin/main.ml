@@ -14,18 +14,24 @@ type transformation_kind =
   | ReplaceAutoWithSteps
   | CompressIntro
   | IdTransformation
+[@@deriving variants]
 
-let transformation_kind_to_arg (kind : transformation_kind) : string =
-  match kind with
-  | Help -> "HELP"
-  | ExplicitFreshVariables -> "EXPLICIT_FRESH_VARIABLES"
-  | TurnIntoOneliner -> "TURN_INTO_ONE_LINER"
-  | ReplaceAutoWithSteps -> "REPLACE_AUTO_WITH_STEPS"
-  | CompressIntro -> "COMPRESS_INTROS"
-  | IdTransformation -> "ID_TRANSFORMATION"
+let camel_to_snake (s : string) : string =
+  let b = Buffer.create (String.length s * 2) in
+  String.iteri
+    (fun i c ->
+      if 'A' <= c && c <= 'Z' then (
+        if i > 0 then Buffer.add_char b '_';
+        Buffer.add_char b (Char.lowercase_ascii c))
+      else Buffer.add_char b c)
+    s;
+  Buffer.contents b
+
+let transformation_kind_to_string (kind : transformation_kind) : string =
+  Variants_of_transformation_kind.to_name kind |> camel_to_snake
 
 let arg_to_transformation_kind (arg : string) :
-    (transformation_kind, string) result =
+    (transformation_kind, Error.t) result =
   let normalized = String.lowercase_ascii arg in
   if normalized = "help" then Ok Help
   else if normalized = "explicit_fresh_variables" then Ok ExplicitFreshVariables
@@ -34,7 +40,7 @@ let arg_to_transformation_kind (arg : string) :
   else if normalized = "compress_intro" then Ok CompressIntro
   else if normalized = "id_transformation" then Ok IdTransformation
   else
-    Error
+    Error.string_to_or_error_err
       ("transformation " ^ arg ^ " wasn't recognized as a valid transformation")
 
 let wrap_to_treeify (doc : Coq_document.t) (x : proof) =
@@ -58,7 +64,7 @@ let print_help (transformation_help : (transformation_kind * string) list) :
     unit =
   List.iter
     (fun (kind, help) ->
-      print_endline (transformation_kind_to_arg kind ^ ": " ^ help);
+      print_endline (transformation_kind_to_string kind ^ ": " ^ help);
       print_newline ())
     transformation_help
 
@@ -100,13 +106,13 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
               let _ =
                 if verbose then (
                   Printf.printf "Running transformation %s on %-20s(%d/%d)%!\n"
-                    (transformation_kind_to_arg transformation_kind)
+                    (transformation_kind_to_string transformation_kind)
                     proof_name (proof_count + 1) proof_total;
                   print_newline ())
                 else
                   Printf.printf
                     "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
-                    (transformation_kind_to_arg transformation_kind)
+                    (transformation_kind_to_string transformation_kind)
                     proof_name (proof_count + 1) proof_total
               in
 
@@ -141,6 +147,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let uri_str = Lang.LUri.File.to_string_uri uri in
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
   let errors = List.filter Lang.Diagnostic.is_error diags in
+
   let max_errors = 5 in
 
   match doc.completed with
@@ -179,18 +186,19 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
         | Some steps when List.exists Result.is_error steps ->
             prerr_endline "Transformations not recognized:";
             List.iter
-              (fun x -> print_endline (Result.get_error x))
+              (fun x ->
+                print_endline (Error.to_string_hum (Result.get_error x)))
               ((List.filter Result.is_error) steps);
             print_endline "Recognized transformations: ";
             let transformations =
-              [
-                "implicit_fresh_variables";
-                "turn_into_one_liner";
-                "replace_auto_with_steps";
-                "compress_intro";
-                "id_transformation";
-              ]
+              let add acc var = var.Variantslib.Variant.name :: acc in
+              Variants_of_transformation_kind.fold ~init:[] ~help:add
+                ~explicitfreshvariables:add ~turnintooneliner:add
+                ~compressintro:add ~idtransformation:add
+                ~replaceautowithsteps:add
+              |> List.map camel_to_snake
             in
+
             List.iter print_endline transformations
         | Some steps when List.mem (Ok Help) steps ->
             print_help transformations_help
@@ -212,7 +220,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
                   | Ok doc_acc -> (
                       print_endline
                         ("applying transformation : "
-                        ^ transformation_kind_to_arg transformation_kind);
+                        ^ transformation_kind_to_string transformation_kind);
                       let proofs_rec = Coq_document.get_proofs doc_acc in
                       let doc_res =
                         local_apply_proof_transformation doc_acc transformation
