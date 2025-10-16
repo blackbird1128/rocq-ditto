@@ -21,6 +21,7 @@ Then if you want to install `rocq-ditto` with the latest version of Rocq, use th
 opam switch -y create . ocaml-base-compiler --deps-only
 eval $(opam env)
 mkdir -p vendor/
+ln -d _opam/bin/rocq _opam/bin/coqc # this is needed for now so that dune can use coq variables like %{coq:version.major}
 cp ./_opam/bin/fcc ./vendor/fcc
 dune build --profile=release
 ```
