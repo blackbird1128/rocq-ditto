@@ -54,7 +54,7 @@ let arg_to_transformation_kind (arg : string) :
   let normalized = String.lowercase_ascii arg in
   if normalized = "help" then Ok Help
   else if normalized = "explicit_fresh_variables" then Ok ExplicitFreshVariables
-  else if normalized = "turn_into_one_liner" then Ok TurnIntoOneliner
+  else if normalized = "turn_into_oneliner" then Ok TurnIntoOneliner
   else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
   else if normalized = "compress_intro" then Ok CompressIntro
   else if normalized = "id_transformation" then Ok IdTransformation
