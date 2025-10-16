@@ -232,6 +232,7 @@ let transform_project () : (int, Error.t) result =
             "Please provide a filename as output when providing a file as input"
         else
           let input_dir = Filename.dirname !input_arg in
+          print_endline ("input_dir: " ^ input_dir);
           let env =
             Array.append (Unix.environment ())
               [|
