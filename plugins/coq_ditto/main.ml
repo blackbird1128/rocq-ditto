@@ -231,7 +231,15 @@ let transform_project () : (int, Error.t) result =
           Error.string_to_or_error_err
             "Please provide a filename as output when providing a file as input"
         else
-          let input_dir = Filename.dirname !input_arg in
+          let coqproject_opt =
+            Compile.find_coqproject_dir_and_file !input_arg
+          in
+
+          let input_dir =
+            Option.map (fun (dir, _) -> dir) coqproject_opt
+            |> Option.default (Filename.dirname !input_arg)
+          in
+
           print_endline ("input_dir: " ^ input_dir);
           let env =
             Array.append (Unix.environment ())
