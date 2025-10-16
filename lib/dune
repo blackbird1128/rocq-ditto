@@ -1,4 +1,3 @@
-
 (rule
  (targets coq_version.ml)
  (action
@@ -10,11 +9,13 @@
  (public_name coq-ditto)
  (preprocess (staged_pps ppx_import ppx_sexp_conv ppx_sexp_message ppx_deriving_yojson ppx_variants_conv ppx_deriving.show))
  (libraries rocq-runtime.lib coq-lsp.fleche rocq-runtime.plugins.ltac coq-lsp.serlib.ltac coq-lsp.serlib coq-lsp.coq coq-lsp.lsp unix re uuidm logs logs.fmt )
- (enabled_if (= %{coq:version.major} 9)))
+ (enabled_if (= %{coq:version.major} 9))
+)
 
 (library
  (name ditto)
  (public_name coq-ditto)
  (preprocess (staged_pps ppx_import ppx_sexp_conv ppx_sexp_message ppx_deriving_yojson ppx_variants_conv ppx_deriving.show))
  (libraries coq-core.lib coq-lsp.fleche coq-core.plugins.ltac coq-lsp.serlib.ltac coq-lsp.serlib coq-lsp.coq coq-lsp.lsp unix re uuidm logs logs.fmt)
- (enabled_if (< %{coq:version.major} 9)))
+  (enabled_if (< %{coq:version.major} 9))
+)

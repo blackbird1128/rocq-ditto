@@ -16,10 +16,16 @@
 (documentation https://url/to/documentation)
 
 (package
+ (name ditto-config)
+ (synopsis "ditto configuration package")
+ (description "package used to deduce configuration values")
+ (depends ocaml dune base-unix))
+
+(package
  (name coq-ditto)
  (synopsis "Rocq ditto lib")
  (description "libraries used by the plugins")
- (depends ppx_import ocaml dune coq-lsp base-unix re alcotest uuidm ppx_deriving_yojson ppx_deriving ppx_sexp_message ppx_sexp_value ppx_variants_conv)
+ (depends ocaml dune ppx_import coq-lsp base-unix re alcotest uuidm ppx_deriving_yojson ppx_deriving ppx_sexp_message ppx_sexp_value ppx_variants_conv logs)
  (tags
   (topics "to describe" your project)))
 

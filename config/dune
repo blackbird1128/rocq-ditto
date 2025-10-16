@@ -1,5 +1,11 @@
 (executable
- (package coq-ditto)
+ (package ditto-config)
  (name print_coq_version)
  (public_name print-coq-version)
  (libraries unix))
+
+(rule
+ (targets coq_version.ml)
+ (action
+  (with-stdout-to %{targets}
+    (run %{bin:print-coq-version}))))
