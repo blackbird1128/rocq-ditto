@@ -10,6 +10,7 @@ homepage: "https://github.com/username/reponame"
 doc: "https://url/to/documentation"
 bug-reports: "https://github.com/username/reponame/issues"
 depends: [
+  "ppx_import"
   "ocaml"
   "dune" {>= "3.15"}
   "coq-lsp"
@@ -17,9 +18,11 @@ depends: [
   "re"
   "alcotest"
   "uuidm"
-  "ppx_import"
+  "ppx_deriving_yojson"
+  "ppx_deriving"
   "ppx_sexp_message"
   "ppx_sexp_value"
+  "ppx_variants_conv"
   "odoc" {with-doc}
 ]
 build: [
