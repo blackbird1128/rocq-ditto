@@ -3,6 +3,9 @@ open Ltac_plugin
 val raw_tactic_expr_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Tacexpr.raw_tactic_expr option
 
+val raw_generic_argument_of_raw_tactic_expr :
+  Tacexpr.raw_tactic_expr -> Genarg.raw_generic_argument
+
 val tacdef_body_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Tacexpr.tacdef_body list option
 
