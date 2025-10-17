@@ -131,8 +131,16 @@ val node_can_close_proof : syntaxNode -> bool
 
 open Raw_gen_args_converter
 
+val get_syntax_node_extend_name : syntaxNode -> extend_name option
+
 val get_tactic_raw_generic_arguments :
   syntaxNode -> Genarg.raw_generic_argument list option
+
+val tactic_raw_generic_arguments_to_syntax_node :
+  extend_name ->
+  Genarg.raw_generic_argument list ->
+  Code_point.t ->
+  syntaxNode option
 
 val get_node_raw_tactic_expr :
   syntaxNode -> Ltac_plugin.Tacexpr.raw_tactic_expr option

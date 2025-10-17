@@ -470,6 +470,17 @@ let is_syntax_node_proof_abort (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
+let get_syntax_node_extend_name (x : syntaxNode) : extend_name option =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp synterp_expr -> (
+          match synterp_expr with
+          | VernacExtend (ext, args) -> Some ext
+          | _ -> None)
+      | VernacSynPure _ -> None)
+  | None -> None
+
 let get_tactic_raw_generic_arguments (x : syntaxNode) :
     Genarg.raw_generic_argument list option =
   match x.ast with
@@ -500,15 +511,17 @@ let get_node_raw_tactic_expr (x : syntaxNode) :
   |> Option.map raw_arguments_to_raw_tactic_expr
   |> Option.flatten
 
-(* let syntax_node_of_raw_gen
-   eric_arguments (start_point: Lang.Point.t) (args: Genarg.raw_generic_argument list) : syntaxNode option= *)
-(*   if List.length args != 4 then *)
-(*     None *)
-(*   else *)
-(*     let ext : extend_name =  {ext_plugin="coq-core.plugins.ltac"; ext_entry="VernacSolve"; ext_index=0} in  *)
-(*     let expr_syn = Vernacexpr.VernacExtend( ext, args) in *)
-(*     let synterp_expr = Vernacexpr.VernacSynterp expr_syn in  *)
-(*     let control = mk_vernac_control synterp_expr in  *)
+let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
+    (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
+    syntaxNode option =
+  match args with
+  | [ first; second; third; fourth ] ->
+      let expr_syn = Vernacexpr.VernacExtend (ext, args) in
+      let synterp_expr = Vernacexpr.VernacSynterp expr_syn in
+      let control = mk_vernac_control synterp_expr in
+      let ast_node = Coq.Ast.of_coq control in
+      Some (syntax_node_of_coq_ast ast_node starting_point)
+  | _ -> None
 
 let node_can_open_proof (x : syntaxNode) : bool =
   is_syntax_node_proof_start x
