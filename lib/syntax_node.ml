@@ -2,6 +2,13 @@ open Fleche
 open Vernacexpr
 module Lsp = Fleche_lsp
 
+[%%import "coq_version_optcomp.mlh"]
+[%%if major_version < 9]
+
+module Procq = Pcoq
+
+[%%endif]
+
 type syntaxNode = {
   ast : Doc.Node.Ast.t option;
   range : Code_range.t;
@@ -33,10 +40,10 @@ let generate_ast (code : string) :
   let mode = Ltac_plugin.G_ltac.classic_proof_mode in
   let entry = Pvernac.main_entry (Some mode) in
   let code_stream = Gramlib.Stream.of_string code in
-  let init_parser = Pcoq.Parsable.make code_stream in
+  let init_parser = Procq.Parsable.make code_stream in
   let rec f parser =
     try
-      match Pcoq.Entry.parse entry parser with
+      match Procq.Entry.parse entry parser with
       | None -> Ok []
       | Some ast -> (
           let res = f parser in

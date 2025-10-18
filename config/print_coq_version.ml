@@ -36,12 +36,21 @@ let () =
         (int_of_string maj, int_of_string min, int_of_string pat)
     | _ -> failwith "Unexpected main coqc version format"
   in
-  Printf.printf
-    "let major_version = %d\nlet minor_version = %d\nlet patch_version = %d\n"
-    major minor patch;
-  if major >= 9 then
-    print_endline
-      "let executable_name = \"rocq\"\nlet dep_executable = \"rocq dep\""
-  else
-    print_endline
-      "let executable_name = \"coq\"\nlet dep_executable = \"coqdep\""
+  let opt_comp_format = Array.exists (( = ) "--optcomp") Sys.argv in
+  if opt_comp_format then
+    Printf.printf
+      "[%%%%define major_version %d]\n\
+       [%%%%define minor_version %d]\n\
+       [%%%%define patch_version %d]\n\
+       [%%%%define executable_name \"rocq\"]"
+      major minor patch
+  else (
+    Printf.printf
+      "let major_version = %d\nlet minor_version = %d\nlet patch_version = %d\n"
+      major minor patch;
+    if major >= 9 then
+      print_endline
+        "let executable_name = \"rocq\"\nlet dep_executable = \"rocq dep\""
+    else
+      print_endline
+        "let executable_name = \"coq\"\nlet dep_executable = \"coqdep\"")

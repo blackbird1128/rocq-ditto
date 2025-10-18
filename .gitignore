@@ -6,3 +6,4 @@ _ignore/
 **.target.json
 **.lia.cache
 **.jsondump.json
+lib/coq_version_optcomp.mlh
