@@ -831,119 +831,6 @@ let chop_ellipsis (x : string) : (string, Error.t) result =
          "string" x [%sexp_of: string])
   else Ok (String.sub x 0 (len - 3))
 
-let parse_tactic_arg (s : string) : Ltac_plugin.Tacexpr.raw_tactic_expr =
-  let entry = Ltac_plugin.Pltac.ltac_expr in
-  Pcoq.parse_string entry s
-
-let rec first_atomic_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) =
-  let open Ltac_plugin.Tacexpr in
-  match tac.CAst.v with
-  | TacAtom _ -> Some tac
-  | TacThen (t1, _) -> first_atomic_tactic t1
-  | TacThens (t1, _) -> first_atomic_tactic t1
-  | TacThens3parts (t1, _, _, _) -> first_atomic_tactic t1
-  | TacDispatch (t1 :: _) -> first_atomic_tactic t1
-  | TacFirst (t1 :: _) -> first_atomic_tactic t1
-  | TacSolve (t1 :: _) -> first_atomic_tactic t1
-  | TacTry t1
-  | TacOnce t1
-  | TacExactlyOnce t1
-  | TacRepeat t1
-  | TacProgress t1
-  | TacAbstract (t1, _)
-  | TacTime (_, t1)
-  | TacDo (_, t1)
-  | TacTimeout (_, t1)
-  | TacIfThenCatch (t1, _, _)
-  | TacOrelse (t1, _)
-  | TacOr (t1, _) ->
-      first_atomic_tactic t1
-  | TacSelect (_, t1) -> first_atomic_tactic t1
-  (* Anything else is either empty, a match, or a function *)
-  | TacId _ | TacFail _ | TacLetIn _ | TacMatch _ | TacMatchGoal _ | TacFun _
-  | TacArg _ | TacML _ | TacAlias _ | TacExtendTac _ ->
-      None
-  | TacDispatch [] | TacFirst [] | TacSolve [] -> None
-
-let get_base_tactic (x : syntaxNode) =
-  let ( let* ) = Option.bind in
-  let open Raw_gen_args_converter in
-  let res =
-    let* args = Syntax_node.get_tactic_raw_generic_arguments x in
-    let* ltac = raw_arguments_to_ltac_elements args in
-    let raw_tac = ltac.raw_tactic_expr in
-
-    first_atomic_tactic raw_tac
-  in
-  res
-
-type sentence_ending = Semicolon | Dot
-
-let get_ending (tac : Ltac_plugin.Tacexpr.raw_tactic_expr option) :
-    sentence_ending =
-  match tac with
-  | Some tac -> (
-      match tac.CAst.v with
-      | Ltac_plugin.Tacexpr.TacThen _ | Ltac_plugin.Tacexpr.TacThens _
-      | Ltac_plugin.Tacexpr.TacDispatch _ | Ltac_plugin.Tacexpr.TacThens3parts _
-        ->
-          Semicolon
-      | _ -> Dot)
-  | None -> Dot
-
-let string_of_raw_tactic_dummy (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
-    string =
-  (* 1. Create a dummy global environment *)
-  let env = Global.env () in
-  (* 2. Create an empty evar map *)
-  let evd = Evd.from_env env in
-  Ltac_plugin.Pptactic.pr_raw_tactic env evd tac |> Pp.string_of_ppcmds
-
-let secure_node (x : syntaxNode) : (syntaxNode, Error.t) result =
-  let open Raw_gen_args_converter in
-  let base_tactic = get_base_tactic x in
-  let v = Option.map (fun x -> x.CAst.v) base_tactic in
-  match Option.map (fun x -> x.CAst.v) base_tactic with
-  | Some
-      (Ltac_plugin.Tacexpr.TacAtom
-         (Ltac_plugin.Tacexpr.TacAssert (_, _, Some (Some expr), _, _))) ->
-      let base_tactic = Option.get base_tactic in
-      let base_tactic_repr = string_of_raw_tactic_dummy base_tactic in
-
-      let args = Syntax_node.get_tactic_raw_generic_arguments x in
-      let ltac =
-        Option.cata Raw_gen_args_converter.raw_arguments_to_ltac_elements None
-          args
-      in
-      let raw_tac = Option.map (fun x -> x.raw_tactic_expr) ltac in
-      let raw_tac_repr = string_of_raw_tactic_dummy (Option.get raw_tac) in
-
-      let assert_dummy =
-        parse_tactic_arg "assert (H: n * 1 = n) by ((auto with arith))."
-      in
-      let assert_repr = string_of_raw_tactic_dummy assert_dummy in
-      Logs.debug (fun m -> m "assert dummy: %s" assert_repr);
-
-      Logs.debug (fun m -> m "x repr: %s" x.repr);
-      Logs.debug (fun m ->
-          m "all tactic repr: %s"
-            (string_of_raw_tactic_dummy (Option.get raw_tac)));
-      Logs.debug (fun m -> m "bas tactic repr: %s" base_tactic_repr);
-
-      let pos = String.length base_tactic_repr in
-      let len =
-        max 0 (String.length raw_tac_repr - String.length base_tactic_repr - 1)
-      in
-      Logs.debug (fun m -> m "pos: %d" pos);
-      Logs.debug (fun m -> m "len: %d" len);
-      let rest_repr = String.sub raw_tac_repr pos len in
-      Logs.debug (fun m -> m "rest repr: %s" rest_repr);
-      Logs.debug (fun m -> m "\n");
-      let ending = get_ending raw_tac in
-
-      Syntax_node.syntax_node_of_string x.repr x.range.start
-  | _ -> Ok x
-
 let ( let* ) = Result.bind
 
 let map_children f lst =
@@ -965,11 +852,10 @@ let rec get_oneliner (suffix : string option) (tree : syntaxNode nary_tree) :
     (string, Error.t) result =
   match tree with
   | Node (x, childrens) -> (
-      let* safe_x = secure_node x in
       let* x_without_dots =
         if Syntax_node.is_syntax_node_ending_with_elipsis x then
-          chop_ellipsis safe_x.repr
-        else chop_dot safe_x.repr
+          chop_ellipsis x.repr
+        else chop_dot x.repr
       in
       let x_repr =
         if Syntax_node.is_syntax_node_ending_with_elipsis x then
@@ -993,8 +879,7 @@ let rec get_oneliner (suffix : string option) (tree : syntaxNode nary_tree) :
         | _ -> map_children (get_oneliner suffix) childrens
       in
 
-      if is_syntax_node_proof_intro_or_end safe_x then
-        Ok (String.concat " " mapped)
+      if is_syntax_node_proof_intro_or_end x then Ok (String.concat " " mapped)
       else
         match childrens_length_without_proof_end with
         | 0 -> Ok x_repr
