@@ -2,9 +2,9 @@
  (name main)
  (package coq-ditto)
  (public_name coq-ditto)
- (preprocess (pps ppx_deriving.show ppx_variants_conv))	
+ (preprocess (pps ppx_deriving.show ppx_variants_conv))
  (libraries unix logs logs.fmt coq-ditto coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche)
- )
+)
 
 (install
  (package coq-ditto)

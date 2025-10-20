@@ -236,7 +236,7 @@ let dump_ast ~io:_ ~token:_ ~(doc : Doc.t) =
             | Ok res ->
                 print_newline ();
                 print_endline
-                  ("All transformations applied, writing to file" ^ filename);
+                  ("All transformations applied, writing to file " ^ filename);
 
                 let out = open_out filename in
                 Result.fold ~ok:(output_string out)
