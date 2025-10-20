@@ -24,6 +24,9 @@ let rec drop_while p = function
   | x :: l when p x -> drop_while p l
   | rest -> rest
 
+let[@tailcall] rec last (l : 'a list) : 'a option =
+  match l with [] -> None | [ x ] -> Some x | _ :: tail -> last tail
+
 let map2_pad ?(pad1 = None) ?(pad2 = None) (f : 'a -> 'b -> 'c) (l1 : 'a list)
     (l2 : 'b list) : 'c list =
   let rec aux (acc : 'c list) (l1 : 'a list) (l2 : 'b list) =

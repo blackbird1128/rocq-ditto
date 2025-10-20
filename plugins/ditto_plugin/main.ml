@@ -127,7 +127,10 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
         (Ok doc_acc, 0) proofs
   | Error err -> (Error err, 0)
 
-let dump_ast ~io:_ ~token:_ ~(doc : Doc.t) =
+let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
+    (unit, Error.t) result =
+  let ( let* ) = Result.bind in
+
   let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
 
   let verbose = Option.default false (bool_of_string_opt verbose) in
@@ -144,24 +147,36 @@ let dump_ast ~io:_ ~token:_ ~(doc : Doc.t) =
   let errors = List.filter Lang.Diagnostic.is_error diags in
 
   let max_errors = 5 in
+  let limited_errors = List.filteri (fun i _ -> i < max_errors) errors in
 
   match doc.completed with
   | Doc.Completion.Stopped range_stop ->
-      prerr_endline ("parsing stopped at " ^ Lang.Range.to_string range_stop);
-      print_diagnostics (List.filteri (fun i _ -> i < max_errors) errors);
-      print_endline
-        "NOTE: errors after the first might be due to the first error."
+      Error.string_to_or_error_err
+        (Printf.sprintf
+           "parsing stopped at %s\n\
+            %s\n\
+            NOTE: errors after the first might be due to the first error."
+           (Lang.Range.to_string range_stop)
+           (String.concat "\n"
+              (List.map Diagnostic_utils.diagnostic_to_string limited_errors)))
   | Doc.Completion.Failed range_failed ->
-      prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
-      print_diagnostics (List.filteri (fun i _ -> i < max_errors) errors);
-      print_endline
-        "NOTE: errors after the first might be due to the first error."
+      Error.string_to_or_error_err
+        (Printf.sprintf
+           "parsing failed at %s\n\
+            %s\n\
+            NOTE: errors after the first might be due to the first error."
+           (Lang.Range.to_string range_failed)
+           (String.concat "\n"
+              (List.map Diagnostic_utils.diagnostic_to_string limited_errors)))
   | Doc.Completion.Yes _ -> (
-      if errors <> [] then (
-        let first_errors = List.filteri (fun i _ -> i < 5) errors in
-        print_diagnostics first_errors;
-        print_endline
-          "NOTE: errors after the first might be due to the first error.")
+      if errors <> [] then
+        Error.string_to_or_error_err
+          (Printf.sprintf
+             "Document was parsed with errors:\n\
+              %s\n\
+              NOTE: errors after the first might be due to the first error."
+             (String.concat "\n"
+                (List.map Diagnostic_utils.diagnostic_to_string limited_errors)))
       else
         let transformations_steps =
           Sys.getenv_opt "DITTO_TRANSFORMATION"
@@ -171,21 +186,13 @@ let dump_ast ~io:_ ~token:_ ~(doc : Doc.t) =
 
         match transformations_steps with
         | None ->
-            prerr_endline
+            Error.string_to_or_error_err
               "Please specify the wanted transformation using the environment \
-               variable: DITTO_TRANSFORMATION";
-            prerr_endline
-              "If you want help about the different transformation, specify \
-               DITTO_TRANSFORMATION=HELP";
-            exit 1
+               variable: DITTO_TRANSFORMATION\n\
+               If you want help about the different transformation, specify \
+               DITTO_TRANSFORMATION=HELP"
         | Some steps when List.exists Result.is_error steps ->
-            prerr_endline "Transformations not recognized:";
-            List.iter
-              (fun x ->
-                print_endline (Error.to_string_hum (Result.get_error x)))
-              ((List.filter Result.is_error) steps);
-            print_endline "Recognized transformations: ";
-            let transformations =
+            let transformations_list =
               let add acc var = var.Variantslib.Variant.name :: acc in
               Variants_of_transformation_kind.fold ~init:[] ~help:add
                 ~explicitfreshvariables:add ~turnintooneliner:add
@@ -193,10 +200,22 @@ let dump_ast ~io:_ ~token:_ ~(doc : Doc.t) =
                 ~replaceautowithsteps:add
               |> List.map camel_to_snake
             in
-
-            List.iter print_endline transformations
+            let not_recognized =
+              String.concat "\n"
+                (List.map
+                   (fun x -> Error.to_string_hum (Result.get_error x))
+                   ((List.filter Result.is_error) steps))
+            in
+            Error.string_to_or_error_err
+              (Printf.sprintf
+                 "Transformations not recognized:\n\
+                  %s\n\
+                  Recognized transformations: %s"
+                 not_recognized
+                 (String.concat "\n" transformations_list))
         | Some steps when List.mem (Ok Help) steps ->
-            print_help transformations_help
+            print_help transformations_help;
+            Ok ()
         | Some steps -> (
             let transformations_steps = List.map Result.get_ok steps in
             let parsed_document = Coq_document.parse_document doc in
@@ -232,19 +251,57 @@ let dump_ast ~io:_ ~token:_ ~(doc : Doc.t) =
                 (Filename.remove_extension uri_str ^ "_bis.v")
                 (Sys.getenv_opt "OUTPUT_FILENAME")
             in
-            match res with
-            | Ok res ->
+
+            let save_vo =
+              Option.default false
+                (Sys.getenv_opt "SAVE_VO"
+                |> Option.map bool_of_string_opt
+                |> Option.flatten)
+            in
+            Logs.debug (fun m -> m "save vo: %b" save_vo);
+
+            match (res, save_vo) with
+            | Ok res, false ->
                 print_newline ();
                 print_endline
                   ("All transformations applied, writing to file " ^ filename);
 
                 let out = open_out filename in
-                Result.fold ~ok:(output_string out)
-                  ~error:(fun e -> print_endline (Error.to_string_hum e))
-                  (Coq_document.dump_to_string res)
-            | Error err ->
+                let* doc_repr = Coq_document.dump_to_string res in
+                output_string out doc_repr;
+                Ok ()
+            | Ok res, true ->
+                Logs.debug (fun m -> m "here !");
+                let token = Coq.Limits.Token.create () in
+                let uri =
+                  Lang.LUri.of_string filename
+                  |> Lang.LUri.File.of_uri |> Result.get_ok
+                in
+                Logs.debug (fun m -> m "got uri ");
+
+                let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc.uri in
+                let in_file = Lang.LUri.File.to_string_file uri in
+                Logs.debug (fun m -> m "got in file ");
+                let* state =
+                  match List_utils.last res.elements with
+                  | Some last ->
+                      let* st = Runner.get_init_state res last token in
+                      Runner.run_node token st last
+                  | None -> Ok res.initial_state
+                in
+                print_endline
+                  ("All transformations applied, writing to file " ^ filename);
+                print_endline "Saving vo:";
+                Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
+                |> Runner.protect_to_result
+            | Error err, _ ->
                 print_endline (Error.to_string_hum err);
                 exit 1))
 
-let main () = Theory.Register.Completed.add dump_ast
+let ditto_plugin_hook ~io ~token ~(doc : Doc.t) : unit =
+  match ditto_plugin ~io ~token ~doc with
+  | Ok _ -> ()
+  | Error err -> prerr_endline (Error.to_string_hum err)
+
+let main () = Theory.Register.Completed.add ditto_plugin_hook
 let () = main ()

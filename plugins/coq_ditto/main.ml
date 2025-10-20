@@ -29,6 +29,7 @@ let input_arg = ref ""
 let output_arg = ref ""
 let transformation_arg = ref ""
 let verbose = ref false
+let save_vo = ref false
 
 let transformations_help =
   [
@@ -183,6 +184,7 @@ let speclist =
     ("-i", Arg.String set_input_arg, "Input folder or filename");
     ("-o", Arg.Set_string output_arg, "Output folder or filename");
     ("-t", Arg.String set_transformation, "Transformation to apply");
+    ("--save-vo", Arg.Set save_vo, "Save a vo of the transformed file");
   ]
 
 let usage_msg = "Usage: rocq-ditto [options]"
@@ -247,6 +249,7 @@ let transform_project () : (int, Error.t) result =
                 "DITTO_TRANSFORMATION=" ^ !transformation_arg;
                 "OUTPUT_FILENAME=" ^ !output_arg;
                 "DEBUG_LEVEL=" ^ string_of_bool !verbose;
+                "SAVE_VO=" ^ string_of_bool !save_vo;
               |]
           in
 
@@ -295,6 +298,7 @@ let transform_project () : (int, Error.t) result =
                 [|
                   "DITTO_TRANSFORMATION=" ^ !transformation_arg;
                   "DEBUG_LEVEL=" ^ string_of_bool !verbose;
+                  "SAVE_VO=" ^ string_of_bool !save_vo;
                 |]
             in
 

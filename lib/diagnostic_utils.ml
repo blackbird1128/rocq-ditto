@@ -22,14 +22,14 @@ let diagnostic_kind_to_str (diag_kind : Lang.Diagnostic.Severity.t) : string =
   else if diag_kind = Lang.Diagnostic.Severity.information then "Information"
   else "Warning"
 
+let pp_diagnostic (fmt : Format.formatter) (diag : Lang.Diagnostic.t) : unit =
+  Format.fprintf fmt "At: %s %s: %s"
+    (error_location_to_string diag.range)
+    (diagnostic_kind_to_str diag.severity)
+    (Pp.string_of_ppcmds diag.message)
+
+let diagnostic_to_string (diag : Lang.Diagnostic.t) : string =
+  Format.asprintf "%a" pp_diagnostic diag
+
 let print_diagnostics (errors : Lang.Diagnostic.t list) : unit =
-  List.iter
-    (fun (diag : Lang.Diagnostic.t) ->
-      print_endline
-        ("At: "
-        ^ error_location_to_string diag.range
-        ^ " "
-        ^ diagnostic_kind_to_str diag.severity
-        ^ ": "
-        ^ Pp.string_of_ppcmds diag.message))
-    errors
+  List.iter (fun diag -> print_endline (diagnostic_to_string diag)) errors
