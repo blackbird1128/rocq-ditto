@@ -74,7 +74,7 @@ let is_directory (path : string) : bool =
   try
     let stats = Unix.stat path in
     stats.Unix.st_kind = Unix.S_DIR
-  with Unix.Unix_error _ -> false
+  with Unix.Unix_error _ -> String.ends_with ~suffix:Filename.dir_sep path
 
 let get_pathkind (path : string) : path_kind =
   if is_directory path then Dir else File

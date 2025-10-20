@@ -258,7 +258,6 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 |> Option.map bool_of_string_opt
                 |> Option.flatten)
             in
-            Logs.debug (fun m -> m "save vo: %b" save_vo);
 
             match (res, save_vo) with
             | Ok res, false ->
@@ -271,17 +270,14 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 output_string out doc_repr;
                 Ok ()
             | Ok res, true ->
-                Logs.debug (fun m -> m "here !");
                 let token = Coq.Limits.Token.create () in
                 let uri =
                   Lang.LUri.of_string filename
                   |> Lang.LUri.File.of_uri |> Result.get_ok
                 in
-                Logs.debug (fun m -> m "got uri ");
 
                 let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc.uri in
                 let in_file = Lang.LUri.File.to_string_file uri in
-                Logs.debug (fun m -> m "got in file ");
                 let* state =
                   match List_utils.last res.elements with
                   | Some last ->
