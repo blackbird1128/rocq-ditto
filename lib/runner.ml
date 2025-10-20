@@ -2,22 +2,6 @@ open Syntax_node
 open Nary_tree
 open Proof
 
-type runningError =
-  | Interrupted
-  | Parsing of string
-  | Coq of string
-  | Anomaly of string
-  | System of string
-  | Theorem_not_found of string
-
-let running_error_to_string = function
-  | Interrupted -> Format.asprintf "Interrupted"
-  | Parsing msg -> Format.asprintf "Parsing: %s" msg
-  | Coq msg -> Format.asprintf "Coq: %s" msg
-  | Anomaly msg -> Format.asprintf "Anomaly: %s" msg
-  | System msg -> Format.asprintf "System: %s" msg
-  | Theorem_not_found msg -> Format.asprintf "Theorem_not_found: %s" msg
-
 let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) Result.t =
   match r with
   | { r = Interrupted; feedback = _ } ->

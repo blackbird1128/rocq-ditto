@@ -2,16 +2,6 @@ open Syntax_node
 open Proof
 open Nary_tree
 
-type runningError =
-  | Interrupted
-  | Parsing of string
-  | Coq of string
-  | Anomaly of string
-  | System of string
-  | Theorem_not_found of string
-
-val running_error_to_string : runningError -> string
-
 val run_with_timeout :
   token:Coq.Limits.Token.t ->
   timeout:int ->
