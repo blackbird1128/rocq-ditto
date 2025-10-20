@@ -14,7 +14,6 @@ type transformation_step =
   | Attach of syntaxNode * attach_position * Uuidm.t
 
 val pp_transformation_step : Format.formatter -> transformation_step -> unit
-val print_transformation_step : transformation_step -> unit
 val transformation_step_to_string : transformation_step -> string
 
 type proof = {

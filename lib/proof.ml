@@ -35,8 +35,6 @@ let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
 let transformation_step_to_string (step : transformation_step) : string =
   Format.asprintf "%a" pp_transformation_step step
 
-let print_transformation_step (step : transformation_step) : unit =
-  print_endline (transformation_step_to_string step)
 (* TODO add precisions *)
 
 type proof = {
