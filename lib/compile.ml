@@ -48,7 +48,7 @@ let read_all ic =
 let coqproject_sorted_files (coqproject_file : string) :
     (string list, Error.t) result =
   let cmd =
-    Coq_version.dep_executable ^ Printf.sprintf " -f %s -sort" coqproject_file
+    Rocq_version.dep_executable ^ Printf.sprintf " -f %s -sort" coqproject_file
   in
   let ic = Unix.open_process_in cmd in
   let lines = read_all ic in
@@ -61,10 +61,10 @@ let coqproject_sorted_files (coqproject_file : string) :
   | Unix.WEXITED n ->
       Error.string_to_or_error_err
         (Printf.sprintf "%s exited with %d; output:\n%s"
-           Coq_version.dep_executable n (String.concat "\n" lines))
+           Rocq_version.dep_executable n (String.concat "\n" lines))
   | _ ->
       Error.string_to_or_error_err
-        (Coq_version.dep_executable ^ " terminated abnormally")
+        (Rocq_version.dep_executable ^ " terminated abnormally")
 
 let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
   let msg_string = Pp.string_of_ppcmds x.message in

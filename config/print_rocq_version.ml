@@ -39,10 +39,10 @@ let () =
   let opt_comp_format = Array.exists (( = ) "--optcomp") Sys.argv in
   if opt_comp_format then
     Printf.printf
-      "[%%%%define major_version %d]\n\
-       [%%%%define minor_version %d]\n\
-       [%%%%define patch_version %d]\n\
-       [%%%%define executable_name \"rocq\"]"
+      "[%%%%define rocq_major_version %d]\n\
+       [%%%%define rocq_minor_version %d]\n\
+       [%%%%define rocq_patch_version %d]\n\
+       [%%%%define rocq_executable_name \"rocq\"]"
       major minor patch
   else (
     Printf.printf

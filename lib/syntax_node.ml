@@ -2,8 +2,8 @@ open Fleche
 open Vernacexpr
 module Lsp = Fleche_lsp
 
-[%%import "coq_version_optcomp.mlh"]
-[%%if major_version < 9]
+[%%import "rocq_version_optcomp.mlh"]
+[%%if rocq_major_version < 9]
 
 module Procq = Pcoq
 

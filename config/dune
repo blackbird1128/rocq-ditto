@@ -1,6 +1,6 @@
 
 (executable
  (package ditto-config)
- (name print_coq_version)
- (public_name print-coq-version)
+ (name print_rocq_version)
+ (public_name print-rocq-version)
  (libraries unix))

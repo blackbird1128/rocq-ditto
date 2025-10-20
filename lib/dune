@@ -1,14 +1,14 @@
 (rule
- (targets coq_version.ml)
+ (targets rocq_version.ml)
  (action
   (with-stdout-to %{targets}
-    (run %{bin:print-coq-version}))))
+    (run %{bin:print-rocq-version}))))
 
 (rule
- (targets coq_version_optcomp.mlh)
+ (targets rocq_version_optcomp.mlh)
  (action
   (with-stdout-to %{targets}
-    (run %{bin:print-coq-version} --optcomp)))
+    (run %{bin:print-rocq-version} --optcomp)))
  (mode promote))
 
 (library
