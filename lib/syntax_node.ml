@@ -306,10 +306,7 @@ let is_syntax_node_tactic (x : t) : bool =
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, _) ->
-              if
-                ext.ext_plugin = "coq-core.plugins.ltac"
-                || ext.ext_plugin = "rocq-runtime.plugins.ltac"
-              then true
+              if ext.ext_plugin = Rocq_version.ltac_ext_plugin_name then true
               else false
           | _ -> false)
       | VernacSynPure _ -> false)
@@ -379,8 +376,7 @@ let is_syntax_node_function_start (x : t) : bool =
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, _) ->
-              (ext.ext_plugin = "coq-core.plugins.funind"
-              || ext.ext_plugin = "rocq-runtime.plugins.funind")
+              ext.ext_plugin = Rocq_version.ltac_funid_plugin_name
               && ext.ext_entry = "Function"
           | _ -> false)
       | VernacSynPure _ -> false)
@@ -502,10 +498,8 @@ let get_tactic_raw_generic_arguments (x : t) :
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, args) ->
-              if
-                ext.ext_plugin = "coq-core.plugins.ltac"
-                || ext.ext_plugin = "rocq-runtime.plugins.ltac"
-              then Some args
+              if ext.ext_plugin = Rocq_version.ltac_ext_plugin_name then
+                Some args
               else None
           | _ -> None)
       | VernacSynPure _ -> None)
@@ -561,7 +555,7 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
   in
 
   let args = get_tactic_raw_generic_arguments a |> Option.get in
-  let extend = get_syntax_node_extend_name a |> Option.get in
+  let extend = Ltac.default_extend_name in
 
   let a_then_b =
     CAst.make

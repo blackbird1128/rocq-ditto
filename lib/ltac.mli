@@ -1,5 +1,7 @@
 open Ltac_plugin
 
+val default_extend_name : Vernacexpr.extend_name
+
 val get_raw_atomic_tactic_expr :
   Tacexpr.raw_tactic_expr -> Tacexpr.raw_atomic_tactic_expr option
 
