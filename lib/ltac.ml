@@ -5,17 +5,6 @@ let get_raw_atomic_tactic_expr (x : Tacexpr.raw_tactic_expr) :
   match x.v with TacAtom expr -> Some expr | _ -> None
 
 open Ltac_plugin.Tacexpr
-
-let atom_plens : (raw_tactic_expr, raw_atomic_tactic_expr) Lens.plens =
-  {
-    get_opt = (fun x -> match x.v with TacAtom y -> Some y | _ -> None);
-    set_opt =
-      (fun new_x y ->
-        match y.v with
-        | TacAtom _ -> Some (CAst.make (TacAtom new_x))
-        | _ -> None);
-  }
-
 open CAst
 
 type mapper = {
@@ -120,19 +109,6 @@ let rec default_mapper : mapper =
         | _ -> a);
   }
 
-open Syntax_node
-
-(* let map_syntax_node_raw_tactic_expr (x : Syntax_node.t) (mapping : mapper) : *)
-(*     Syntax_node.t = *)
-(*   match Syntax_node.get_node_raw_tactic_expr x with *)
-(*   | Some raw_expr -> *)
-(*      let new_expr = mapping.map_expr mapping raw_expr in *)
-(*      let ext = *)
-(*         Syntax_node.get_syntax_node_extend_name dummy_assert |> Option.get *)
-(*      in                 *)
-
-(*   | None -> x *)
-
 let replace_fail_with_id =
   {
     default_mapper with
@@ -144,20 +120,4 @@ let replace_fail_with_id =
             | TacFail _ -> TacId []
             | _ -> (default_mapper.map_expr self expr).v)
           expr);
-  }
-
-let add_parens_mapper =
-  {
-    default_mapper with
-    map_atom =
-      (fun self a ->
-        match a with
-        | TacAssert (ev, b, Some (Some expr), ipat, trm) ->
-            let expr' = self.map_expr self expr in
-            let mk_paren s = CAst.make (TacId [ MsgString s ]) in
-            let parened =
-              CAst.make (TacDispatch [ mk_paren "("; expr'; mk_paren ")" ])
-            in
-            TacAssert (ev, b, Some (Some parened), ipat, trm)
-        | _ -> default_mapper.map_atom self a);
   }

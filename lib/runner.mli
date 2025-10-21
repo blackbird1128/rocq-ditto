@@ -1,4 +1,3 @@
-open Syntax_node
 open Proof
 open Nary_tree
 

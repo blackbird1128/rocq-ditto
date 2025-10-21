@@ -1,4 +1,3 @@
-open Syntax_node
 open Nary_tree
 
 type proof_status = Admitted | Proved | Aborted
@@ -62,7 +61,8 @@ val get_proof_status : proof -> proof_status option
     function. returns [Aborted] for both [Abort] and [Abort All]. Returns [None]
     if there isn't a last node or it doesn't match a type in [proof_status]. *)
 
-val proof_status_from_last_node : Syntax_node.t -> (proof_status, Error.t) result
+val proof_status_from_last_node :
+  Syntax_node.t -> (proof_status, Error.t) result
 (** Get the proof status of the last node of a proof or an error if the node
     isn't a closing node. If the proof was proved, return [Proved], if the proof
     is admitted, return [Admitted], and if the proof was aborted with Abort or

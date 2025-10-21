@@ -1,6 +1,5 @@
 open Proof
 open Nary_tree
-open Syntax_node
 
 val fold_replace_assumption_with_apply :
   Rocq_document.t ->

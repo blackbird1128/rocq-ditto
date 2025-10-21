@@ -1,6 +1,5 @@
 open Proof
 open Fleche
-open Syntax_node
 
 type t = {
   filename : string;

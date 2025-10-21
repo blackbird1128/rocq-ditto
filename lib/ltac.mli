@@ -5,8 +5,6 @@ val get_raw_atomic_tactic_expr :
 
 open Ltac_plugin.Tacexpr
 
-val atom_plens : (raw_tactic_expr, raw_atomic_tactic_expr) Lens.plens
-
 type mapper = {
   map_expr : mapper -> raw_tactic_expr -> raw_tactic_expr;
   map_atom :

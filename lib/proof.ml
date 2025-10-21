@@ -85,8 +85,7 @@ let get_constr_expr (x : proof) : Constrexpr.constr_expr option =
       | VernacSynterp _ -> None
       | VernacSynPure expr_syn -> (
           match expr_syn with
-          | Vernacexpr.VernacStartTheoremProof
-              (kind, [ ((ident, univ), (binders, expr)) ]) ->
+          | Vernacexpr.VernacStartTheoremProof (_, [ ((_, _), (_, expr)) ]) ->
               Some expr
           | _ -> None))
   | None -> None
@@ -170,7 +169,8 @@ let rec print_tree (tree : Syntax_node.t nary_tree) (indent : string) : unit =
       Printf.printf "%sNode(%s)\n" indent value.repr;
       List.iter (fun child -> print_tree child (indent ^ "  ")) children
 
-let proof_nodes (p : proof) : Syntax_node.t list = p.proposition :: p.proof_steps
+let proof_nodes (p : proof) : Syntax_node.t list =
+  p.proposition :: p.proof_steps
 
 let proof_from_nodes (nodes : Syntax_node.t list) : (proof, Error.t) result =
   if List.length nodes < 2 then

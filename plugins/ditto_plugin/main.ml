@@ -1,7 +1,6 @@
 open Fleche
 open Ditto
 open Ditto.Proof
-open Ditto.Diagnostic_utils
 
 type transformation_kind =
   | Help
@@ -270,7 +269,6 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 output_string out doc_repr;
                 Ok ()
             | Ok res, true ->
-                let token = Coq.Limits.Token.create () in
                 let uri =
                   Lang.LUri.of_string filename
                   |> Lang.LUri.File.of_uri |> Result.get_ok

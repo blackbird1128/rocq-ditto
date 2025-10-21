@@ -403,8 +403,7 @@ let is_syntax_node_definition_with_proof (x : t) : bool =
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with
-          | Vernacexpr.VernacDefinition
-              ((discharge, object_kind), name_decl, definition_expr) -> (
+          | Vernacexpr.VernacDefinition ((_, _), _, definition_expr) -> (
               match definition_expr with ProveBody _ -> true | _ -> false)
           | _ -> false))
   | None -> false
