@@ -215,10 +215,19 @@ let nodes_of_string (code : string) (ranges : Code_range.t list) :
              l ranges)
   | Error err -> Error.to_string_result err
 
+let remove_outer_parentheses s =
+  let len = String.length s in
+  if len >= 2 && s.[0] = '(' && s.[len - 2] = ')' && s.[len - 1] = '.' then
+    String.sub s 1 (len - 3) ^ "."
+  else s
+
 let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) :
     syntaxNode =
   let coq_ast = Coq.Ast.to_coq ast in
-  let repr = Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds in
+  let repr =
+    Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds
+    |> remove_outer_parentheses
+  in
   let range = Range_utils.range_from_starting_point_and_repr start_point repr in
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
   {
@@ -483,7 +492,7 @@ let get_syntax_node_extend_name (x : syntaxNode) : extend_name option =
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
-          | VernacExtend (ext, args) -> Some ext
+          | VernacExtend (ext, _) -> Some ext
           | _ -> None)
       | VernacSynPure _ -> None)
   | None -> None
@@ -522,13 +531,57 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
     syntaxNode option =
   match args with
-  | [ first; second; third; fourth ] ->
+  | [ _; _; _; _ ] ->
       let expr_syn = Vernacexpr.VernacExtend (ext, args) in
       let synterp_expr = Vernacexpr.VernacSynterp expr_syn in
       let control = mk_vernac_control synterp_expr in
       let ast_node = Coq.Ast.of_coq control in
       Some (syntax_node_of_coq_ast ast_node starting_point)
   | _ -> None
+
+let apply_tac_then (a : syntaxNode) (b : syntaxNode)
+    ?(start_point : Code_point.t = a.range.start) () :
+    (syntaxNode, Error.t) result =
+  let ( let* ) = Result.bind in
+
+  let* raw_tactic_expr_a =
+    get_node_raw_tactic_expr a
+    |> Option.cata Result.ok
+         (Error.string_to_or_error_err
+            (Printf.sprintf
+               "%s isn't convertible to a raw_tactic_expr (It probably isn't \
+                Ltac)"
+               a.repr))
+  in
+
+  let* raw_tactic_expr_b =
+    get_node_raw_tactic_expr b
+    |> Option.cata Result.ok
+         (Error.string_to_or_error_err
+            (Printf.sprintf
+               "%s isn't convertible to a raw_tactic_expr (It probably isn't \
+                Ltac)"
+               a.repr))
+  in
+
+  let args = get_tactic_raw_generic_arguments a |> Option.get in
+  let extend = get_syntax_node_extend_name a |> Option.get in
+
+  let a_then_b =
+    CAst.make
+      (Ltac_plugin.Tacexpr.TacThen (raw_tactic_expr_a, raw_tactic_expr_b))
+  in
+  let raw_arg =
+    Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr a_then_b
+  in
+  let new_args =
+    [ List.nth args 0; List.nth args 1; raw_arg; List.nth args 3 ]
+  in
+  tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
+  |> Option.cata Result.ok
+       (Error.string_to_or_error_err
+          (Printf.sprintf "failed to create a then betwen %s and %s" a.repr
+             b.repr))
 
 let node_can_open_proof (x : syntaxNode) : bool =
   is_syntax_node_proof_start x

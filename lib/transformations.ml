@@ -114,7 +114,6 @@ let simple_proof_repair (doc : Coq_document.t)
       let* _, steps_acc, ignore_acc, _ =
         Nary_tree.depth_first_fold_with_children_as_trees
           (fun acc node children ->
-            print_endline ("treating " ^ node.repr);
             match acc with
             | Ok (state_acc, steps_acc, ignore_acc, prev_goal_count) -> (
                 if SyntaxNodeSet.mem node ignore_acc then

@@ -146,3 +146,10 @@ val get_node_raw_tactic_expr :
   syntaxNode -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
 val get_node_ltac_elements : syntaxNode -> ltac_elements option
+
+val apply_tac_then :
+  syntaxNode ->
+  syntaxNode ->
+  ?start_point:Code_point.t ->
+  unit ->
+  (syntaxNode, Error.t) result

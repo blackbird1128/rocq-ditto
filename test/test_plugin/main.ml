@@ -95,6 +95,13 @@ let vernac_control_gen_r_testable =
       Pp.pp_with fmt x)
     ( = )
 
+let synterp_vernac_expr_testable =
+  Alcotest.testable
+    (fun (fmt : Format.formatter) (x : Vernacexpr.synterp_vernac_expr) ->
+      let s = Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr x in
+      Sexplib.Sexp.pp_mach fmt s)
+    ( = )
+
 let make_dummy_node (start_line : int) (start_char : int) (end_line : int)
     (end_char : int) : syntaxNode =
   {
@@ -378,6 +385,50 @@ let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
          (Error.of_string "'.' expected after [lconstr] (in [query_command])"))
       node_repr)
 
+let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
+  let code_point_a : Code_point.t = { line = 0; character = 0 } in
+  let code_point_b : Code_point.t = { line = 1; character = 0 } in
+  let a =
+    Syntax_node.syntax_node_of_string "idtac." code_point_a |> Result.get_ok
+  in
+  let b =
+    Syntax_node.syntax_node_of_string "idtac." code_point_b |> Result.get_ok
+  in
+  let a_then_b = Syntax_node.apply_tac_then a b () in
+  let a_then_b_repr = Result.map (fun node -> node.repr) a_then_b in
+
+  Alcotest.(
+    check
+      (result string error_testable)
+      "a then b should be constructed correctly" (Ok "idtac; idtac.")
+      a_then_b_repr)
+
+let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
+  let code_point_a : Code_point.t = { line = 0; character = 0 } in
+  let code_point_b : Code_point.t = { line = 1; character = 0 } in
+  let a =
+    Syntax_node.syntax_node_of_string
+      "assert (forall A : Prop, (A -> A) /\\ (A -> A)) by (split;auto)."
+      code_point_a
+    |> Result.get_ok
+  in
+  let b =
+    Syntax_node.syntax_node_of_string "reflexivity." code_point_b
+    |> Result.get_ok
+  in
+
+  let a_then_b = Syntax_node.apply_tac_then a b () in
+  let a_then_b_repr = Result.map (fun node -> node.repr) a_then_b in
+
+  Alcotest.(
+    check
+      (result string error_testable)
+      "a then b should be constructed correctly"
+      (Ok
+         "assert (forall A : Prop, (A -> A) /\\ (A -> A)) by (split; auto); \
+          reflexivity.")
+      a_then_b_repr)
+
 let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
@@ -529,45 +580,6 @@ let test_colliding_nodes_multiple_common_lines_collision (_ : Doc.t) () : unit =
 
   Alcotest.(check (list uuidm_testable))
     "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
-
-let doc_rocq_remove_parenthesis (_ : Doc.t) () : unit =
-  let code_point : Code_point.t = { line = 0; character = 0 } in
-  let dummy_node_one =
-    Syntax_node.syntax_node_of_string "idtac." code_point |> Result.get_ok
-  in
-
-  let dummy_node_two =
-    Syntax_node.syntax_node_of_string "(idtac)." code_point |> Result.get_ok
-  in
-
-  let coq_ast_one_loc = (dummy_node_one.ast |> Option.get).v |> Coq.Ast.loc in
-  let coq_ast_two_loc = (dummy_node_two.ast |> Option.get).v |> Coq.Ast.loc in
-
-  Option.iter (fun x -> print_endline (Coq.Ast.loc_to_string x)) coq_ast_one_loc;
-  Option.iter (fun x -> print_endline (Coq.Ast.loc_to_string x)) coq_ast_two_loc;
-
-  let ast_one = ((dummy_node_one.ast |> Option.get).v |> Coq.Ast.to_coq).v in
-  let ast_two = ((dummy_node_two.ast |> Option.get).v |> Coq.Ast.to_coq).v in
-
-  let expr_one =
-    (match ast_one.expr with
-    | Vernacexpr.VernacSynterp x -> Some x
-    | Vernacexpr.VernacSynPure y -> None)
-    |> Option.get
-  in
-
-  let expr_two =
-    (match ast_two.expr with
-    | Vernacexpr.VernacSynterp x -> Some x
-    | Vernacexpr.VernacSynPure _ -> None)
-    |> Option.get
-  in
-
-  let a = Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr expr_one in
-  let b = Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr expr_two in
-
-  Alcotest.(check vernacexpr_testable)
-    "The two AST should be equal" ast_one.expr ast_two.expr
 
 let test_removing_and_leaving_blank (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
@@ -1358,6 +1370,13 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test creating an invalid node"
        test_creating_invalid_syntax_node_from_string doc);
   Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating a then b from AST (a;b)"
+       test_creating_simple_a_then_b doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating a then b from ambiguous expression"
+       test_creating_a_then_b_assert_by doc);
+
+  Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test checking if detecting \"Proof with\" is correct"
        test_detecting_proof_with doc);
   Hashtbl.add table "test_dummy.v"
@@ -1365,9 +1384,6 @@ let setup_test_table table (doc : Doc.t) =
        "test checking if detecting Proof with doesnt detect normal Proof \
         commands"
        test_not_detecting_simple_proof_command_with_proof_with doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "doc: test if parenthesis are kept in vernacexpr"
-       doc_rocq_remove_parenthesis doc);
 
   Hashtbl.add table "ex_proof_tree1.v"
     (create_fixed_test "test counting the goals of each steps of a simple proof"
