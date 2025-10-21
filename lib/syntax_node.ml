@@ -19,22 +19,6 @@ type t = {
   diagnostics : Lang.Diagnostic.t list;
 }
 
-let pp_doc_ast (fmt : Format.formatter) (ast : Doc.Node.Ast.t) : unit =
-  Pp.pp_with fmt (Coq.Ast.print ast.v)
-
-let pp_syntax_node (fmt : Format.formatter) (node : t) : unit =
-  Format.fprintf fmt "{@ ";
-  Format.fprintf fmt "ast: %a@ "
-    (fun fmt ast -> Format.pp_print_option pp_doc_ast fmt ast)
-    node.ast;
-  Format.fprintf fmt "range: %a@ " Code_range.pp node.range;
-  Format.fprintf fmt "repr: %s@ " node.repr;
-  Format.fprintf fmt "id: %s" (Uuidm.to_string node.id);
-  Format.fprintf fmt "proof id: %a@ "
-    (fun fmt id -> Format.pp_print_option Format.pp_print_int fmt id)
-    node.proof_id;
-  Format.fprintf fmt "@ }"
-
 let generate_ast (code : string) :
     (Vernacexpr.vernac_control list, Error.t) result =
   let mode = Ltac_plugin.G_ltac.classic_proof_mode in
@@ -248,9 +232,6 @@ let reformat_node (x : t) : (t, Error.t) result =
       Error.string_to_or_error_err
         "The node need to have an AST to be reformatted"
 
-let qed_ast_node (start_point : Code_point.t) : t =
-  Result.get_ok (syntax_node_of_string "Qed." start_point)
-
 let string_of_syntax_node (node : t) : string =
   match node.ast with
   | Some ast -> Ppvernac.pr_vernac (Coq.Ast.to_coq ast.v) |> Pp.string_of_ppcmds
@@ -332,6 +313,8 @@ let is_syntax_node_proof_with (x : t) : bool =
           | _ -> false))
   | None -> false
 
+[%%if rocq_version <= (9, 0, 0)]
+
 let get_syntax_node_proof_with_tactic (x : t) : string option =
   match x.ast with
   | Some ast -> (
@@ -342,11 +325,34 @@ let get_syntax_node_proof_with_tactic (x : t) : string option =
           | Vernacexpr.VernacProof (Some raw_arg, _) ->
               let empty_env = Environ.empty_env in
               let empty_evd = Evd.empty in
+
               Some
                 (Pp.string_of_ppcmds
                    (Pputils.pr_raw_generic empty_env empty_evd raw_arg))
           | _ -> None))
   | None -> None
+
+[%%else]
+
+let get_syntax_node_proof_with_tactic (x : t) : string option =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> None
+      | VernacSynPure expr -> (
+          match expr with
+          | Vernacexpr.VernacProof (Some raw_arg, _) ->
+              let empty_env = Environ.empty_env in
+              let empty_evd = Evd.empty in
+
+              Some
+                (Pp.string_of_ppcmds
+                   (Pputils.pr_raw_generic empty_env empty_evd
+                      (Gentactic.to_raw_genarg raw_arg)))
+          | _ -> None))
+  | None -> None
+
+[%%endif]
 
 let is_syntax_node_ending_with_elipsis (x : t) : bool =
   String.ends_with ~suffix:"..." x.repr
@@ -564,8 +570,6 @@ let apply_tac_thens (a : t) (l : t list)
   let a_thens_l =
     CAst.make (Ltac_plugin.Tacexpr.TacThens (raw_tactic_expr_a, raw_tactics_l))
   in
-  let sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr a_thens_l in
-  print_endline (Printf.sprintf "sexp: %s" (Sexplib.Sexp.to_string_hum sexp));
 
   let raw_arg =
     Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr a_thens_l

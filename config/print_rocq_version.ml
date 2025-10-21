@@ -37,13 +37,14 @@ let () =
     | _ -> failwith "Unexpected main coqc version format"
   in
   let opt_comp_format = Array.exists (( = ) "--optcomp") Sys.argv in
-  if opt_comp_format then
+  if opt_comp_format then (
     Printf.printf
       "[%%%%define rocq_major_version %d]\n\
        [%%%%define rocq_minor_version %d]\n\
        [%%%%define rocq_patch_version %d]\n\
-       [%%%%define rocq_executable_name \"rocq\"]"
-      major minor patch
+       [%%%%define rocq_executable_name \"rocq\"]\n"
+      major minor patch;
+    Printf.printf "[%%%%define rocq_version (%d,%d,%d)]" major minor patch)
   else (
     Printf.printf
       "let major_version = %d\nlet minor_version = %d\nlet patch_version = %d\n"

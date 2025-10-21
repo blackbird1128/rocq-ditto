@@ -10,7 +10,6 @@ type t = {
   diagnostics : Lang.Diagnostic.t list;
 }
 
-val pp_syntax_node : Format.formatter -> t -> unit
 val compare_nodes : t -> t -> int
 val are_colliding : t -> t -> bool
 
@@ -44,10 +43,6 @@ val validate_syntax_node : t -> (t, Error.t) result
 
 val mk_vernac_control :
   ?loc:Loc.t -> synterp_vernac_expr vernac_expr_gen -> vernac_control
-
-val qed_ast_node : Code_point.t -> t
-(** [qed_ast_node] create a syntax node containing the Coq command Qed starting
-    at the specified point. *)
 
 val doc_node_of_yojson : Yojson.Safe.t -> Doc.Node.Ast.t
 (** [doc_node_of_yojson json] convert a compatible element of type
