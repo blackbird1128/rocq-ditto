@@ -138,9 +138,9 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
       let err, messages = err in
       Error (err, List.map (message_to_diagnostic node.range) messages)
 
-let get_init_state (doc : Coq_document.t) (node : syntaxNode)
+let get_init_state (doc : Rocq_document.t) (node : syntaxNode)
     (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
-  let nodes_before, _ = Coq_document.split_at_id node.id doc in
+  let nodes_before, _ = Rocq_document.split_at_id node.id doc in
   let init_state = doc.initial_state in
   List.fold_left
     (fun state node ->
@@ -304,7 +304,7 @@ let rec proof_tree_from_parents (cur_node : int * syntaxNode)
     ( tactic,
       List.rev_map (fun node -> proof_tree_from_parents node parents) childs )
 
-let treeify_proof (doc : Coq_document.t) (p : proof) :
+let treeify_proof (doc : Rocq_document.t) (p : proof) :
     (syntaxNode nary_tree, Error.t) result =
   let token = Coq.Limits.Token.create () in
   match get_init_state doc p.proposition token with
@@ -318,7 +318,7 @@ let treeify_proof (doc : Coq_document.t) (p : proof) :
       Ok (proof_tree_from_parents (0, p.proposition) parents)
   | Error _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
-let is_valid_proof (doc : Coq_document.t) (p : proof) : bool =
+let is_valid_proof (doc : Rocq_document.t) (p : proof) : bool =
   let token = Coq.Limits.Token.create () in
   match get_init_state doc p.proposition token with
   | Ok init_state -> can_reduce_to_zero_goals init_state p.proof_steps
@@ -340,7 +340,7 @@ let tree_to_proof (tree : syntaxNode nary_tree) : proof =
 
 (* take a full tree and return an acc *)
 (* fold over the proof while running the expr each time to get a new state *)
-let depth_first_fold_with_state (doc : Coq_document.t)
+let depth_first_fold_with_state (doc : Rocq_document.t)
     (token : Coq.Limits.Token.t)
     (f :
       Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
@@ -391,7 +391,7 @@ let fold_nodes_with_state
   in
   Result.map (fun (_, acc) -> acc) (aux l init_state acc)
 
-let fold_proof_with_state (doc : Coq_document.t) (token : Coq.Limits.Token.t)
+let fold_proof_with_state (doc : Rocq_document.t) (token : Coq.Limits.Token.t)
     (f :
       Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
     (acc : 'acc) (p : Proof.proof) : ('acc, Error.t) result =

@@ -30,7 +30,7 @@ val run_node_with_diagnostics :
   result
 
 val get_init_state :
-  Coq_document.t ->
+  Rocq_document.t ->
   syntaxNode ->
   Coq.Limits.Token.t ->
   (Coq.State.t, Error.t) result
@@ -60,7 +60,7 @@ val get_current_goal :
   (string Coq.Goals.Reified_goal.t, Error.t) result
 
 val can_reduce_to_zero_goals : Coq.State.t -> syntaxNode list -> bool
-val is_valid_proof : Coq_document.t -> proof -> bool
+val is_valid_proof : Rocq_document.t -> proof -> bool
 val tree_to_proof : syntaxNode nary_tree -> proof
 
 val proof_tree_from_parents :
@@ -69,7 +69,7 @@ val proof_tree_from_parents :
   syntaxNode nary_tree
 
 val treeify_proof :
-  Coq_document.t -> proof -> (syntaxNode nary_tree, Error.t) result
+  Rocq_document.t -> proof -> (syntaxNode nary_tree, Error.t) result
 
 val fold_nodes_with_state :
   (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result) ->
@@ -79,7 +79,7 @@ val fold_nodes_with_state :
   ('acc, Error.t) result
 
 val fold_proof_with_state :
-  Coq_document.t ->
+  Rocq_document.t ->
   Coq.Limits.Token.t ->
   (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result) ->
   'acc ->
@@ -87,7 +87,7 @@ val fold_proof_with_state :
   ('acc, Error.t) result
 
 val depth_first_fold_with_state :
-  Coq_document.t ->
+  Rocq_document.t ->
   Coq.Limits.Token.t ->
   (Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result) ->
   'acc ->

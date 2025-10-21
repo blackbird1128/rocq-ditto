@@ -48,7 +48,7 @@ let testable_nary_tree (pp_a : Format.formatter -> 'a -> unit)
     (equal_a : 'a -> 'a -> bool) =
   Alcotest.testable (pp_nary_tree pp_a) (equal_nary_tree equal_a)
 
-let document_to_range_representation_pairs (doc : Coq_document.t) :
+let document_to_range_representation_pairs (doc : Rocq_document.t) :
     (string * Code_range.t) list =
   List.map (fun node -> (node.repr, node.range)) doc.elements
 
@@ -153,7 +153,7 @@ let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
   Alcotest.test_case test_text `Quick (f doc)
 
 let test_parsing_ex1 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let nodes_repr = List.map (fun elem -> elem.repr) doc.elements in
   Alcotest.(check int)
     "More than one element was parsed." 1 (List.length nodes_repr);
@@ -161,7 +161,7 @@ let test_parsing_ex1 (doc : Doc.t) () : unit =
     "parsed element don't match" [ "Compute 1 + 1." ] nodes_repr
 
 let test_parsing_ex2 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let nodes_repr = List.map (fun elem -> elem.repr) doc.elements in
   Alcotest.(check int)
     "The wrong number of elements was parsed" 7 (List.length nodes_repr);
@@ -179,8 +179,8 @@ let test_parsing_ex2 (doc : Doc.t) () : unit =
     nodes_repr
 
 let test_proof_parsing_ex2 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc in
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -188,8 +188,8 @@ let test_proof_parsing_ex2 (doc : Doc.t) () : unit =
     "The proof should be proved." Proof.Proved proof.status
 
 let test_parsing_admit (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc in
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -197,8 +197,8 @@ let test_parsing_admit (doc : Doc.t) () : unit =
     Proof.Admitted proof.status
 
 let test_parsing_defined (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc in
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -206,9 +206,9 @@ let test_parsing_defined (doc : Doc.t) () : unit =
     Proof.Proved proof.status
 
 let test_parsing_function (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -216,8 +216,8 @@ let test_parsing_function (doc : Doc.t) () : unit =
     Proof.Proved proof.status
 
 let test_parsing_abort1 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc in
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
@@ -225,8 +225,8 @@ let test_parsing_abort1 (doc : Doc.t) () : unit =
     Proof.Aborted proof.status
 
 let test_parsing_abort2 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc in
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 2 (List.length proofs);
   let first_proof = List.hd proofs in
@@ -237,8 +237,8 @@ let test_parsing_abort2 (doc : Doc.t) () : unit =
     second_proof.status
 
 let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
-  let proof = List.hd (Result.get_ok (Coq_document.get_proofs doc)) in
+  let doc = Rocq_document.parse_document doc in
+  let proof = List.hd (Result.get_ok (Rocq_document.get_proofs doc)) in
   Alcotest.(check string)
     "The proof name should be modus ponens" "modus_ponens"
     (Option.default "got none" (Proof.get_proof_name proof));
@@ -265,8 +265,8 @@ let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
     proof_steps_normalized
 
 let test_proof_parsing_multiple_proofs_ex3 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc in
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed" 2 (List.length proofs);
   let proof_names = List.filter_map (fun p -> Proof.get_proof_name p) proofs in
@@ -277,7 +277,7 @@ let test_proof_parsing_multiple_proofs_ex3 (doc : Doc.t) () : unit =
   ()
 
 let test_parsing_comment_ex4 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   Alcotest.(check int)
     "The wrong number of nodes was parsed" 1 (List.length doc.elements);
   let node = List.hd doc.elements in
@@ -287,7 +287,7 @@ let test_parsing_comment_ex4 (doc : Doc.t) () : unit =
     "Comment node should not have an AST" true (Option.is_empty node.ast)
 
 let test_parsing_multiples_comments_ex5 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
@@ -298,7 +298,7 @@ let test_parsing_multiples_comments_ex5 (doc : Doc.t) () : unit =
     "The wrong number of total nodes was parsed" 12 (List.length doc.elements)
 
 let test_parsing_embedded_comments_ex6 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
@@ -312,7 +312,7 @@ let test_parsing_embedded_comments_ex6 (doc : Doc.t) () : unit =
     comment_nodes_repr
 
 let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
@@ -327,7 +327,7 @@ let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
     comment_nodes_repr
 
 let test_parsing_in_then_star_then_parenthesis (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
@@ -342,9 +342,9 @@ let test_parsing_in_then_star_then_parenthesis (doc : Doc.t) () : unit =
     "The wrong number of other nodes was parsed" 8 (List.length other_nodes)
 
 let test_parsing_instance (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let first_proof = List.hd proofs in
@@ -352,10 +352,10 @@ let test_parsing_instance (doc : Doc.t) () : unit =
     first_proof.status
 
 let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   print_endline ("filename " ^ doc.filename);
   List.iter (fun x -> print_endline x.repr) doc.elements;
-  let reconstructed = Coq_document.dump_to_string doc in
+  let reconstructed = Rocq_document.dump_to_string doc in
   Alcotest.(check (result string error_testable))
     "The document should be correctly reconstructed"
     (Ok "Lemma a: True /\\ True.\nProof.\nsplit.\n-auto.\n-auto.") reconstructed
@@ -453,16 +453,16 @@ let test_not_detecting_simple_proof_command_with_proof_with (_ : Doc.t) () :
       false is_node_proof_with)
 
 let test_searching_node (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let first_node_id = (List.hd doc.elements).id in
-  let node_compute = Coq_document.element_with_id_opt first_node_id doc in
+  let node_compute = Rocq_document.element_with_id_opt first_node_id doc in
   let node_compute_id = Option.map (fun node -> node.id) node_compute in
   Alcotest.(check (option uuidm_testable))
     "Item with the wrong id was retrieved" (Some first_node_id) node_compute_id;
   Alcotest.(check (option string))
     "The wrong repr was retrieved" (Some "Compute 1.")
     (Option.map (fun node -> node.repr) node_compute);
-  let absurd_node = Coq_document.element_with_id_opt (Unique_id.uuid ()) doc in
+  let absurd_node = Rocq_document.element_with_id_opt (Unique_id.uuid ()) doc in
   Alcotest.(check (option uuidm_testable))
     "No element should be retrieved" None
     (Option.map (fun x -> x.id) absurd_node)
@@ -498,7 +498,7 @@ let test_reformat_keep_id (_ : Doc.t) () : unit =
     "Should return the same id" (Ok content_node.id) reformat_id
 
 let test_id_assign_document (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let nodes_ids = List.map (fun x -> x.id) doc.elements in
   check_list_sorted ~cmp:Uuidm.compare ~pp:Uuidm.pp nodes_ids
 
@@ -583,14 +583,14 @@ let test_colliding_nodes_multiple_common_lines_collision (_ : Doc.t) () : unit =
 
 let test_removing_and_leaving_blank (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
   let second_node = List.nth doc.elements 3 in
   let parsed_target = get_target uri_str in
 
   let new_doc =
     Result.get_ok
-      (Coq_document.remove_node_with_id ~remove_method:LeaveBlank second_node.id
+      (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank second_node.id
          doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
@@ -601,14 +601,14 @@ let test_removing_and_leaving_blank (doc : Doc.t) () : unit =
 let test_removing_and_leaving_blank_multiple_line_nodes (doc : Doc.t) () : unit
     =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
   let second_node = List.nth doc.elements 1 in
   let parsed_target = get_target uri_str in
 
   let new_doc =
     Result.get_ok
-      (Coq_document.remove_node_with_id ~remove_method:LeaveBlank second_node.id
+      (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank second_node.id
          doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
@@ -618,14 +618,14 @@ let test_removing_and_leaving_blank_multiple_line_nodes (doc : Doc.t) () : unit
 
 let test_removing_and_leaving_blank_middle_of_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
   let fourth_node = List.nth doc.elements 4 in
   let parsed_target = get_target uri_str in
 
   let new_doc =
     Result.get_ok
-      (Coq_document.remove_node_with_id ~remove_method:LeaveBlank fourth_node.id
+      (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank fourth_node.id
          doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
@@ -635,14 +635,14 @@ let test_removing_and_leaving_blank_middle_of_line (doc : Doc.t) () : unit =
 
 let test_removing_only_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
   let parsed_target = get_target uri_str in
 
   let first_node_id = (List.hd doc.elements).id in
 
   let new_doc =
-    Result.get_ok (Coq_document.remove_node_with_id first_node_id doc)
+    Result.get_ok (Rocq_document.remove_node_with_id first_node_id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
@@ -651,13 +651,13 @@ let test_removing_only_node_on_line (doc : Doc.t) () : unit =
 
 let test_removing_multiple_line_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
   let second_node = List.nth doc.elements 1 in
   let parsed_target = get_target uri_str in
 
   let new_doc =
-    Result.get_ok (Coq_document.remove_node_with_id second_node.id doc)
+    Result.get_ok (Rocq_document.remove_node_with_id second_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
@@ -666,12 +666,12 @@ let test_removing_multiple_line_node (doc : Doc.t) () : unit =
 
 let test_removing_node_middle_of_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let second_node = List.nth doc.elements 1 in
   let new_doc =
-    Result.get_ok (Coq_document.remove_node_with_id second_node.id doc)
+    Result.get_ok (Rocq_document.remove_node_with_id second_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
   Alcotest.(check (list (pair string range_testable)))
@@ -679,12 +679,12 @@ let test_removing_node_middle_of_line (doc : Doc.t) () : unit =
 
 let test_removing_node_with_one_node_left_same_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let removed_node = List.nth doc.elements 4 in
   let new_doc =
-    Result.get_ok (Coq_document.remove_node_with_id removed_node.id doc)
+    Result.get_ok (Rocq_document.remove_node_with_id removed_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
   Alcotest.(check (list (pair string range_testable)))
@@ -692,7 +692,7 @@ let test_removing_node_with_one_node_left_same_line (doc : Doc.t) () : unit =
 
 let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 0 } in
@@ -700,7 +700,7 @@ let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
   let node =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
-  let new_doc = Coq_document.insert_node node doc in
+  let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -708,7 +708,7 @@ let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
 
 let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 0 } in
@@ -717,7 +717,7 @@ let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
     Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
 
-  let new_doc = Coq_document.insert_node node doc in
+  let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -725,7 +725,7 @@ let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
 
 let test_adding_multiple_line_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 0 } in
@@ -736,7 +736,7 @@ let test_adding_multiple_line_node (doc : Doc.t) () : unit =
          start_point)
   in
 
-  let new_doc = Coq_document.insert_node node doc in
+  let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -744,7 +744,7 @@ let test_adding_multiple_line_node (doc : Doc.t) () : unit =
 
 let test_adding_node_between (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 11 } in
@@ -754,7 +754,7 @@ let test_adding_node_between (doc : Doc.t) () : unit =
   in
 
   let new_doc =
-    Coq_document.insert_node ~shift_method:ShiftHorizontally node doc
+    Rocq_document.insert_node ~shift_method:ShiftHorizontally node doc
   in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
@@ -764,7 +764,7 @@ let test_adding_node_between (doc : Doc.t) () : unit =
 let test_adding_collision_next_line (doc : Doc.t) () : unit =
   (* TODO bugged for now, fix later *)
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 0 } in
@@ -774,7 +774,7 @@ let test_adding_collision_next_line (doc : Doc.t) () : unit =
       (Syntax_node.syntax_node_of_string "Compute 1\n+\n1." start_point)
   in
 
-  let new_doc = Coq_document.insert_node node doc in
+  let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -782,7 +782,7 @@ let test_adding_collision_next_line (doc : Doc.t) () : unit =
 
 let test_adding_node_colliding_many (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 6; character = 2 } in
@@ -793,7 +793,7 @@ let test_adding_node_colliding_many (doc : Doc.t) () : unit =
          start_point)
   in
 
-  let new_doc = Coq_document.insert_node node doc in
+  let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -801,7 +801,7 @@ let test_adding_node_colliding_many (doc : Doc.t) () : unit =
 
 let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 0 } in
@@ -812,7 +812,7 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
 
   let second_node_id = (List.nth doc.elements 1).id in
 
-  let new_doc = Coq_document.replace_node second_node_id node doc in
+  let new_doc = Rocq_document.replace_node second_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -820,7 +820,7 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
 
 let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 0 } in
@@ -831,7 +831,7 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
 
   let second_node_id = (List.nth doc.elements 1).id in
 
-  let new_doc = Coq_document.replace_node second_node_id node doc in
+  let new_doc = Rocq_document.replace_node second_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -839,7 +839,7 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
 
 let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 11 } in
@@ -851,7 +851,7 @@ let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
 
   let third_node_id = (List.nth doc.elements 2).id in
 
-  let new_doc = Coq_document.replace_node third_node_id node doc in
+  let new_doc = Rocq_document.replace_node third_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -859,7 +859,7 @@ let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
 
 let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 22 } in
@@ -871,7 +871,7 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
 
   let fourth_node_id = (List.nth doc.elements 3).id in
 
-  let new_doc = Coq_document.replace_node fourth_node_id node doc in
+  let new_doc = Rocq_document.replace_node fourth_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -879,7 +879,7 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
 
 let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 0 } in
@@ -892,7 +892,7 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
 
   let first_node_id = (List.hd doc.elements).id in
 
-  let new_doc = Coq_document.replace_node first_node_id node doc in
+  let new_doc = Rocq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -900,7 +900,7 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
 
 let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 0 } in
@@ -913,7 +913,7 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
 
   let first_node_id = (List.hd doc.elements).id in
 
-  let new_doc = Coq_document.replace_node first_node_id node doc in
+  let new_doc = Rocq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -921,7 +921,7 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
 
 let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 16; character = 0 } in
@@ -936,10 +936,10 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
          start_point)
   in
 
-  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
   let thm_id = first_proof.proposition.id in
 
-  let new_doc = Coq_document.replace_node thm_id node doc in
+  let new_doc = Rocq_document.replace_node thm_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -947,7 +947,7 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
 
 let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let new_doc =
@@ -961,7 +961,7 @@ let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
 
 let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let new_doc =
@@ -975,7 +975,7 @@ let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
 
 let test_replace_auto_using_zarith_by_steps (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let new_doc =
@@ -989,7 +989,7 @@ let test_replace_auto_using_zarith_by_steps (doc : Doc.t) () : unit =
 
 let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
 
   let new_doc =
@@ -1004,7 +1004,7 @@ let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
 let test_turn_into_oneliner_with_commands (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
 
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
   let parsed_target = get_target uri_str in
 
@@ -1020,7 +1020,7 @@ let test_turn_into_oneliner_with_commands (doc : Doc.t) () : unit =
 let test_turn_into_onliner_with_curly_braces (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
 
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
   let parsed_target = get_target uri_str in
 
@@ -1036,7 +1036,7 @@ let test_turn_into_onliner_with_curly_braces (doc : Doc.t) () : unit =
 let test_turn_into_oneliner_admitted (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
 
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
   let parsed_target = get_target uri_str in
 
@@ -1051,7 +1051,7 @@ let test_turn_into_oneliner_admitted (doc : Doc.t) () : unit =
 let test_turn_into_oneliner_proof_with (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
 
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
   let parsed_target = get_target uri_str in
 
@@ -1065,7 +1065,7 @@ let test_turn_into_oneliner_proof_with (doc : Doc.t) () : unit =
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
 
   let steps_with_goalcount =
@@ -1097,7 +1097,7 @@ let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
       "The two lists should be the same" expected repr_with_goalcount)
 
 let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
 
   let steps_with_goalcount =
@@ -1131,9 +1131,9 @@ let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
       "The two lists should be the same" expected repr_with_goalcount)
 
 let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
-  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
 
   let state =
     Runner.get_init_state doc first_proof.proposition token |> Result.get_ok
@@ -1173,9 +1173,9 @@ let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
 
 let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
     unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
-  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
 
   let state =
     Runner.get_init_state doc first_proof.proposition token |> Result.get_ok
@@ -1214,9 +1214,9 @@ let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
 
 let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
     : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
-  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
 
   let state =
     Runner.get_init_state doc first_proof.proposition token |> Result.get_ok
@@ -1256,9 +1256,9 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
       "The two lists should be the same" expected repr_with_goalcount)
 
 let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
-  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
 
   let proof_tree = Runner.treeify_proof doc first_proof in
 
@@ -1294,9 +1294,9 @@ let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
       "Tree should match the expected tree" (Ok expected_tree) proof_tree_sexp)
 
 let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
-  let doc = Coq_document.parse_document doc in
+  let doc = Rocq_document.parse_document doc in
 
-  let first_proof = Coq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
 
   let proof_tree = Runner.treeify_proof doc first_proof in
 

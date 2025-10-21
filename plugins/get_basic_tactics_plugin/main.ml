@@ -99,9 +99,9 @@ let tactic_count ~io:_ ~token:_ ~(doc : Doc.t) =
       prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
       print_diagnostics errors
   | Doc.Completion.Yes _ ->
-      let parsed_document = Coq_document.parse_document doc in
+      let parsed_document = Rocq_document.parse_document doc in
 
-      let proofs = Result.get_ok (Coq_document.get_proofs parsed_document) in
+      let proofs = Result.get_ok (Rocq_document.get_proofs parsed_document) in
 
       let proof_steps = List.concat_map (fun x -> x.proof_steps) proofs in
       let proof_tactics =

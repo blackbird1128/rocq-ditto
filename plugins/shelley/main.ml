@@ -64,10 +64,10 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
       else
         let ( let* ) = Result.bind in
 
-        let parsed_document = Coq_document.parse_document doc in
+        let parsed_document = Rocq_document.parse_document doc in
 
         let final_res =
-          let* proofs = Coq_document.get_proofs parsed_document in
+          let* proofs = Rocq_document.get_proofs parsed_document in
 
           let steps =
             List.fold_left
@@ -80,10 +80,10 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
               [] proofs
           in
           let* res =
-            Coq_document.apply_transformations_steps steps parsed_document
+            Rocq_document.apply_transformations_steps steps parsed_document
           in
 
-          let* proofs = Coq_document.get_proofs res in
+          let* proofs = Rocq_document.get_proofs res in
           List.iter
             (fun (x : Proof.proof) -> print_endline x.proposition.repr)
             proofs;
@@ -105,7 +105,7 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
           in
 
           let* res =
-            Coq_document.apply_transformations_steps remove_random_tactics_steps
+            Rocq_document.apply_transformations_steps remove_random_tactics_steps
               res
           in
 
@@ -123,7 +123,7 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
                 match steps with
                 | Ok steps ->
                     let new_doc =
-                      Coq_document.apply_transformations_steps steps doc_acc
+                      Rocq_document.apply_transformations_steps steps doc_acc
                       |> Result.get_ok
                     in
                     (steps :: step_acc, new_doc)
@@ -150,7 +150,7 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
               ~error:(fun e ->
                 print_endline "Error:";
                 print_endline (Error.to_string_hum e))
-              (Coq_document.dump_to_string res)
+              (Rocq_document.dump_to_string res)
         | Error err ->
             print_endline "In error case";
             print_endline (Error.to_string_hum err))

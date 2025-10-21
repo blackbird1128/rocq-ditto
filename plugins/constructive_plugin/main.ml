@@ -197,9 +197,9 @@ let replace_require (x : syntaxNode) : transformation_step option =
       | VernacSynPure _ -> None)
   | None -> None
 
-let admit_exists_proof_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, Error.t) result =
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+let admit_exists_proof_in_doc (doc : Rocq_document.t) :
+    (Rocq_document.t, Error.t) result =
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
 
   let exists_query =
     Q_anywhere
@@ -229,14 +229,14 @@ let admit_exists_proof_in_doc (doc : Coq_document.t) :
               Result.get_ok
                 (Transformations.admit_and_comment_proof_steps doc_acc proof)
             in
-            Coq_document.apply_transformations_steps steps doc_acc
+            Rocq_document.apply_transformations_steps steps doc_acc
           else Ok doc_acc
       | Error err -> Error err)
     (Ok doc) proof_sexps_pairs
 
-let replace_bet_by_betl_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, Error.t) result =
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+let replace_bet_by_betl_in_doc (doc : Rocq_document.t) :
+    (Rocq_document.t, Error.t) result =
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
 
   let replace_bet_by_betl_steps =
     List.filter_map (fun proof -> replace_bet_by_betl_in_proof proof) proofs
@@ -244,24 +244,24 @@ let replace_bet_by_betl_in_doc (doc : Coq_document.t) :
   print_endline "entering apply transformation steps in replace bet by betL";
 
   let r =
-    Coq_document.apply_transformations_steps replace_bet_by_betl_steps doc
+    Rocq_document.apply_transformations_steps replace_bet_by_betl_steps doc
   in
   print_endline "exiting apply transformation steps";
   r
 
-let replace_or_by_constructive_or_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, Error.t) result =
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+let replace_or_by_constructive_or_in_doc (doc : Rocq_document.t) :
+    (Rocq_document.t, Error.t) result =
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   let replace_or_by_constructive_or_steps =
     List.filter_map (fun proof -> replace_or_by_constructive_or proof) proofs
   in
 
-  Coq_document.apply_transformations_steps replace_or_by_constructive_or_steps
+  Rocq_document.apply_transformations_steps replace_or_by_constructive_or_steps
     doc
 
-let replace_non_constructive_tactics_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, Error.t) result =
-  let proofs = Result.get_ok (Coq_document.get_proofs doc) in
+let replace_non_constructive_tactics_in_doc (doc : Rocq_document.t) :
+    (Rocq_document.t, Error.t) result =
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
   let replace_tactics_steps =
     List.concat_map
       (fun proof ->
@@ -276,18 +276,18 @@ let replace_non_constructive_tactics_in_doc (doc : Coq_document.t) :
       proofs
   in
 
-  Coq_document.apply_transformations_steps replace_tactics_steps doc
+  Rocq_document.apply_transformations_steps replace_tactics_steps doc
 
-let replace_context_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, Error.t) result =
+let replace_context_in_doc (doc : Rocq_document.t) :
+    (Rocq_document.t, Error.t) result =
   let context_transform_steps = List.filter_map replace_context doc.elements in
-  Coq_document.apply_transformations_steps context_transform_steps doc
+  Rocq_document.apply_transformations_steps context_transform_steps doc
 
-let replace_requires_in_doc (doc : Coq_document.t) :
-    (Coq_document.t, Error.t) result =
+let replace_requires_in_doc (doc : Rocq_document.t) :
+    (Rocq_document.t, Error.t) result =
   let require_transform_steps = List.filter_map replace_require doc.elements in
 
-  Coq_document.apply_transformations_steps require_transform_steps doc
+  Rocq_document.apply_transformations_steps require_transform_steps doc
 
 let experiment_theorem ~io:_ ~token:_ ~(doc : Doc.t) =
   let uri = doc.uri in
@@ -306,7 +306,7 @@ let experiment_theorem ~io:_ ~token:_ ~(doc : Doc.t) =
   | Doc.Completion.Yes _ -> (
       let ( let* ) = Result.bind in
 
-      let parsed_document = Coq_document.parse_document doc in
+      let parsed_document = Rocq_document.parse_document doc in
 
       let res =
         let* doc_with_exists_proof_admitted =
@@ -328,7 +328,7 @@ let experiment_theorem ~io:_ ~token:_ ~(doc : Doc.t) =
         in
 
         (* let* string_dump = *)
-        (*   Coq_document.dump_to_string doc_with_context_replaced *)
+        (*   Rocq_document.dump_to_string doc_with_context_replaced *)
         (* in *)
 
         (* print_endline string_dump; *)
@@ -358,7 +358,7 @@ let experiment_theorem ~io:_ ~token:_ ~(doc : Doc.t) =
           let out = open_out filename in
           Result.fold ~ok:(output_string out)
             ~error:(fun e -> print_endline (Error.to_string_hum e))
-            (Coq_document.dump_to_string res)
+            (Rocq_document.dump_to_string res)
       | Error err -> print_endline (Error.to_string_hum err))
 
 let main () = Theory.Register.Completed.add experiment_theorem

@@ -84,7 +84,7 @@ val dump_to_string : t -> (string, Error.t) result
 
 val apply_transformation_step : transformation_step -> t -> (t, Error.t) result
 (** Apply a transformation step to a document.
-    [apply_transformation_step step doc] returns a [Coq_document] wrapped in
+    [apply_transformation_step step doc] returns a [Rocq_document] wrapped in
     with the following function applied:
     - [Remove id]: [remove_node_with_id id ShiftNode doc]
     - [Replace id new_node]: [replace_node id new_node doc]

@@ -39,11 +39,11 @@ let arg_to_transformation_kind (arg : string) :
     Error.string_to_or_error_err
       ("transformation " ^ arg ^ " wasn't recognized as a valid transformation")
 
-let wrap_to_treeify (doc : Coq_document.t) (x : proof) =
+let wrap_to_treeify (doc : Rocq_document.t) (x : proof) =
   Result.get_ok (Runner.treeify_proof doc x)
 
 let transformation_kind_to_function (kind : transformation_kind) :
-    Coq_document.t -> Proof.proof -> (transformation_step list, Error.t) result
+    Rocq_document.t -> Proof.proof -> (transformation_step list, Error.t) result
     =
   match kind with
   | Help -> fun _ _ -> Ok []
@@ -82,9 +82,9 @@ let transformations_help =
     (IdTransformation, "Keep the file the same.");
   ]
 
-let local_apply_proof_transformation (doc_acc : Coq_document.t)
+let local_apply_proof_transformation (doc_acc : Rocq_document.t)
     (transformation :
-      Coq_document.t -> proof -> (transformation_step list, Error.t) result)
+      Rocq_document.t -> proof -> (transformation_step list, Error.t) result)
     (transformation_kind : transformation_kind)
     (proofs_rec : (proof list, Error.t) result) (verbose : bool) =
   match proofs_rec with
@@ -92,7 +92,7 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
       let proof_total = List.length proofs in
       List.fold_left
         (fun ((doc_acc_bis, proof_count) :
-               (Coq_document.t, Error.t) result * int) (proof : Proof.proof) ->
+               (Rocq_document.t, Error.t) result * int) (proof : Proof.proof) ->
           match doc_acc_bis with
           | Ok acc -> (
               let proof_name =
@@ -118,7 +118,7 @@ let local_apply_proof_transformation (doc_acc : Coq_document.t)
                       (fun doc_acc_err step ->
                         match doc_acc_err with
                         | Ok doc ->
-                            Coq_document.apply_transformation_step step doc
+                            Rocq_document.apply_transformation_step step doc
                         | Error err -> Error err)
                       doc_acc_bis steps,
                     proof_count + 1 )
@@ -218,7 +218,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
             Ok ()
         | Some steps -> (
             let transformations_steps = List.map Result.get_ok steps in
-            let parsed_document = Coq_document.parse_document doc in
+            let parsed_document = Rocq_document.parse_document doc in
             let transformations =
               List.map
                 (fun x -> (x, transformation_kind_to_function x))
@@ -227,14 +227,14 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
 
             let res =
               List.fold_left
-                (fun (doc_acc : (Coq_document.t, Error.t) result)
+                (fun (doc_acc : (Rocq_document.t, Error.t) result)
                      (transformation_kind, transformation) ->
                   match doc_acc with
                   | Ok doc_acc -> (
                       print_endline
                         ("applying transformation : "
                         ^ transformation_kind_to_string transformation_kind);
-                      let proofs_rec = Coq_document.get_proofs doc_acc in
+                      let proofs_rec = Rocq_document.get_proofs doc_acc in
                       let doc_res =
                         local_apply_proof_transformation doc_acc transformation
                           transformation_kind proofs_rec verbose
@@ -266,7 +266,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                   ("All transformations applied, writing to file " ^ filename);
 
                 let out = open_out filename in
-                let* doc_repr = Coq_document.dump_to_string res in
+                let* doc_repr = Rocq_document.dump_to_string res in
                 output_string out doc_repr;
                 Ok ()
             | Ok res, true ->
