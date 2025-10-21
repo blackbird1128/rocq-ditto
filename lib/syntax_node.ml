@@ -530,6 +530,55 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
       Some (syntax_node_of_coq_ast ast_node starting_point)
   | _ -> None
 
+let apply_tac_thens (a : t) (l : t list)
+    ?(start_point : Code_point.t = a.range.start) () : (t, Error.t) result =
+  let ( let* ) = Result.bind in
+  let* raw_tactic_expr_a =
+    get_node_raw_tactic_expr a
+    |> Option.cata Result.ok
+         (Error.string_to_or_error_err
+            (Printf.sprintf
+               "%s isn't convertible to a raw_tactic_expr (It probably isn't \
+                Ltac)"
+               a.repr))
+  in
+
+  let raw_tactics_l_opts = List.map get_node_raw_tactic_expr l in
+  let* raw_tactics_l =
+    if List.for_all Option.has_some raw_tactics_l_opts then
+      Ok (List.map Option.get raw_tactics_l_opts)
+    else
+      let err_elem_idx =
+        List.find_index Option.is_empty raw_tactics_l_opts |> Option.get
+      in
+      let err_elem = List.nth l err_elem_idx in
+      Error.string_to_or_error_err
+        (Printf.sprintf
+           "%s at index %d in l isn't convertible to a raw_tactic_expr (It \
+            probably isn't Ltac"
+           err_elem.repr err_elem_idx)
+  in
+  let args = get_tactic_raw_generic_arguments a |> Option.get in
+  let extend = Ltac.default_extend_name in
+
+  let a_thens_l =
+    CAst.make (Ltac_plugin.Tacexpr.TacThens (raw_tactic_expr_a, raw_tactics_l))
+  in
+  let sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr a_thens_l in
+  print_endline (Printf.sprintf "sexp: %s" (Sexplib.Sexp.to_string_hum sexp));
+
+  let raw_arg =
+    Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr a_thens_l
+  in
+  let new_args =
+    [ List.nth args 0; List.nth args 1; raw_arg; List.nth args 3 ]
+  in
+  tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
+  |> Option.cata Result.ok
+       (Error.string_to_or_error_err
+          (Printf.sprintf "failed to create a thens l betwen %s and %s" a.repr
+             (List.map (fun x -> x.repr) l |> String.concat " ")))
+
 let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
     () : (t, Error.t) result =
   let ( let* ) = Result.bind in

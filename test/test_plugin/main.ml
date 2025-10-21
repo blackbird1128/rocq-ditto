@@ -429,6 +429,26 @@ let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
           reflexivity.")
       a_then_b_repr)
 
+let test_creating_simple_a_thens_b (_ : Doc.t) () : unit =
+  let code_point_a : Code_point.t = { line = 0; character = 0 } in
+  let code_point_b : Code_point.t = { line = 1; character = 0 } in
+  let a =
+    Syntax_node.syntax_node_of_string "reflexivity." code_point_a
+    |> Result.get_ok
+  in
+  let b =
+    Syntax_node.syntax_node_of_string "reflexivity." code_point_b
+    |> Result.get_ok
+  in
+  let a_thens_b = Syntax_node.apply_tac_thens a [ b ] () in
+  let a_thens_b_repr = Result.map (fun node -> node.repr) a_thens_b in
+
+  Alcotest.(
+    check
+      (result string error_testable)
+      "a then b should be constructed correctly"
+      (Ok "reflexivity; [ reflexivity ].") a_thens_b_repr)
+
 let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
@@ -1375,6 +1395,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a then b from ambiguous expression"
        test_creating_a_then_b_assert_by doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating a thens b from AST (a;[b])"
+       test_creating_simple_a_thens_b doc);
 
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test checking if detecting \"Proof with\" is correct"

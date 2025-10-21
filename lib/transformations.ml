@@ -54,8 +54,8 @@ let pp_goal_stack
     stack;
   ()
 
-let fold_inspect (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree) :
-    unit =
+let fold_inspect (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree)
+    : unit =
   let token = Coq.Limits.Token.create () in
 
   let _ =
@@ -564,8 +564,8 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : proof) :
 
 (* TODO move this somewhere sensible *)
 
-let print_parents (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) :
-    unit =
+let print_parents
+    (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) : unit =
   Hashtbl.iter
     (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
       Printf.printf
@@ -885,8 +885,9 @@ let rec get_oneliner (suffix : string option) (tree : Syntax_node.t nary_tree) :
         | 1 -> Ok (x_repr ^ ";\n" ^ String.concat " " mapped)
         | _ -> Ok (x_repr ^ ";\n[" ^ String.concat "\n| " mapped ^ "]"))
 
-let turn_into_oneliner (_ : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree)
-    : (transformation_step list, Error.t) result =
+let turn_into_oneliner (_ : Rocq_document.t)
+    (proof_tree : Syntax_node.t nary_tree) :
+    (transformation_step list, Error.t) result =
   let proof = Runner.tree_to_proof proof_tree in
 
   let proof_status = Proof.get_proof_status proof in
@@ -1002,8 +1003,8 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
     | None -> None
   in
 
-  let rewrite_induction (node : Syntax_node.t) (new_vars : string list list option)
-      : string option =
+  let rewrite_induction (node : Syntax_node.t)
+      (new_vars : string list list option) : string option =
     Logs.debug (fun m -> m "treating: %s" node.repr);
     match new_vars with
     | Some new_vars -> (
@@ -1029,7 +1030,8 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
   in
 
   let rewriters :
-      (string * (Syntax_node.t -> string list list option -> string option)) list =
+      (string * (Syntax_node.t -> string list list option -> string option))
+      list =
     [ ("intros.", rewrite_intros); ("induction", rewrite_induction) ]
   in
 

@@ -143,3 +143,6 @@ val get_node_ltac_elements : t -> ltac_elements option
 
 val apply_tac_then :
   t -> t -> ?start_point:Code_point.t -> unit -> (t, Error.t) result
+
+val apply_tac_thens :
+  t -> t list -> ?start_point:Code_point.t -> unit -> (t, Error.t) result
