@@ -847,21 +847,20 @@ let last_and_len lst =
   in
   aux None 0 lst
 
-let rec get_oneliner (suffix : string option) (tree : Syntax_node.t nary_tree) :
-    (string, Error.t) result =
+let rec get_oneliner (suffix : Syntax_node.t option)
+    (tree : Syntax_node.t nary_tree) : (Syntax_node.t, Error.t) result =
+  let ( let* ) = Result.bind in
   match tree with
   | Node (x, childrens) -> (
-      let* x_without_dots =
+      let* new_x =
         if Syntax_node.is_syntax_node_ending_with_elipsis x then
-          chop_ellipsis x.repr
-        else chop_dot x.repr
-      in
-      let x_repr =
-        if Syntax_node.is_syntax_node_ending_with_elipsis x then
-          Option.fold_left
-            (fun x suffix -> x ^ "; " ^ suffix)
-            x_without_dots suffix
-        else x_without_dots
+          let res =
+            Option.map
+              (fun suffix -> Syntax_node.apply_tac_then x suffix ())
+              suffix
+          in
+          Option.cata Fun.id (Error.string_to_or_error_err "") res
+        else Ok x
       in
 
       let last_children_opt, childrens_length = last_and_len childrens in
@@ -878,12 +877,10 @@ let rec get_oneliner (suffix : string option) (tree : Syntax_node.t nary_tree) :
         | _ -> map_children (get_oneliner suffix) childrens
       in
 
-      if is_syntax_node_proof_intro_or_end x then Ok (String.concat " " mapped)
-      else
-        match childrens_length_without_proof_end with
-        | 0 -> Ok x_repr
-        | 1 -> Ok (x_repr ^ ";\n" ^ String.concat " " mapped)
-        | _ -> Ok (x_repr ^ ";\n[" ^ String.concat "\n| " mapped ^ "]"))
+      match childrens_length_without_proof_end with
+      | 0 -> Ok new_x
+      | 1 -> Syntax_node.apply_tac_then new_x (List.hd mapped) ()
+      | _ -> Syntax_node.apply_tac_thens new_x mapped ())
 
 let turn_into_oneliner (_ : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
@@ -891,6 +888,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
   let proof = Runner.tree_to_proof proof_tree in
 
   let proof_status = Proof.get_proof_status proof in
+  let dummy_point : Code_point.t = { line = 0; character = 0 } in
 
   match proof_status with
   | None ->
@@ -902,6 +900,14 @@ let turn_into_oneliner (_ : Rocq_document.t)
         List.find_opt Syntax_node.is_syntax_node_proof_command proof.proof_steps
         |> Option.map Syntax_node.get_syntax_node_proof_with_tactic
         |> Option.flatten
+      in
+
+      let suffix_node =
+        Option.map
+          (fun x ->
+            Syntax_node.syntax_node_of_string (x ^ ".") dummy_point
+            |> Result.get_ok)
+          suffix
       in
 
       let cleaned_tree =
@@ -918,8 +924,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
       | None -> Ok []
       | Some cleaned_tree ->
           (* Helper: map children with error propagation *)
-          let* one_liner_repr = get_oneliner suffix cleaned_tree in
-          let one_liner_repr = one_liner_repr ^ "." in
+          let* one_liner_node = get_oneliner suffix_node cleaned_tree in
 
           let flattened = Nary_tree.flatten proof_tree in
           let remove_steps =
@@ -935,8 +940,8 @@ let turn_into_oneliner (_ : Rocq_document.t)
             List.find (fun node -> node_can_open_proof node) flattened
           in
 
-          let* oneliner_node =
-            Syntax_node.syntax_node_of_string one_liner_repr
+          let* relocated_one_liner_node =
+            Syntax_node.syntax_node_of_string one_liner_node.repr
               first_step_node.range.start
           in
 
@@ -945,12 +950,16 @@ let turn_into_oneliner (_ : Rocq_document.t)
               first_step_node.range.end_
           in
 
-          Ok
-            (remove_steps
-            @ [
-                Attach (proof_node, LineAfter, first_step_node.id);
-                Attach (oneliner_node, LineAfter, proof_node.id);
-              ]))
+          let res =
+            Ok
+              (remove_steps
+              @ [
+                  Attach (proof_node, LineAfter, first_step_node.id);
+                  Attach (relocated_one_liner_node, LineAfter, proof_node.id);
+                ])
+          in
+          print_endline "res calculated !";
+          res)
 
 let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
   let env = Global.env () in
