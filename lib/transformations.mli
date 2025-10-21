@@ -4,7 +4,7 @@ open Syntax_node
 
 val fold_replace_assumption_with_apply :
   Rocq_document.t ->
-  syntaxNode nary_tree ->
+  Syntax_node.t nary_tree ->
   (transformation_step list, Error.t) result
 
 val id_transform :
@@ -33,18 +33,18 @@ val remove_random_step :
 
 val simple_proof_repair :
   Rocq_document.t ->
-  syntaxNode nary_tree ->
+  Syntax_node.t nary_tree ->
   (transformation_step list, Error.t) result
 
 val admit_branch_at_error :
   Rocq_document.t ->
-  syntaxNode nary_tree ->
+  Syntax_node.t nary_tree ->
   (transformation_step list, Error.t) result
 
 val cut_replace_branch :
   string ->
   Rocq_document.t ->
-  syntaxNode nary_tree ->
+  Syntax_node.t nary_tree ->
   (transformation_step list, Error.t) result
 
 val explicit_fresh_variables :
@@ -52,7 +52,7 @@ val explicit_fresh_variables :
 
 val turn_into_oneliner :
   Rocq_document.t ->
-  syntaxNode nary_tree ->
+  Syntax_node.t nary_tree ->
   (transformation_step list, Error.t) result
 
 val apply_proof_transformation :
@@ -62,7 +62,7 @@ val apply_proof_transformation :
 
 val apply_proof_tree_transformation :
   (Rocq_document.t ->
-  syntaxNode nary_tree ->
+  Syntax_node.t nary_tree ->
   (transformation_step list, Error.t) result) ->
   Rocq_document.t ->
   (Rocq_document.t, Error.t) result

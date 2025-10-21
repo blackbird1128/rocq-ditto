@@ -122,8 +122,8 @@ let rec default_mapper : mapper =
 
 open Syntax_node
 
-(* let map_syntax_node_raw_tactic_expr (x : syntaxNode) (mapping : mapper) : *)
-(*     syntaxNode = *)
+(* let map_syntax_node_raw_tactic_expr (x : Syntax_node.t) (mapping : mapper) : *)
+(*     Syntax_node.t = *)
 (*   match Syntax_node.get_node_raw_tactic_expr x with *)
 (*   | Some raw_expr -> *)
 (*      let new_expr = mapping.map_expr mapping raw_expr in *)

@@ -9,22 +9,22 @@ type attach_position = LineAfter | LineBefore
 
 type transformation_step =
   | Remove of Uuidm.t
-  | Replace of Uuidm.t * syntaxNode
-  | Add of syntaxNode
-  | Attach of syntaxNode * attach_position * Uuidm.t
+  | Replace of Uuidm.t * Syntax_node.t
+  | Add of Syntax_node.t
+  | Attach of Syntax_node.t * attach_position * Uuidm.t
 
 val pp_transformation_step : Format.formatter -> transformation_step -> unit
 val transformation_step_to_string : transformation_step -> string
 
 type proof = {
-  proposition : syntaxNode;
-  proof_steps : syntaxNode list;
+  proposition : Syntax_node.t;
+  proof_steps : Syntax_node.t list;
   status : proof_status;
 }
 (** Represents a proof in a Coq document. [proof] contains the initial
     proposition and a list of proof steps. *)
 
-val get_names : syntaxNode -> string list
+val get_names : Syntax_node.t -> string list
 (** Get the names of a node. A node can have multiple names (i.e., mutual
     recursive definitions) *)
 
@@ -49,7 +49,7 @@ type theorem_components = {
 val get_theorem_components : proof -> theorem_components option
 
 val syntax_node_from_theorem_components :
-  theorem_components -> Code_point.t -> syntaxNode
+  theorem_components -> Code_point.t -> Syntax_node.t
 
 val get_proof_name : proof -> string option
 (** Retrieve the name of the proof's proposition if available.
@@ -62,7 +62,7 @@ val get_proof_status : proof -> proof_status option
     function. returns [Aborted] for both [Abort] and [Abort All]. Returns [None]
     if there isn't a last node or it doesn't match a type in [proof_status]. *)
 
-val proof_status_from_last_node : syntaxNode -> (proof_status, Error.t) result
+val proof_status_from_last_node : Syntax_node.t -> (proof_status, Error.t) result
 (** Get the proof status of the last node of a proof or an error if the node
     isn't a closing node. If the proof was proved, return [Proved], if the proof
     is admitted, return [Admitted], and if the proof was aborted with Abort or
@@ -70,16 +70,16 @@ val proof_status_from_last_node : syntaxNode -> (proof_status, Error.t) result
 
 val print_proof : proof -> unit
 
-val print_tree : syntaxNode nary_tree -> string -> unit
+val print_tree : Syntax_node.t nary_tree -> string -> unit
 (** Print a tree structure with indentation. [print_tree tree indent] prints a
-    tree, where [tree] is an [syntaxNode nary_tree] and [indent] is a string
+    tree, where [tree] is an [Syntax_node.t nary_tree] and [indent] is a string
     used for indentation to represent the tree structure visually. *)
 
-val proof_nodes : proof -> syntaxNode list
+val proof_nodes : proof -> Syntax_node.t list
 (** Extracts the nodes from a proof. [proof_nodes p] returns a list containing
     the proposition of the proof [p] followed by its proof steps. *)
 
-val proof_from_nodes : syntaxNode list -> (proof, Error.t) result
+val proof_from_nodes : Syntax_node.t list -> (proof, Error.t) result
 (** Create a proof from a list of annotated AST nodes. [proof_from_nodes nodes]
     takes a list of nodes and returns a proof where the first node in the list
     is used as the proposition, and the remaining nodes are the proof steps. If

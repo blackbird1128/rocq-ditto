@@ -15,7 +15,7 @@ let depth_to_bullet_type (depth : int) =
   | _ -> VernacBullet (Proof_bullet.Dash bullet_number)
 
 let create_annotated_ast_bullet (depth : int) (starting_point : Code_point.t) :
-    syntaxNode =
+    Syntax_node.t =
   let control_r =
     {
       control = [];
@@ -54,7 +54,7 @@ let pp_goal_stack
     stack;
   ()
 
-let fold_inspect (doc : Rocq_document.t) (proof_tree : syntaxNode nary_tree) :
+let fold_inspect (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree) :
     unit =
   let token = Coq.Limits.Token.create () in
 
@@ -75,7 +75,7 @@ let fold_inspect (doc : Rocq_document.t) (proof_tree : syntaxNode nary_tree) :
   in
   ()
 
-(* let add_bullets (doc : Rocq_document.t) (proof_tree : syntaxNode nary_tree) : *)
+(* let add_bullets (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree) : *)
 (*     (transformation_step list, Error.t) result = *)
 (*   let token = Coq.Limits.Token.create () in *)
 (*   let rec aux state acc depth tree = *)
@@ -95,7 +95,7 @@ let fold_inspect (doc : Rocq_document.t) (proof_tree : syntaxNode nary_tree) :
 (*   | Error _ -> Error.string_to_or_error_err "Unable to retrieve initial state" *)
 
 let simple_proof_repair (doc : Rocq_document.t)
-    (proof_tree : syntaxNode nary_tree) :
+    (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
@@ -103,7 +103,7 @@ let simple_proof_repair (doc : Rocq_document.t)
    fun node -> Syntax_node.syntax_node_of_string "admit." node.range.start
   in
   let module SyntaxNodeSet = Set.Make (struct
-    type t = syntaxNode
+    type t = Syntax_node.t
 
     let compare = Syntax_node.compare_nodes
   end) in
@@ -171,7 +171,7 @@ let simple_proof_repair (doc : Rocq_document.t)
   | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
 let admit_branch_at_error (doc : Rocq_document.t)
-    (proof_tree : syntaxNode nary_tree) :
+    (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let admit_creator =
@@ -252,7 +252,7 @@ let admit_branch_at_error (doc : Rocq_document.t)
   | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
 let cut_replace_branch (cut_tactic : string) (doc : Rocq_document.t)
-    (proof_tree : syntaxNode nary_tree) :
+    (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let node_creator =
@@ -329,7 +329,7 @@ let cut_replace_branch (cut_tactic : string) (doc : Rocq_document.t)
   | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
 
 let fold_replace_assumption_with_apply (doc : Rocq_document.t)
-    (proof_tree : syntaxNode nary_tree) :
+    (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let res =
@@ -564,7 +564,7 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : proof) :
 
 (* TODO move this somewhere sensible *)
 
-let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
+let print_parents (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) :
     unit =
   Hashtbl.iter
     (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
@@ -847,7 +847,7 @@ let last_and_len lst =
   in
   aux None 0 lst
 
-let rec get_oneliner (suffix : string option) (tree : syntaxNode nary_tree) :
+let rec get_oneliner (suffix : string option) (tree : Syntax_node.t nary_tree) :
     (string, Error.t) result =
   match tree with
   | Node (x, childrens) -> (
@@ -885,7 +885,7 @@ let rec get_oneliner (suffix : string option) (tree : syntaxNode nary_tree) :
         | 1 -> Ok (x_repr ^ ";\n" ^ String.concat " " mapped)
         | _ -> Ok (x_repr ^ ";\n[" ^ String.concat "\n| " mapped ^ "]"))
 
-let turn_into_oneliner (_ : Rocq_document.t) (proof_tree : syntaxNode nary_tree)
+let turn_into_oneliner (_ : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree)
     : (transformation_step list, Error.t) result =
   let proof = Runner.tree_to_proof proof_tree in
 
@@ -994,7 +994,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
-  let rewrite_intros (_ : syntaxNode) (new_vars : string list list option) :
+  let rewrite_intros (_ : Syntax_node.t) (new_vars : string list list option) :
       string option =
     match new_vars with
     | Some new_vars ->
@@ -1002,7 +1002,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
     | None -> None
   in
 
-  let rewrite_induction (node : syntaxNode) (new_vars : string list list option)
+  let rewrite_induction (node : Syntax_node.t) (new_vars : string list list option)
       : string option =
     Logs.debug (fun m -> m "treating: %s" node.repr);
     match new_vars with
@@ -1029,12 +1029,12 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
   in
 
   let rewriters :
-      (string * (syntaxNode -> string list list option -> string option)) list =
+      (string * (Syntax_node.t -> string list list option -> string option)) list =
     [ ("intros.", rewrite_intros); ("induction", rewrite_induction) ]
   in
 
   let find_rewriter (node_repr : string) :
-      (syntaxNode -> string list list option -> string option) option =
+      (Syntax_node.t -> string list list option -> string option) option =
     List.find_map
       (fun (prefix, f) ->
         if String.starts_with ~prefix node_repr then Some f else None)
@@ -1130,7 +1130,7 @@ let apply_proof_transformation
 let apply_proof_tree_transformation
     (transformation :
       Rocq_document.t ->
-      syntaxNode nary_tree ->
+      Syntax_node.t nary_tree ->
       (transformation_step list, Error.t) result) (doc : Rocq_document.t) :
     (Rocq_document.t, Error.t) result =
   let proofs_rec = Rocq_document.get_proofs doc in
@@ -1143,7 +1143,7 @@ let apply_proof_tree_transformation
       in
       List.fold_left
         (fun (doc_acc : (Rocq_document.t, Error.t) result)
-             (proof_tree : syntaxNode nary_tree) ->
+             (proof_tree : Syntax_node.t nary_tree) ->
           match doc_acc with
           | Ok acc -> (
               let transformation_steps = transformation acc proof_tree in

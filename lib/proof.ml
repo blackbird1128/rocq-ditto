@@ -8,9 +8,9 @@ type attach_position = LineAfter | LineBefore [@@deriving show]
 
 type transformation_step =
   | Remove of Uuidm.t
-  | Replace of Uuidm.t * syntaxNode
-  | Add of syntaxNode
-  | Attach of syntaxNode * attach_position * Uuidm.t
+  | Replace of Uuidm.t * Syntax_node.t
+  | Add of Syntax_node.t
+  | Attach of Syntax_node.t * attach_position * Uuidm.t
 
 let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
     : unit =
@@ -38,14 +38,14 @@ let transformation_step_to_string (step : transformation_step) : string =
 (* TODO add precisions *)
 
 type proof = {
-  proposition : syntaxNode;
-  proof_steps : syntaxNode list;
+  proposition : Syntax_node.t;
+  proof_steps : Syntax_node.t list;
   status : proof_status;
 }
 (* proposition can also be a type, better name ? *)
 
 (* A node can have multiple names (ie mutual recursive defs) *)
-let get_names (node : syntaxNode) : string list =
+let get_names (node : Syntax_node.t) : string list =
   match node.ast with
   | Some ast -> (
       match ast.ast_info with
@@ -118,7 +118,7 @@ let get_theorem_components (x : proof) : theorem_components option =
   | None -> None
 
 let syntax_node_from_theorem_components (c : theorem_components)
-    (start_point : Code_point.t) : syntaxNode =
+    (start_point : Code_point.t) : Syntax_node.t =
   let expr_syn =
     Vernacexpr.VernacStartTheoremProof
       (c.kind, [ ((c.name, c.universe), (c.binders, c.expr)) ])
@@ -128,7 +128,7 @@ let syntax_node_from_theorem_components (c : theorem_components)
   let coq_ast = Coq.Ast.of_coq control in
   Syntax_node.syntax_node_of_coq_ast coq_ast start_point
 
-let proof_status_from_last_node (node : syntaxNode) :
+let proof_status_from_last_node (node : Syntax_node.t) :
     (proof_status, Error.t) result =
   match node.ast with
   | Some ast -> (
@@ -164,15 +164,15 @@ let print_proof (proof : proof) : unit =
   print_endline proof.proposition.repr;
   List.iter (fun p -> print_endline ("  " ^ p.repr)) proof.proof_steps
 
-let rec print_tree (tree : syntaxNode nary_tree) (indent : string) : unit =
+let rec print_tree (tree : Syntax_node.t nary_tree) (indent : string) : unit =
   match tree with
   | Node (value, children) ->
       Printf.printf "%sNode(%s)\n" indent value.repr;
       List.iter (fun child -> print_tree child (indent ^ "  ")) children
 
-let proof_nodes (p : proof) : syntaxNode list = p.proposition :: p.proof_steps
+let proof_nodes (p : proof) : Syntax_node.t list = p.proposition :: p.proof_steps
 
-let proof_from_nodes (nodes : syntaxNode list) : (proof, Error.t) result =
+let proof_from_nodes (nodes : Syntax_node.t list) : (proof, Error.t) result =
   if List.length nodes < 2 then
     Error.string_to_or_error_err
       ("Not enough elements to create a proof from the nodes.\nnodes: "

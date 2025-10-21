@@ -1,8 +1,8 @@
 open Fleche
 open Ditto
 open Ditto.Proof
-open Ditto.Syntax_node
 open Ditto.Diagnostic_utils
+open Ditto.Syntax_node
 open Vernacexpr
 open Theorem_query
 open Result
@@ -127,7 +127,7 @@ let replace_tactic_by_other (previous_tac : string) (new_tac : string)
       | None -> None)
     x.proof_steps
 
-let replace_context (x : syntaxNode) : transformation_step option =
+let replace_context (x : Syntax_node.t) : transformation_step option =
   if Syntax_node.is_syntax_node_context x then
     let new_context_str : string =
       "Context {Pred : predicates}\n\
@@ -143,7 +143,7 @@ let replace_context (x : syntaxNode) : transformation_step option =
     Some (Replace (x.id, new_context_node))
   else None
 
-let replace_require (x : syntaxNode) : transformation_step option =
+let replace_require (x : Syntax_node.t) : transformation_step option =
   let split_prefix prefix s =
     let plen = String.length prefix in
     if String.length s >= plen && String.sub s 0 plen = prefix then

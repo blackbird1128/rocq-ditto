@@ -4,7 +4,7 @@ open Syntax_node
 
 type t = {
   filename : string;
-  elements : syntaxNode list;
+  elements : Syntax_node.t list;
   document_repr : string;
   initial_state : Coq.State.t;
 }
@@ -15,7 +15,7 @@ type shiftMethod = ShiftVertically | ShiftHorizontally
 val pp_coq_document : Format.formatter -> t -> unit
 val parse_document : Doc.t -> t
 
-val element_with_id_opt : Uuidm.t -> t -> syntaxNode option
+val element_with_id_opt : Uuidm.t -> t -> Syntax_node.t option
 (** Find an element with a specific ID in a document.
     [element_with_id_opt element_id doc] returns [Some element] if an element
     with the given [element_id] exists in [doc], otherwise returns [None]. *)
@@ -32,7 +32,7 @@ val proof_with_name_opt : string -> t -> proof option
     match the ident_decl of a command in \{Theorem, Lemma, Fact, Remark,
     Corollary, Proposition, Property\} for example. *)
 
-val split_at_id : Uuidm.t -> t -> syntaxNode list * syntaxNode list
+val split_at_id : Uuidm.t -> t -> Syntax_node.t list * Syntax_node.t list
 (** Split a document in two list of nodes, between and after the target id.
     [split_at_id target_id doc] split [doc.elements] into two list, one with the
     elements positioned before [target_id] and one with the elements after
@@ -50,7 +50,7 @@ val remove_node_with_id :
     found, it returns an [Error] indicating that the element wasn't found. *)
 
 val insert_node :
-  syntaxNode -> ?shift_method:shiftMethod -> t -> (t, Error.t) result
+  Syntax_node.t -> ?shift_method:shiftMethod -> t -> (t, Error.t) result
 (** Insert a new node into the document.
     [insert_node new_node ?shift_method doc] attempt to insert [new_node] into
     the document by shifting the other nodes further to make space. Can fail if
@@ -58,7 +58,7 @@ val insert_node :
     height higher than one or one of the node after on the line has an height
     higher than one. *)
 
-val replace_node : Uuidm.t -> syntaxNode -> t -> (t, Error.t) result
+val replace_node : Uuidm.t -> Syntax_node.t -> t -> (t, Error.t) result
 (** Replace a node inside the document. [replace_node target_id new_node doc]
     replace the node with id [target_id] by [new_node]. Fail and return [Error]
     if a node with [target_id] isn't found in the document. *)

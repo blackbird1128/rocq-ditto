@@ -1,14 +1,13 @@
 open Fleche
 open Ditto
-open Ditto.Syntax_node
 open Ditto.Nary_tree
 open Ditto.Diagnostic_utils
 
-let sexp_of_syntax_node (x : syntaxNode) : Sexplib.Sexp.t =
+let sexp_of_syntax_node (x : Syntax_node.t) : Sexplib.Sexp.t =
   let open Sexplib in
   Sexp.(Atom x.repr)
 
-let sexp_of_proof_tree (x : syntaxNode nary_tree) =
+let sexp_of_proof_tree (x : Syntax_node.t nary_tree) =
   Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
 
 let rec simplify sexp =
@@ -105,8 +104,8 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
           in
 
           let* res =
-            Rocq_document.apply_transformations_steps remove_random_tactics_steps
-              res
+            Rocq_document.apply_transformations_steps
+              remove_random_tactics_steps res
           in
 
           let transformed_trees =

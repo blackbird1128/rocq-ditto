@@ -7,11 +7,11 @@ open Ditto.Syntax_node
 let normalize_strings (strings : string list) : string list =
   List.map (fun str -> String.trim str) strings
 
-let sexp_of_syntax_node (x : syntaxNode) : Sexplib.Sexp.t =
+let sexp_of_syntax_node (x : Syntax_node.t) : Sexplib.Sexp.t =
   let open Sexplib in
   Sexp.(Atom x.repr)
 
-let sexp_of_proof_tree (x : syntaxNode nary_tree) =
+let sexp_of_proof_tree (x : Syntax_node.t nary_tree) =
   Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
 
 let rec simplify sexp =
@@ -103,7 +103,7 @@ let synterp_vernac_expr_testable =
     ( = )
 
 let make_dummy_node (start_line : int) (start_char : int) (end_line : int)
-    (end_char : int) : syntaxNode =
+    (end_char : int) : Syntax_node.t =
   {
     ast = None;
     repr = "dummy";
@@ -118,7 +118,7 @@ let make_dummy_node (start_line : int) (start_char : int) (end_line : int)
   }
 
 let make_dummy_node_from_repr (start_line : int) (start_char : int)
-    (repr : string) : syntaxNode =
+    (repr : string) : Syntax_node.t =
   let start_point : Code_point.t =
     { line = start_line; character = start_char }
   in
@@ -590,8 +590,8 @@ let test_removing_and_leaving_blank (doc : Doc.t) () : unit =
 
   let new_doc =
     Result.get_ok
-      (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank second_node.id
-         doc)
+      (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank
+         second_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
@@ -608,8 +608,8 @@ let test_removing_and_leaving_blank_multiple_line_nodes (doc : Doc.t) () : unit
 
   let new_doc =
     Result.get_ok
-      (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank second_node.id
-         doc)
+      (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank
+         second_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
@@ -625,8 +625,8 @@ let test_removing_and_leaving_blank_middle_of_line (doc : Doc.t) () : unit =
 
   let new_doc =
     Result.get_ok
-      (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank fourth_node.id
-         doc)
+      (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank
+         fourth_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 

@@ -9,7 +9,7 @@ module Procq = Pcoq
 
 [%%endif]
 
-type syntaxNode = {
+type t = {
   ast : Doc.Node.Ast.t option;
   range : Code_range.t;
   repr : string;
@@ -22,7 +22,7 @@ type syntaxNode = {
 let pp_doc_ast (fmt : Format.formatter) (ast : Doc.Node.Ast.t) : unit =
   Pp.pp_with fmt (Coq.Ast.print ast.v)
 
-let pp_syntax_node (fmt : Format.formatter) (node : syntaxNode) : unit =
+let pp_syntax_node (fmt : Format.formatter) (node : t) : unit =
   Format.fprintf fmt "{@ ";
   Format.fprintf fmt "ast: %a@ "
     (fun fmt ast -> Format.pp_print_option pp_doc_ast fmt ast)
@@ -62,7 +62,7 @@ let mk_vernac_control ?(loc : Loc.t option)
   | Some loc -> CAst.make ~loc payload
   | None -> CAst.make payload
 
-let are_colliding (a : syntaxNode) (b : syntaxNode) : bool =
+let are_colliding (a : t) (b : t) : bool =
   let a_line_range = (a.range.start.line, a.range.end_.line) in
   let b_line_range = (b.range.start.line, b.range.end_.line) in
   match Range_utils.common_range a_line_range b_line_range with
@@ -90,11 +90,10 @@ let are_colliding (a : syntaxNode) (b : syntaxNode) : bool =
         Option.has_some (Range_utils.common_range a_char_range b_char_range)
   | None -> false
 
-let colliding_nodes (target : syntaxNode) (nodes_list : syntaxNode list) :
-    syntaxNode list =
+let colliding_nodes (target : t) (nodes_list : t list) : t list =
   List.filter (are_colliding target) nodes_list
 
-let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
+let compare_nodes (a : t) (b : t) : int =
   match
     Range_utils.common_range
       (a.range.start.line, a.range.end_.line)
@@ -107,7 +106,7 @@ let compare_nodes (a : syntaxNode) (b : syntaxNode) : int =
       else compare a.range.start.character b.range.start.character
   | None -> compare a.range.start.line b.range.start.line
 
-let validate_syntax_node (x : syntaxNode) : (syntaxNode, Error.t) result =
+let validate_syntax_node (x : t) : (t, Error.t) result =
   if x.range.end_.line < x.range.start.line then
     Error.string_to_or_error_err
       "Incorrect range: range end line is smaller than the range start line"
@@ -123,7 +122,7 @@ let validate_syntax_node (x : syntaxNode) : (syntaxNode, Error.t) result =
 
 (* TODO, is this even necessary ? *)
 let comment_syntax_node_of_string (content : string)
-    (start_point : Code_point.t) : (syntaxNode, Error.t) result =
+    (start_point : Code_point.t) : (t, Error.t) result =
   let range =
     Range_utils.range_from_starting_point_and_repr start_point content
   in
@@ -148,7 +147,7 @@ let comment_syntax_node_of_string (content : string)
       }
 
 let syntax_node_of_string (code : string) (start_point : Code_point.t) :
-    (syntaxNode, Error.t) result =
+    (t, Error.t) result =
   let range = Range_utils.range_from_starting_point_and_repr start_point code in
   (*offset doesn't count the newline in*)
   if
@@ -182,7 +181,7 @@ let syntax_node_of_string (code : string) (start_point : Code_point.t) :
     | Error err -> Error err
 
 let nodes_of_string (code : string) (ranges : Code_range.t list) :
-    (syntaxNode list, string) result =
+    (t list, string) result =
   match generate_ast code with
   | Ok [] -> Ok []
   | Ok l ->
@@ -221,8 +220,7 @@ let remove_outer_parentheses s =
     String.sub s 1 (len - 3) ^ "."
   else s
 
-let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) :
-    syntaxNode =
+let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
   let coq_ast = Coq.Ast.to_coq ast in
   let repr =
     Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds
@@ -240,7 +238,7 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) :
     diagnostics = [];
   }
 
-let reformat_node (x : syntaxNode) : (syntaxNode, Error.t) result =
+let reformat_node (x : t) : (t, Error.t) result =
   match x.ast with
   | Some ast ->
       let start_point = x.range.start in
@@ -250,10 +248,10 @@ let reformat_node (x : syntaxNode) : (syntaxNode, Error.t) result =
       Error.string_to_or_error_err
         "The node need to have an AST to be reformatted"
 
-let qed_ast_node (start_point : Code_point.t) : syntaxNode =
+let qed_ast_node (start_point : Code_point.t) : t =
   Result.get_ok (syntax_node_of_string "Qed." start_point)
 
-let string_of_syntax_node (node : syntaxNode) : string =
+let string_of_syntax_node (node : t) : string =
   match node.ast with
   | Some ast -> Ppvernac.pr_vernac (Coq.Ast.to_coq ast.v) |> Pp.string_of_ppcmds
   | None -> node.repr
@@ -277,10 +275,10 @@ let shift_range (n_line : int) (n_char : int) (x : Code_range.t) : Code_range.t
     end_ = shift_point n_line n_char x.end_;
   }
 
-let shift_node (n_line : int) (n_char : int) (x : syntaxNode) : syntaxNode =
+let shift_node (n_line : int) (n_char : int) (x : t) : t =
   { x with range = shift_range n_line n_char x.range }
 
-let is_syntax_node_command_allowed_in_proof (x : syntaxNode) : bool =
+let is_syntax_node_command_allowed_in_proof (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
@@ -301,7 +299,7 @@ let is_syntax_node_command_allowed_in_proof (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
-let is_syntax_node_tactic (x : syntaxNode) : bool =
+let is_syntax_node_tactic (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -317,7 +315,7 @@ let is_syntax_node_tactic (x : syntaxNode) : bool =
       | VernacSynPure _ -> false)
   | None -> false
 
-let is_syntax_node_proof_command (x : syntaxNode) : bool =
+let is_syntax_node_proof_command (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -326,7 +324,7 @@ let is_syntax_node_proof_command (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacProof _ -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_proof_with (x : syntaxNode) : bool =
+let is_syntax_node_proof_with (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -337,7 +335,7 @@ let is_syntax_node_proof_with (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
-let get_syntax_node_proof_with_tactic (x : syntaxNode) : string option =
+let get_syntax_node_proof_with_tactic (x : t) : string option =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -353,10 +351,10 @@ let get_syntax_node_proof_with_tactic (x : syntaxNode) : string option =
           | _ -> None))
   | None -> None
 
-let is_syntax_node_ending_with_elipsis (x : syntaxNode) : bool =
+let is_syntax_node_ending_with_elipsis (x : t) : bool =
   String.ends_with ~suffix:"..." x.repr
 
-let is_syntax_node_context (x : syntaxNode) : bool =
+let is_syntax_node_context (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
@@ -365,7 +363,7 @@ let is_syntax_node_context (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacContext _ -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_require (x : syntaxNode) : bool =
+let is_syntax_node_require (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
@@ -374,7 +372,7 @@ let is_syntax_node_require (x : syntaxNode) : bool =
       | VernacSynPure _ -> false)
   | None -> false
 
-let is_syntax_node_function_start (x : syntaxNode) : bool =
+let is_syntax_node_function_start (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -388,7 +386,7 @@ let is_syntax_node_function_start (x : syntaxNode) : bool =
       | VernacSynPure _ -> false)
   | None -> false
 
-let is_syntax_node_instance_start (x : syntaxNode) : bool =
+let is_syntax_node_instance_start (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -397,7 +395,7 @@ let is_syntax_node_instance_start (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacInstance _ -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_definition_with_proof (x : syntaxNode) : bool =
+let is_syntax_node_definition_with_proof (x : t) : bool =
   (* TODO: check if this include anonymous goals *)
   match x.ast with
   | Some ast -> (
@@ -411,7 +409,7 @@ let is_syntax_node_definition_with_proof (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
-let is_syntax_node_bullet (x : syntaxNode) : bool =
+let is_syntax_node_bullet (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -420,7 +418,7 @@ let is_syntax_node_bullet (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacBullet _ -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_opening_bracket (x : syntaxNode) : bool =
+let is_syntax_node_opening_bracket (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
@@ -429,7 +427,7 @@ let is_syntax_node_opening_bracket (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacSubproof _ -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_closing_bracket (x : syntaxNode) : bool =
+let is_syntax_node_closing_bracket (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
@@ -438,7 +436,7 @@ let is_syntax_node_closing_bracket (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacEndSubproof -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_focus_command (x : syntaxNode) : bool =
+let is_syntax_node_focus_command (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -447,12 +445,12 @@ let is_syntax_node_focus_command (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacFocus _ -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_focusing_goal (x : syntaxNode) : bool =
+let is_syntax_node_focusing_goal (x : t) : bool =
   is_syntax_node_bullet x
   || is_syntax_node_focus_command x
   || is_syntax_node_opening_bracket x
 
-let is_syntax_node_proof_start (x : syntaxNode) : bool =
+let is_syntax_node_proof_start (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -463,7 +461,7 @@ let is_syntax_node_proof_start (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
-let is_syntax_node_proof_end (x : syntaxNode) : bool =
+let is_syntax_node_proof_end (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -472,7 +470,7 @@ let is_syntax_node_proof_end (x : syntaxNode) : bool =
           match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false))
   | None -> false
 
-let is_syntax_node_proof_abort (x : syntaxNode) : bool =
+let is_syntax_node_proof_abort (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -486,7 +484,7 @@ let is_syntax_node_proof_abort (x : syntaxNode) : bool =
           | _ -> false))
   | None -> false
 
-let get_syntax_node_extend_name (x : syntaxNode) : extend_name option =
+let get_syntax_node_extend_name (x : t) : extend_name option =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
@@ -497,7 +495,7 @@ let get_syntax_node_extend_name (x : syntaxNode) : extend_name option =
       | VernacSynPure _ -> None)
   | None -> None
 
-let get_tactic_raw_generic_arguments (x : syntaxNode) :
+let get_tactic_raw_generic_arguments (x : t) :
     Genarg.raw_generic_argument list option =
   match x.ast with
   | Some ast -> (
@@ -516,12 +514,12 @@ let get_tactic_raw_generic_arguments (x : syntaxNode) :
 
 open Raw_gen_args_converter
 
-let get_node_ltac_elements (x : syntaxNode) : ltac_elements option =
+let get_node_ltac_elements (x : t) : ltac_elements option =
   get_tactic_raw_generic_arguments x
   |> Option.map raw_arguments_to_ltac_elements
   |> Option.flatten
 
-let get_node_raw_tactic_expr (x : syntaxNode) :
+let get_node_raw_tactic_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_tactic_expr option =
   get_tactic_raw_generic_arguments x
   |> Option.map raw_arguments_to_raw_tactic_expr
@@ -529,7 +527,7 @@ let get_node_raw_tactic_expr (x : syntaxNode) :
 
 let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
-    syntaxNode option =
+    t option =
   match args with
   | [ _; _; _; _ ] ->
       let expr_syn = Vernacexpr.VernacExtend (ext, args) in
@@ -539,9 +537,8 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
       Some (syntax_node_of_coq_ast ast_node starting_point)
   | _ -> None
 
-let apply_tac_then (a : syntaxNode) (b : syntaxNode)
-    ?(start_point : Code_point.t = a.range.start) () :
-    (syntaxNode, Error.t) result =
+let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
+    () : (t, Error.t) result =
   let ( let* ) = Result.bind in
 
   let* raw_tactic_expr_a =
@@ -583,16 +580,16 @@ let apply_tac_then (a : syntaxNode) (b : syntaxNode)
           (Printf.sprintf "failed to create a then betwen %s and %s" a.repr
              b.repr))
 
-let node_can_open_proof (x : syntaxNode) : bool =
+let node_can_open_proof (x : t) : bool =
   is_syntax_node_proof_start x
   || is_syntax_node_definition_with_proof x
   || is_syntax_node_instance_start x
   || is_syntax_node_function_start x
 
-let node_can_close_proof (x : syntaxNode) : bool =
+let node_can_close_proof (x : t) : bool =
   is_syntax_node_proof_abort x || is_syntax_node_proof_end x
 
-let is_syntax_node_proof_intro_or_end (x : syntaxNode) : bool =
+let is_syntax_node_proof_intro_or_end (x : t) : bool =
   is_syntax_node_proof_start x
   || is_syntax_node_proof_command x
   || is_syntax_node_proof_end x

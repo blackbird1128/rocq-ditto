@@ -6,7 +6,7 @@ type proofState = NoProof | ProofOpened
 
 type t = {
   filename : string;
-  elements : syntaxNode list;
+  elements : Syntax_node.t list;
   document_repr : string;
   initial_state : Coq.State.t;
 }
@@ -27,7 +27,7 @@ let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
   Format.fprintf fmt "document repr: %s" doc.document_repr
 
 let get_proofs (doc : t) : (proof list, Error.t) result =
-  let rec aux (nodes : syntaxNode list) (cur_proof_acc : syntaxNode list)
+  let rec aux (nodes : Syntax_node.t list) (cur_proof_acc : Syntax_node.t list)
       (proofs_acc : (proof, Error.t) result list) (cur_state : proofState) :
       (proof, Error.t) result list =
     match nodes with
@@ -137,12 +137,12 @@ let compare_code_point (p1 : Code_point.t) (p2 : Code_point.t) : int =
   | 0 -> Int.compare p1.character p2.character
   | c -> c
 
-let second_node_included_in (a : syntaxNode) (b : syntaxNode) : bool =
+let second_node_included_in (a : Syntax_node.t) (b : Syntax_node.t) : bool =
   compare_code_point a.range.start b.range.start <= 0
   && compare_code_point b.range.end_ a.range.end_ <= 0
 
-let merge_nodes (nodes : syntaxNode list) : syntaxNode list =
-  let rec merge_aux (acc : syntaxNode list) (nodes : syntaxNode list) =
+let merge_nodes (nodes : Syntax_node.t list) : Syntax_node.t list =
+  let rec merge_aux (acc : Syntax_node.t list) (nodes : Syntax_node.t list) =
     match nodes with
     | [] -> List.rev acc
     | curr_node :: rest -> (
@@ -207,10 +207,10 @@ let parse_document (doc : Doc.t) : t =
     initial_state = doc.root;
   }
 
-let dump_elements_to_string (elements : syntaxNode list) :
+let dump_elements_to_string (elements : Syntax_node.t list) :
     (string, Error.t) result =
-  let rec aux (repr_nodes : syntaxNode list) (doc_repr : string)
-      (previous_node : syntaxNode) : (string, Error.t) result =
+  let rec aux (repr_nodes : Syntax_node.t list) (doc_repr : string)
+      (previous_node : Syntax_node.t) : (string, Error.t) result =
     match repr_nodes with
     | [] -> Ok doc_repr
     | node :: tail -> (
@@ -262,7 +262,7 @@ let dump_elements_to_string (elements : syntaxNode list) :
 let dump_to_string (doc : t) : (string, Error.t) result =
   dump_elements_to_string doc.elements
 
-let element_with_id_opt (element_id : Uuidm.t) (doc : t) : syntaxNode option =
+let element_with_id_opt (element_id : Uuidm.t) (doc : t) : Syntax_node.t option =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
 
 let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) : proof option =
@@ -285,8 +285,8 @@ let proof_with_name_opt (proof_name : string) (doc : t) : proof option =
   | Error _ -> None
 
 let split_at_id (target_id : Uuidm.t) (doc : t) :
-    syntaxNode list * syntaxNode list =
-  let rec aux (elements : syntaxNode list) (acc : syntaxNode list) =
+    Syntax_node.t list * Syntax_node.t list =
+  let rec aux (elements : Syntax_node.t list) (acc : Syntax_node.t list) =
     match elements with
     | [] -> (acc, [])
     | x :: tail ->
@@ -294,11 +294,11 @@ let split_at_id (target_id : Uuidm.t) (doc : t) :
   in
   aux doc.elements []
 
-let elements_starting_at_line (line_number : int) (nodes : syntaxNode list) :
-    syntaxNode list =
+let elements_starting_at_line (line_number : int) (nodes : Syntax_node.t list) :
+    Syntax_node.t list =
   List.filter (fun elem -> elem.range.start.line = line_number) nodes
 
-let shift_node_first_line (n_char : int) (x : syntaxNode) : syntaxNode =
+let shift_node_first_line (n_char : int) (x : Syntax_node.t) : Syntax_node.t =
   if x.range.start.line = x.range.end_.line then shift_node 0 n_char x
   else
     {
@@ -310,7 +310,7 @@ let shift_node_first_line (n_char : int) (x : syntaxNode) : syntaxNode =
         };
     }
 
-let num_chars_last_line (x : syntaxNode) : int =
+let num_chars_last_line (x : Syntax_node.t) : int =
   if x.range.start.line = x.range.end_.line then
     x.range.end_.character - x.range.start.character
   else x.range.end_.character
@@ -384,7 +384,7 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
                   dump_elements_to_string elements |> Result.get_ok;
               })
 
-let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
+let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
   let element_before_new_node_start, element_after_new_node_start =
     List.partition (fun node -> compare_nodes node new_node < 0) doc.elements
@@ -464,7 +464,7 @@ let insert_node (new_node : syntaxNode) ?(shift_method = ShiftVertically)
           document_repr = dump_elements_to_string elements |> Result.get_ok;
         }
 
-let replace_node (target_id : Uuidm.t) (replacement : syntaxNode) (doc : t) :
+let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
     (t, Error.t) result =
   let ( let* ) = Result.bind in
   let* replacement = validate_syntax_node replacement in

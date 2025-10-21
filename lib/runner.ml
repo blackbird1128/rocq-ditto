@@ -105,7 +105,7 @@ let run_with_diagnostics ~token ?loc ?(memo = true) ~st cmds =
     st
 
 let run_node (token : Coq.Limits.Token.t) (prev_state : Coq.State.t)
-    (node : syntaxNode) : (Coq.State.t, Error.t) result =
+    (node : Syntax_node.t) : (Coq.State.t, Error.t) result =
   let execution =
     let st =
       Fleche.Doc.run ~token ~memo:true ?loc:None ~st:prev_state node.repr
@@ -116,7 +116,7 @@ let run_node (token : Coq.Limits.Token.t) (prev_state : Coq.State.t)
   protect_to_result execution
 
 let run_node_with_diagnostics (token : Coq.Limits.Token.t)
-    (prev_state : Coq.State.t) (node : syntaxNode) :
+    (prev_state : Coq.State.t) (node : Syntax_node.t) :
     ( Coq.State.t * Lang.Diagnostic.t list,
       Error.t * Lang.Diagnostic.t list )
     result =
@@ -138,7 +138,7 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
       let err, messages = err in
       Error (err, List.map (message_to_diagnostic node.range) messages)
 
-let get_init_state (doc : Rocq_document.t) (node : syntaxNode)
+let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
     (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
   let nodes_before, _ = Rocq_document.split_at_id node.id doc in
   let init_state = doc.initial_state in
@@ -171,9 +171,9 @@ let count_goals (token : Coq.Limits.Token.t) (st : Coq.State.t) : int =
   | Error _ -> 0
 
 let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
-    (steps : syntaxNode list) : (int * syntaxNode * int) list =
+    (steps : Syntax_node.t list) : (int * Syntax_node.t * int) list =
   let rec aux (token : Coq.Limits.Token.t) (st : Coq.State.t)
-      (steps : syntaxNode list) =
+      (steps : Syntax_node.t list) =
     match steps with
     | [] -> []
     | step :: tail ->
@@ -191,7 +191,7 @@ let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
   aux token st steps
 
 let can_reduce_to_zero_goals (init_state : Coq.State.t)
-    (nodes : syntaxNode list) : bool =
+    (nodes : Syntax_node.t list) : bool =
   let token = Coq.Limits.Token.create () in
 
   let rec aux state acc nodes =
@@ -220,7 +220,7 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
   | Ok None -> Error.string_to_or_error_err "zero goal at this state"
   | Error err -> Error err
 
-let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
+let print_parents (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) :
     unit =
   Hashtbl.iter
     (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
@@ -232,7 +232,7 @@ let print_parents (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
 type parent_category = Fork | Linear
 
 let print_prev_pars
-    (prev_pars : (int * int * syntaxNode * parent_category) list) : unit =
+    (prev_pars : (int * int * Syntax_node.t * parent_category) list) : unit =
   List.iter
     (fun (goal_count, id, _, _) ->
       print_endline
@@ -241,9 +241,9 @@ let print_prev_pars
     prev_pars
 
 let rec pop_until_free_fork
-    (prev_pars : (int * int * syntaxNode * parent_category) list)
-    (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
-    (int * int * syntaxNode * parent_category) list =
+    (prev_pars : (int * int * Syntax_node.t * parent_category) list)
+    (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) :
+    (int * int * Syntax_node.t * parent_category) list =
   match prev_pars with
   | [] -> []
   | (goal_count, par_id, par_node, cat_par) :: tail_par -> (
@@ -256,9 +256,9 @@ let rec pop_until_free_fork
           else pop_until_free_fork tail_par parents
       | Linear -> pop_until_free_fork tail_par parents)
 
-let rec get_parents_rec (steps_with_goals : (int * syntaxNode * int) list)
-    (prev_pars : (int * int * syntaxNode * parent_category) list) (idx : int)
-    (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) =
+let rec get_parents_rec (steps_with_goals : (int * Syntax_node.t * int) list)
+    (prev_pars : (int * int * Syntax_node.t * parent_category) list) (idx : int)
+    (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) =
   match steps_with_goals with
   | [] -> parents
   | (prev_goals, step, new_goals) :: tail -> (
@@ -295,9 +295,9 @@ let rec get_parents_rec (steps_with_goals : (int * syntaxNode * int) list)
               ((new_goals - prev_goals + 1, idx, step, Fork) :: prev_pars)
               (idx + 1) parents))
 
-let rec proof_tree_from_parents (cur_node : int * syntaxNode)
-    (parents : (int * syntaxNode, int * syntaxNode) Hashtbl.t) :
-    syntaxNode nary_tree =
+let rec proof_tree_from_parents (cur_node : int * Syntax_node.t)
+    (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) :
+    Syntax_node.t nary_tree =
   let _, tactic = cur_node in
   let childs = Hashtbl.find_all parents cur_node in
   Node
@@ -305,7 +305,7 @@ let rec proof_tree_from_parents (cur_node : int * syntaxNode)
       List.rev_map (fun node -> proof_tree_from_parents node parents) childs )
 
 let treeify_proof (doc : Rocq_document.t) (p : proof) :
-    (syntaxNode nary_tree, Error.t) result =
+    (Syntax_node.t nary_tree, Error.t) result =
   let token = Coq.Limits.Token.create () in
   match get_init_state doc p.proposition token with
   | Ok init_state ->
@@ -324,10 +324,10 @@ let is_valid_proof (doc : Rocq_document.t) (p : proof) : bool =
   | Ok init_state -> can_reduce_to_zero_goals init_state p.proof_steps
   | Error _ -> false
 
-let rec proof_tree_to_node_list (Node (value, children)) : syntaxNode list =
+let rec proof_tree_to_node_list (Node (value, children)) : Syntax_node.t list =
   value :: List.concat (List.map proof_tree_to_node_list children)
 
-let tree_to_proof (tree : syntaxNode nary_tree) : proof =
+let tree_to_proof (tree : Syntax_node.t nary_tree) : proof =
   let nodes = proof_tree_to_node_list tree in
   let last_node_status =
     List.hd (List.rev nodes) |> proof_status_from_last_node
@@ -343,15 +343,15 @@ let tree_to_proof (tree : syntaxNode nary_tree) : proof =
 let depth_first_fold_with_state (doc : Rocq_document.t)
     (token : Coq.Limits.Token.t)
     (f :
-      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
-    (acc : 'acc) (tree : syntaxNode nary_tree) : ('acc, Error.t) result =
+      Coq.State.t -> 'acc -> Syntax_node.t -> (Coq.State.t * 'acc, Error.t) result)
+    (acc : 'acc) (tree : Syntax_node.t nary_tree) : ('acc, Error.t) result =
   let ( let* ) = Result.bind in
 
   let rec aux
       (f :
         Coq.State.t ->
         'acc ->
-        syntaxNode ->
+        Syntax_node.t ->
         (Coq.State.t * 'acc, Error.t) result) (state : Coq.State.t) (acc : 'acc)
       (tree : 'a nary_tree) : (Coq.State.t * 'acc, Error.t) result =
     match tree with
@@ -377,11 +377,11 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
 
 let fold_nodes_with_state
     (f :
-      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
-    (init_state : Coq.State.t) (acc : 'acc) (l : syntaxNode list) :
+      Coq.State.t -> 'acc -> Syntax_node.t -> (Coq.State.t * 'acc, Error.t) result)
+    (init_state : Coq.State.t) (acc : 'acc) (l : Syntax_node.t list) :
     ('acc, 'err) result =
   let ( let* ) = Result.bind in
-  let rec aux (l : syntaxNode list) (state : Coq.State.t) (acc : 'acc) :
+  let rec aux (l : Syntax_node.t list) (state : Coq.State.t) (acc : 'acc) :
       (Coq.State.t * 'acc, Error.t) result =
     match l with
     | [] -> Ok (state, acc)
@@ -393,7 +393,7 @@ let fold_nodes_with_state
 
 let fold_proof_with_state (doc : Rocq_document.t) (token : Coq.Limits.Token.t)
     (f :
-      Coq.State.t -> 'acc -> syntaxNode -> (Coq.State.t * 'acc, Error.t) result)
+      Coq.State.t -> 'acc -> Syntax_node.t -> (Coq.State.t * 'acc, Error.t) result)
     (acc : 'acc) (p : Proof.proof) : ('acc, Error.t) result =
   let proof_nodes = Proof.proof_nodes p in
 
