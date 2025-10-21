@@ -269,6 +269,12 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 output_string out doc_repr;
                 Ok ()
             | Ok res, true ->
+                print_endline
+                  ("All transformations applied, writing to file " ^ filename);
+                let out = open_out filename in
+                let* doc_repr = Rocq_document.dump_to_string res in
+                output_string out doc_repr;
+                print_endline "Saving vo:";
                 let uri =
                   Lang.LUri.of_string filename
                   |> Lang.LUri.File.of_uri |> Result.get_ok
@@ -283,9 +289,6 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                       Runner.run_node token st last
                   | None -> Ok res.initial_state
                 in
-                print_endline
-                  ("All transformations applied, writing to file " ^ filename);
-                print_endline "Saving vo:";
                 Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
                 |> Runner.protect_to_result
             | Error err, _ ->
@@ -295,7 +298,9 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
 let ditto_plugin_hook ~io ~token ~(doc : Doc.t) : unit =
   match ditto_plugin ~io ~token ~doc with
   | Ok _ -> ()
-  | Error err -> prerr_endline (Error.to_string_hum err)
+  | Error err ->
+      prerr_endline (Error.to_string_hum err);
+      exit 1
 
 let main () = Theory.Register.Completed.add ditto_plugin_hook
 let () = main ()
