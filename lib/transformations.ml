@@ -950,16 +950,12 @@ let turn_into_oneliner (_ : Rocq_document.t)
               first_step_node.range.end_
           in
 
-          let res =
-            Ok
-              (remove_steps
-              @ [
-                  Attach (proof_node, LineAfter, first_step_node.id);
-                  Attach (relocated_one_liner_node, LineAfter, proof_node.id);
-                ])
-          in
-          print_endline "res calculated !";
-          res)
+          Ok
+            (remove_steps
+            @ [
+                Attach (proof_node, LineAfter, first_step_node.id);
+                Attach (relocated_one_liner_node, LineAfter, proof_node.id);
+              ]))
 
 let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
   let env = Global.env () in
