@@ -9,6 +9,7 @@ type t =
   | Of_exn of exn
 [@@deriving sexp_of]
 
+let of_sexp (s : Sexp.t) = Of_sexp s
 let of_string (s : string) = String s
 let of_exn (exn : exn) = Of_exn exn
 let tag (t : t) ~(tag : string) = Tag_t (tag, t)
@@ -49,4 +50,5 @@ let to_string_result (t : t) = Error (to_string_hum t)
 let or_error_to_string_result (x : 'a or_error) =
   match x with Ok a -> Ok a | Error t -> to_string_result t
 
-let string_to_or_error_err (x : string) : ('a, 't) result = Error (of_string x)
+let string_to_or_error (x : string) : ('a, 't) result = Error (of_string x)
+let format_to_or_error fmt = Printf.ksprintf (fun s -> Error (of_string s)) fmt

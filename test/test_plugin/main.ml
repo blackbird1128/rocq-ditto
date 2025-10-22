@@ -500,7 +500,7 @@ let test_reformat_comment_node (_ : Doc.t) () : unit =
 
   Alcotest.(check (result uuidm_testable error_testable))
     "Should return an error"
-    (Error.string_to_or_error_err
+    (Error.string_to_or_error
        "The node need to have an AST to be reformatted")
     reformat_id
 

@@ -321,7 +321,7 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
   let ( let* ) = Result.bind in
   match element_with_id_opt target_id doc with
   | None ->
-      Error.string_to_or_error_err
+      Error.string_to_or_error
         ("The element with id: " ^ Uuidm.to_string target_id
        ^ " wasn't found in the document")
   | Some removed_node -> (
@@ -400,7 +400,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
   match shift_method with
   | ShiftHorizontally ->
       if new_node.range.start.line != new_node.range.end_.line then
-        Error.string_to_or_error_err
+        Error.string_to_or_error
           ("Error when trying to shift " ^ new_node.repr ^ " at : "
           ^ Code_range.to_string new_node.range
           ^ ". Shifting horizontally is only possible with 1 line height node")
@@ -414,7 +414,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
           |> Option.has_some
         in
         if multi_lines_nodes_after_same_line then
-          Error.string_to_or_error_err
+          Error.string_to_or_error
             ("Can't shift multi-lines nodes on the same line ("
             ^ string_of_int new_node.range.start.line
             ^ ") as the node inserted")
@@ -502,7 +502,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
                (fun x y -> x.id = y.id)
                node_after_opt new_node_after_opt)
         then
-          Error.string_to_or_error_err
+          Error.string_to_or_error
             "This should not happen, please report this bug if you see it"
         else
           let dist =
@@ -526,7 +526,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
                   :: List.map (shift_node dist 0) after_replacement;
             }
   | None ->
-      Error.string_to_or_error_err
+      Error.string_to_or_error
         ("The target node with id : " ^ Uuidm.to_string target_id
        ^ " doesn't exists")
 
@@ -603,7 +603,7 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
 
           insert_node new_node doc
       | None ->
-          Error.string_to_or_error_err
+          Error.string_to_or_error
             ("Can't find the node with id: " ^ Uuidm.to_string anchor_id
            ^ " to attach to"))
 

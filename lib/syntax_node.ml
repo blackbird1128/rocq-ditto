@@ -92,13 +92,13 @@ let compare_nodes (a : t) (b : t) : int =
 
 let validate_syntax_node (x : t) : (t, Error.t) result =
   if x.range.end_.line < x.range.start.line then
-    Error.string_to_or_error_err
+    Error.string_to_or_error
       "Incorrect range: range end line is smaller than the range start line"
   else if
     x.range.start.line = x.range.end_.line
     && String.length x.repr > x.range.end_.character - x.range.start.character
   then
-    Error.string_to_or_error_err
+    Error.string_to_or_error
       "Incorrect range: the height of the node is one and the range end \
        character minus range start character is smaller than the node \
        character size"
@@ -229,8 +229,7 @@ let reformat_node (x : t) : (t, Error.t) result =
       Ok { (syntax_node_of_coq_ast ast.v start_point) with id = x.id }
       (* we return the same id, doesn't matter in the order of operation we do *)
   | None ->
-      Error.string_to_or_error_err
-        "The node need to have an AST to be reformatted"
+      Error.string_to_or_error "The node need to have an AST to be reformatted"
 
 let string_of_syntax_node (node : t) : string =
   match node.ast with
@@ -542,11 +541,9 @@ let apply_tac_thens (a : t) (l : t list)
   let* raw_tactic_expr_a =
     get_node_raw_tactic_expr a
     |> Option.cata Result.ok
-         (Error.string_to_or_error_err
-            (Printf.sprintf
-               "%s isn't convertible to a raw_tactic_expr (It probably isn't \
-                Ltac)"
-               a.repr))
+         (Error.format_to_or_error
+            "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
+            a.repr)
   in
 
   let raw_tactics_l_opts = List.map get_node_raw_tactic_expr l in
@@ -558,11 +555,10 @@ let apply_tac_thens (a : t) (l : t list)
         List.find_index Option.is_empty raw_tactics_l_opts |> Option.get
       in
       let err_elem = List.nth l err_elem_idx in
-      Error.string_to_or_error_err
-        (Printf.sprintf
-           "%s at index %d in l isn't convertible to a raw_tactic_expr (It \
-            probably isn't Ltac"
-           err_elem.repr err_elem_idx)
+      Error.format_to_or_error
+        "%s at index %d in l isn't convertible to a raw_tactic_expr (It \
+         probably isn't Ltac"
+        err_elem.repr err_elem_idx
   in
   let args = get_tactic_raw_generic_arguments a |> Option.get in
   let extend = Ltac.default_extend_name in
@@ -579,9 +575,9 @@ let apply_tac_thens (a : t) (l : t list)
   in
   tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
   |> Option.cata Result.ok
-       (Error.string_to_or_error_err
-          (Printf.sprintf "failed to create a thens l betwen %s and %s" a.repr
-             (List.map (fun x -> x.repr) l |> String.concat " ")))
+       (Error.format_to_or_error "failed to create a thens l betwen %s and %s"
+          a.repr
+          (List.map (fun x -> x.repr) l |> String.concat " "))
 
 let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
     () : (t, Error.t) result =
@@ -590,21 +586,17 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
   let* raw_tactic_expr_a =
     get_node_raw_tactic_expr a
     |> Option.cata Result.ok
-         (Error.string_to_or_error_err
-            (Printf.sprintf
-               "%s isn't convertible to a raw_tactic_expr (It probably isn't \
-                Ltac)"
-               a.repr))
+         (Error.format_to_or_error
+            "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
+            a.repr)
   in
 
   let* raw_tactic_expr_b =
     get_node_raw_tactic_expr b
     |> Option.cata Result.ok
-         (Error.string_to_or_error_err
-            (Printf.sprintf
-               "%s isn't convertible to a raw_tactic_expr (It probably isn't \
-                Ltac)"
-               a.repr))
+         (Error.format_to_or_error
+            "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
+            a.repr)
   in
 
   let args = get_tactic_raw_generic_arguments a |> Option.get in
@@ -622,9 +614,8 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
   in
   tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
   |> Option.cata Result.ok
-       (Error.string_to_or_error_err
-          (Printf.sprintf "failed to create a then betwen %s and %s" a.repr
-             b.repr))
+       (Error.format_to_or_error "failed to create a then betwen %s and %s"
+          a.repr b.repr)
 
 let node_can_open_proof (x : t) : bool =
   is_syntax_node_proof_start x

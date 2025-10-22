@@ -5,11 +5,11 @@ open Proof
 let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) Result.t =
   match r with
   | { r = Interrupted; feedback = _ } ->
-      Error.string_to_or_error_err "Interrupted"
+      Error.string_to_or_error "Interrupted"
   | { r = Completed (Error (User { msg; _ })); feedback = _ } ->
-      Error.string_to_or_error_err (Pp.string_of_ppcmds msg)
+      Error.string_to_or_error (Pp.string_of_ppcmds msg)
   | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
-      Error.string_to_or_error_err ("Anomaly " ^ Pp.string_of_ppcmds msg)
+      Error.string_to_or_error ("Anomaly " ^ Pp.string_of_ppcmds msg)
   | { r = Completed (Ok r); feedback = _ } -> Ok r
 
 let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
@@ -43,7 +43,7 @@ let run_with_timeout ~(token : Coq.Limits.Token.t) ~(timeout : int)
       let y = f x in
       completed := true;
       y
-    with Sys.Break -> Error.string_to_or_error_err "Interrupted"
+    with Sys.Break -> Error.string_to_or_error "Interrupted"
 
 let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
     ( (string Coq.Goals.Reified_goal.t, string) Coq.Goals.t option,
@@ -214,8 +214,8 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
   | Ok (Some goals) -> (
       match List.nth_opt goals.goals 0 with
       | Some goal -> Ok goal
-      | None -> Error.string_to_or_error_err "zero goal at this state")
-  | Ok None -> Error.string_to_or_error_err "zero goal at this state"
+      | None -> Error.string_to_or_error "zero goal at this state")
+  | Ok None -> Error.string_to_or_error "zero goal at this state"
   | Error err -> Error err
 
 let print_parents
@@ -405,4 +405,4 @@ let fold_proof_with_state (doc : Rocq_document.t) (token : Coq.Limits.Token.t)
 
   match get_init_state doc p.proposition token with
   | Ok state -> fold_nodes_with_state f state acc proof_nodes
-  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
+  | _ -> Error.string_to_or_error "Unable to retrieve initial state"

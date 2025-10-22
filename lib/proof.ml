@@ -133,7 +133,7 @@ let proof_status_from_last_node (node : Syntax_node.t) :
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
       | VernacSynterp _ ->
-          Error.string_to_or_error_err "not a valid closing node"
+          Error.string_to_or_error "not a valid closing node"
       | VernacSynPure expr -> (
           match expr with
           | Vernacexpr.VernacEndProof proof_end -> (
@@ -142,8 +142,8 @@ let proof_status_from_last_node (node : Syntax_node.t) :
               | Proved _ -> Ok Proved)
           | Vernacexpr.VernacAbort -> Ok Aborted
           | Vernacexpr.VernacAbortAll -> Ok Aborted
-          | _ -> Error.string_to_or_error_err "not a valid closing node"))
-  | None -> Error.string_to_or_error_err "not a valid closing node (no ast)"
+          | _ -> Error.string_to_or_error "not a valid closing node"))
+  | None -> Error.string_to_or_error "not a valid closing node (no ast)"
 
 let get_proof_name (p : proof) : string option =
   List.nth_opt (get_names p.proposition) 0
@@ -174,7 +174,7 @@ let proof_nodes (p : proof) : Syntax_node.t list =
 
 let proof_from_nodes (nodes : Syntax_node.t list) : (proof, Error.t) result =
   if List.length nodes < 2 then
-    Error.string_to_or_error_err
+    Error.string_to_or_error
       ("Not enough elements to create a proof from the nodes.\nnodes: "
       ^ String.concat "" (List.map (fun node -> node.repr) nodes))
   else

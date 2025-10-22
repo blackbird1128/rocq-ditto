@@ -97,8 +97,8 @@ let copy_file (src : string) (dst : string) : (unit, Error.t) result =
     close_out oc;
     Ok ()
   with
-  | Sys_error msg -> Error.string_to_or_error_err msg
-  | e -> Error.string_to_or_error_err (Printexc.to_string e)
+  | Sys_error msg -> Error.string_to_or_error msg
+  | e -> Error.string_to_or_error (Printexc.to_string e)
 
 let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
     : (unit, Error.t) result =
@@ -148,7 +148,7 @@ let make_dir dir_name : (newDirState, Error.t) result =
       Unix.mkdir dir_name perm;
       Ok Created
     with Unix.Unix_error (err, _, _) ->
-      Error.string_to_or_error_err (Unix.error_message err)
+      Error.string_to_or_error (Unix.error_message err)
 
 let set_input_arg (path : string) : unit =
   if is_directory path || Sys.file_exists path then input_arg := path
@@ -221,16 +221,16 @@ let transform_project () : (int, Error.t) result =
   in
 
   if !input_arg = "" then
-    Error.string_to_or_error_err "Please provide an input folder or file"
+    Error.string_to_or_error "Please provide an input folder or file"
   else if !output_arg = "" then
-    Error.string_to_or_error_err "Please provide an output folder or filename"
+    Error.string_to_or_error "Please provide an output folder or filename"
   else if !transformation_arg = "" then
-    Error.string_to_or_error_err "Please provide a transformation"
+    Error.string_to_or_error "Please provide a transformation"
   else
     match get_pathkind !input_arg with
     | File -> (
         if is_directory !output_arg then
-          Error.string_to_or_error_err
+          Error.string_to_or_error
             "Please provide a filename as output when providing a file as input"
         else
           let coqproject_opt =
@@ -266,7 +266,7 @@ let transform_project () : (int, Error.t) result =
           let _, status = Unix.waitpid [] pid in
           match status with
           | Unix.WEXITED 0 -> Ok 0
-          | _ -> Error.string_to_or_error_err (string_of_process_status status))
+          | _ -> Error.string_to_or_error (string_of_process_status status))
     | Dir -> (
         let coqproject_opt = Compile.find_coqproject_dir_and_file !input_arg in
         match coqproject_opt with
@@ -333,7 +333,7 @@ let transform_project () : (int, Error.t) result =
             in
 
             if fst transformations_status != Unix.WEXITED 0 then
-              Error.string_to_or_error_err
+              Error.string_to_or_error
                 (string_of_process_status (fst transformations_status)
                 ^ " filename " ^ snd transformations_status)
             else Ok 0

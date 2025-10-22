@@ -92,7 +92,7 @@ let fold_inspect (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree)
 (*   | Ok state -> *)
 (*       let a = aux state [] 0 proof_tree in *)
 (*       Ok [] *)
-(*   | Error _ -> Error.string_to_or_error_err "Unable to retrieve initial state" *)
+(*   | Error _ -> Error.string_to_or_error "Unable to retrieve initial state" *)
 
 let simple_proof_repair (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
@@ -168,7 +168,7 @@ let simple_proof_repair (doc : Rocq_document.t)
         SyntaxNodeSet.to_list ignore_acc |> List.map (fun x -> Remove x.id)
       in
       Ok (steps_acc @ removed_steps)
-  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
+  | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let admit_branch_at_error (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
@@ -249,7 +249,7 @@ let admit_branch_at_error (doc : Rocq_document.t)
   | Ok state ->
       let _, steps = aux state proof_tree [] in
       Ok steps
-  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
+  | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let cut_replace_branch (cut_tactic : string) (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
@@ -326,7 +326,7 @@ let cut_replace_branch (cut_tactic : string) (doc : Rocq_document.t)
   | Ok state ->
       let _, steps = aux state proof_tree [] in
       Ok steps
-  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
+  | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let fold_replace_assumption_with_apply (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
@@ -477,7 +477,7 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : proof) :
   | Ok state ->
       let steps = aux state [] (proof_nodes proof) in
       Ok steps
-  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
+  | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let compress_intro (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
@@ -513,7 +513,7 @@ let compress_intro (doc : Rocq_document.t) (proof : proof) :
   | Ok state ->
       let steps = aux state ([], []) (proof_nodes proof) in
       Ok steps
-  | _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
+  | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let fold_add_time_taken (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
@@ -859,7 +859,7 @@ let rec get_oneliner (suffix : Syntax_node.t option)
               (fun suffix -> Syntax_node.apply_tac_then x suffix ())
               suffix
           in
-          Option.cata Fun.id (Error.string_to_or_error_err "") res
+          Option.cata Fun.id (Error.string_to_or_error "") res
         else Ok x
       in
 
@@ -892,7 +892,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
 
   match proof_status with
   | None ->
-      Error.string_to_or_error_err
+      Error.string_to_or_error
         "Can't find the proof status of the proof: invalid proof"
   | Some Proof.Aborted | Some Proof.Admitted -> Ok []
   | Some Proof.Proved -> (

@@ -35,7 +35,7 @@ let arg_to_transformation_kind (arg : string) :
   else if normalized = "compress_intro" then Ok CompressIntro
   else if normalized = "id_transformation" then Ok IdTransformation
   else
-    Error.string_to_or_error_err
+    Error.string_to_or_error
       ("transformation " ^ arg ^ " wasn't recognized as a valid transformation")
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : proof) :
@@ -153,32 +153,29 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
 
   match doc.completed with
   | Doc.Completion.Stopped range_stop ->
-      Error.string_to_or_error_err
-        (Printf.sprintf
-           "parsing stopped at %s\n\
-            %s\n\
-            NOTE: errors after the first might be due to the first error."
-           (Lang.Range.to_string range_stop)
-           (String.concat "\n"
-              (List.map Diagnostic_utils.diagnostic_to_string limited_errors)))
+      Error.format_to_or_error
+        "parsing stopped at %s\n\
+         %s\n\
+         NOTE: errors after the first might be due to the first error."
+        (Lang.Range.to_string range_stop)
+        (String.concat "\n"
+           (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
   | Doc.Completion.Failed range_failed ->
-      Error.string_to_or_error_err
-        (Printf.sprintf
-           "parsing failed at %s\n\
-            %s\n\
-            NOTE: errors after the first might be due to the first error."
-           (Lang.Range.to_string range_failed)
-           (String.concat "\n"
-              (List.map Diagnostic_utils.diagnostic_to_string limited_errors)))
+      Error.format_to_or_error
+        "parsing failed at %s\n\
+         %s\n\
+         NOTE: errors after the first might be due to the first error."
+        (Lang.Range.to_string range_failed)
+        (String.concat "\n"
+           (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
   | Doc.Completion.Yes _ -> (
       if errors <> [] then
-        Error.string_to_or_error_err
-          (Printf.sprintf
-             "Document was parsed with errors:\n\
-              %s\n\
-              NOTE: errors after the first might be due to the first error."
-             (String.concat "\n"
-                (List.map Diagnostic_utils.diagnostic_to_string limited_errors)))
+        Error.format_to_or_error
+          "Document was parsed with errors:\n\
+           %s\n\
+           NOTE: errors after the first might be due to the first error."
+          (String.concat "\n"
+             (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
       else
         let transformations_steps =
           Sys.getenv_opt "DITTO_TRANSFORMATION"
@@ -188,7 +185,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
 
         match transformations_steps with
         | None ->
-            Error.string_to_or_error_err
+            Error.string_to_or_error
               "Please specify the wanted transformation using the environment \
                variable: DITTO_TRANSFORMATION\n\
                If you want help about the different transformation, specify \
@@ -208,13 +205,12 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                    (fun x -> Error.to_string_hum (Result.get_error x))
                    ((List.filter Result.is_error) steps))
             in
-            Error.string_to_or_error_err
-              (Printf.sprintf
-                 "Transformations not recognized:\n\
-                  %s\n\
-                  Recognized transformations: %s"
-                 not_recognized
-                 (String.concat "\n" transformations_list))
+            Error.format_to_or_error
+              "Transformations not recognized:\n\
+               %s\n\
+               Recognized transformations: %s"
+              not_recognized
+              (String.concat "\n" transformations_list)
         | Some steps when List.mem (Ok Help) steps ->
             print_help transformations_help;
             Ok ()

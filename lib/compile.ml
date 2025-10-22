@@ -59,11 +59,10 @@ let coqproject_sorted_files (coqproject_file : string) :
            (fun x -> String.length x > 0)
            (String.split_on_char ' ' (List.hd lines)))
   | Unix.WEXITED n ->
-      Error.string_to_or_error_err
-        (Printf.sprintf "%s exited with %d; output:\n%s"
-           Rocq_version.dep_executable n (String.concat "\n" lines))
+      Error.format_to_or_error "%s exited with %d; output:\n%s"
+        Rocq_version.dep_executable n (String.concat "\n" lines)
   | _ ->
-      Error.string_to_or_error_err
+      Error.string_to_or_error
         (Rocq_version.dep_executable ^ " terminated abnormally")
 
 let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
