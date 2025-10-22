@@ -144,9 +144,7 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
   let init_state = doc.initial_state in
   List.fold_left
     (fun state node ->
-      match state with
-      | Ok state -> run_node token state node
-      | Error err -> Error err)
+      match state with Ok state -> run_node token state node | err -> err)
     (Ok init_state) nodes_before
 
 let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
@@ -220,8 +218,8 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
   | Ok None -> Error.string_to_or_error_err "zero goal at this state"
   | Error err -> Error err
 
-let print_parents (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) :
-    unit =
+let print_parents
+    (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) : unit =
   Hashtbl.iter
     (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
       Printf.printf
@@ -316,7 +314,7 @@ let treeify_proof (doc : Rocq_document.t) (p : proof) :
       let parents = Hashtbl.create (List.length steps_with_goals) in
       let _ = get_parents_rec steps_with_goals [] 0 parents in
       Ok (proof_tree_from_parents (0, p.proposition) parents)
-  | Error _ -> Error.string_to_or_error_err "Unable to retrieve initial state"
+  | Error err -> Error err
 
 let is_valid_proof (doc : Rocq_document.t) (p : proof) : bool =
   let token = Coq.Limits.Token.create () in
@@ -343,8 +341,11 @@ let tree_to_proof (tree : Syntax_node.t nary_tree) : proof =
 let depth_first_fold_with_state (doc : Rocq_document.t)
     (token : Coq.Limits.Token.t)
     (f :
-      Coq.State.t -> 'acc -> Syntax_node.t -> (Coq.State.t * 'acc, Error.t) result)
-    (acc : 'acc) (tree : Syntax_node.t nary_tree) : ('acc, Error.t) result =
+      Coq.State.t ->
+      'acc ->
+      Syntax_node.t ->
+      (Coq.State.t * 'acc, Error.t) result) (acc : 'acc)
+    (tree : Syntax_node.t nary_tree) : ('acc, Error.t) result =
   let ( let* ) = Result.bind in
 
   let rec aux
@@ -377,9 +378,11 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
 
 let fold_nodes_with_state
     (f :
-      Coq.State.t -> 'acc -> Syntax_node.t -> (Coq.State.t * 'acc, Error.t) result)
-    (init_state : Coq.State.t) (acc : 'acc) (l : Syntax_node.t list) :
-    ('acc, 'err) result =
+      Coq.State.t ->
+      'acc ->
+      Syntax_node.t ->
+      (Coq.State.t * 'acc, Error.t) result) (init_state : Coq.State.t)
+    (acc : 'acc) (l : Syntax_node.t list) : ('acc, 'err) result =
   let ( let* ) = Result.bind in
   let rec aux (l : Syntax_node.t list) (state : Coq.State.t) (acc : 'acc) :
       (Coq.State.t * 'acc, Error.t) result =
@@ -393,8 +396,11 @@ let fold_nodes_with_state
 
 let fold_proof_with_state (doc : Rocq_document.t) (token : Coq.Limits.Token.t)
     (f :
-      Coq.State.t -> 'acc -> Syntax_node.t -> (Coq.State.t * 'acc, Error.t) result)
-    (acc : 'acc) (p : Proof.proof) : ('acc, Error.t) result =
+      Coq.State.t ->
+      'acc ->
+      Syntax_node.t ->
+      (Coq.State.t * 'acc, Error.t) result) (acc : 'acc) (p : Proof.proof) :
+    ('acc, Error.t) result =
   let proof_nodes = Proof.proof_nodes p in
 
   match get_init_state doc p.proposition token with

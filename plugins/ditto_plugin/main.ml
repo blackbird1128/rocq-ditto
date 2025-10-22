@@ -38,18 +38,21 @@ let arg_to_transformation_kind (arg : string) :
     Error.string_to_or_error_err
       ("transformation " ^ arg ^ " wasn't recognized as a valid transformation")
 
-let wrap_to_treeify (doc : Rocq_document.t) (x : proof) =
-  Result.get_ok (Runner.treeify_proof doc x)
+let wrap_to_treeify (doc : Rocq_document.t) (x : proof) :
+    (Syntax_node.t Nary_tree.nary_tree, Error.t) result =
+  Runner.treeify_proof doc x
 
 let transformation_kind_to_function (kind : transformation_kind) :
     Rocq_document.t -> Proof.proof -> (transformation_step list, Error.t) result
     =
+  let ( let* ) = Result.bind in
   match kind with
   | Help -> fun _ _ -> Ok []
   | ExplicitFreshVariables -> Transformations.explicit_fresh_variables
   | TurnIntoOneliner ->
       fun doc x ->
-        Transformations.turn_into_oneliner doc (wrap_to_treeify doc x)
+        let* proof_tree = wrap_to_treeify doc x in
+        Transformations.turn_into_oneliner doc proof_tree
   | ReplaceAutoWithSteps -> Transformations.replace_auto_with_steps
   | CompressIntro -> Transformations.compress_intro
   | IdTransformation -> Transformations.id_transform

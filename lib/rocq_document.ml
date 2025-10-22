@@ -262,7 +262,8 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
 let dump_to_string (doc : t) : (string, Error.t) result =
   dump_elements_to_string doc.elements
 
-let element_with_id_opt (element_id : Uuidm.t) (doc : t) : Syntax_node.t option =
+let element_with_id_opt (element_id : Uuidm.t) (doc : t) : Syntax_node.t option
+    =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
 
 let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) : proof option =
@@ -317,6 +318,7 @@ let num_chars_last_line (x : Syntax_node.t) : int =
 
 let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
     (doc : t) : (t, Error.t) result =
+  let ( let* ) = Result.bind in
   match element_with_id_opt target_id doc with
   | None ->
       Error.string_to_or_error_err
@@ -344,12 +346,8 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
       match remove_method with
       | LeaveBlank ->
           let elements = before @ after in
-          Ok
-            {
-              doc with
-              elements = before @ after;
-              document_repr = dump_elements_to_string elements |> Result.get_ok;
-            }
+          let* doc_repr = dump_elements_to_string elements in
+          Ok { doc with elements; document_repr = doc_repr }
       | ShiftNode ->
           let line_shift =
             if node_before_on_start_line then -(block_height - 1)
@@ -367,25 +365,17 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
                     else x)
                   after
             in
-            Ok
-              {
-                doc with
-                elements;
-                document_repr =
-                  dump_elements_to_string elements |> Result.get_ok;
-              }
+            let* document_repr = dump_elements_to_string elements in
+            Ok { doc with elements; document_repr }
           else
             let elements = before @ List.map (shift_node line_shift 0) after in
-            Ok
-              {
-                doc with
-                elements;
-                document_repr =
-                  dump_elements_to_string elements |> Result.get_ok;
-              })
+            let* document_repr = dump_elements_to_string elements in
+            Ok { doc with elements; document_repr })
 
 let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
+  let ( let* ) = Result.bind in
+
   let element_before_new_node_start, element_after_new_node_start =
     List.partition (fun node -> compare_nodes node new_node < 0) doc.elements
   in
@@ -439,12 +429,8 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
                      else node)
                    element_after_new_node_start
           in
-          Ok
-            {
-              doc with
-              elements;
-              document_repr = dump_elements_to_string elements |> Result.get_ok;
-            }
+          let* document_repr = dump_elements_to_string elements in
+          Ok { doc with elements; document_repr }
   | ShiftVertically ->
       let line_shift =
         if List.length (colliding_nodes new_node doc.elements) = 0 then 0
@@ -457,12 +443,8 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
                (fun node -> shift_node line_shift 0 node)
                element_after_new_node_start
       in
-      Ok
-        {
-          doc with
-          elements;
-          document_repr = dump_elements_to_string elements |> Result.get_ok;
-        }
+      let* document_repr = dump_elements_to_string elements in
+      Ok { doc with elements; document_repr }
 
 let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
     (t, Error.t) result =
@@ -605,16 +587,16 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
             match attached_node.ast with
             | Some _ ->
                 let node =
-                  Result.get_ok
-                    (Syntax_node.syntax_node_of_string attached_node.repr
-                       new_node_range.start)
+                  Syntax_node.syntax_node_of_string attached_node.repr
+                    new_node_range.start
+                  |> Result.get_ok
                 in
                 { node with id = attached_node.id }
             | None ->
                 let node =
-                  Result.get_ok
-                    (Syntax_node.comment_syntax_node_of_string
-                       attached_node.repr new_node_range.start)
+                  Syntax_node.comment_syntax_node_of_string attached_node.repr
+                    new_node_range.start
+                  |> Result.get_ok
                 in
                 { node with id = attached_node.id }
           in

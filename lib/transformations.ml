@@ -923,10 +923,10 @@ let turn_into_oneliner (_ : Rocq_document.t)
       match cleaned_tree with
       | None -> Ok []
       | Some cleaned_tree ->
-          (* Helper: map children with error propagation *)
           let* one_liner_node = get_oneliner suffix_node cleaned_tree in
 
           let flattened = Nary_tree.flatten proof_tree in
+
           let remove_steps =
             List.filter_map
               (fun node ->
@@ -944,6 +944,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
             Syntax_node.syntax_node_of_string one_liner_node.repr
               first_step_node.range.start
           in
+          Logs.debug (fun m -> m "one liner node: %s" one_liner_node.repr);
 
           let* proof_node =
             Syntax_node.syntax_node_of_string "Proof."
