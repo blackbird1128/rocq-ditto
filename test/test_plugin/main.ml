@@ -1100,6 +1100,22 @@ let test_turn_into_onliner_goal_select (doc : Doc.t) () : unit =
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
+let test_turn_into_onliner_match (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+
+  let doc = Rocq_document.parse_document doc in
+
+  let parsed_target = get_target uri_str in
+
+  let new_doc =
+    Transformations.apply_proof_tree_transformation
+      Transformations.turn_into_oneliner doc
+  in
+
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -1595,7 +1611,9 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "test turning into a oneliner a proof with a goal selector"
        test_turn_into_onliner_goal_select doc);
-
+  Hashtbl.add table "ex_match_oneliner.v"
+    (create_fixed_test "test turning into a oneliner a proof with a match ltac"
+       test_turn_into_onliner_match doc);
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
   (*      test_replace_auto_using_zarith_by_steps doc); *)
