@@ -313,7 +313,7 @@ let is_syntax_node_proof_with (x : t) : bool =
           | _ -> false))
   | None -> false
 
-[%%if rocq_version <= (9, 0, 0)]
+[%%if rocq_version <= (9, 0, 1)]
 
 let get_syntax_node_proof_with_tactic (x : t) : string option =
   match x.ast with
