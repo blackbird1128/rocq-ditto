@@ -6,75 +6,6 @@ open Runner
 open Sexplib.Conv
 open Re
 
-let depth_to_bullet_type (depth : int) =
-  let bullet_number = 1 + (depth / 3) in
-  match depth mod 3 with
-  | 0 -> VernacBullet (Proof_bullet.Dash bullet_number)
-  | 1 -> VernacBullet (Proof_bullet.Plus bullet_number)
-  | 2 -> VernacBullet (Proof_bullet.Star bullet_number)
-  | _ -> VernacBullet (Proof_bullet.Dash bullet_number)
-
-let create_annotated_ast_bullet (depth : int) (starting_point : Code_point.t) :
-    Syntax_node.t =
-  let control_r =
-    {
-      control = [];
-      attrs = [];
-      expr =
-        VernacSynPure (depth_to_bullet_type depth)
-        (* The pure expression we created *);
-    }
-  in
-  let vernac_control = CAst.make control_r in
-  let ast_node = Coq.Ast.of_coq vernac_control in
-  syntax_node_of_coq_ast ast_node starting_point
-
-let pp_goal (goal : string Coq.Goals.Reified_goal.t) : unit =
-  print_endline ("Goal : " ^ goal.ty);
-  print_endline "---------------------";
-  print_endline "Hypothesis: ";
-  List.iter
-    (fun (hyp : string Coq.Goals.Reified_goal.hyp) ->
-      List.iter (fun name -> print_endline name) hyp.names)
-    goal.hyps;
-  print_endline "----------------------";
-  ()
-
-let pp_goal_stack
-    (stack :
-      (string Coq.Goals.Reified_goal.t list
-      * string Coq.Goals.Reified_goal.t list)
-      list) =
-  print_endline ("size stack : " ^ string_of_int (List.length stack));
-  List.iter
-    (fun elem ->
-      List.iter
-        (fun (goal : string Coq.Goals.Reified_goal.t) -> pp_goal goal)
-        (snd elem))
-    stack;
-  ()
-
-let fold_inspect (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree)
-    : unit =
-  let token = Coq.Limits.Token.create () in
-
-  let _ =
-    Runner.depth_first_fold_with_state doc token
-      (fun state acc node ->
-        let state_node = Result.get_ok (Runner.run_node token state node) in
-        let goals_err_opt = Runner.goals ~token ~st:state_node in
-        match goals_err_opt with
-        | Ok (Some goals) ->
-            List.iter pp_goal goals.goals;
-            print_endline "\n";
-            Ok (state_node, node :: acc)
-        | _ ->
-            print_endline "error getting goals";
-            Ok (state_node, node :: acc))
-      [] proof_tree
-  in
-  ()
-
 (* let add_bullets (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree) : *)
 (*     (transformation_step list, Error.t) result = *)
 (*   let token = Coq.Limits.Token.create () in *)
@@ -562,17 +493,6 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : proof) :
   | Ok acc -> Ok acc
   | Error err -> Error err
 
-(* TODO move this somewhere sensible *)
-
-let print_parents
-    (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) : unit =
-  Hashtbl.iter
-    (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
-      Printf.printf
-        "Parent: (idx: %d, tactic: %s) -> Child: (idx: %d, tactic: %s)\n" k_idx
-        k_tactic.repr v_idx v_tactic.repr)
-    parents
-
 let replace_auto_with_steps (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
@@ -805,31 +725,6 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : proof) :
   in
   res
 
-let chop_dot (x : string) : (string, Error.t) result =
-  let len = String.length x in
-  if len = 0 then
-    Error (Error.tag (Error.of_string "chop_dot: empty string") ~tag:"chop_dot")
-  else if x.[len - 1] <> '.' then
-    Error
-      (Error.tag_arg
-         (Error.of_string "chop_dot: expected string ending with '.'")
-         "string" x [%sexp_of: string])
-  else Ok (String.sub x 0 (len - 1))
-
-let chop_ellipsis (x : string) : (string, Error.t) result =
-  let len = String.length x in
-  if len = 0 then
-    Error
-      (Error.tag
-         (Error.of_string "chop_ellipsis: empty string")
-         ~tag:"chop_ellipsis")
-  else if len < 3 || not (String.ends_with ~suffix:"..." x) then
-    Error
-      (Error.tag_arg
-         (Error.of_string "chop_ellipsis: expected string ending with '...'")
-         "string" x [%sexp_of: string])
-  else Ok (String.sub x 0 (len - 3))
-
 let ( let* ) = Result.bind
 
 let map_children f lst =
@@ -859,6 +754,7 @@ let rec get_oneliner (suffix : Syntax_node.t option)
               (fun suffix -> Syntax_node.apply_tac_then x suffix ())
               suffix
           in
+          (* this remove the ellipsis as well *)
           Option.cata Fun.id (Error.string_to_or_error "") res
         else Ok x
       in
@@ -944,7 +840,6 @@ let turn_into_oneliner (_ : Rocq_document.t)
             Syntax_node.syntax_node_of_string one_liner_node.repr
               first_step_node.range.start
           in
-          Logs.debug (fun m -> m "one liner node: %s" one_liner_node.repr);
 
           let* proof_node =
             Syntax_node.syntax_node_of_string "Proof."
@@ -964,25 +859,6 @@ let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
   let pp = Ppconstr.pr_constr_expr env sigma x in
   Pp.string_of_ppcmds pp
 
-let log_bindings (x : Constrexpr.constr_expr Tactypes.with_bindings) : unit =
-  match x with
-  | expr, bindings -> (
-      Logs.debug (fun m -> m "expr: %s" (constrexpr_to_string expr));
-      match bindings with
-      | Tactypes.ImplicitBindings binds ->
-          Logs.debug (fun m -> m "implicit bindings");
-          List.iter
-            (fun x ->
-              Logs.debug (fun m -> m "bind: %s" (constrexpr_to_string x)))
-            binds
-      | Tactypes.ExplicitBindings binds ->
-          Logs.debug (fun m -> m "explicit bindings")
-      (* List.iter *)
-      (*   (fun x -> *)
-      (*     Logs.debug (fun m -> m "bind: %s" (constrexpr_to_string x))) *)
-      (*   binds *)
-      | Tactypes.NoBindings -> Logs.debug (fun m -> m "no binding"))
-
 let destruction_arg_to_string
     (x : Constrexpr.constr_expr Tactypes.with_bindings Tactics.destruction_arg)
     : string =
@@ -996,69 +872,107 @@ let destruction_arg_to_string
       Names.Id.to_string id
   | Tactics.ElimOnAnonHyp _ -> "anonymous"
 
+let is_syntax_node_intros_without_set_var (x : Syntax_node.t) : bool =
+  match Syntax_node.get_node_raw_atomic_tactic_expr x with
+  | Some (TacIntroPattern (_, intro_pattern)) -> (
+      match intro_pattern with
+      | [ { v; _ } ] -> (
+          match v with Tactypes.IntroForthcoming false -> true | _ -> false)
+      | _ -> false)
+  | _ -> false
+
+let string_to_intro_pattern_naming_expr (x : string) :
+    Namegen.intro_pattern_naming_expr option =
+  let ( let* ) = Option.bind in
+  let* name =
+    try Some (Names.Id.of_string x) with CErrors.UserError err -> None
+  in
+  Some (Namegen.IntroFresh name)
+
+let string_to_intro_pattern_expr (x : string) :
+    'constr Tactypes.intro_pattern_expr option =
+  Option.map
+    (fun a -> Tactypes.IntroNaming a)
+    (string_to_intro_pattern_naming_expr x)
+
 let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
-  let rewrite_intros (_ : Syntax_node.t) (new_vars : string list list option) :
-      string option =
+  let rewrite_intros (x : Syntax_node.t) (new_vars : string list list option) :
+      Syntax_node.t option =
     match new_vars with
     | Some new_vars ->
-        Some ("intros " ^ String.concat " " (List.hd new_vars) ^ ".")
+        let raw_atomic_expr =
+          Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
+        in
+
+        let eflag, pats =
+          match raw_atomic_expr with
+          | TacIntroPattern (e, p) -> (e, p)
+          | _ -> assert false
+        in
+
+        let hd = List.hd new_vars in
+        let intro_pattern_expr =
+          List.map
+            (fun x -> string_to_intro_pattern_expr x |> Option.get |> CAst.make)
+            hd
+        in
+        let new_atomic_expr =
+          Ltac_plugin.Tacexpr.TacIntroPattern (eflag, intro_pattern_expr)
+        in
+
+        let node =
+          Syntax_node.syntax_node_of_string
+            ("intros " ^ String.concat " " (List.hd new_vars) ^ ".")
+            x.range.start
+          |> Result.to_option
+        in
+        node
     | None -> None
   in
 
-  let rewrite_induction (node : Syntax_node.t)
-      (new_vars : string list list option) : string option =
-    Logs.debug (fun m -> m "treating: %s" node.repr);
-    match new_vars with
-    | Some new_vars -> (
-        Logs.debug (fun m -> m "NEW VARS !");
-        let raw_expr =
-          Syntax_node.get_node_raw_tactic_expr node |> Option.get
-        in
-        let raw_atomic = Ltac.get_raw_atomic_tactic_expr raw_expr in
-        match raw_atomic with
-        | Some (TacInductionDestruct (rec_flag, eval_flag, ind_clause_list)) ->
-            let induction_clause_list, bindings = ind_clause_list in
-            List.iter
-              (fun ( destruction_arg,
-                     (as_opt, intro_pattern_opt),
-                     optional_binding ) ->
-                Logs.debug (fun m ->
-                    m "destruction arg: %s"
-                      (destruction_arg_to_string destruction_arg)))
-              induction_clause_list;
-            None
-        | _ -> None)
-    | _ -> None
-  in
-
   let rewriters :
-      (string * (Syntax_node.t -> string list list option -> string option))
+      ((Syntax_node.t -> bool)
+      * (Syntax_node.t -> string list list option -> Syntax_node.t option))
       list =
-    [ ("intros.", rewrite_intros); ("induction", rewrite_induction) ]
+    [ (is_syntax_node_intros_without_set_var, rewrite_intros) ]
   in
 
-  let find_rewriter (node_repr : string) :
-      (Syntax_node.t -> string list list option -> string option) option =
+  let find_rewriter (node : Syntax_node.t) :
+      (Syntax_node.t -> string list list option -> Syntax_node.t option) option
+      =
     List.find_map
-      (fun (prefix, f) ->
-        if String.starts_with ~prefix node_repr then Some f else None)
+      (fun (predicate, rewriter) ->
+        if predicate node then Some rewriter else None)
       rewriters
   in
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
       let* new_state = Runner.run_node token state node in
-      match find_rewriter node.repr with
+      let raw_atomic_expr = Syntax_node.get_node_raw_atomic_tactic_expr node in
+
+      let args = get_tactic_raw_generic_arguments node in
+      Option.iter
+        (fun args ->
+          let sexps =
+            List.map Serlib.Ser_genarg.sexp_of_raw_generic_argument args
+          in
+
+          List.iter
+            (fun x ->
+              Logs.debug (fun m -> m "%s" (Sexplib.Sexp.to_string_hum x)))
+            sexps)
+        args;
+
+      match find_rewriter node with
       | Some rewriter -> (
           let* old_goals = Runner.goals ~token ~st:state in
-          Logs.debug (fun m ->
-              m "old goals len: %d" (List.length (Option.get old_goals).goals));
+
           let* new_goals = Runner.goals ~token ~st:new_state in
-          Logs.debug (fun m ->
-              m "new goals len: %d" (List.length (Option.get old_goals).goals));
+
           let old_goals_vars =
             Option.map
               (fun (x :
@@ -1082,10 +996,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
           let new_vars =
             match (old_goals_vars, new_goals_vars) with
             | Some old_goals_vars, Some new_goals_vars ->
-                Logs.debug (fun m ->
-                    m "old goals vars len: %d" (List.length old_goals_vars));
-                Logs.debug (fun m ->
-                    m "new goals vars len: %d" (List.length new_goals_vars));
                 Some
                   (List_utils.map2_pad
                      ~pad2:(List.nth_opt old_goals_vars 0)
@@ -1097,10 +1007,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
 
           match rewriter node new_vars with
           | Some x ->
-              let* explicit_node =
-                Syntax_node.syntax_node_of_string x node.range.start
-              in
-              let r = Replace (node.id, explicit_node) in
+              let r = Replace (node.id, x) in
               Ok (new_state, r :: acc)
           | None -> Ok (new_state, acc))
       | None -> Ok (new_state, acc))

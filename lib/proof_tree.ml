@@ -25,12 +25,3 @@ let apply_transformation_step (step : transformation_step)
   | Attach _ ->
       Error.string_to_or_error
         "WIP: applying attach transformation step not supported yet"
-
-let apply_transformations_steps (steps : transformation_step list)
-    (proof_tree : proof_tree) : (proof_tree, Error.t) result =
-  List.fold_left
-    (fun proof_tree_acc step ->
-      match proof_tree_acc with
-      | Ok acc -> apply_transformation_step step acc
-      | Error err -> Error err)
-    (Ok proof_tree) steps

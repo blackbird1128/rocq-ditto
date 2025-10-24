@@ -44,10 +44,6 @@ val validate_syntax_node : t -> (t, Error.t) result
 val mk_vernac_control :
   ?loc:Loc.t -> synterp_vernac_expr vernac_expr_gen -> vernac_control
 
-val doc_node_of_yojson : Yojson.Safe.t -> Doc.Node.Ast.t
-(** [doc_node_of_yojson json] convert a compatible element of type
-    [Yojson.Safe.t] into an element of type [Doc.Node.Ast.t] *)
-
 val shift_point : int -> int -> Code_point.t -> Code_point.t
 (** [shift_point n_line n_char point] shift [point] by [n_line], and [n_char].
 *)
@@ -134,7 +130,12 @@ val tactic_raw_generic_arguments_to_syntax_node :
   extend_name -> Genarg.raw_generic_argument list -> Code_point.t -> t option
 
 val get_node_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
+
+val get_node_raw_atomic_tactic_expr :
+  t -> Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option
+
 val get_node_ltac_elements : t -> ltac_elements option
+val is_syntax_node_intros : t -> bool
 
 val apply_tac_then :
   t -> t -> ?start_point:Code_point.t -> unit -> (t, Error.t) result

@@ -4,8 +4,7 @@ open Proof
 
 let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) Result.t =
   match r with
-  | { r = Interrupted; feedback = _ } ->
-      Error.string_to_or_error "Interrupted"
+  | { r = Interrupted; feedback = _ } -> Error.string_to_or_error "Interrupted"
   | { r = Completed (Error (User { msg; _ })); feedback = _ } ->
       Error.string_to_or_error (Pp.string_of_ppcmds msg)
   | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
@@ -218,25 +217,7 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
   | Ok None -> Error.string_to_or_error "zero goal at this state"
   | Error err -> Error err
 
-let print_parents
-    (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) : unit =
-  Hashtbl.iter
-    (fun (k_idx, k_tactic) (v_idx, v_tactic) ->
-      Printf.printf
-        "Parent: (idx: %d, tactic: %s) -> Child: (idx: %d, tactic: %s)\n" k_idx
-        k_tactic.repr v_idx v_tactic.repr)
-    parents
-
 type parent_category = Fork | Linear
-
-let print_prev_pars
-    (prev_pars : (int * int * Syntax_node.t * parent_category) list) : unit =
-  List.iter
-    (fun (goal_count, id, _, _) ->
-      print_endline
-        ("goal count: " ^ string_of_int goal_count ^ " node id: "
-       ^ string_of_int id))
-    prev_pars
 
 let rec pop_until_free_fork
     (prev_pars : (int * int * Syntax_node.t * parent_category) list)

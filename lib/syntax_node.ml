@@ -164,40 +164,6 @@ let syntax_node_of_string (code : string) (start_point : Code_point.t) :
         Error (Error.of_string ("more than one node found in string " ^ code))
     | Error err -> Error err
 
-let nodes_of_string (code : string) (ranges : Code_range.t list) :
-    (t list, string) result =
-  match generate_ast code with
-  | Ok [] -> Ok []
-  | Ok l ->
-      let length_l = List.length l in
-      let num_ranges = List.length ranges in
-
-      if length_l != num_ranges then
-        Error
-          (Printf.sprintf
-             "The number of generated AST nodes (%d) does not match the number \
-              of provided ranges (%d)."
-             length_l num_ranges)
-      else
-        Ok
-          (List.map2
-             (fun x range ->
-               let node_ast : Doc.Node.Ast.t =
-                 { v = Coq.Ast.of_coq x; ast_info = None }
-               in
-
-               {
-                 ast = Some node_ast;
-                 range;
-                 id = Unique_id.uuid ();
-                 (* id is set during document insertion *)
-                 repr = code;
-                 proof_id = None;
-                 diagnostics = [];
-               })
-             l ranges)
-  | Error err -> Error.to_string_result err
-
 let remove_outer_parentheses s =
   let len = String.length s in
   if len >= 2 && s.[0] = '(' && s.[len - 2] = ')' && s.[len - 1] = '.' then
@@ -235,14 +201,6 @@ let string_of_syntax_node (node : t) : string =
   match node.ast with
   | Some ast -> Ppvernac.pr_vernac (Coq.Ast.to_coq ast.v) |> Pp.string_of_ppcmds
   | None -> node.repr
-
-let doc_node_of_yojson (json : Yojson.Safe.t) : Doc.Node.Ast.t =
-  let open Yojson.Safe.Util in
-  {
-    v = json |> member "v" |> Lsp.JCoq.Ast.of_yojson |> Result.get_ok;
-    ast_info = None;
-  }
-(* TODO treat AST info *)
 
 let shift_point (n_line : int) (n_char : int) (x : Code_point.t) : Code_point.t
     =
@@ -523,6 +481,11 @@ let get_node_raw_tactic_expr (x : t) :
   |> Option.map raw_arguments_to_raw_tactic_expr
   |> Option.flatten
 
+let get_node_raw_atomic_tactic_expr (x : t) :
+    Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option =
+  let raw_expr = get_node_raw_tactic_expr x in
+  Option.map Ltac.get_raw_atomic_tactic_expr raw_expr |> Option.flatten
+
 let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
     t option =
@@ -534,6 +497,17 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
       let ast_node = Coq.Ast.of_coq control in
       Some (syntax_node_of_coq_ast ast_node starting_point)
   | _ -> None
+
+(* let raw_tactic_expr_to_syntax_node (x: Ltac_plugin.Tacexpr.raw_tactic_expr) (starting_point: Code_point.t) : (t, Error.t) result = *)
+
+let is_syntax_node_intros (x : t) : bool =
+  let raw_tactic_expr = get_node_raw_tactic_expr x in
+  let raw_atomic_expr =
+    Option.map Ltac.get_raw_atomic_tactic_expr raw_tactic_expr
+  in
+  match Option.flatten raw_atomic_expr with
+  | Some (Ltac_plugin.Tacexpr.TacIntroPattern _) -> true
+  | _ -> false
 
 let apply_tac_thens (a : t) (l : t list)
     ?(start_point : Code_point.t = a.range.start) () : (t, Error.t) result =
