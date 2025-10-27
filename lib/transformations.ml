@@ -883,6 +883,14 @@ let is_syntax_node_intros_without_set_var (x : Syntax_node.t) : bool =
       | _ -> false)
   | _ -> false
 
+let is_syntax_node_induction (x : Syntax_node.t) : bool =
+  match Syntax_node.get_node_raw_atomic_tactic_expr x with
+  | Some
+      (TacInductionDestruct (true, false, (induction_clause_l, with_bindings)))
+    ->
+      true
+  | _ -> false
+
 let string_to_intro_pattern_naming_expr (x : string) :
     Namegen.intro_pattern_naming_expr option =
   let ( let* ) = Option.bind in
@@ -904,33 +912,29 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
 
   let rewrite_intros (x : Syntax_node.t) (new_vars : string list list option) :
       Syntax_node.t option =
+    let open Ltac_plugin.Tacexpr in
     match new_vars with
     | Some new_vars ->
         let raw_atomic_expr =
           Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
         in
 
-        let eflag, pats =
+        let eflag, _ =
           match raw_atomic_expr with
           | TacIntroPattern (e, p) -> (e, p)
           | _ -> assert false
         in
 
-        let hd = List.hd new_vars in
         let intro_pattern_expr =
-          List.map
-            (fun x -> string_to_intro_pattern_expr x |> Option.get |> CAst.make)
-            hd
-        in
-        let new_atomic_expr =
-          Ltac_plugin.Tacexpr.TacIntroPattern (eflag, intro_pattern_expr)
+          List.hd new_vars
+          |> List.map (fun x ->
+              string_to_intro_pattern_expr x |> Option.get |> CAst.make)
         in
         let new_raw_tac =
-          Ltac_plugin.Tacexpr.TacAtom new_atomic_expr |> CAst.make
+          TacAtom (TacIntroPattern (eflag, intro_pattern_expr)) |> CAst.make
         in
         let node =
-          Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac None false
-            x.range.start
+          Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
           |> Result.to_option
         in
         node
@@ -955,7 +959,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
       let* new_state = Runner.run_node token state node in
-      let raw_atomic_expr = Syntax_node.get_node_raw_atomic_tactic_expr node in
 
       let args = get_tactic_raw_generic_arguments node in
       Option.iter

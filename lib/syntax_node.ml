@@ -500,7 +500,7 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
 
 let raw_tactic_expr_to_syntax_node
     (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
-    (selector : Goal_select.t option) (use_default : bool)
+    ?(selector : Goal_select.t option) ?(use_default = false)
     (starting_point : Code_point.t) : (t, Error.t) result =
   let selector_raw_arg =
     Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector

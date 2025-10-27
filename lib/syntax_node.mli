@@ -131,8 +131,8 @@ val tactic_raw_generic_arguments_to_syntax_node :
 
 val raw_tactic_expr_to_syntax_node :
   Ltac_plugin.Tacexpr.raw_tactic_expr ->
-  Goal_select.t option ->
-  bool ->
+  ?selector:Goal_select.t ->
+  ?use_default:bool ->
   Code_point.t ->
   (t, Error.t) result
 
