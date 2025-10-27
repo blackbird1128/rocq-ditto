@@ -10,7 +10,6 @@ transform them into different representations.
 
 ## install
 
-
 ### prerequisites
 
 To install `rocq-ditto`, you will first need a working and initialized `opam` installation.
@@ -23,7 +22,7 @@ eval $(opam env)
 mkdir -p vendor/
 ln -d _opam/bin/rocq _opam/bin/coqc # this is needed for now so that dune can use coq variables like %{coq:version.major}
 cp ./_opam/bin/fcc ./vendor/fcc
-dune build --profile=release
+make build
 ```
 Otherwise, to install with a specific Rocq version, use the following instructions:
 ```shell
@@ -32,7 +31,7 @@ opam pin add coq-core $ROCQ_VERSION_HERE # (ie 8.20.0)
 opam install . --deps-only
 mkdir -p vendor/
 cp ./_opam/bin/fcc ./vendor/fcc
-dune build --profile=release
+make build
 ```
 
 To run `rocq-ditto` on a project needing Rocq libraries, install them in the same switch as `rocq-ditto`
