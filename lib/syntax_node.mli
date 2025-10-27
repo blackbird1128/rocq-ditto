@@ -68,7 +68,7 @@ val is_syntax_node_tactic : t -> bool
 (** [is_syntax_node_tactic x] checks if [x] represents a tactic. *)
 
 val is_syntax_node_bullet : t -> bool
-(** [is_syntax_node_bullet x] check if [x] is a Coq bullet made of repeated -,
+(** [is_syntax_node_bullet x] check if [x] is a Rocq bullet made of repeated -,
     + or * symbols *)
 
 val is_syntax_node_opening_bracket : t -> bool
@@ -128,6 +128,13 @@ val get_tactic_raw_generic_arguments :
 
 val tactic_raw_generic_arguments_to_syntax_node :
   extend_name -> Genarg.raw_generic_argument list -> Code_point.t -> t option
+
+val raw_tactic_expr_to_syntax_node :
+  Ltac_plugin.Tacexpr.raw_tactic_expr ->
+  Goal_select.t option ->
+  bool ->
+  Code_point.t ->
+  (t, Error.t) result
 
 val get_node_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 

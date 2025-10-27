@@ -244,6 +244,17 @@ let ltac_use_default_of_raw_generic_argument (arg : Genarg.raw_generic_argument)
       Some (Sexplib.Std.bool_of_sexp rems)
   | _ -> None
 
+let raw_generic_argument_of_ltac_use_default (use_default : bool) :
+    Genarg.raw_generic_argument =
+  Serlib.Ser_genarg.raw_generic_argument_of_sexp
+    (List
+       [
+         Atom "GenArg";
+         List
+           [ Atom "Rawwit"; List [ Atom "ExtraArg"; Atom "ltac_use_default" ] ];
+         Sexplib.Std.sexp_of_bool use_default;
+       ])
+
 let ltac_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
     Tacexpr.raw_tactic_expr option =
   match Serlib.Ser_genarg.sexp_of_raw_generic_argument arg with
@@ -469,6 +480,26 @@ let ltac_selector_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
       Some (Sexplib.Std.option_of_sexp Serlib.Ser_goal_select.t_of_sexp rems)
   | _ -> None
 
+let raw_generic_argument_of_ltac_selector (selector : Goal_select.t option) :
+    Genarg.raw_generic_argument =
+  let selector_sexp =
+    match selector with
+    | Some selector -> Serlib.Ser_goal_select.sexp_of_t selector
+    | None -> List []
+  in
+
+  Serlib.Ser_genarg.raw_generic_argument_of_sexp
+    (List
+       [
+         Atom "GenArg";
+         List
+           [
+             Atom "Rawwit";
+             List [ Atom "OptArg"; List [ Atom "ExtraArg"; Atom "ltac_info" ] ];
+           ];
+         selector_sexp;
+       ])
+
 type ltac_elements = {
   selector : Goal_select.t option;
   raw_tactic_expr : Ltac_plugin.Tacexpr.raw_tactic_expr;
@@ -479,19 +510,20 @@ let raw_arguments_to_ltac_elements (args : Genarg.raw_generic_argument list) :
     ltac_elements option =
   if List.length args != 4 then None
   else
-    let first_arg = List.nth args 0 in
+    let selector_arg = List.nth args 0 in
     let _ = List.nth args 1 in
-    let third_arg = List.nth args 2 in
-    let fourth_arg = List.nth args 3 in
+    (* Ltac info *)
+    let raw_tactic_arg = List.nth args 2 in
+    let use_default_arg = List.nth args 3 in
     let selector =
-      Option.get (ltac_selector_of_raw_generic_argument first_arg)
+      Option.get (ltac_selector_of_raw_generic_argument selector_arg)
     in
     (* TODO parse second arg *)
     let raw_tactic_expr =
-      Option.get (raw_tactic_expr_of_raw_generic_argument third_arg)
+      Option.get (raw_tactic_expr_of_raw_generic_argument raw_tactic_arg)
     in
     let use_default =
-      Option.get (ltac_use_default_of_raw_generic_argument fourth_arg)
+      Option.get (ltac_use_default_of_raw_generic_argument use_default_arg)
     in
     Some { selector; raw_tactic_expr; use_default }
 
@@ -500,3 +532,19 @@ let raw_arguments_to_raw_tactic_expr (args : Genarg.raw_generic_argument list) :
   match args with
   | [ _; _; arg; _ ] -> raw_tactic_expr_of_raw_generic_argument arg
   | _ -> None
+
+let raw_generic_argument_of_empty_ltac_info () : Genarg.raw_generic_argument =
+  let sexp =
+    List
+      [
+        Atom "GenArg";
+        List
+          [
+            Atom "Rawwit";
+            List [ Atom "OptArg"; List [ Atom "ExtraArg"; Atom "ltac_info" ] ];
+          ];
+        List [];
+      ]
+  in
+
+  Serlib.Ser_genarg.raw_generic_argument_of_sexp sexp

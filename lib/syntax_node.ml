@@ -498,7 +498,40 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
       Some (syntax_node_of_coq_ast ast_node starting_point)
   | _ -> None
 
-(* let raw_tactic_expr_to_syntax_node (x: Ltac_plugin.Tacexpr.raw_tactic_expr) (starting_point: Code_point.t) : (t, Error.t) result = *)
+let raw_tactic_expr_to_syntax_node
+    (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
+    (selector : Goal_select.t option) (use_default : bool)
+    (starting_point : Code_point.t) : (t, Error.t) result =
+  let selector_raw_arg =
+    Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector
+  in
+  let use_default_raw_arg =
+    Raw_gen_args_converter.raw_generic_argument_of_ltac_use_default use_default
+  in
+  let ltac_info_arg =
+    Raw_gen_args_converter.raw_generic_argument_of_empty_ltac_info ()
+  in
+
+  let raw_expr_raw_arg =
+    Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr raw_expr
+  in
+
+  let args =
+    [ selector_raw_arg; ltac_info_arg; raw_expr_raw_arg; use_default_raw_arg ]
+  in
+
+  let ext = Ltac.default_extend_name in
+
+  match tactic_raw_generic_arguments_to_syntax_node ext args starting_point with
+  | Some tac -> Ok tac
+  | None ->
+      let empty_env = Environ.empty_env in
+      let empty_evd = Evd.empty in
+      let pp_str =
+        Ltac_plugin.Pptactic.pr_raw_tactic empty_env empty_evd raw_expr
+        |> Pp.string_of_ppcmds
+      in
+      Error.format_to_or_error "Error creating a syntax node from %s" pp_str
 
 let is_syntax_node_intros (x : t) : bool =
   let raw_tactic_expr = get_node_raw_tactic_expr x in

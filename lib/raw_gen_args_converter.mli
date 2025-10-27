@@ -49,6 +49,9 @@ val auto_using_of_raw_generic_argument :
 val ltac_use_default_of_raw_generic_argument :
   Genarg.raw_generic_argument -> bool option
 
+val raw_generic_argument_of_ltac_use_default :
+  bool -> Genarg.raw_generic_argument
+
 val ltac_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Tacexpr.raw_tactic_expr option
 
@@ -96,6 +99,9 @@ val lconstr_of_raw_generic_argument :
 val ltac_selector_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Goal_select.t option option
 
+val raw_generic_argument_of_ltac_selector :
+  Goal_select.t option -> Genarg.raw_generic_argument
+
 type ltac_elements = {
   selector : Goal_select.t option;
   raw_tactic_expr : Ltac_plugin.Tacexpr.raw_tactic_expr;
@@ -107,3 +113,6 @@ val raw_arguments_to_ltac_elements :
 
 val raw_arguments_to_raw_tactic_expr :
   Genarg.raw_generic_argument list -> Ltac_plugin.Tacexpr.raw_tactic_expr option
+
+val raw_generic_argument_of_empty_ltac_info :
+  unit -> Genarg.raw_generic_argument
