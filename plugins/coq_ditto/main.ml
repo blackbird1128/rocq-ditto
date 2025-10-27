@@ -30,6 +30,7 @@ let output_arg = ref ""
 let transformation_arg = ref ""
 let verbose = ref false
 let save_vo = ref false
+let quiet = ref false
 
 let transformations_help =
   [
@@ -180,11 +181,14 @@ let remove_prefix (str : string) (prefix : string) =
 
 let speclist =
   [
-    ("-v", Arg.Set verbose, "Enable debug output");
+    ("-v", Arg.Set verbose, "Enable debug output, incompatible with --quiet");
     ("-i", Arg.String set_input_arg, "Input folder or filename");
     ("-o", Arg.Set_string output_arg, "Output folder or filename");
     ("-t", Arg.String set_transformation, "Transformation to apply");
     ("--save-vo", Arg.Set save_vo, "Save a vo of the transformed file");
+    ( "--quiet",
+      Arg.Set quiet,
+      "Silence progress output, incompatible with -v (verbose)" );
   ]
 
 let usage_msg = "Usage: rocq-ditto [options]"
@@ -226,6 +230,9 @@ let transform_project () : (int, Error.t) result =
     Error.string_to_or_error "Please provide an output folder or filename"
   else if !transformation_arg = "" then
     Error.string_to_or_error "Please provide a transformation"
+  else if !verbose && !quiet then
+    Error.string_to_or_error
+      "verbose option (-v) and quiet option (--quiet) are incompatible together"
   else
     match get_pathkind !input_arg with
     | File -> (
@@ -250,6 +257,7 @@ let transform_project () : (int, Error.t) result =
                 "OUTPUT_FILENAME=" ^ !output_arg;
                 "DEBUG_LEVEL=" ^ string_of_bool !verbose;
                 "SAVE_VO=" ^ string_of_bool !save_vo;
+                "QUIET=" ^ string_of_bool !quiet;
               |]
           in
 
@@ -299,6 +307,7 @@ let transform_project () : (int, Error.t) result =
                   "DITTO_TRANSFORMATION=" ^ !transformation_arg;
                   "DEBUG_LEVEL=" ^ string_of_bool !verbose;
                   "SAVE_VO=" ^ string_of_bool !save_vo;
+                  "QUIET=" ^ string_of_bool !quiet;
                 |]
             in
 

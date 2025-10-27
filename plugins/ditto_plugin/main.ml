@@ -88,7 +88,8 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
     (transformation :
       Rocq_document.t -> proof -> (transformation_step list, Error.t) result)
     (transformation_kind : transformation_kind)
-    (proofs_rec : (proof list, Error.t) result) (verbose : bool) =
+    (proofs_rec : (proof list, Error.t) result) (verbose : bool) (quiet : bool)
+    =
   match proofs_rec with
   | Ok proofs ->
       let proof_total = List.length proofs in
@@ -106,11 +107,12 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
                     (transformation_kind_to_string transformation_kind)
                     proof_name (proof_count + 1) proof_total;
                   print_newline ())
-                else
+                else if not quiet then
                   Printf.printf
                     "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
                     (transformation_kind_to_string transformation_kind)
                     proof_name (proof_count + 1) proof_total
+                else ()
               in
 
               let transformation_steps = transformation acc proof in
@@ -136,6 +138,11 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
   let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
 
   let verbose = Option.default false (bool_of_string_opt verbose) in
+
+  let quiet =
+    Option.default "false" (Sys.getenv_opt "QUIET")
+    |> bool_of_string_opt |> Option.default false
+  in
 
   Logs.set_reporter (Logs_fmt.reporter ());
 
@@ -235,7 +242,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                       let proofs_rec = Rocq_document.get_proofs doc_acc in
                       let doc_res =
                         local_apply_proof_transformation doc_acc transformation
-                          transformation_kind proofs_rec verbose
+                          transformation_kind proofs_rec verbose quiet
                       in
                       match doc_res with
                       | Ok new_doc, _ -> Ok new_doc
