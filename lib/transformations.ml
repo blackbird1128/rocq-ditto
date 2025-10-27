@@ -71,7 +71,7 @@ let simple_proof_repair (doc : Rocq_document.t)
                       let childs =
                         List.concat (List.map Nary_tree.flatten children)
                         |> List.filter (fun x ->
-                               not (is_syntax_node_proof_intro_or_end x))
+                            not (is_syntax_node_proof_intro_or_end x))
                       in
 
                       let ignore_acc =
@@ -386,7 +386,7 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token_reduce = Coq.Limits.Token.create () in
 
-  let rec aux state acc nodes =
+  let rec aux state acc nodes : transformation_step list =
     match nodes with
     | [] -> acc
     | x :: tail -> (
@@ -727,20 +727,14 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : proof) :
 
 let ( let* ) = Result.bind
 
-let map_children f lst =
+let map_children (f : 'a -> ('b, 'c) result) (lst : 'a list) :
+    ('b list, 'c) result =
   let rec aux acc = function
     | [] -> Ok (List.rev acc)
     | x :: xs -> (
         match f x with Ok v -> aux (v :: acc) xs | Error e -> Error e)
   in
   aux [] lst
-
-let last_and_len lst =
-  let rec aux last count = function
-    | [] -> (last, count)
-    | x :: xs -> aux (Some x) (count + 1) xs
-  in
-  aux None 0 lst
 
 let rec get_oneliner (suffix : Syntax_node.t option)
     (tree : Syntax_node.t nary_tree) : (Syntax_node.t, Error.t) result =
@@ -755,11 +749,19 @@ let rec get_oneliner (suffix : Syntax_node.t option)
               suffix
           in
           (* this remove the ellipsis as well *)
-          Option.cata Fun.id (Error.string_to_or_error "") res
+          let suffix_repr =
+            Option.map (fun x -> x.repr) suffix |> Option.default "None"
+          in
+          Option.cata Fun.id
+            (Error.format_to_or_error "Error applying then between %s and %s."
+               x.repr suffix_repr)
+            res
         else Ok x
       in
 
-      let last_children_opt, childrens_length = last_and_len childrens in
+      let last_children_opt, childrens_length =
+        List_utils.last_and_len childrens
+      in
 
       let childrens_length_without_proof_end =
         match last_children_opt with
@@ -887,7 +889,7 @@ let string_to_intro_pattern_naming_expr (x : string) :
   let* name =
     try Some (Names.Id.of_string x) with CErrors.UserError err -> None
   in
-  Some (Namegen.IntroFresh name)
+  Some (Namegen.IntroIdentifier name)
 
 let string_to_intro_pattern_expr (x : string) :
     'constr Tactypes.intro_pattern_expr option =
@@ -923,10 +925,11 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
         let new_atomic_expr =
           Ltac_plugin.Tacexpr.TacIntroPattern (eflag, intro_pattern_expr)
         in
-
+        let new_raw_tac =
+          Ltac_plugin.Tacexpr.TacAtom new_atomic_expr |> CAst.make
+        in
         let node =
-          Syntax_node.syntax_node_of_string
-            ("intros " ^ String.concat " " (List.hd new_vars) ^ ".")
+          Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac None false
             x.range.start
           |> Result.to_option
         in
