@@ -306,16 +306,24 @@ let is_valid_proof (doc : Rocq_document.t) (p : proof) : bool =
 let rec proof_tree_to_node_list (Node (value, children)) : Syntax_node.t list =
   value :: List.concat (List.map proof_tree_to_node_list children)
 
-let tree_to_proof (tree : Syntax_node.t nary_tree) : proof =
+let tree_to_proof (tree : Syntax_node.t nary_tree) : (proof, Error.t) result =
+  let ( let* ) = Result.bind in
   let nodes = proof_tree_to_node_list tree in
-  let last_node_status =
-    List.hd (List.rev nodes) |> proof_status_from_last_node
+  let* nodes_head =
+    List.nth_opt (List.rev nodes) 0
+    |> Option.cata Result.ok
+         (Error.format_to_or_error
+            "proof_tree_to_node_list returned an empty list")
   in
-  {
-    proposition = List.hd nodes;
-    proof_steps = List.tl nodes;
-    status = Result.get_ok last_node_status;
-  }
+
+  let* last_node_status = nodes_head |> proof_status_from_last_node in
+
+  Ok
+    {
+      proposition = List.hd nodes;
+      proof_steps = List.tl nodes;
+      status = last_node_status;
+    }
 
 (* take a full tree and return an acc *)
 (* fold over the proof while running the expr each time to get a new state *)
@@ -350,7 +358,7 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
     (* Update state and accumulator for the current node *)
   in
 
-  let proof = tree_to_proof tree in
+  let* proof = tree_to_proof tree in
   match get_init_state doc proof.proposition token with
   | Ok state ->
       let* _, acc = aux f state acc tree in

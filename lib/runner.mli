@@ -60,7 +60,7 @@ val get_current_goal :
 
 val can_reduce_to_zero_goals : Coq.State.t -> Syntax_node.t list -> bool
 val is_valid_proof : Rocq_document.t -> proof -> bool
-val tree_to_proof : Syntax_node.t nary_tree -> proof
+val tree_to_proof : Syntax_node.t nary_tree -> (proof, Error.t) result
 
 val proof_tree_from_parents :
   int * Syntax_node.t ->

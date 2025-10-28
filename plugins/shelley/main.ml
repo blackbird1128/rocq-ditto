@@ -93,7 +93,9 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
           let remove_random_tactics_steps =
             List.fold_left
               (fun step_acc tree ->
-                let proof_of_tree = Runner.tree_to_proof tree in
+                let proof_of_tree =
+                  Runner.tree_to_proof tree |> Result.get_ok
+                in
                 let step =
                   Transformations.remove_random_step res proof_of_tree
                   |> Result.get_ok |> List.hd

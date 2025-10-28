@@ -104,6 +104,7 @@ let simple_proof_repair (doc : Rocq_document.t)
 let admit_branch_at_error (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
+  let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
   let admit_creator =
    fun node ->
@@ -175,7 +176,7 @@ let admit_branch_at_error (doc : Rocq_document.t)
                   (cut_node_state, steps_acc)
                   children)
   in
-  let cur_proof = Runner.tree_to_proof proof_tree in
+  let* cur_proof = Runner.tree_to_proof proof_tree in
   match get_init_state doc cur_proof.proposition token with
   | Ok state ->
       let _, steps = aux state proof_tree [] in
@@ -185,6 +186,7 @@ let admit_branch_at_error (doc : Rocq_document.t)
 let cut_replace_branch (cut_tactic : string) (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
+  let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
   let node_creator =
    fun node ->
@@ -252,7 +254,7 @@ let cut_replace_branch (cut_tactic : string) (doc : Rocq_document.t)
                   (new_state, new_acc))
                 (state, steps_acc) children)
   in
-  let cur_proof = Runner.tree_to_proof proof_tree in
+  let* cur_proof = Runner.tree_to_proof proof_tree in
   match get_init_state doc cur_proof.proposition token with
   | Ok state ->
       let _, steps = aux state proof_tree [] in
@@ -783,7 +785,7 @@ let rec get_oneliner (suffix : Syntax_node.t option)
 let turn_into_oneliner (_ : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
-  let proof = Runner.tree_to_proof proof_tree in
+  let* proof = Runner.tree_to_proof proof_tree in
 
   let proof_status = Proof.get_proof_status proof in
   let dummy_point : Code_point.t = { line = 0; character = 0 } in
@@ -933,11 +935,8 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
         let new_raw_tac =
           TacAtom (TacIntroPattern (eflag, intro_pattern_expr)) |> CAst.make
         in
-        let node =
-          Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
-          |> Result.to_option
-        in
-        node
+        Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
+        |> Result.to_option
     | None -> None
   in
 
