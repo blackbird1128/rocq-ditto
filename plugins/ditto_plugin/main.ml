@@ -131,6 +131,14 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
         (Ok doc_acc, 0) proofs
   | Error err -> (Error err, 0)
 
+let pp_level_lowercase (fmt : Format.formatter) (level : Logs.level) : unit =
+  Format.pp_print_string fmt (Logs.level_to_string (Some level))
+
+let pp_header_no_app fmt (level, _msg_header_opt) =
+  match level with
+  | Logs.App -> () (* App level: print nothing before the msg *)
+  | _ -> Format.fprintf fmt "[%a] " pp_level_lowercase level
+
 let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
     (unit, Error.t) result =
   let ( let* ) = Result.bind in
@@ -144,7 +152,11 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
     |> bool_of_string_opt |> Option.default false
   in
 
-  Logs.set_reporter (Logs_fmt.reporter ());
+  let out = Format.std_formatter in
+  let reporter =
+    Logs_fmt.reporter ~pp_header:pp_header_no_app ~app:out ~dst:out ()
+  in
+  Logs.set_reporter reporter;
 
   if verbose then Logs.set_level (Some Logs.Debug)
   else Logs.set_level (Some Logs.Info);
@@ -270,6 +282,15 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 print_endline
                   ("All transformations applied, writing to file " ^ filename);
 
+                let _ =
+                  if verbose then (
+                    let stats = Stats.Global.dump () in
+                    Logs.debug (fun m ->
+                        m "rocq-ditto stats: %s" (Stats.Global.to_string stats));
+                    Logs.debug (fun m ->
+                        m "rocq-ditto %s" (Memo.GlobalCacheStats.stats ())))
+                  else ()
+                in
                 let out = open_out filename in
                 let* doc_repr = Rocq_document.dump_to_string res in
                 output_string out doc_repr;

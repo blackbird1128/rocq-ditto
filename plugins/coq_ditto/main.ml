@@ -199,6 +199,14 @@ let warn_if_exists (dir_state : newDirState) =
       print_endline "Warning: output directory already exists: replacing files"
   | _ -> ()
 
+let pp_level_lowercase (fmt : Format.formatter) (level : Logs.level) : unit =
+  Format.pp_print_string fmt (Logs.level_to_string (Some level))
+
+let pp_header_no_app fmt (level, _msg_header_opt) =
+  match level with
+  | Logs.App -> () (* App level: print nothing before the msg *)
+  | _ -> Format.fprintf fmt "[%a] " pp_level_lowercase level
+
 let transform_project () : (int, Error.t) result =
   print_newline ();
   let ( let* ) = Result.bind in
@@ -208,7 +216,11 @@ let transform_project () : (int, Error.t) result =
   Arg.parse speclist
     (fun anon -> Printf.printf "Ignoring anonymous arg: %s\n" anon)
     usage_msg;
-  Logs.set_reporter (Logs_fmt.reporter ());
+  let out = Format.std_formatter in
+  let reporter =
+    Logs_fmt.reporter ~pp_header:pp_header_no_app ~app:out ~dst:out ()
+  in
+  Logs.set_reporter reporter;
 
   if !verbose then Logs.set_level (Some Logs.Debug)
   else Logs.set_level (Some Logs.Info);

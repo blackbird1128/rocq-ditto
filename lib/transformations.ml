@@ -960,17 +960,17 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
       let* new_state = Runner.run_node token state node in
 
       let args = get_tactic_raw_generic_arguments node in
-      Option.iter
-        (fun args ->
-          let sexps =
-            List.map Serlib.Ser_genarg.sexp_of_raw_generic_argument args
-          in
+      (* Option.iter *)
+      (*   (fun args -> *)
+      (*     let sexps = *)
+      (*       List.map Serlib.Ser_genarg.sexp_of_raw_generic_argument args *)
+      (*     in *)
 
-          List.iter
-            (fun x ->
-              Logs.debug (fun m -> m "%s" (Sexplib.Sexp.to_string_hum x)))
-            sexps)
-        args;
+      (*     List.iter *)
+      (*       (fun x -> *)
+      (*         Logs.debug (fun m -> m "%s" (Sexplib.Sexp.to_string_hum x))) *)
+      (*       sexps) *)
+      (*   args; *)
 
       match find_rewriter node with
       | Some rewriter -> (
