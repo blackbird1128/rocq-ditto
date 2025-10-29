@@ -264,11 +264,12 @@ let cut_replace_branch (cut_tactic : string) (doc : Rocq_document.t)
 let fold_replace_assumption_with_apply (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
+  let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
   let res =
     Runner.depth_first_fold_with_state doc token
       (fun state acc node ->
-        let state_node = Runner.run_node token state node |> Result.get_ok in
+        let* state_node = Runner.run_node token state node in
         if
           String.starts_with ~prefix:"assumption" node.repr
           && not (String.contains node.repr ';')
@@ -296,8 +297,7 @@ let fold_replace_assumption_with_apply (doc : Rocq_document.t)
               let apply_states =
                 List.filter_map
                   (fun node ->
-                    let r = Runner.run_node token state node in
-                    match r with
+                    match Runner.run_node token state node with
                     | Ok state_uw -> Some (node, state_uw)
                     | Error _ -> None)
                   apply_nodes
@@ -897,12 +897,11 @@ let is_syntax_node_induction_without_set_var (x : Syntax_node.t) : bool =
   | Some
       (TacInductionDestruct (true, false, (induction_clause_l, with_bindings)))
     ->
-      true
-      (* List.exists *)
-      (*   (fun x -> *)
-      (*     let _, (_, locus_or_var_or_and_intro_pattern_opt), _ = x in *)
-      (*     Option.is_empty locus_or_var_or_and_intro_pattern_opt) *)
-      (*   induction_clause_l *)
+      List.exists
+        (fun x ->
+          let _, (_, locus_or_var_or_and_intro_pattern_opt), _ = x in
+          Option.is_empty locus_or_var_or_and_intro_pattern_opt)
+        induction_clause_l
   | _ -> false
 
 let string_to_intro_pattern_naming_expr (x : string) :
