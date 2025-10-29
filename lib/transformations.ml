@@ -898,6 +898,11 @@ let is_syntax_node_induction_without_set_var (x : Syntax_node.t) : bool =
       (TacInductionDestruct (true, false, (induction_clause_l, with_bindings)))
     ->
       true
+      (* List.exists *)
+      (*   (fun x -> *)
+      (*     let _, (_, locus_or_var_or_and_intro_pattern_opt), _ = x in *)
+      (*     Option.is_empty locus_or_var_or_and_intro_pattern_opt) *)
+      (*   induction_clause_l *)
   | _ -> false
 
 let string_to_intro_pattern_naming_expr (x : string) :
@@ -914,6 +919,14 @@ let string_to_intro_pattern_expr (x : string) :
     (fun a -> Tactypes.IntroNaming a)
     (string_to_intro_pattern_naming_expr x)
 
+let list_of_list_to_str pp_elem lsts =
+  let pp_list l =
+    let elems = List.map pp_elem l |> String.concat "; " in
+    "[" ^ elems ^ "]"
+  in
+  let inner = List.map pp_list lsts |> String.concat "; " in
+  "[" ^ inner ^ "]"
+
 let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
@@ -922,7 +935,73 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
   let rewrite_induction (x : Syntax_node.t) (new_vars : string list list option)
       : Syntax_node.t option =
     let open Ltac_plugin.Tacexpr in
-    match new_vars with Some new_vars -> None | None -> None
+    match new_vars with
+    | Some new_vars ->
+        let raw_atomic_expr =
+          Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
+        in
+        let rflag, eflag, (induction_clause_l, with_bindings) =
+          match raw_atomic_expr with
+          | TacInductionDestruct
+              (rflag, eflag, (induction_clause_l, with_bindings)) ->
+              (rflag, eflag, (induction_clause_l, with_bindings))
+          | _ -> assert false
+        in
+
+        (* Apply the same transformation to all clauses *)
+        let new_induction_clause_l =
+          List.map
+            (fun ( destruction_arg,
+                   ( intro_pattern_naming_expr_opt,
+                     locus_or_var_or_and_intro_pattern_opt ),
+                   clause_expr_opt ) ->
+              let induction_on =
+                destruction_arg_to_string destruction_arg
+                |> string_to_intro_pattern_expr |> Option.get |> CAst.make
+              in
+
+              let new_or_intro_pattern :
+                  Constrexpr.constr_expr Tactypes.or_and_intro_pattern_expr
+                  CAst.t =
+                Tactypes.IntroOrPattern
+                  (List.mapi
+                     (fun i l ->
+                       let mapped =
+                         List.map
+                           (fun x ->
+                             string_to_intro_pattern_expr x
+                             |> Option.get |> CAst.make)
+                           l
+                       in
+                       if i = 1 then induction_on :: mapped else mapped)
+                     new_vars)
+                |> CAst.make
+              in
+
+              let new_locus_or_and_intro_pattern_l :
+                  Constrexpr.constr_expr Tactypes.or_and_intro_pattern_expr
+                  CAst.t
+                  Locus.or_var =
+                Locus.ArgArg new_or_intro_pattern
+              in
+
+              ( destruction_arg,
+                ( intro_pattern_naming_expr_opt,
+                  Some new_locus_or_and_intro_pattern_l ),
+                clause_expr_opt ))
+            induction_clause_l
+        in
+
+        let new_raw_tac =
+          TacAtom
+            (TacInductionDestruct
+               (rflag, eflag, (new_induction_clause_l, with_bindings)))
+          |> CAst.make
+        in
+
+        Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
+        |> Result.to_option
+    | None -> None
   in
 
   let rewrite_assert (x : Syntax_node.t) (new_vars : string list list option) :
@@ -930,12 +1009,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
     let open Ltac_plugin.Tacexpr in
     match new_vars with
     | Some new_vars ->
-        Logs.debug (fun m -> m "len new vars: %d" (List.length new_vars));
-        List.iter
-          (fun l ->
-            List.iter (fun x -> print_endline x) l;
-            print_endline "----")
-          new_vars;
         let raw_atomic_expr =
           Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
         in
@@ -1043,16 +1116,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                 List.map Runner.get_hypothesis_names x.goals)
               old_goals
           in
-          Option.iter
-            (fun old_goals_vars ->
-              List.iter
-                (fun l ->
-                  print_endline "[";
-                  List.iter (fun x -> print_endline x) l;
-                  print_endline "]")
-                old_goals_vars)
-            old_goals_vars;
-          print_endline "********";
 
           let new_goals_vars =
             Option.map
@@ -1063,16 +1126,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                 List.map Runner.get_hypothesis_names x.goals)
               new_goals
           in
-
-          Option.iter
-            (fun new_goals_vars ->
-              List.iter
-                (fun l ->
-                  print_endline "[";
-                  List.iter (fun x -> print_endline x) l;
-                  print_endline "]")
-                new_goals_vars)
-            new_goals_vars;
 
           let new_vars =
             match (old_goals_vars, new_goals_vars) with
@@ -1085,15 +1138,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                      old_goals_vars new_goals_vars)
             | _ -> None
           in
-          print_endline "new vars:\n";
-          Option.iter
-            (fun new_vars ->
-              List.iter
-                (fun l ->
-                  List.iter (fun x -> print_endline x) l;
-                  print_endline "----")
-                new_vars)
-            new_vars;
 
           match rewriter node new_vars with
           | Some x ->
