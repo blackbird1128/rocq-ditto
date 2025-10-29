@@ -885,7 +885,14 @@ let is_syntax_node_intros_without_set_var (x : Syntax_node.t) : bool =
       | _ -> false)
   | _ -> false
 
-let is_syntax_node_induction (x : Syntax_node.t) : bool =
+let is_syntax_node_assert_without_set_var (x : Syntax_node.t) : bool =
+  match Syntax_node.get_node_raw_atomic_tactic_expr x with
+  | Some (TacAssert (false, true, _, None, _)) ->
+      Logs.debug (fun m -> m "assert without set var detected");
+      true
+  | _ -> false
+
+let is_syntax_node_induction_without_set_var (x : Syntax_node.t) : bool =
   match Syntax_node.get_node_raw_atomic_tactic_expr x with
   | Some
       (TacInductionDestruct (true, false, (induction_clause_l, with_bindings)))
@@ -911,6 +918,51 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
+
+  let rewrite_induction (x : Syntax_node.t) (new_vars : string list list option)
+      : Syntax_node.t option =
+    let open Ltac_plugin.Tacexpr in
+    match new_vars with Some new_vars -> None | None -> None
+  in
+
+  let rewrite_assert (x : Syntax_node.t) (new_vars : string list list option) :
+      Syntax_node.t option =
+    let open Ltac_plugin.Tacexpr in
+    match new_vars with
+    | Some new_vars ->
+        Logs.debug (fun m -> m "len new vars: %d" (List.length new_vars));
+        List.iter
+          (fun l ->
+            List.iter (fun x -> print_endline x) l;
+            print_endline "----")
+          new_vars;
+        let raw_atomic_expr =
+          Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
+        in
+
+        let eflag, b, tacexpr_opt_opt, _, term =
+          match raw_atomic_expr with
+          | TacAssert (eflag, b, tacexpr_opt_opt, _, term) ->
+              (eflag, b, tacexpr_opt_opt, None, term)
+          | _ -> assert false
+        in
+
+        let assert_generated_name = List.nth new_vars 1 |> List.hd in
+
+        let intro_pattern_expr =
+          string_to_intro_pattern_expr assert_generated_name
+          |> Option.get |> CAst.make
+        in
+
+        let new_raw_tac =
+          TacAtom
+            (TacAssert (eflag, b, tacexpr_opt_opt, Some intro_pattern_expr, term))
+          |> CAst.make
+        in
+        Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
+        |> Result.to_option
+    | None -> None
+  in
 
   let rewrite_intros (x : Syntax_node.t) (new_vars : string list list option) :
       Syntax_node.t option =
@@ -944,7 +996,11 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
       ((Syntax_node.t -> bool)
       * (Syntax_node.t -> string list list option -> Syntax_node.t option))
       list =
-    [ (is_syntax_node_intros_without_set_var, rewrite_intros) ]
+    [
+      (is_syntax_node_intros_without_set_var, rewrite_intros);
+      (is_syntax_node_assert_without_set_var, rewrite_assert);
+      (is_syntax_node_induction_without_set_var, rewrite_induction);
+    ]
   in
 
   let find_rewriter (node : Syntax_node.t) :
@@ -987,6 +1043,16 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                 List.map Runner.get_hypothesis_names x.goals)
               old_goals
           in
+          Option.iter
+            (fun old_goals_vars ->
+              List.iter
+                (fun l ->
+                  print_endline "[";
+                  List.iter (fun x -> print_endline x) l;
+                  print_endline "]")
+                old_goals_vars)
+            old_goals_vars;
+          print_endline "********";
 
           let new_goals_vars =
             Option.map
@@ -998,17 +1064,36 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
               new_goals
           in
 
+          Option.iter
+            (fun new_goals_vars ->
+              List.iter
+                (fun l ->
+                  print_endline "[";
+                  List.iter (fun x -> print_endline x) l;
+                  print_endline "]")
+                new_goals_vars)
+            new_goals_vars;
+
           let new_vars =
             match (old_goals_vars, new_goals_vars) with
             | Some old_goals_vars, Some new_goals_vars ->
                 Some
                   (List_utils.map2_pad
-                     ~pad2:(List.nth_opt old_goals_vars 0)
+                     ~pad1:(List.nth_opt old_goals_vars 0)
                      (fun old_vars new_vars ->
                        List.filter (fun x -> not (List.mem x old_vars)) new_vars)
                      old_goals_vars new_goals_vars)
             | _ -> None
           in
+          print_endline "new vars:\n";
+          Option.iter
+            (fun new_vars ->
+              List.iter
+                (fun l ->
+                  List.iter (fun x -> print_endline x) l;
+                  print_endline "----")
+                new_vars)
+            new_vars;
 
           match rewriter node new_vars with
           | Some x ->
