@@ -53,3 +53,5 @@ dump-json:
 
 clean:
 	dune clean
+	rm test/fixtures/unit_test_fixtures/*.target.json
+
