@@ -74,6 +74,13 @@ let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
 let range_testable = Alcotest.testable Code_range.pp ( = )
 let uuidm_testable = Alcotest.testable Uuidm.pp ( = )
 let error_testable = Alcotest.testable Error.pp ( = )
+
+let goal_select_testable =
+  Alcotest.testable
+    (fun (fmt : Format.formatter) (x : Goal_select.t) ->
+      Sexplib.Sexp.pp_hum fmt (Serlib.Ser_goal_select.sexp_of_t x))
+    ( = )
+
 let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
 
 let vernacexpr_testable =
@@ -464,6 +471,34 @@ let test_creating_a_thens_nothing (_ : Doc.t) () : unit =
       (result string error_testable)
       "a thens nothing should be constructed correctly"
       (Ok "reflexivity; [  ].") a_thens_nothing_repr)
+
+let test_get_goal_select_all (_ : Doc.t) () : unit =
+  let point : Code_point.t = { line = 0; character = 0 } in
+  let node =
+    Syntax_node.syntax_node_of_string "all:simpl." point |> Result.get_ok
+  in
+
+  let goal_selector = Syntax_node.get_node_goal_selector_opt node in
+
+  let expected : Goal_select.t option = Some Goal_select.SelectAll in
+
+  Alcotest.(check (option goal_select_testable))
+    "The correct goal selector should be retrieved (SelectAll)" expected
+    goal_selector
+
+let test_goal_select_nth_selector (_ : Doc.t) () : unit =
+  let point : Code_point.t = { line = 0; character = 0 } in
+  let node =
+    Syntax_node.syntax_node_of_string "1:simpl." point |> Result.get_ok
+  in
+
+  let goal_selector = Syntax_node.get_node_goal_selector_opt node in
+
+  let expected : Goal_select.t option = Some Goal_select.t in
+
+  Alcotest.(check (option goal_select_testable))
+    "The correct goal selector should be retrieved (SelectAll)" expected
+    goal_selector
 
 let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
@@ -1371,6 +1406,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a thens nothing"
        test_creating_a_thens_nothing doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test getting a Goal_select.t from all:tactic"
+       test_get_goal_select_all doc);
 
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test checking if detecting \"Proof with\" is correct"
