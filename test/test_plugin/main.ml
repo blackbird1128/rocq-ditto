@@ -1045,6 +1045,15 @@ let test_turn_into_onliner_goal_select (doc : Doc.t) () : unit =
 let test_turn_into_onliner_match (doc : Doc.t) () : unit =
   test_tree_transformation doc Transformations.turn_into_oneliner ()
 
+let explicit_fresh_variables_simple_intros (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_fresh_variables ()
+
+let explicit_fresh_variables_simple_assert (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_fresh_variables ()
+
+let explicit_fresh_variables_simple_induction (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_fresh_variables ()
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -1546,6 +1555,18 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_match_oneliner.v"
     (create_fixed_test "test turning into a oneliner a proof with a match ltac"
        test_turn_into_onliner_match doc);
+  Hashtbl.add table "ex_explicit_intros.v"
+    (create_fixed_test
+       "test making explicit the fresh variables of a simple intros"
+       explicit_fresh_variables_simple_intros doc);
+  Hashtbl.add table "ex_explicit_assert.v"
+    (create_fixed_test
+       "test making explicit the fresh variables of a simple assert"
+       explicit_fresh_variables_simple_assert doc);
+  Hashtbl.add table "ex_explicit_induction.v"
+    (create_fixed_test
+       "test making explicit the fresh variables of a simple induction"
+       explicit_fresh_variables_simple_induction doc);
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
   (*      test_replace_auto_using_zarith_by_steps doc); *)
