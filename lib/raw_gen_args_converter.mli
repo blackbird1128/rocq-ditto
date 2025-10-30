@@ -108,6 +108,9 @@ type ltac_elements = {
   use_default : bool; (* TODO parse last args *)
 }
 
+val raw_arguments_to_goal_selector :
+  Genarg.raw_generic_argument list -> Goal_select.t option
+
 val raw_arguments_to_ltac_elements :
   Genarg.raw_generic_argument list -> ltac_elements option
 

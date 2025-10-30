@@ -136,6 +136,7 @@ val raw_tactic_expr_to_syntax_node :
   Code_point.t ->
   (t, Error.t) result
 
+val get_node_goal_selector_opt : t -> Goal_select.t option
 val get_node_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
 val get_node_raw_atomic_tactic_expr :

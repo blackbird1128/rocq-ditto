@@ -475,6 +475,11 @@ let get_node_ltac_elements (x : t) : ltac_elements option =
   |> Option.map raw_arguments_to_ltac_elements
   |> Option.flatten
 
+let get_node_goal_selector_opt (x : t) : Goal_select.t option =
+  get_tactic_raw_generic_arguments x
+  |> Option.map raw_arguments_to_goal_selector
+  |> Option.flatten
+
 let get_node_raw_tactic_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_tactic_expr option =
   get_tactic_raw_generic_arguments x

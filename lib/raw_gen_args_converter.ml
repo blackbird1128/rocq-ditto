@@ -506,26 +506,31 @@ type ltac_elements = {
   use_default : bool; (* TODO parse last args *)
 }
 
+let raw_arguments_to_goal_selector (args : Genarg.raw_generic_argument list) :
+    Goal_select.t option =
+  match args with
+  | [ arg0; _; _; _ ] ->
+      Option.flatten (ltac_selector_of_raw_generic_argument arg0)
+  | _ -> None
+
 let raw_arguments_to_ltac_elements (args : Genarg.raw_generic_argument list) :
     ltac_elements option =
-  if List.length args != 4 then None
-  else
-    let selector_arg = List.nth args 0 in
-    let _ = List.nth args 1 in
-    (* Ltac info *)
-    let raw_tactic_arg = List.nth args 2 in
-    let use_default_arg = List.nth args 3 in
-    let selector =
-      Option.get (ltac_selector_of_raw_generic_argument selector_arg)
-    in
-    (* TODO parse second arg *)
-    let raw_tactic_expr =
-      Option.get (raw_tactic_expr_of_raw_generic_argument raw_tactic_arg)
-    in
-    let use_default =
-      Option.get (ltac_use_default_of_raw_generic_argument use_default_arg)
-    in
-    Some { selector; raw_tactic_expr; use_default }
+  match args with
+  | [ selector_arg; _; raw_tactic_arg; use_default_arg ] ->
+      (* Ltac info *)
+      let use_default_arg = List.nth args 3 in
+      let selector =
+        Option.get (ltac_selector_of_raw_generic_argument selector_arg)
+      in
+      (* TODO parse second arg *)
+      let raw_tactic_expr =
+        Option.get (raw_tactic_expr_of_raw_generic_argument raw_tactic_arg)
+      in
+      let use_default =
+        Option.get (ltac_use_default_of_raw_generic_argument use_default_arg)
+      in
+      Some { selector; raw_tactic_expr; use_default }
+  | _ -> None
 
 let raw_arguments_to_raw_tactic_expr (args : Genarg.raw_generic_argument list) :
     Ltac_plugin.Tacexpr.raw_tactic_expr option =
