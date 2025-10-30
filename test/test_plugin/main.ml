@@ -449,6 +449,22 @@ let test_creating_simple_a_thens_b (_ : Doc.t) () : unit =
       "a then b should be constructed correctly"
       (Ok "reflexivity; [ reflexivity ].") a_thens_b_repr)
 
+let test_creating_a_thens_nothing (_ : Doc.t) () : unit =
+  let code_point_a : Code_point.t = { line = 0; character = 0 } in
+  let a =
+    Syntax_node.syntax_node_of_string "reflexivity." code_point_a
+    |> Result.get_ok
+  in
+  let a_thens_nothing = Syntax_node.apply_tac_thens a [] () in
+  let a_thens_nothing_repr =
+    Result.map (fun node -> node.repr) a_thens_nothing
+  in
+  Alcotest.(
+    check
+      (result string error_testable)
+      "a thens nothing should be constructed correctly"
+      (Ok "reflexivity; [  ].") a_thens_nothing_repr)
+
 let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
@@ -500,8 +516,7 @@ let test_reformat_comment_node (_ : Doc.t) () : unit =
 
   Alcotest.(check (result uuidm_testable error_testable))
     "Should return an error"
-    (Error.string_to_or_error
-       "The node need to have an AST to be reformatted")
+    (Error.string_to_or_error "The node need to have an AST to be reformatted")
     reformat_id
 
 let test_reformat_keep_id (_ : Doc.t) () : unit =
@@ -965,156 +980,70 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
-let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
+let test_tree_transformation (doc : Doc.t)
+    (tree_transformation :
+      Rocq_document.t ->
+      t nary_tree ->
+      (transformation_step list, Error.t) result) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Rocq_document.parse_document doc in
+
   let parsed_target = get_target uri_str in
 
   let new_doc =
-    Transformations.apply_proof_transformation
-      Transformations.replace_auto_with_steps doc
+    Transformations.apply_proof_tree_transformation tree_transformation doc
   in
 
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
+
+let test_proof_transformation (doc : Doc.t)
+    (proof_transformation :
+      Rocq_document.t -> proof -> (transformation_step list, Error.t) result) ()
+    : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Rocq_document.parse_document doc in
+
+  let parsed_target = get_target uri_str in
+
+  let new_doc =
+    Transformations.apply_proof_transformation proof_transformation doc
+  in
+
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
+    "The two list should be the same " (Ok parsed_target) new_doc_res
+
+let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.replace_auto_with_steps ()
 
 let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc in
-  let parsed_target = get_target uri_str in
-
-  let new_doc =
-    Transformations.apply_proof_transformation
-      Transformations.replace_auto_with_steps doc
-  in
-
-  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+  test_proof_transformation doc Transformations.replace_auto_with_steps ()
 
 let test_replace_auto_using_zarith_by_steps (doc : Doc.t) () : unit =
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc in
-  let parsed_target = get_target uri_str in
-
-  let new_doc =
-    Transformations.apply_proof_transformation
-      Transformations.replace_auto_with_steps doc
-  in
-
-  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+  test_proof_transformation doc Transformations.replace_auto_with_steps ()
 
 let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc in
-  let parsed_target = get_target uri_str in
-
-  let new_doc =
-    Transformations.apply_proof_transformation
-      Transformations.replace_auto_with_steps doc
-  in
-
-  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+  test_proof_transformation doc Transformations.replace_auto_with_steps ()
 
 let test_turn_into_oneliner_with_commands (doc : Doc.t) () : unit =
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-
-  let doc = Rocq_document.parse_document doc in
-
-  let parsed_target = get_target uri_str in
-
-  let new_doc =
-    Transformations.apply_proof_tree_transformation
-      Transformations.turn_into_oneliner doc
-  in
-
-  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+  test_tree_transformation doc Transformations.turn_into_oneliner ()
 
 let test_turn_into_onliner_with_curly_braces (doc : Doc.t) () : unit =
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-
-  let doc = Rocq_document.parse_document doc in
-
-  let parsed_target = get_target uri_str in
-
-  let new_doc =
-    Transformations.apply_proof_tree_transformation
-      Transformations.turn_into_oneliner doc
-  in
-
-  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+  test_tree_transformation doc Transformations.turn_into_oneliner ()
 
 let test_turn_into_oneliner_admitted (doc : Doc.t) () : unit =
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-
-  let doc = Rocq_document.parse_document doc in
-
-  let parsed_target = get_target uri_str in
-
-  let new_doc =
-    Transformations.apply_proof_tree_transformation
-      Transformations.turn_into_oneliner doc
-  in
-  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+  test_tree_transformation doc Transformations.turn_into_oneliner ()
 
 let test_turn_into_oneliner_proof_with (doc : Doc.t) () : unit =
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-
-  let doc = Rocq_document.parse_document doc in
-
-  let parsed_target = get_target uri_str in
-
-  let new_doc =
-    Transformations.apply_proof_tree_transformation
-      Transformations.turn_into_oneliner doc
-  in
-
-  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+  test_tree_transformation doc Transformations.turn_into_oneliner ()
 
 let test_turn_into_onliner_goal_select (doc : Doc.t) () : unit =
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-
-  let doc = Rocq_document.parse_document doc in
-
-  let parsed_target = get_target uri_str in
-
-  let new_doc =
-    Transformations.apply_proof_tree_transformation
-      Transformations.turn_into_oneliner doc
-  in
-
-  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+  test_tree_transformation doc Transformations.turn_into_oneliner ()
 
 let test_turn_into_onliner_match (doc : Doc.t) () : unit =
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-
-  let doc = Rocq_document.parse_document doc in
-
-  let parsed_target = get_target uri_str in
-
-  let new_doc =
-    Transformations.apply_proof_tree_transformation
-      Transformations.turn_into_oneliner doc
-  in
-
-  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-  Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+  test_tree_transformation doc Transformations.turn_into_oneliner ()
 
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -1430,6 +1359,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a thens b from AST (a;[b])"
        test_creating_simple_a_thens_b doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating a thens nothing"
+       test_creating_a_thens_nothing doc);
 
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test checking if detecting \"Proof with\" is correct"
