@@ -538,6 +538,16 @@ let raw_tactic_expr_to_syntax_node
       in
       Error.format_to_or_error "Error creating a syntax node from %s" pp_str
 
+let drop_goal_selector (x : t) : t =
+  let args = get_tactic_raw_generic_arguments x in
+  match args with
+  | Some args ->
+      let args = raw_generic_argument_of_ltac_selector None :: List.tl args in
+      Option.default x
+        (tactic_raw_generic_arguments_to_syntax_node Ltac.default_extend_name
+           args x.range.start)
+  | None -> x
+
 let is_syntax_node_intros (x : t) : bool =
   let raw_tactic_expr = get_node_raw_tactic_expr x in
   let raw_atomic_expr =
