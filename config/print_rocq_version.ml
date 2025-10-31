@@ -1,12 +1,24 @@
-let find_executable names =
-  let rec aux = function
-    | [] -> None
-    | name :: rest ->
-        let cmd = Printf.sprintf "which %s >/dev/null" name in
-        let status = Sys.command cmd in
-        if status = 0 then Some name else aux rest
-  in
-  aux names
+let is_directory (path : string) : bool =
+  try
+    let stats = Unix.stat path in
+    stats.Unix.st_kind = Unix.S_DIR
+  with Unix.Unix_error _ -> String.ends_with ~suffix:Filename.dir_sep path
+
+let find_executable (names : string list) =
+  let cur_dir = Sys.getcwd () in
+  let local_ocaml_switch_bin_dir = Filename.concat cur_dir "_opam/bin/" in
+  if is_directory local_ocaml_switch_bin_dir then
+    List.map (Filename.concat local_ocaml_switch_bin_dir) names
+    |> List.find_opt (fun x -> Sys.file_exists x && Sys.is_regular_file x)
+  else
+    let rec aux = function
+      | [] -> None
+      | name :: rest ->
+          let cmd = Printf.sprintf "which %s >/dev/null" name in
+          let status = Sys.command cmd in
+          if status = 0 then Some name else aux rest
+    in
+    aux names
 
 let () =
   let exe =
