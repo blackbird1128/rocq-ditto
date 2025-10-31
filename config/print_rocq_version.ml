@@ -4,9 +4,22 @@ let is_directory (path : string) : bool =
     stats.Unix.st_kind = Unix.S_DIR
   with Unix.Unix_error _ -> String.ends_with ~suffix:Filename.dir_sep path
 
+let rec find_rocq_ditto_dir (dir : string) : string option =
+  let build_dirname = "_build" in
+  if Sys.file_exists (Filename.concat dir build_dirname) then Some dir
+  else if dir = "/" || dir = "." then None
+  else find_rocq_ditto_dir (Filename.dirname dir)
+
+let is_directory (path : string) : bool =
+  try
+    let stats = Unix.stat path in
+    stats.Unix.st_kind = Unix.S_DIR
+  with Unix.Unix_error _ -> String.ends_with ~suffix:Filename.dir_sep path
+
 let find_executable (names : string list) =
   let cur_dir = Sys.getcwd () in
-  let local_ocaml_switch_bin_dir = Filename.concat cur_dir "_opam/bin/" in
+  let coq_ditto_dir = find_rocq_ditto_dir cur_dir |> Option.get in
+  let local_ocaml_switch_bin_dir = Filename.concat coq_ditto_dir "_opam/bin/" in
   if is_directory local_ocaml_switch_bin_dir then
     List.map (Filename.concat local_ocaml_switch_bin_dir) names
     |> List.find_opt (fun x -> Sys.file_exists x && Sys.is_regular_file x)
@@ -24,7 +37,9 @@ let () =
   let exe_path =
     match find_executable [ "rocq"; "coqc" ] with
     | Some e -> e
-    | None -> failwith "Neither 'rocq' nor 'coqc' executable found in PATH"
+    | None ->
+        failwith
+          "Neither 'rocq' nor 'coqc' executable found in PATH or _opam/bin"
   in
   let exe_name = Filename.basename exe_path in
 
