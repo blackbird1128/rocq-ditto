@@ -2,7 +2,7 @@ let find_executable names =
   let rec aux = function
     | [] -> None
     | name :: rest ->
-        let cmd = Printf.sprintf "command %s 2>/dev/null" name in
+        let cmd = Printf.sprintf "which %s >/dev/null" name in
         let status = Sys.command cmd in
         if status = 0 then Some name else aux rest
   in

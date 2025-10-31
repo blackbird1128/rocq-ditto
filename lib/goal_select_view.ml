@@ -6,15 +6,6 @@ type goal_range_selector =
   | RangeSelector of int * int
   | IdSelector of Names.Id.t
 
-let pp_goal_selector (fmt : Format.formatter) (x : goal_range_selector) =
-  match x with
-  | NthSelector nth -> Format.fprintf fmt "NthSelector %d" nth
-  | RangeSelector (start, end_) ->
-      Format.fprintf fmt "RangeSelector (%d,%d)" start end_
-  | IdSelector name ->
-      let name_str = Names.Id.to_string name in
-      Format.fprintf fmt "IdSelector (%s)" name_str
-
 type t =
   | SelectAlreadyFocused
   | SelectList of goal_range_selector list
@@ -49,3 +40,21 @@ type t = [%import: Goal_select.t]
 let make (x : Goal_select.t) : t = x
 
 [%%endif]
+
+let pp_goal_range_selector (fmt : Format.formatter) (x : goal_range_selector) =
+  match x with
+  | NthSelector nth -> Format.fprintf fmt "NthSelector %d" nth
+  | RangeSelector (start, end_) ->
+      Format.fprintf fmt "RangeSelector (%d,%d)" start end_
+  | IdSelector name ->
+      let name_str = Names.Id.to_string name in
+      Format.fprintf fmt "IdSelector (%s)" name_str
+
+let pp_t (fmt : Format.formatter) (x : t) =
+  match x with
+  | SelectAlreadyFocused -> Format.fprintf fmt "SelectAlreadyFocused"
+  | SelectList select_list ->
+      Format.fprintf fmt "SelectList (%a)"
+        (Format.pp_print_list pp_goal_range_selector)
+        select_list
+  | SelectAll -> Format.fprintf fmt "SelectAll"
