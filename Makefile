@@ -53,5 +53,5 @@ dump-json:
 
 clean:
 	dune clean
-	rm test/fixtures/unit_test_fixtures/*.target.json
-
+	rm -f ./lib/rocq_version_optcomp.mlh
+	rm -f test/fixtures/unit_test_fixtures/*.target.json
