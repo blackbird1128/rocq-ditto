@@ -59,3 +59,14 @@ Then, you can run the following command
 dune exec --profile=release rocq-ditto -- -i PROJECT_FOLDER -o OUTPUT_FOLDER -t TRANSFORMATION
 ```
 
+## upgrading 
+
+When upgrading rocq-ditto using git, you might encounter these kinds of errors:
+```shell
+Dynlink.Error (Dynlink.Cannot_open_dll Failure ... undefined symbol: ...)
+```
+
+These errors are usually fixed by copying `fcc` again:
+```shell
+cp ./_opam/bin/fcc ./vendor/fcc
+```
