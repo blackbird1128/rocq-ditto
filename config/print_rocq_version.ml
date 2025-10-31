@@ -21,16 +21,18 @@ let find_executable (names : string list) =
     aux names
 
 let () =
-  let exe =
+  let exe_path =
     match find_executable [ "rocq"; "coqc" ] with
     | Some e -> e
     | None -> failwith "Neither 'rocq' nor 'coqc' executable found in PATH"
   in
+  let exe_name = Filename.basename exe_path in
 
   let line =
     let ic =
-      if exe = "coqc" then Unix.open_process_in "coqc --print-version"
-      else Unix.open_process_in "rocq c --print-version"
+      if exe_name = "coqc" then
+        Unix.open_process_in (exe_path ^ " --print-version")
+      else Unix.open_process_in (exe_path ^ " c --print-version")
     in
     let l = input_line ic in
     ignore (Unix.close_process_in ic);
