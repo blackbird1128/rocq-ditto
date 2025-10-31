@@ -56,9 +56,11 @@ let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
   json |> to_list
   |> List.map (fun elem ->
-      let range = Code_range.of_yojson (member "range" elem) |> Result.get_ok in
-      let repr = to_string (member "repr" elem) in
-      (repr, range))
+         let range =
+           Code_range.of_yojson (member "range" elem) |> Result.get_ok
+         in
+         let repr = to_string (member "repr" elem) in
+         (repr, range))
 
 let get_target (uri_str : string) =
   let uri_str_without_ext = Filename.remove_extension uri_str in
@@ -72,14 +74,7 @@ let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
 let range_testable = Alcotest.testable Code_range.pp ( = )
 let uuidm_testable = Alcotest.testable Uuidm.pp ( = )
 let error_testable = Alcotest.testable Error.pp ( = )
-
-let goal_select_testable =
-  Alcotest.testable
-    (fun (fmt : Format.formatter) (x : Goal_select.t) ->
-      Sexplib.Sexp.pp_hum fmt (Serlib.Ser_goal_select.sexp_of_t x))
-    ( = )
-
-let goal_select_view_testable = Alcotest.testable
+let goal_select_view_testable = Alcotest.testable Goal_select_view.pp_t ( = )
 let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
 
 let vernacexpr_testable =
@@ -477,11 +472,14 @@ let test_get_goal_select_all (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string "all:simpl." point |> Result.get_ok
   in
 
-  let goal_selector = Syntax_node.get_node_goal_selector_opt node in
+  let goal_selector =
+    Syntax_node.get_node_goal_selector_opt node
+    |> Option.map Goal_select_view.make
+  in
 
-  let expected : Goal_select.t option = Some Goal_select.SelectAll in
+  let expected : Goal_select_view.t option = Some Goal_select_view.SelectAll in
 
-  Alcotest.(check (option goal_select_testable))
+  Alcotest.(check (option goal_select_view_testable))
     "The correct goal selector should be retrieved (SelectAll)" expected
     goal_selector
 
@@ -498,7 +496,7 @@ let test_goal_select_nth_selector (_ : Doc.t) () : unit =
 
   let expected : Goal_select_view.t option = Some Goal_select_view.SelectAll in
 
-  Alcotest.(check (option goal_select_testable))
+  Alcotest.(check (option goal_select_view_testable))
     "The correct goal selector should be retrieved (SelectAll)" expected
     goal_selector
 

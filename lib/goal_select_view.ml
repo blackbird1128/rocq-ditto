@@ -20,6 +20,15 @@ type t =
   | SelectList of goal_range_selector list
   | SelectAll
 
+let pp_t (fmt : Format.formatter) (x : t) =
+  match x with
+  | SelectAlreadyFocused -> Format.fprintf fmt "SelectAlreadyFocused"
+  | SelectList select_list ->
+      Format.fprintf fmt "SelectList (%a)"
+        (Format.pp_print_list pp_goal_selector)
+        select_list
+  | SelectAll -> Format.fprintf fmt "SelectAll"
+
 let make (x : Goal_select.t) : t =
   match x with
   | Goal_select.SelectAlreadyFocused -> SelectAlreadyFocused
