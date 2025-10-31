@@ -23,8 +23,6 @@ let camel_to_snake (s : string) : string =
 let transformation_kind_to_string (kind : transformation_kind) : string =
   Variants_of_transformation_kind.to_name kind |> camel_to_snake
 
-type path_kind = Dir | File
-
 let input_arg = ref ""
 let output_arg = ref ""
 let transformation_arg = ref ""
@@ -71,36 +69,6 @@ let help_to_string (transformation_help : (transformation_kind * string) list) :
       acc ^ (transformation_kind_to_string kind ^ ": " ^ help) ^ "\n")
     "" transformation_help
 
-let is_directory (path : string) : bool =
-  try
-    let stats = Unix.stat path in
-    stats.Unix.st_kind = Unix.S_DIR
-  with Unix.Unix_error _ -> String.ends_with ~suffix:Filename.dir_sep path
-
-let get_pathkind (path : string) : path_kind =
-  if is_directory path then Dir else File
-
-let copy_file (src : string) (dst : string) : (unit, Error.t) result =
-  let buffer_size = 8192 in
-  let buffer = Bytes.create buffer_size in
-  try
-    let ic = open_in_bin src in
-    let oc = open_out_bin dst in
-    let rec loop () =
-      match input ic buffer 0 buffer_size with
-      | 0 -> ()
-      | n ->
-          output oc buffer 0 n;
-          loop ()
-    in
-    loop ();
-    close_in ic;
-    close_out oc;
-    Ok ()
-  with
-  | Sys_error msg -> Error.string_to_or_error msg
-  | e -> Error.string_to_or_error (Printexc.to_string e)
-
 let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
     : (unit, Error.t) result =
   (* ensure target dir exists *)
@@ -121,7 +89,7 @@ let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
           | S_REG ->
               (* TODO remove O(n^2) check *)
               if List.mem (Filename.basename src_path) filenames_to_copy then (
-                match copy_file src_path dst_path with
+                match Filesystem.copy_file src_path dst_path with
                 | Ok () -> loop ()
                 | Error e ->
                     Unix.closedir dh;
@@ -139,20 +107,8 @@ let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
   in
   loop ()
 
-type newDirState = AlreadyExists | Created
-
-let make_dir dir_name : (newDirState, Error.t) result =
-  let perm = 0o755 in
-  if Sys.file_exists dir_name then Ok AlreadyExists
-  else
-    try
-      Unix.mkdir dir_name perm;
-      Ok Created
-    with Unix.Unix_error (err, _, _) ->
-      Error.string_to_or_error (Unix.error_message err)
-
 let set_input_arg (path : string) : unit =
-  if is_directory path || Sys.file_exists path then input_arg := path
+  if Filesystem.is_directory path || Sys.file_exists path then input_arg := path
   else raise (Arg.Bad (Printf.sprintf "Invalid input file or folder: %s" path))
 
 let set_transformation (t : string) : unit =
@@ -193,7 +149,7 @@ let speclist =
 
 let usage_msg = "Usage: rocq-ditto [options]"
 
-let warn_if_exists (dir_state : newDirState) =
+let warn_if_exists (dir_state : Filesystem.newDirState) =
   match dir_state with
   | AlreadyExists ->
       print_endline "Warning: output directory already exists: replacing files"
@@ -246,9 +202,9 @@ let transform_project () : (int, Error.t) result =
     Error.string_to_or_error
       "verbose option (-v) and quiet option (--quiet) are incompatible together"
   else
-    match get_pathkind !input_arg with
+    match Filesystem.get_pathkind !input_arg with
     | File -> (
-        if is_directory !output_arg then
+        if Filesystem.is_directory !output_arg then
           Error.string_to_or_error
             "Please provide a filename as output when providing a file as input"
         else
@@ -304,12 +260,12 @@ let transform_project () : (int, Error.t) result =
             let files = List.map (fun x -> x.thing) p.files in
             let filenames = List.map Filename.basename files in
             let* dep_files = Compile.coqproject_sorted_files coqproject_path in
-            let* new_dir_state = make_dir !output_arg in
+            let* new_dir_state = Filesystem.make_dir !output_arg in
             warn_if_exists new_dir_state;
             let* _ = copy_dir !input_arg !output_arg filenames in
 
             let* _ =
-              copy_file coqproject_path
+              Filesystem.copy_file coqproject_path
                 (Filename.concat !output_arg coqproject_file)
             in
 
