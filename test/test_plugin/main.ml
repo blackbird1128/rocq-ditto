@@ -56,11 +56,9 @@ let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
   json |> to_list
   |> List.map (fun elem ->
-         let range =
-           Code_range.of_yojson (member "range" elem) |> Result.get_ok
-         in
-         let repr = to_string (member "repr" elem) in
-         (repr, range))
+      let range = Code_range.of_yojson (member "range" elem) |> Result.get_ok in
+      let repr = to_string (member "repr" elem) in
+      (repr, range))
 
 let get_target (uri_str : string) =
   let uri_str_without_ext = Filename.remove_extension uri_str in
@@ -81,6 +79,7 @@ let goal_select_testable =
       Sexplib.Sexp.pp_hum fmt (Serlib.Ser_goal_select.sexp_of_t x))
     ( = )
 
+let goal_select_view_testable = Alcotest.testable
 let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
 
 let vernacexpr_testable =
@@ -492,9 +491,12 @@ let test_goal_select_nth_selector (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string "1:simpl." point |> Result.get_ok
   in
 
-  let goal_selector = Syntax_node.get_node_goal_selector_opt node in
+  let goal_selector =
+    Syntax_node.get_node_goal_selector_opt node
+    |> Option.map Goal_select_view.make
+  in
 
-  let expected : Goal_select.t option = Some Goal_select.SelectAll in
+  let expected : Goal_select_view.t option = Some Goal_select_view.SelectAll in
 
   Alcotest.(check (option goal_select_testable))
     "The correct goal selector should be retrieved (SelectAll)" expected
