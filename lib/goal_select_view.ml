@@ -46,6 +46,7 @@ let pp_t (fmt : Format.formatter) (x : t) =
   | SelectAlreadyFocused -> Format.fprintf fmt "SelectAlreadyFocused"
   | SelectList select_list ->
       Format.fprintf fmt "SelectList (%a)"
-        (Format.pp_print_list pp_goal_range_selector)
+        (Format.pp_print_list ?pp_sep:(Some Format.pp_print_space)
+           pp_goal_range_selector)
         select_list
   | SelectAll -> Format.fprintf fmt "SelectAll"

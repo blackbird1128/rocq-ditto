@@ -56,11 +56,9 @@ let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
   json |> to_list
   |> List.map (fun elem ->
-         let range =
-           Code_range.of_yojson (member "range" elem) |> Result.get_ok
-         in
-         let repr = to_string (member "repr" elem) in
-         (repr, range))
+      let range = Code_range.of_yojson (member "range" elem) |> Result.get_ok in
+      let repr = to_string (member "repr" elem) in
+      (repr, range))
 
 let get_target (uri_str : string) =
   let uri_str_without_ext = Filename.remove_extension uri_str in
@@ -494,11 +492,75 @@ let test_goal_select_nth_selector (_ : Doc.t) () : unit =
     |> Option.map Goal_select_view.make
   in
 
-  let expected : Goal_select_view.t option = Some Goal_select_view.SelectAll in
+  let expected : Goal_select_view.t option =
+    Some (Goal_select_view.SelectList [ Goal_select_view.NthSelector 1 ])
+  in
 
   Alcotest.(check (option goal_select_view_testable))
-    "The correct goal selector should be retrieved (SelectAll)" expected
-    goal_selector
+    "The correct goal selector should be retrieved SelectList (SelectNth 1)"
+    expected goal_selector
+
+let test_goal_select_single_range (_ : Doc.t) () : unit =
+  let point : Code_point.t = { line = 0; character = 0 } in
+
+  let node =
+    Syntax_node.syntax_node_of_string "1-2:simpl." point |> Result.get_ok
+  in
+
+  let goal_selector =
+    Syntax_node.get_node_goal_selector_opt node
+    |> Option.map Goal_select_view.make
+  in
+
+  let expected : Goal_select_view.t option =
+    Some (Goal_select_view.SelectList [ Goal_select_view.RangeSelector (1, 2) ])
+  in
+
+  Alcotest.(check (option goal_select_view_testable))
+    "The correct goal selector should be retrieved SelectList (RangeSelector \
+     (1,2))"
+    expected goal_selector
+
+let test_goal_select_multiple_selector (_ : Doc.t) () : unit =
+  let point : Code_point.t = { line = 0; character = 0 } in
+  let node =
+    Syntax_node.syntax_node_of_string "1-2,3-4:simpl." point |> Result.get_ok
+  in
+
+  let goal_selector =
+    Syntax_node.get_node_goal_selector_opt node
+    |> Option.map Goal_select_view.make
+  in
+
+  let expected : Goal_select_view.t option =
+    Some
+      (Goal_select_view.SelectList
+         [
+           Goal_select_view.RangeSelector (1, 2);
+           Goal_select_view.RangeSelector (3, 4);
+         ])
+  in
+
+  Alcotest.(check (option goal_select_view_testable))
+    "The correct goal selector should be retrieved SelectList (RangeSelector \
+     (1,2); (RangeSelector (3,4)))"
+    expected goal_selector
+
+let test_drop_goal_selector_nth (_ : Doc.t) () : unit =
+  let point : Code_point.t = { line = 0; character = 0 } in
+  let node =
+    Syntax_node.syntax_node_of_string "1:simpl." point |> Result.get_ok
+  in
+
+  let node_without_selector = Syntax_node.drop_goal_selector node in
+
+  let has_goal_selector =
+    Syntax_node.get_node_goal_selector_opt node_without_selector
+    |> Option.is_empty
+  in
+
+  Alcotest.(
+    check bool "The node selector should be None" true has_goal_selector)
 
 let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
@@ -1407,8 +1469,20 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test creating a thens nothing"
        test_creating_a_thens_nothing doc);
   Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "test getting a Goal_select.t from all:tactic"
+    (create_fixed_test "test getting a Goal_select_view.t from all:tactic"
        test_get_goal_select_all doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test getting a Goal_select_view from n:tactic"
+       test_goal_select_nth_selector doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test getting a Goal_select_view from a,b:tactic"
+       test_goal_select_single_range doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test getting a Goal_select_view from a-b,c-d:tactic"
+       test_goal_select_multiple_selector doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test dropping a goal selector from a tactic"
+       test_drop_goal_selector_nth doc);
 
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test checking if detecting \"Proof with\" is correct"
