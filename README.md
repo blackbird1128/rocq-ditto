@@ -70,3 +70,6 @@ These errors are usually fixed by copying `fcc` again:
 ```shell
 cp ./_opam/bin/fcc ./vendor/fcc
 ```
+
+When upgrading, you may also encounter issues with the optcomp part used by `rocq-ditto` to adapt to different `rocq` version.
+These issues are usually fixed by using `make clean` before rebuilding.
