@@ -494,7 +494,7 @@ let test_goal_select_nth_selector (_ : Doc.t) () : unit =
 
   let goal_selector = Syntax_node.get_node_goal_selector_opt node in
 
-  let expected : Goal_select.t option = Some Goal_select.t in
+  let expected : Goal_select.t option = Some Goal_select.SelectAll in
 
   Alcotest.(check (option goal_select_testable))
     "The correct goal selector should be retrieved (SelectAll)" expected
