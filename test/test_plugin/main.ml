@@ -56,9 +56,11 @@ let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
   json |> to_list
   |> List.map (fun elem ->
-      let range = Code_range.of_yojson (member "range" elem) |> Result.get_ok in
-      let repr = to_string (member "repr" elem) in
-      (repr, range))
+         let range =
+           Code_range.of_yojson (member "range" elem) |> Result.get_ok
+         in
+         let repr = to_string (member "repr" elem) in
+         (repr, range))
 
 let get_target (uri_str : string) =
   let uri_str_without_ext = Filename.remove_extension uri_str in
@@ -1151,6 +1153,9 @@ let explicit_fresh_variables_simple_assert (doc : Doc.t) () : unit =
 let explicit_fresh_variables_simple_induction (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.explicit_fresh_variables ()
 
+let explicit_fresh_variables_list_induction (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_fresh_variables ()
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -1679,6 +1684,10 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "test making explicit the fresh variables of a simple induction"
        explicit_fresh_variables_simple_induction doc);
+  Hashtbl.add table "ex_explicit_induction_list.v"
+    (create_fixed_test
+       "test making explicit the fresh variables of a list induction"
+       explicit_fresh_variables_list_induction doc);
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
   (*      test_replace_auto_using_zarith_by_steps doc); *)
