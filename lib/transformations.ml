@@ -71,7 +71,7 @@ let simple_proof_repair (doc : Rocq_document.t)
                       let childs =
                         List.concat (List.map Nary_tree.flatten children)
                         |> List.filter (fun x ->
-                            not (is_syntax_node_proof_intro_or_end x))
+                               not (is_syntax_node_proof_intro_or_end x))
                       in
 
                       let ignore_acc =
@@ -926,16 +926,32 @@ let list_of_list_to_str pp_elem lsts =
   let inner = List.map pp_list lsts |> String.concat "; " in
   "[" ^ inner ^ "]"
 
+let get_new_vars ?(keep : string list = [])
+    (old_goals_vars : string list list option)
+    (new_goals_vars : string list list option) : string list list option =
+  match (old_goals_vars, new_goals_vars) with
+  | Some old_goals_vars, Some new_goals_vars ->
+      Some
+        (List_utils.map2_pad
+           ~pad1:(List.nth_opt old_goals_vars 0)
+           (fun old_vars new_vars ->
+             List.filter
+               (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
+               new_vars)
+           old_goals_vars new_goals_vars)
+  | _ -> None
+
 let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
-  let rewrite_induction (x : Syntax_node.t) (new_vars : string list list option)
-      : Syntax_node.t option =
+  let rewrite_induction (x : Syntax_node.t)
+      (old_goals_vars : string list list option)
+      (new_goals_vars : string list list option) : Syntax_node.t option =
     let open Ltac_plugin.Tacexpr in
-    match new_vars with
-    | Some new_vars ->
+    match (old_goals_vars, new_goals_vars) with
+    | Some old_goals_vars, Some new_goals_vars ->
         let raw_atomic_expr =
           Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
         in
@@ -954,9 +970,18 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                    ( intro_pattern_naming_expr_opt,
                      locus_or_var_or_and_intro_pattern_opt ),
                    clause_expr_opt ) ->
-              let induction_on =
+              let destruct_arg_str =
                 destruction_arg_to_string destruction_arg
-                |> string_to_intro_pattern_expr |> Option.get |> CAst.make
+              in
+              let induction_on =
+                destruct_arg_str |> string_to_intro_pattern_expr |> Option.get
+                |> CAst.make
+              in
+
+              let new_vars =
+                get_new_vars ~keep:[ destruct_arg_str ] (Some old_goals_vars)
+                  (Some new_goals_vars)
+                |> Option.get
               in
 
               let new_or_intro_pattern :
@@ -972,7 +997,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                              |> Option.get |> CAst.make)
                            l
                        in
-                       if i = 1 then induction_on :: mapped else mapped)
+                       mapped)
                      new_vars)
                 |> CAst.make
               in
@@ -1000,12 +1025,14 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
 
         Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
         |> Result.to_option
-    | None -> None
+    | _ -> None
   in
 
-  let rewrite_assert (x : Syntax_node.t) (new_vars : string list list option) :
-      Syntax_node.t option =
+  let rewrite_assert (x : Syntax_node.t)
+      (old_goals_vars : string list list option)
+      (new_goals_vars : string list list option) : Syntax_node.t option =
     let open Ltac_plugin.Tacexpr in
+    let new_vars = get_new_vars old_goals_vars new_goals_vars in
     match new_vars with
     | Some new_vars ->
         let raw_atomic_expr =
@@ -1036,9 +1063,11 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
     | None -> None
   in
 
-  let rewrite_intros (x : Syntax_node.t) (new_vars : string list list option) :
-      Syntax_node.t option =
+  let rewrite_intros (x : Syntax_node.t)
+      (old_goals_vars : string list list option)
+      (new_goals_vars : string list list option) : Syntax_node.t option =
     let open Ltac_plugin.Tacexpr in
+    let new_vars = get_new_vars old_goals_vars new_goals_vars in
     match new_vars with
     | Some new_vars ->
         let raw_atomic_expr =
@@ -1054,7 +1083,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
         let intro_pattern_expr =
           List.hd new_vars
           |> List.map (fun x ->
-              string_to_intro_pattern_expr x |> Option.get |> CAst.make)
+                 string_to_intro_pattern_expr x |> Option.get |> CAst.make)
         in
         let new_raw_tac =
           TacAtom (TacIntroPattern (eflag, intro_pattern_expr)) |> CAst.make
@@ -1066,7 +1095,10 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
 
   let rewriters :
       ((Syntax_node.t -> bool)
-      * (Syntax_node.t -> string list list option -> Syntax_node.t option))
+      * (Syntax_node.t ->
+        string list list option ->
+        string list list option ->
+        Syntax_node.t option))
       list =
     [
       (is_syntax_node_intros_without_set_var, rewrite_intros);
@@ -1076,8 +1108,11 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
   in
 
   let find_rewriter (node : Syntax_node.t) :
-      (Syntax_node.t -> string list list option -> Syntax_node.t option) option
-      =
+      (Syntax_node.t ->
+      string list list option ->
+      string list list option ->
+      Syntax_node.t option)
+      option =
     List.find_map
       (fun (predicate, rewriter) ->
         if predicate node then Some rewriter else None)
@@ -1086,19 +1121,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
       let* new_state = Runner.run_node token state node in
-
-      let args = get_tactic_raw_generic_arguments node in
-      (* Option.iter *)
-      (*   (fun args -> *)
-      (*     let sexps = *)
-      (*       List.map Serlib.Ser_genarg.sexp_of_raw_generic_argument args *)
-      (*     in *)
-
-      (*     List.iter *)
-      (*       (fun x -> *)
-      (*         Logs.debug (fun m -> m "%s" (Sexplib.Sexp.to_string_hum x))) *)
-      (*       sexps) *)
-      (*   args; *)
 
       match find_rewriter node with
       | Some rewriter -> (
@@ -1115,6 +1137,12 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                 List.map Runner.get_hypothesis_names x.goals)
               old_goals
           in
+          Option.iter
+            (fun old_goals_vars ->
+              Logs.debug (fun m ->
+                  m "old goals vars: %s"
+                    (list_of_list_to_str Fun.id old_goals_vars)))
+            old_goals_vars;
 
           let new_goals_vars =
             Option.map
@@ -1125,20 +1153,16 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                 List.map Runner.get_hypothesis_names x.goals)
               new_goals
           in
+          Option.iter
+            (fun new_goals_vars ->
+              Logs.debug (fun m ->
+                  m "new goals vars: %s"
+                    (list_of_list_to_str Fun.id new_goals_vars)))
+            new_goals_vars;
 
-          let new_vars =
-            match (old_goals_vars, new_goals_vars) with
-            | Some old_goals_vars, Some new_goals_vars ->
-                Some
-                  (List_utils.map2_pad
-                     ~pad1:(List.nth_opt old_goals_vars 0)
-                     (fun old_vars new_vars ->
-                       List.filter (fun x -> not (List.mem x old_vars)) new_vars)
-                     old_goals_vars new_goals_vars)
-            | _ -> None
-          in
+          let new_vars = get_new_vars old_goals_vars new_goals_vars in
 
-          match rewriter node new_vars with
+          match rewriter node old_goals_vars new_goals_vars with
           | Some x ->
               let r = Replace (node.id, x) in
               Ok (new_state, r :: acc)
