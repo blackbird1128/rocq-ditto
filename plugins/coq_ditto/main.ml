@@ -28,6 +28,7 @@ let output_arg = ref ""
 let transformation_arg = ref ""
 let verbose = ref false
 let save_vo = ref false
+let reverse_order = ref false
 let quiet = ref false
 
 let transformations_help =
@@ -142,6 +143,12 @@ let speclist =
     ("-o", Arg.Set_string output_arg, "Output folder or filename");
     ("-t", Arg.String set_transformation, "Transformation to apply");
     ("--save-vo", Arg.Set save_vo, "Save a vo of the transformed file");
+    ( "--reverse-order",
+      Arg.Set reverse_order,
+      "Reverse the order of treatment of the proofs to improve cache-hits on \
+       heavy transformations.\n\
+       Warning:the final document might not be valid if the transformation \
+       returns invalid code at some point. Use --save-vo to check." );
     ( "--quiet",
       Arg.Set quiet,
       "Silence progress output, incompatible with -v (verbose)" );
@@ -217,7 +224,6 @@ let transform_project () : (int, Error.t) result =
             |> Option.default (Filename.dirname !input_arg)
           in
 
-          print_endline ("input_dir: " ^ input_dir);
           let env =
             Array.append (Unix.environment ())
               [|
@@ -226,6 +232,7 @@ let transform_project () : (int, Error.t) result =
                 "DEBUG_LEVEL=" ^ string_of_bool !verbose;
                 "SAVE_VO=" ^ string_of_bool !save_vo;
                 "QUIET=" ^ string_of_bool !quiet;
+                "REVERSE_ORDER=" ^ string_of_bool !reverse_order;
               |]
           in
 
@@ -276,6 +283,7 @@ let transform_project () : (int, Error.t) result =
                   "DEBUG_LEVEL=" ^ string_of_bool !verbose;
                   "SAVE_VO=" ^ string_of_bool !save_vo;
                   "QUIET=" ^ string_of_bool !quiet;
+                  "REVERSE_ORDER=" ^ string_of_bool !reverse_order;
                 |]
             in
 

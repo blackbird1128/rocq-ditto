@@ -202,6 +202,13 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
           |> Option.map (List.map arg_to_transformation_kind)
         in
 
+        let reverse_order =
+          Option.default false
+            (Sys.getenv_opt "REVERSE_ORDER"
+            |> Option.map bool_of_string_opt
+            |> Option.flatten)
+        in
+
         match transformations_steps with
         | None ->
             Error.string_to_or_error
@@ -251,7 +258,12 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                       print_endline
                         ("applying transformation : "
                         ^ transformation_kind_to_string transformation_kind);
-                      let proofs_rec = Rocq_document.get_proofs doc_acc in
+
+                      let proofs_rec =
+                        if reverse_order then
+                          Result.map List.rev (Rocq_document.get_proofs doc_acc)
+                        else Rocq_document.get_proofs doc_acc
+                      in
                       let doc_res =
                         local_apply_proof_transformation doc_acc transformation
                           transformation_kind proofs_rec verbose quiet
