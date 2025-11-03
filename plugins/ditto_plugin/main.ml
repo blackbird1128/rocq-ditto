@@ -288,39 +288,27 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 |> Option.flatten)
             in
 
+            print_newline ();
+            print_endline
+              ("All transformations applied, writing to file " ^ filename);
+            let _ =
+              if verbose then (
+                let stats = Stats.Global.dump () in
+                Logs.debug (fun m ->
+                    m "rocq-ditto stats: %s" (Stats.Global.to_string stats));
+                Logs.debug (fun m ->
+                    m "rocq-ditto %s" (Memo.GlobalCacheStats.stats ())))
+              else ()
+            in
+            let out = open_out filename in
+
             match (res, save_vo) with
             | Ok res, false ->
-                print_newline ();
-                print_endline
-                  ("All transformations applied, writing to file " ^ filename);
-
-                let _ =
-                  if verbose then (
-                    let stats = Stats.Global.dump () in
-                    Logs.debug (fun m ->
-                        m "rocq-ditto stats: %s" (Stats.Global.to_string stats));
-                    Logs.debug (fun m ->
-                        m "rocq-ditto %s" (Memo.GlobalCacheStats.stats ())))
-                  else ()
-                in
-                let out = open_out filename in
                 let* doc_repr = Rocq_document.dump_to_string res in
+
                 output_string out doc_repr;
                 Ok ()
             | Ok res, true ->
-                print_endline
-                  ("All transformations applied, writing to file " ^ filename);
-                let _ =
-                  if verbose then (
-                    let stats = Stats.Global.dump () in
-                    Logs.debug (fun m ->
-                        m "rocq-ditto stats: %s" (Stats.Global.to_string stats));
-                    Logs.debug (fun m ->
-                        m "rocq-ditto %s" (Memo.GlobalCacheStats.stats ())))
-                  else ()
-                in
-
-                let out = open_out filename in
                 let* doc_repr = Rocq_document.dump_to_string res in
                 output_string out doc_repr;
                 print_endline "Saving vo:";
