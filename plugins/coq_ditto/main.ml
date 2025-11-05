@@ -147,8 +147,9 @@ let speclist =
       Arg.Set reverse_order,
       "Reverse the order of treatment of the proofs to improve cache-hits on \
        heavy transformations.\n\
-       Warning:the final document might not be valid if the transformation \
-       returns invalid code at some point. Use --save-vo to check." );
+      \       Warning: the final document might not be valid if the \
+       transformation returns invalid code at some point. Use --save-vo to \
+       check." );
     ( "--quiet",
       Arg.Set quiet,
       "Silence progress output, incompatible with -v (verbose)" );
@@ -311,6 +312,8 @@ let transform_project () : (int, Error.t) result =
                           Unix.stdin Unix.stdout Unix.stderr
                       in
                       let _, status = Unix.waitpid [] pid in
+                      Logs.debug (fun m ->
+                          m "status: %s" (string_of_process_status status));
                       (status, x)
                   | err -> err)
                 (Unix.WEXITED 0, "default")
@@ -323,10 +326,8 @@ let transform_project () : (int, Error.t) result =
                 ^ " filename " ^ snd transformations_status)
             else Ok 0
         | None ->
-            prerr_endline
-              (Printf.sprintf "No _CoqProject or _RocqProject file found in %s"
-                 !input_arg);
-            exit 1)
+            Error.format_to_or_error
+              "No _CoqProject or _RocqProject file found in %s" !input_arg)
 
 let () =
   match transform_project () with

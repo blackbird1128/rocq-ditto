@@ -887,9 +887,7 @@ let is_syntax_node_intros_without_set_var (x : Syntax_node.t) : bool =
 
 let is_syntax_node_assert_without_set_var (x : Syntax_node.t) : bool =
   match Syntax_node.get_node_raw_atomic_tactic_expr x with
-  | Some (TacAssert (false, true, _, None, _)) ->
-      Logs.debug (fun m -> m "assert without set var detected");
-      true
+  | Some (TacAssert (false, true, _, None, _)) -> true
   | _ -> false
 
 let is_syntax_node_induction_without_set_var (x : Syntax_node.t) : bool =
@@ -972,10 +970,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                    clause_expr_opt ) ->
               let destruct_arg_str =
                 destruction_arg_to_string destruction_arg
-              in
-              let induction_on =
-                destruct_arg_str |> string_to_intro_pattern_expr |> Option.get
-                |> CAst.make
               in
 
               let new_vars =
@@ -1137,12 +1131,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                 List.map Runner.get_hypothesis_names x.goals)
               old_goals
           in
-          Option.iter
-            (fun old_goals_vars ->
-              Logs.debug (fun m ->
-                  m "old goals vars: %s"
-                    (list_of_list_to_str Fun.id old_goals_vars)))
-            old_goals_vars;
 
           let new_goals_vars =
             Option.map
@@ -1153,14 +1141,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                 List.map Runner.get_hypothesis_names x.goals)
               new_goals
           in
-          Option.iter
-            (fun new_goals_vars ->
-              Logs.debug (fun m ->
-                  m "new goals vars: %s"
-                    (list_of_list_to_str Fun.id new_goals_vars)))
-            new_goals_vars;
-
-          let new_vars = get_new_vars old_goals_vars new_goals_vars in
 
           match rewriter node old_goals_vars new_goals_vars with
           | Some x ->
