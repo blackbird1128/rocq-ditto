@@ -139,6 +139,17 @@ let pp_header_no_app fmt (level, _msg_header_opt) =
   | Logs.App -> () (* App level: print nothing before the msg *)
   | _ -> Format.fprintf fmt "[%a] " pp_level_lowercase level
 
+let print_info (filename : string) (verbose : bool) : unit =
+  print_newline ();
+  print_endline ("All transformations applied, writing to file " ^ filename);
+
+  if verbose then (
+    let stats = Stats.Global.dump () in
+    Logs.debug (fun m ->
+        m "rocq-ditto stats: %s" (Stats.Global.to_string stats));
+    Logs.debug (fun m -> m "rocq-ditto %s" (Memo.GlobalCacheStats.stats ())))
+  else ()
+
 let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
     (unit, Error.t) result =
   let ( let* ) = Result.bind in
@@ -288,27 +299,19 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 |> Option.flatten)
             in
 
-            print_newline ();
-            print_endline
-              ("All transformations applied, writing to file " ^ filename);
-            let _ =
-              if verbose then (
-                let stats = Stats.Global.dump () in
-                Logs.debug (fun m ->
-                    m "rocq-ditto stats: %s" (Stats.Global.to_string stats));
-                Logs.debug (fun m ->
-                    m "rocq-ditto %s" (Memo.GlobalCacheStats.stats ())))
-              else ()
-            in
-            let out = open_out filename in
-
             match (res, save_vo) with
             | Ok res, false ->
+                print_info filename verbose;
+                let out = open_out filename in
+
                 let* doc_repr = Rocq_document.dump_to_string res in
 
                 output_string out doc_repr;
                 Ok ()
             | Ok res, true ->
+                print_info filename verbose;
+
+                let out = open_out filename in
                 let* doc_repr = Rocq_document.dump_to_string res in
                 output_string out doc_repr;
                 print_endline "Saving vo:";
@@ -334,7 +337,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
 
 let ditto_plugin_hook ~io ~token ~(doc : Doc.t) : unit =
   match ditto_plugin ~io ~token ~doc with
-  | Ok _ -> ()
+  | Ok _ -> exit 0
   | Error err ->
       prerr_endline (Error.to_string_hum err);
       exit 1

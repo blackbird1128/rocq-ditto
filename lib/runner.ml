@@ -2,11 +2,28 @@ open Syntax_node
 open Nary_tree
 open Proof
 
-let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) Result.t =
+let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) result =
   match r with
   | { r = Interrupted; feedback = _ } -> Error.string_to_or_error "Interrupted"
   | { r = Completed (Error (User { msg; _ })); feedback = _ } ->
       Error.string_to_or_error (Pp.string_of_ppcmds msg)
+  | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
+      Error.string_to_or_error ("Anomaly " ^ Pp.string_of_ppcmds msg)
+  | { r = Completed (Ok r); feedback = _ } -> Ok r
+
+let protect_run_to_result (r : (Coq.State.t, Loc.t) Coq.Protect.E.t) :
+    (Coq.State.t, Error.t) result =
+  match r with
+  | { r = Interrupted; feedback = _ } -> Error.string_to_or_error "Interrupted"
+  | { r = Completed (Error (User payload)); feedback = _ } -> (
+      match payload.range with
+      | Some loc ->
+          let err = Error.of_string (Pp.string_of_ppcmds payload.msg) in
+          let err_tagged =
+            Error.tag_arg err "loc" loc Serlib.Ser_loc.sexp_of_t
+          in
+          Error err_tagged
+      | None -> Error.string_to_or_error (Pp.string_of_ppcmds payload.msg))
   | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
       Error.string_to_or_error ("Anomaly " ^ Pp.string_of_ppcmds msg)
   | { r = Completed (Ok r); feedback = _ } -> Ok r
@@ -98,7 +115,9 @@ let parse_and_execute_in ~token ~loc tac st =
   let pa = Coq.Parsing.Parsable.make ?loc str in
   parse_execute_loop ~token pa st
 
-let run_with_diagnostics ~token ?loc ?(memo = true) ~st cmds =
+let run_with_diagnostics ~(token : Coq.Limits.Token.t) ?(loc : Loc.t option)
+    ?(memo = true) ~(st : Coq.State.t) (cmds : string) :
+    (Coq.State.t * Loc.t Coq.Message.t list, Loc.t) Coq.Protect.E.t =
   Coq.State.in_stateM ~token ~st
     ~f:(parse_and_execute_in ~token ~loc ~memo ~msg_acc:[] cmds)
     st
@@ -139,12 +158,30 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
 
 let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
     (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
+  let open Sexplib.Std in
   let nodes_before, _ = Rocq_document.split_at_id node.id doc in
   let init_state = doc.initial_state in
-  List.fold_left
-    (fun state node ->
-      match state with Ok state -> run_node token state node | err -> err)
-    (Ok init_state) nodes_before
+  let error_tagged = false in
+  let state, _, _ =
+    List.fold_left
+      (fun (state, error_tagged, prev_node) node ->
+        match state with
+        | Ok state -> (run_node token state node, error_tagged, Some node)
+        | Error err ->
+            if error_tagged then (Error err, error_tagged, Some node)
+            else
+              let prev_node_repr = Option.map (fun x -> x.repr) prev_node in
+              let msg =
+                [%message
+                  ""
+                    ~loc:(node.range : Code_range.t)
+                    ~repr:(prev_node_repr : string option)]
+              in
+              (Error (Error.tag_sexp err "info" msg), true, Some node))
+      (Ok init_state, error_tagged, None)
+      nodes_before
+  in
+  state
 
 let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
     =
@@ -363,7 +400,10 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
   | Ok state ->
       let* _, acc = aux f state acc tree in
       Ok acc
-  | _ -> Error.of_result (Error "Unable to retrieve initial state")
+  | Error err ->
+      Error
+        (Error.tag err
+           ~tag:"depth_first_with_state: Unable to retrieve initial state")
 
 let fold_nodes_with_state
     (f :
@@ -394,4 +434,7 @@ let fold_proof_with_state (doc : Rocq_document.t) (token : Coq.Limits.Token.t)
 
   match get_init_state doc p.proposition token with
   | Ok state -> fold_nodes_with_state f state acc proof_nodes
-  | _ -> Error.string_to_or_error "Unable to retrieve initial state"
+  | Error err ->
+      Error
+        (Error.tag err
+           ~tag:"depth_first_with_state: Unable to retrieve initial state")

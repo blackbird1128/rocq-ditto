@@ -6,12 +6,16 @@ type t =
   | Tag_t of string * t
   | Of_sexp of Sexp.t
   | Of_exn of exn
+  | Of_list of t list
 [@@deriving sexp_of]
 
 val of_string : string -> t
 val of_exn : exn -> t
+val of_sexp : Sexp.t -> t
 val tag : t -> tag:string -> t
 val tag_arg : t -> string -> 'a -> ('a -> Sexp.t) -> t
+val tag_sexp : t -> string -> Sexp.t -> t
+val combine : t list -> t
 
 val tag_with_debug_infos :
   ?file:string -> ?funcname:string -> ?line:int -> t -> t
