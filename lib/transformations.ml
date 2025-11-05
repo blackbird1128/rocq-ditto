@@ -916,27 +916,36 @@ let string_to_intro_pattern_expr (x : string) :
     (fun a -> Tactypes.IntroNaming a)
     (string_to_intro_pattern_naming_expr x)
 
+let list_to_str pp_elem l =
+  let elems = List.map pp_elem l |> String.concat "; " in
+  "[" ^ elems ^ "]"
+
 let list_of_list_to_str pp_elem lsts =
-  let pp_list l =
-    let elems = List.map pp_elem l |> String.concat "; " in
-    "[" ^ elems ^ "]"
-  in
-  let inner = List.map pp_list lsts |> String.concat "; " in
+  let inner = List.map (list_to_str pp_elem) lsts |> String.concat "; " in
   "[" ^ inner ^ "]"
+
+let list_of_list_of_str_to_str lsts : string = list_of_list_to_str Fun.id lsts
 
 let get_new_vars ?(keep : string list = [])
     (old_goals_vars : string list list option)
     (new_goals_vars : string list list option) : string list list option =
   match (old_goals_vars, new_goals_vars) with
   | Some old_goals_vars, Some new_goals_vars ->
-      Some
-        (List_utils.map2_pad
-           ~pad1:(List.nth_opt old_goals_vars 0)
-           (fun old_vars new_vars ->
-             List.filter
-               (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
-               new_vars)
-           old_goals_vars new_goals_vars)
+      let last_index = max (List.length old_goals_vars - 1) 0 in
+      let pad1 = List.nth_opt old_goals_vars last_index |> Option.get in
+      Logs.debug (fun m -> m "keep: %s" (list_to_str Fun.id keep));
+      Logs.debug (fun m -> m "pad1: %s" (list_to_str Fun.id pad1));
+      let res =
+        List_utils.map2_pad
+          ~pad1:(List.nth_opt old_goals_vars last_index)
+          (fun old_vars new_vars ->
+            List.filter
+              (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
+              new_vars)
+          old_goals_vars new_goals_vars
+      in
+      Logs.debug (fun m -> m "res: %s" (list_of_list_of_str_to_str res));
+      Some res
   | _ -> None
 
 let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
@@ -977,6 +986,16 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                   (Some new_goals_vars)
                 |> Option.get
               in
+
+              Logs.debug (fun m ->
+                  m "old goals vars: %s"
+                    (list_of_list_of_str_to_str old_goals_vars));
+              Logs.debug (fun m ->
+                  m "new goals vars: %s"
+                    (list_of_list_of_str_to_str new_goals_vars));
+              Logs.debug (fun m ->
+                  m "new vars: %s" (list_of_list_of_str_to_str new_vars));
+              Logs.debug (fun m -> m "");
 
               let new_or_intro_pattern :
                   Constrexpr.constr_expr Tactypes.or_and_intro_pattern_expr
