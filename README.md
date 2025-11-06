@@ -18,6 +18,7 @@ You will also need the `gmp-dev` and `linux-headers` library.
 Then if you want to install `rocq-ditto` with the latest version of Rocq, use the following instructions:
 ```shell
 opam switch -y create . ocaml-base-compiler --deps-only
+opam install rocq-stdlib # the stdlib is not packaged with rocq anymore, not used to build but used to run rocq files
 eval $(opam env)
 mkdir -p vendor/
 ln -s _opam/bin/rocq _opam/bin/coqc # this is needed for now so that dune can use coq variables like %{coq:version.major}
