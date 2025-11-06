@@ -33,17 +33,47 @@ let tag_arg (t : t) (tag : string) (arg : 'a) (sexp_of_arg : 'a -> Sexp.t) : t =
 let tag_sexp (t : t) (tag_name : string) (arg : Sexplib.Sexp.t) : t =
   Tag_sexp (tag_name, arg, t)
 
-let to_string_hum (t : t) : string =
-  let rec render = function
-    | String s -> s
+let pp fmt t =
+  let rec aux indent fmt = function
+    | String s -> Format.fprintf fmt "%s%s" (String.make indent ' ') s
+    | Tag_t (tag, t) ->
+        Format.fprintf fmt "%s%s:@\n%a" (String.make indent ' ') tag
+          (aux (indent + 2))
+          t
     | Tag_sexp (tag, sexp, t) ->
-        tag ^ ": " ^ Sexp.to_string_hum sexp ^ "\n" ^ render t
-    | Tag_t (tag, t) -> tag ^ "\n" ^ render t
-    | Of_sexp sexp -> Sexp.to_string_hum ~indent:2 sexp
-    | Of_exn exn -> Printexc.to_string exn
-    | Of_list l -> String.concat "\n---\n" (List.map render l)
+        Format.fprintf fmt "%s%s: %s@\n%a" (String.make indent ' ') tag
+          (Sexp.to_string_hum sexp)
+          (aux (indent + 2))
+          t
+    | Of_exn exn ->
+        Format.fprintf fmt "%s%s" (String.make indent ' ')
+          (Printexc.to_string exn)
+    | Of_sexp sexp ->
+        Format.fprintf fmt "%s%s" (String.make indent ' ')
+          (Sexp.to_string_hum sexp)
+    | Of_list l ->
+        List.iteri
+          (fun i e ->
+            Format.fprintf fmt "%s- [%d]@\n%a" (String.make indent ' ') i
+              (aux (indent + 2))
+              e)
+          l
   in
-  render t
+  aux 0 fmt t
+
+let to_string_hum t = Format.asprintf "%a" pp t
+
+(* let to_string_hum (t : t) : string = *)
+(*   let rec render = function *)
+(*     | String s -> s *)
+(*     | Tag_sexp (tag, sexp, t) -> *)
+(*         tag ^ ": " ^ Sexp.to_string_hum sexp ^ "\n" ^ render t *)
+(*     | Tag_t (tag, t) -> tag ^ "\n" ^ render t *)
+(*     | Of_sexp sexp -> Sexp.to_string_hum ~indent:2 sexp *)
+(*     | Of_exn exn -> Printexc.to_string exn *)
+(*     | Of_list l -> String.concat "\n---\n" (List.map render l) *)
+(*   in *)
+(*   render t *)
 
 let to_string_mach (t : t) : string = Sexp.to_string (sexp_of_t t)
 
