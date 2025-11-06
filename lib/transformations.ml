@@ -71,7 +71,7 @@ let simple_proof_repair (doc : Rocq_document.t)
                       let childs =
                         List.concat (List.map Nary_tree.flatten children)
                         |> List.filter (fun x ->
-                               not (is_syntax_node_proof_intro_or_end x))
+                            not (is_syntax_node_proof_intro_or_end x))
                       in
 
                       let ignore_acc =
@@ -931,20 +931,16 @@ let get_new_vars ?(keep : string list = [])
     (new_goals_vars : string list list option) : string list list option =
   match (old_goals_vars, new_goals_vars) with
   | Some old_goals_vars, Some new_goals_vars ->
-      let last_index = max (List.length old_goals_vars - 1) 0 in
-      let pad1 = List.nth_opt old_goals_vars last_index |> Option.get in
-      Logs.debug (fun m -> m "keep: %s" (list_to_str Fun.id keep));
-      Logs.debug (fun m -> m "pad1: %s" (list_to_str Fun.id pad1));
+      let pad1 = List.nth_opt old_goals_vars 0 |> Option.get in
       let res =
         List_utils.map2_pad
-          ~pad1:(List.nth_opt old_goals_vars last_index)
+          ~pad1:(List.nth_opt old_goals_vars 0)
           (fun old_vars new_vars ->
             List.filter
               (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
               new_vars)
           old_goals_vars new_goals_vars
       in
-      Logs.debug (fun m -> m "res: %s" (list_of_list_of_str_to_str res));
       Some res
   | _ -> None
 
@@ -969,6 +965,11 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
               (rflag, eflag, (induction_clause_l, with_bindings))
           | _ -> assert false
         in
+        let new_goals_vars =
+          List_utils.take
+            (List.length new_goals_vars - List.length old_goals_vars)
+            new_goals_vars
+        in
 
         (* Apply the same transformation to all clauses *)
         let new_induction_clause_l =
@@ -986,16 +987,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                   (Some new_goals_vars)
                 |> Option.get
               in
-
-              Logs.debug (fun m ->
-                  m "old goals vars: %s"
-                    (list_of_list_of_str_to_str old_goals_vars));
-              Logs.debug (fun m ->
-                  m "new goals vars: %s"
-                    (list_of_list_of_str_to_str new_goals_vars));
-              Logs.debug (fun m ->
-                  m "new vars: %s" (list_of_list_of_str_to_str new_vars));
-              Logs.debug (fun m -> m "");
 
               let new_or_intro_pattern :
                   Constrexpr.constr_expr Tactypes.or_and_intro_pattern_expr
@@ -1096,7 +1087,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
         let intro_pattern_expr =
           List.hd new_vars
           |> List.map (fun x ->
-                 string_to_intro_pattern_expr x |> Option.get |> CAst.make)
+              string_to_intro_pattern_expr x |> Option.get |> CAst.make)
         in
         let new_raw_tac =
           TacAtom (TacIntroPattern (eflag, intro_pattern_expr)) |> CAst.make
@@ -1134,34 +1125,18 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
       let* new_state = Runner.run_node token state node in
-
       match find_rewriter node with
       | Some rewriter -> (
-          let* old_goals = Runner.goals ~token ~st:state in
-
-          let* new_goals = Runner.goals ~token ~st:new_state in
-
           let old_goals_vars =
-            Option.map
-              (fun (x :
-                     ( scope_name Coq.Goals.Reified_goal.t,
-                       scope_name )
-                     Coq.Goals.t) ->
-                List.map Runner.get_hypothesis_names x.goals)
-              old_goals
+            Runner.goals_at_state token state
+            |> List.map Runner.get_hypothesis_names
           in
-
           let new_goals_vars =
-            Option.map
-              (fun (x :
-                     ( scope_name Coq.Goals.Reified_goal.t,
-                       scope_name )
-                     Coq.Goals.t) ->
-                List.map Runner.get_hypothesis_names x.goals)
-              new_goals
+            Runner.goals_at_state token new_state
+            |> List.map Runner.get_hypothesis_names
           in
 
-          match rewriter node old_goals_vars new_goals_vars with
+          match rewriter node (Some old_goals_vars) (Some new_goals_vars) with
           | Some x ->
               let r = Replace (node.id, x) in
               Ok (new_state, r :: acc)
