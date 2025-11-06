@@ -162,7 +162,7 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
   let nodes_before, _ = Rocq_document.split_at_id node.id doc in
   let init_state = doc.initial_state in
   let error_tagged = false in
-  let state, _, _ =
+  let state, error_tagged, last_node =
     List.fold_left
       (fun (state, error_tagged, prev_node) node ->
         match state with
@@ -181,7 +181,19 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
       (Ok init_state, error_tagged, None)
       nodes_before
   in
-  state
+  Result.map_error
+    (fun err ->
+      if not error_tagged then
+        let last_node_repr = Option.map (fun x -> x.repr) last_node in
+        let msg =
+          [%message
+            ""
+              ~loc:(node.range : Code_range.t)
+              ~repr:(last_node_repr : string option)]
+        in
+        Error.tag_sexp err "info" msg
+      else err)
+    state
 
 let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
     =
@@ -203,6 +215,14 @@ let count_goals (token : Coq.Limits.Token.t) (st : Coq.State.t) : int =
   | Ok (Some reified_goals) -> List.length reified_goals.goals
   | Ok None -> 0
   | Error _ -> 0
+
+let goals_at_state (token : Coq.Limits.Token.t) (st : Coq.State.t) :
+    string Coq.Goals.Reified_goal.t list =
+  let goals = goals ~token ~st in
+  match goals with
+  | Ok (Some reified_goals) -> reified_goals.goals
+  | Ok None -> []
+  | Error _ -> []
 
 let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
     (steps : Syntax_node.t list) : (int * Syntax_node.t * int) list =
