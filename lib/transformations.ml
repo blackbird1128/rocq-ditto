@@ -931,17 +931,14 @@ let get_new_vars ?(keep : string list = [])
     (new_goals_vars : string list list option) : string list list option =
   match (old_goals_vars, new_goals_vars) with
   | Some old_goals_vars, Some new_goals_vars ->
-      let pad1 = List.nth_opt old_goals_vars 0 |> Option.get in
-      let res =
-        List_utils.map2_pad
-          ~pad1:(List.nth_opt old_goals_vars 0)
-          (fun old_vars new_vars ->
-            List.filter
-              (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
-              new_vars)
-          old_goals_vars new_goals_vars
-      in
-      Some res
+      Some
+        (List_utils.map2_pad
+           ~pad1:(List.nth_opt old_goals_vars 0)
+           (fun old_vars new_vars ->
+             List.filter
+               (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
+               new_vars)
+           old_goals_vars new_goals_vars)
   | _ -> None
 
 let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
@@ -965,11 +962,12 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
               (rflag, eflag, (induction_clause_l, with_bindings))
           | _ -> assert false
         in
-        let new_goals_vars =
-          List_utils.take
-            (List.length new_goals_vars - List.length old_goals_vars)
-            new_goals_vars
-        in
+
+        Logs.debug (fun m ->
+            m "old goals vars %s" (list_of_list_of_str_to_str old_goals_vars));
+
+        Logs.debug (fun m ->
+            m "new goals vars %s" (list_of_list_of_str_to_str new_goals_vars));
 
         (* Apply the same transformation to all clauses *)
         let new_induction_clause_l =
@@ -987,6 +985,8 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                   (Some new_goals_vars)
                 |> Option.get
               in
+              Logs.debug (fun m ->
+                  m "new  vars %s" (list_of_list_of_str_to_str new_vars));
 
               let new_or_intro_pattern :
                   Constrexpr.constr_expr Tactypes.or_and_intro_pattern_expr
@@ -1027,8 +1027,12 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
           |> CAst.make
         in
 
-        Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
-        |> Result.to_option
+        let new_node =
+          Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
+          |> Result.to_option
+        in
+        Option.iter (fun new_node -> print_endline new_node.repr) new_node;
+        new_node
     | _ -> None
   in
 
@@ -1131,6 +1135,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
             Runner.goals_at_state token state
             |> List.map Runner.get_hypothesis_names
           in
+
           let new_goals_vars =
             Runner.goals_at_state token new_state
             |> List.map Runner.get_hypothesis_names
