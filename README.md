@@ -28,8 +28,9 @@ make build
 Otherwise, to install with a specific Rocq version, use the following instructions:
 ```shell
 opam switch create . --empty
-opam pin add coq-core $ROCQ_VERSION_HERE # (ie 8.20.0)
+opam pin add # (coq-core $COQ_VERSION_HERE (ie 8.20.0) for version < 9.0) or rocq-core $ROCQ_VERSION_HERE (ie 9.0.0)
 opam install . --deps-only
+# if you are pinning a Rocq version: ln _opam/bin/rocq _opam/bin/coqc
 mkdir -p vendor/
 cp ./_opam/bin/fcc ./vendor/fcc
 make build
