@@ -68,8 +68,6 @@ val proof_status_from_last_node :
     is admitted, return [Admitted], and if the proof was aborted with Abort or
     Abort All, return [Aborted] otherwise, return an error. *)
 
-val print_proof : proof -> unit
-
 val print_tree : Syntax_node.t nary_tree -> string -> unit
 (** Print a tree structure with indentation. [print_tree tree indent] prints a
     tree, where [tree] is an [Syntax_node.t nary_tree] and [indent] is a string

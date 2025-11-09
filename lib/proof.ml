@@ -20,15 +20,15 @@ let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
   | Replace (id, new_node) ->
       if new_node.range.start.line != new_node.range.end_.line then
         Format.fprintf fmt "Replacing node with id: %s by node: %s at %s"
-          (Uuidm.to_string id) new_node.repr
+          (Uuidm.to_string id) (repr new_node)
           (Code_range.to_string new_node.range)
   | Add new_node ->
-      Format.fprintf fmt "Adding new node: %s at %s" new_node.repr
+      Format.fprintf fmt "Adding new node: %s at %s" (repr new_node)
         (Code_range.to_string new_node.range)
   | Attach (attached_node, attach_position, anchor_id) ->
       Format.fprintf fmt
         "Attaching node %s to node with id: %s with attach position: %s"
-        attached_node.repr
+        (repr attached_node)
         (Uuidm.to_string anchor_id)
         (show_attach_position attach_position)
 
@@ -132,8 +132,7 @@ let proof_status_from_last_node (node : Syntax_node.t) :
   match node.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).CAst.v.expr with
-      | VernacSynterp _ ->
-          Error.string_to_or_error "not a valid closing node"
+      | VernacSynterp _ -> Error.string_to_or_error "not a valid closing node"
       | VernacSynPure expr -> (
           match expr with
           | Vernacexpr.VernacEndProof proof_end -> (
@@ -159,14 +158,10 @@ let get_proof_status (p : proof) : proof_status option =
       in
       proof_status_from_last_node (last steps) |> Result.to_option
 
-let print_proof (proof : proof) : unit =
-  print_endline proof.proposition.repr;
-  List.iter (fun p -> print_endline ("  " ^ p.repr)) proof.proof_steps
-
 let rec print_tree (tree : Syntax_node.t nary_tree) (indent : string) : unit =
   match tree with
   | Node (value, children) ->
-      Printf.printf "%sNode(%s)\n" indent value.repr;
+      Printf.printf "%sNode(%s)\n" indent (repr value);
       List.iter (fun child -> print_tree child (indent ^ "  ")) children
 
 let proof_nodes (p : proof) : Syntax_node.t list =
@@ -176,7 +171,7 @@ let proof_from_nodes (nodes : Syntax_node.t list) : (proof, Error.t) result =
   if List.length nodes < 2 then
     Error.string_to_or_error
       ("Not enough elements to create a proof from the nodes.\nnodes: "
-      ^ String.concat "" (List.map (fun node -> node.repr) nodes))
+      ^ String.concat "" (List.map (fun node -> repr node) nodes))
   else
     let last_node_status =
       List.hd (List.rev nodes) |> proof_status_from_last_node

@@ -307,6 +307,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 let* doc_repr = Rocq_document.dump_to_string res in
 
                 output_string out doc_repr;
+                flush_all ();
                 Ok ()
             | Ok res, true ->
                 print_info filename verbose;
@@ -329,8 +330,13 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                       Runner.run_node token st last
                   | None -> Ok res.initial_state
                 in
-                Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
-                |> Runner.protect_to_result
+
+                let res =
+                  Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
+                  |> Runner.protect_to_result
+                in
+                Result.iter (fun _ -> print_endline "vo saved successfully") res;
+                res
             | Error err, _ ->
                 print_endline (Error.to_string_hum err);
                 exit 1))

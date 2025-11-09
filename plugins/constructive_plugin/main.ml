@@ -117,7 +117,7 @@ let replace_tactic_by_other (previous_tac : string) (new_tac : string)
 
   List.filter_map
     (fun node ->
-      match replace_if_contains previous_tac new_tac node.repr with
+      match replace_if_contains previous_tac new_tac (repr node) with
       | Some rep ->
           let new_node =
             Result.get_ok

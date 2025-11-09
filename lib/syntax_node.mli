@@ -4,12 +4,13 @@ open Vernacexpr
 type t = {
   ast : Doc.Node.Ast.t option;
   range : Code_range.t;
-  repr : string;
+  repr : string Lazy.t;
   id : Uuidm.t;
   proof_id : int option;
   diagnostics : Lang.Diagnostic.t list;
 }
 
+val repr : t -> string
 val compare_nodes : t -> t -> int
 val are_colliding : t -> t -> bool
 

@@ -20,7 +20,7 @@ let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
 
   List.iter
     (fun node ->
-      Format.fprintf fmt "%a %s@ " Code_range.pp node.range node.repr)
+      Format.fprintf fmt "%a %s@ " Code_range.pp node.range (repr node))
       (* see to add id maybe ? *)
     doc.elements;
 
@@ -168,7 +168,7 @@ let parse_document (doc : Doc.t) : t =
         {
           ast = node.ast;
           range = Code_range.code_range_from_lang_range node.range;
-          repr = node_representation node document_repr;
+          repr = lazy (node_representation node document_repr);
           id = Unique_id.uuid ();
           proof_id = None;
           diagnostics = node.diags;
@@ -184,7 +184,7 @@ let parse_document (doc : Doc.t) : t =
         {
           ast = None;
           range = snd comment;
-          repr = fst comment;
+          repr = lazy (fst comment);
           id = Unique_id.uuid ();
           proof_id = None;
           diagnostics = [];
@@ -222,7 +222,7 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
               (doc_repr
               ^ String.make node.range.start.line '\n'
               ^ String.make node.range.start.character ' '
-              ^ node.repr)
+              ^ repr node)
           else if node.range.start.line = previous_node.range.end_.line then
             let char_diff =
               node.range.start.character - previous_node.range.end_.character
@@ -235,7 +235,7 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
                    ^ Code_range.to_string previous_node.range
                    ^ "\ncurrent node range: "
                    ^ Code_range.to_string node.range))
-            else Ok (doc_repr ^ String.make char_diff ' ' ^ node.repr)
+            else Ok (doc_repr ^ String.make char_diff ' ' ^ repr node)
           else if line_diff <= 0 then
             Error
               (Error.of_string
@@ -247,7 +247,7 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
             Ok
               (doc_repr ^ String.make line_diff '\n'
               ^ String.make node.range.start.character ' '
-              ^ node.repr)
+              ^ repr node)
         in
         match result with
         | Error _ as e -> e
@@ -384,7 +384,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     Option.map (fun x -> x.range) (List.nth_opt element_after_new_node_start 0)
   in
 
-  let node_offset_size = String.length new_node.repr in
+  let node_offset_size = String.length (repr new_node) in
 
   let offset_space =
     match element_after_range_opt with
@@ -401,7 +401,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
   | ShiftHorizontally ->
       if new_node.range.start.line != new_node.range.end_.line then
         Error.string_to_or_error
-          ("Error when trying to shift " ^ new_node.repr ^ " at : "
+          ("Error when trying to shift " ^ repr new_node ^ " at : "
           ^ Code_range.to_string new_node.range
           ^ ". Shifting horizontally is only possible with 1 line height node")
       else
@@ -409,8 +409,8 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
           elements_starting_at_line new_node.range.start.line
             element_after_new_node_start
           |> List.find_opt (fun node ->
-                 node.range.start.character > new_node.range.start.character
-                 && node.range.end_.line - node.range.start.line >= 1)
+              node.range.start.character > new_node.range.start.character
+              && node.range.end_.line - node.range.start.line >= 1)
           |> Option.has_some
         in
         if multi_lines_nodes_after_same_line then
@@ -460,7 +460,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
           replacement with
           range =
             Range_utils.range_from_starting_point_and_repr target.range.start
-              replacement.repr;
+              (repr replacement);
         }
       in
 
@@ -570,7 +570,7 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
 
           let new_node_range =
             Range_utils.range_from_starting_point_and_repr
-              attached_node_start_point attached_node.repr
+              attached_node_start_point (repr attached_node)
           in
 
           let new_node_range : Code_range.t =
@@ -587,14 +587,14 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
             match attached_node.ast with
             | Some _ ->
                 let node =
-                  Syntax_node.syntax_node_of_string attached_node.repr
+                  Syntax_node.syntax_node_of_string (repr attached_node)
                     new_node_range.start
                   |> Result.get_ok
                 in
                 { node with id = attached_node.id }
             | None ->
                 let node =
-                  Syntax_node.comment_syntax_node_of_string attached_node.repr
+                  Syntax_node.comment_syntax_node_of_string (repr attached_node)
                     new_node_range.start
                   |> Result.get_ok
                 in

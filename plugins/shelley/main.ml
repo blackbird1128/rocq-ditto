@@ -5,7 +5,7 @@ open Ditto.Diagnostic_utils
 
 let sexp_of_syntax_node (x : Syntax_node.t) : Sexplib.Sexp.t =
   let open Sexplib in
-  Sexp.(Atom x.repr)
+  Sexp.(Atom (Syntax_node.repr x))
 
 let sexp_of_proof_tree (x : Syntax_node.t nary_tree) =
   Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
@@ -84,7 +84,8 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
 
           let* proofs = Rocq_document.get_proofs res in
           List.iter
-            (fun (x : Proof.proof) -> print_endline x.proposition.repr)
+            (fun (x : Proof.proof) ->
+              print_endline (Syntax_node.repr x.proposition))
             proofs;
           let proof_trees =
             List.map (Runner.treeify_proof res) proofs |> List.map Result.get_ok

@@ -9,7 +9,7 @@ let normalize_strings (strings : string list) : string list =
 
 let sexp_of_syntax_node (x : Syntax_node.t) : Sexplib.Sexp.t =
   let open Sexplib in
-  Sexp.(Atom x.repr)
+  Sexp.(Atom (repr x))
 
 let sexp_of_proof_tree (x : Syntax_node.t nary_tree) =
   Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
@@ -50,17 +50,15 @@ let testable_nary_tree (pp_a : Format.formatter -> 'a -> unit)
 
 let document_to_range_representation_pairs (doc : Rocq_document.t) :
     (string * Code_range.t) list =
-  List.map (fun node -> (node.repr, node.range)) doc.elements
+  List.map (fun node -> (Syntax_node.repr node, node.range)) doc.elements
 
 let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
   json |> to_list
   |> List.map (fun elem ->
-         let range =
-           Code_range.of_yojson (member "range" elem) |> Result.get_ok
-         in
-         let repr = to_string (member "repr" elem) in
-         (repr, range))
+      let range = Code_range.of_yojson (member "range" elem) |> Result.get_ok in
+      let repr = to_string (member "repr" elem) in
+      (repr, range))
 
 let get_target (uri_str : string) =
   let uri_str_without_ext = Filename.remove_extension uri_str in
@@ -107,7 +105,7 @@ let make_dummy_node (start_line : int) (start_char : int) (end_line : int)
     (end_char : int) : Syntax_node.t =
   {
     ast = None;
-    repr = "dummy";
+    repr = lazy "dummy";
     id = Unique_id.uuid ();
     proof_id = None;
     diagnostics = [];
@@ -126,7 +124,7 @@ let make_dummy_node_from_repr (start_line : int) (start_char : int)
   let range = Range_utils.range_from_starting_point_and_repr start_point repr in
   {
     ast = None;
-    repr;
+    repr = lazy repr;
     id = Unique_id.uuid ();
     proof_id = None;
     diagnostics = [];
@@ -155,7 +153,7 @@ let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
 
 let test_parsing_ex1 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
-  let nodes_repr = List.map (fun elem -> elem.repr) doc.elements in
+  let nodes_repr = List.map (fun elem -> Syntax_node.repr elem) doc.elements in
   Alcotest.(check int)
     "More than one element was parsed." 1 (List.length nodes_repr);
   Alcotest.(check (list string))
@@ -163,7 +161,7 @@ let test_parsing_ex1 (doc : Doc.t) () : unit =
 
 let test_parsing_ex2 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
-  let nodes_repr = List.map (fun elem -> elem.repr) doc.elements in
+  let nodes_repr = List.map (fun elem -> Syntax_node.repr elem) doc.elements in
   Alcotest.(check int)
     "The wrong number of elements was parsed" 7 (List.length nodes_repr);
   Alcotest.(check (list string))
@@ -249,9 +247,9 @@ let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
   Alcotest.(check string)
     "The proof expression is wrong."
     "Theorem modus_ponens:\n  forall A B: Prop, A /\\ (A -> B) -> B."
-    proof.proposition.repr;
+    (repr proof.proposition);
   let proof_steps_normalized =
-    normalize_strings (List.map (fun s -> s.repr) proof.proof_steps)
+    normalize_strings (List.map (fun s -> repr s) proof.proof_steps)
   in
   Alcotest.(check (list string))
     "The proof should have the following steps."
@@ -283,7 +281,7 @@ let test_parsing_comment_ex4 (doc : Doc.t) () : unit =
     "The wrong number of nodes was parsed" 1 (List.length doc.elements);
   let node = List.hd doc.elements in
   Alcotest.(check string)
-    "Comment was badly parsed" "(* single comment *)" node.repr;
+    "Comment was badly parsed" "(* single comment *)" (repr node);
   Alcotest.(check bool)
     "Comment node should not have an AST" true (Option.is_empty node.ast)
 
@@ -303,7 +301,7 @@ let test_parsing_embedded_comments_ex6 (doc : Doc.t) () : unit =
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
-  let comment_nodes_repr = List.map (fun node -> node.repr) comment_nodes in
+  let comment_nodes_repr = List.map (fun node -> repr node) comment_nodes in
   Alcotest.(check int)
     "The wrong number of comment nodes was parsed" 2
     (List.length comment_nodes);
@@ -317,7 +315,7 @@ let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
-  let comment_nodes_repr = List.map (fun node -> node.repr) comment_nodes in
+  let comment_nodes_repr = List.map (fun node -> repr node) comment_nodes in
 
   Alcotest.(check int)
     "The wrong number of comment nodes was parsed" 2
@@ -354,8 +352,6 @@ let test_parsing_instance (doc : Doc.t) () : unit =
 
 let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
-  print_endline ("filename " ^ doc.filename);
-  List.iter (fun x -> print_endline x.repr) doc.elements;
   let reconstructed = Rocq_document.dump_to_string doc in
   Alcotest.(check (result string error_testable))
     "The document should be correctly reconstructed"
@@ -364,7 +360,7 @@ let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
 let test_creating_valid_syntax_node_from_string (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." point in
-  let node_repr = Result.map (fun node -> node.repr) node in
+  let node_repr = Result.map Syntax_node.repr node in
 
   Alcotest.(
     check
@@ -376,7 +372,7 @@ let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
   let node =
     Syntax_node.syntax_node_of_string "Compute Illegal grammar" point
   in
-  let node_repr = Result.map (fun node -> node.repr) node in
+  let node_repr = Result.map Syntax_node.repr node in
 
   Alcotest.(
     check
@@ -396,7 +392,7 @@ let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string "idtac." code_point_b |> Result.get_ok
   in
   let a_then_b = Syntax_node.apply_tac_then a b () in
-  let a_then_b_repr = Result.map (fun node -> node.repr) a_then_b in
+  let a_then_b_repr = Result.map Syntax_node.repr a_then_b in
 
   Alcotest.(
     check
@@ -419,7 +415,7 @@ let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
   in
 
   let a_then_b = Syntax_node.apply_tac_then a b () in
-  let a_then_b_repr = Result.map (fun node -> node.repr) a_then_b in
+  let a_then_b_repr = Result.map Syntax_node.repr a_then_b in
 
   Alcotest.(
     check
@@ -442,7 +438,7 @@ let test_creating_simple_a_thens_b (_ : Doc.t) () : unit =
     |> Result.get_ok
   in
   let a_thens_b = Syntax_node.apply_tac_thens a [ b ] () in
-  let a_thens_b_repr = Result.map (fun node -> node.repr) a_thens_b in
+  let a_thens_b_repr = Result.map Syntax_node.repr a_thens_b in
 
   Alcotest.(
     check
@@ -457,9 +453,7 @@ let test_creating_a_thens_nothing (_ : Doc.t) () : unit =
     |> Result.get_ok
   in
   let a_thens_nothing = Syntax_node.apply_tac_thens a [] () in
-  let a_thens_nothing_repr =
-    Result.map (fun node -> node.repr) a_thens_nothing
-  in
+  let a_thens_nothing_repr = Result.map Syntax_node.repr a_thens_nothing in
   Alcotest.(
     check
       (result string error_testable)
@@ -596,7 +590,7 @@ let test_searching_node (doc : Doc.t) () : unit =
     "Item with the wrong id was retrieved" (Some first_node_id) node_compute_id;
   Alcotest.(check (option string))
     "The wrong repr was retrieved" (Some "Compute 1.")
-    (Option.map (fun node -> node.repr) node_compute);
+    (Option.map Syntax_node.repr node_compute);
   let absurd_node = Rocq_document.element_with_id_opt (Unique_id.uuid ()) doc in
   Alcotest.(check (option uuidm_testable))
     "No element should be retrieved" None
@@ -1165,7 +1159,7 @@ let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   in
   let repr_with_goalcount =
     List.map
-      (fun (_, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (repr step, goal_count))
       steps_with_goalcount
   in
 
@@ -1197,7 +1191,7 @@ let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
   in
   let repr_with_goalcount =
     List.map
-      (fun (_, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (repr step, goal_count))
       steps_with_goalcount
   in
 
@@ -1237,7 +1231,7 @@ let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
   in
   let repr_with_goalcount =
     List.map
-      (fun (_, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (repr step, goal_count))
       steps_with_goalcount
   in
 
@@ -1279,7 +1273,7 @@ let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
   in
   let repr_with_goalcount =
     List.map
-      (fun (_, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (repr step, goal_count))
       steps_with_goalcount
   in
   let expected =
@@ -1320,7 +1314,7 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
   in
   let repr_with_goalcount =
     List.map
-      (fun (_, step, goal_count) -> (step.repr, goal_count))
+      (fun (_, step, goal_count) -> (repr step, goal_count))
       steps_with_goalcount
   in
   let expected =

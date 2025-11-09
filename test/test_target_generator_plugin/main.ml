@@ -16,7 +16,7 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
       (fun node ->
         `Assoc
           [
-            ("repr", `String node.repr);
+            ("repr", `String (repr node));
             ("range", Code_range.to_yojson node.range);
           ])
       parsed_document.elements

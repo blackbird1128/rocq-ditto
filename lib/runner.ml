@@ -126,7 +126,7 @@ let run_node (token : Coq.Limits.Token.t) (prev_state : Coq.State.t)
     (node : Syntax_node.t) : (Coq.State.t, Error.t) result =
   let execution =
     let st =
-      Fleche.Doc.run ~token ~memo:true ?loc:None ~st:prev_state node.repr
+      Fleche.Doc.run ~token ~memo:true ?loc:None ~st:prev_state (repr node)
     in
     st
   in
@@ -140,7 +140,8 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
     result =
   let execution =
     let st =
-      run_with_diagnostics ~token ~memo:true ?loc:None ~st:prev_state node.repr
+      run_with_diagnostics ~token ~memo:true ?loc:None ~st:prev_state
+        (repr node)
     in
     st
   in
@@ -170,7 +171,7 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
         | Error err ->
             if error_tagged then (Error err, error_tagged, Some node)
             else
-              let prev_node_repr = Option.map (fun x -> x.repr) prev_node in
+              let prev_node_repr = Option.map (fun x -> repr x) prev_node in
               let msg =
                 [%message
                   ""
@@ -184,7 +185,9 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
   Result.map_error
     (fun err ->
       if not error_tagged then
-        let last_node_repr = Option.map (fun x -> x.repr) last_node in
+        let last_node_repr =
+          Option.map (fun x -> Syntax_node.repr x) last_node
+        in
         let msg =
           [%message
             ""
@@ -237,7 +240,7 @@ let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
           || is_syntax_node_closing_bracket step
         then (before_count, step, before_count) :: aux token st tail
         else
-          let state = Fleche.Doc.run ~token ~st step.repr in
+          let state = Fleche.Doc.run ~token ~st (repr step) in
           let agent_state = get_proof_state state in
           let goal_count = count_goals token agent_state in
           (before_count, step, goal_count) :: aux token agent_state tail
