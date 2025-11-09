@@ -287,6 +287,13 @@ let transform_project () : (int, Error.t) result =
             let args =
               [| prog; "--root=" ^ !output_arg; "--plugin=ditto-plugin" |]
             in
+            let args =
+              if !verbose then Array.append args [| "--display=verbose" |]
+              else args
+            in
+            let args =
+              if !save_vo then Array.append args [| "--no_vo" |] else args
+            in
 
             let transformations_status =
               List.fold_left
@@ -306,9 +313,9 @@ let transform_project () : (int, Error.t) result =
                         Unix.create_process_env prog curr_args curr_env
                           Unix.stdin Unix.stdout Unix.stderr
                       in
+                      flush_all ();
                       let _, status = Unix.waitpid [] pid in
-                      Logs.debug (fun m ->
-                          m "status: %s" (string_of_process_status status));
+
                       (status, x)
                   | err -> err)
                 (Unix.WEXITED 0, "default")
