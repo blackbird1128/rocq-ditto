@@ -172,6 +172,18 @@ let remove_outer_parentheses s =
     String.sub s 1 (len - 3) ^ "."
   else s
 
+let (memo_pr_vernac : vernac_control -> scope_name) =
+  let cache = Hashtbl.create 256 in
+  fun coq_ast ->
+    let key = Coq.Ast.of_coq coq_ast |> Coq.Ast.hash in
+
+    match Hashtbl.find_opt cache key with
+    | Some result -> result
+    | None ->
+        let result = Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds in
+        Hashtbl.add cache key result;
+        result
+
 let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
   let coq_ast = Coq.Ast.to_coq ast in
   let repr =
@@ -559,6 +571,22 @@ let is_syntax_node_intros (x : t) : bool =
   | Some (Ltac_plugin.Tacexpr.TacIntroPattern _) -> true
   | _ -> false
 
+(* single-pass validation + conversion *)
+let l_to_raw_tactics (l : t list) =
+  let rec aux (acc : Ltac_plugin.Tacexpr.raw_tactic_expr list) (i : int) =
+    function
+    | [] -> Ok (List.rev acc)
+    | x :: xs -> (
+        match get_node_raw_tactic_expr x with
+        | Some raw -> aux (raw :: acc) (i + 1) xs
+        | None ->
+            Error.format_to_or_error
+              "%s at index %d in l isn't convertible to a raw_tactic_expr (It \
+               probably isn't Ltac)"
+              (repr x) i)
+  in
+  aux [] 0 l
+
 let apply_tac_thens (a : t) (l : t list)
     ?(start_point : Code_point.t = a.range.start) () : (t, Error.t) result =
   let ( let* ) = Result.bind in
@@ -571,24 +599,12 @@ let apply_tac_thens (a : t) (l : t list)
           (repr a)
   in
 
-  let raw_tactics_l_opts = List.map get_node_raw_tactic_expr l in
-  let* raw_tactics_l =
-    if List.for_all Option.has_some raw_tactics_l_opts then
-      Ok (List.map Option.get raw_tactics_l_opts)
-    else
-      let err_elem_idx =
-        List.find_index Option.is_empty raw_tactics_l_opts |> Option.get
-      in
-      let err_elem = List.nth l err_elem_idx in
-      Error.format_to_or_error
-        "%s at index %d in l isn't convertible to a raw_tactic_expr (It \
-         probably isn't Ltac"
-        (repr err_elem) err_elem_idx
-  in
+  let* raw_tactics_l = l_to_raw_tactics l in
+
   let args = get_tactic_raw_generic_arguments a |> Option.get in
   let extend = Ltac.default_extend_name in
 
-  let a_thens_l =
+  let a_thens_l : Ltac_plugin.Tacexpr.raw_tactic_expr =
     CAst.make (Ltac_plugin.Tacexpr.TacThens (raw_a, raw_tactics_l))
   in
 
@@ -598,11 +614,12 @@ let apply_tac_thens (a : t) (l : t list)
   let new_args =
     [ List.nth args 0; List.nth args 1; raw_arg; List.nth args 3 ]
   in
+
   tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
   |> Option.cata Result.ok
-       (Error.format_to_or_error "failed to create a thens l betwen %s and %s"
+       (Error.format_to_or_error "failed to create a thens between %s and [%s]"
           (repr a)
-          (List.map (fun x -> repr x) l |> String.concat " "))
+          (l |> List.map repr |> String.concat "; "))
 
 let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
     () : (t, Error.t) result =

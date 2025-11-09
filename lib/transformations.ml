@@ -71,7 +71,7 @@ let simple_proof_repair (doc : Rocq_document.t)
                       let childs =
                         List.concat (List.map Nary_tree.flatten children)
                         |> List.filter (fun x ->
-                               not (is_syntax_node_proof_intro_or_end x))
+                            not (is_syntax_node_proof_intro_or_end x))
                       in
 
                       let ignore_acc =
@@ -271,8 +271,8 @@ let fold_replace_assumption_with_apply (doc : Rocq_document.t)
       (fun state acc node ->
         let* state_node = Runner.run_node token state node in
         if
-          String.starts_with ~prefix:"assumption" node.repr
-          && not (String.contains node.repr ';')
+          String.starts_with ~prefix:"assumption" (repr node)
+          && not (String.contains (repr node) ';')
         then
           let goal_count_after_assumption =
             Runner.count_goals token state_node
@@ -356,7 +356,7 @@ let admit_and_comment_proof_steps (_ : Rocq_document.t) (proof : proof) :
 
   let comment_content =
     List.fold_left
-      (fun str_acc step -> str_acc ^ step.repr ^ "\n")
+      (fun str_acc step -> str_acc ^ repr step ^ "\n")
       "(* "
       (List_utils.take
          (max 0 (List.length proof.proof_steps - 1))
@@ -421,8 +421,8 @@ let compress_intro (doc : Rocq_document.t) (proof : proof) :
     | x :: tail ->
         let state_node = Result.get_ok (Runner.run_node token state x) in
         if
-          String.starts_with ~prefix:"intro." x.repr
-          && not (String.contains x.repr ';')
+          String.starts_with ~prefix:"intro." (repr x)
+          && not (String.contains (repr x) ';')
         then aux state_node (x :: acc_intro, acc_steps) tail
         else if List.length acc_intro > 0 then
           let steps =
@@ -540,10 +540,10 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : proof) :
           let* new_state = Runner.run_node token state node in
 
           if
-            String.starts_with ~prefix:"auto" node.repr
-            && not (String.contains node.repr ';')
+            String.starts_with ~prefix:"auto" (repr node)
+            && not (String.contains (repr node) ';')
           then (
-            let node_args = extract node.repr in
+            let node_args = extract (repr node) in
 
             let info_auto = "info_auto" ^ node_args ^ "." in
             let* info_auto_node =
@@ -693,7 +693,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : proof) :
             let tactics =
               intros
               @ List.rev_map
-                  (fun (node, _, _, _, _, _) -> String.trim node.repr)
+                  (fun (node, _, _, _, _, _) -> String.trim (repr node))
                   auto_steps
             in
             let filtered_tactics =
@@ -715,7 +715,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : proof) :
                      let char_shift =
                        if acc != 0 then node.range.start.character else 0
                      in
-                     (acc + char_shift + String.length node.repr + 1, node))
+                     (acc + char_shift + String.length (repr node) + 1, node))
                    0 tactic_nodes)
             in
 
@@ -729,36 +729,37 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : proof) :
 
 let ( let* ) = Result.bind
 
-let map_children (f : 'a -> ('b, 'c) result) (lst : 'a list) :
-    ('b list, 'c) result =
+let map_children f lst =
+  let open Result in
   let rec aux acc = function
     | [] -> Ok (List.rev acc)
-    | x :: xs -> (
-        match f x with Ok v -> aux (v :: acc) xs | Error e -> Error e)
+    | x :: xs ->
+        let* v = f x in
+        aux (v :: acc) xs
   in
   aux [] lst
 
 let rec get_oneliner (suffix : Syntax_node.t option)
-    (tree : Syntax_node.t nary_tree) : (Syntax_node.t, Error.t) result =
-  let ( let* ) = Result.bind in
+    (tree : Syntax_node.t nary_tree) :
+    (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
   match tree with
   | Node (x, childrens) -> (
-      let* new_x =
+      let* new_x_raw_expr =
         if Syntax_node.is_syntax_node_ending_with_elipsis x then
-          let res =
-            Option.map
-              (fun suffix -> Syntax_node.apply_tac_then x suffix ())
-              suffix
-          in
-          (* this remove the ellipsis as well *)
-          let suffix_repr =
-            Option.map (fun x -> x.repr) suffix |> Option.default "None"
-          in
-          Option.cata Fun.id
-            (Error.format_to_or_error "Error applying then between %s and %s."
-               x.repr suffix_repr)
-            res
-        else Ok x
+          match suffix with
+          | None ->
+              Error.format_to_or_error
+                "Error applying then between %s and None." (repr x)
+          | Some s -> (
+              match Syntax_node.apply_tac_then x s () with
+              | Ok r ->
+                  Ok (r |> Syntax_node.get_node_raw_tactic_expr |> Option.get)
+              | Error _ ->
+                  let suffix_repr = repr s in
+                  Error.format_to_or_error
+                    "Error applying then between %s and %s." (repr x)
+                    suffix_repr)
+        else Ok (x |> Syntax_node.get_node_raw_tactic_expr |> Option.get)
       in
 
       let last_children_opt, childrens_length =
@@ -771,16 +772,18 @@ let rec get_oneliner (suffix : Syntax_node.t option)
             childrens_length - 1
         | _ -> childrens_length
       in
-      let* mapped =
-        match childrens_length_without_proof_end with
-        | 0 -> Ok []
-        | _ -> map_children (get_oneliner suffix) childrens
-      in
 
-      match childrens_length_without_proof_end with
-      | 0 -> Ok new_x
-      | 1 -> Syntax_node.apply_tac_then new_x (List.hd mapped) ()
-      | _ -> Syntax_node.apply_tac_thens new_x mapped ())
+      let* mapped =
+        if childrens_length_without_proof_end = 0 then Ok []
+        else map_children (get_oneliner suffix) childrens
+      in
+      match mapped with
+      | [] -> Ok new_x_raw_expr
+      | [ single ] ->
+          Ok (CAst.make (Ltac_plugin.Tacexpr.TacThen (new_x_raw_expr, single)))
+      | _ ->
+          Ok (CAst.make (Ltac_plugin.Tacexpr.TacThens (new_x_raw_expr, mapped)))
+      )
 
 let turn_into_oneliner (_ : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
@@ -823,7 +826,9 @@ let turn_into_oneliner (_ : Rocq_document.t)
       match cleaned_tree with
       | None -> Ok []
       | Some cleaned_tree ->
-          let* one_liner_node = get_oneliner suffix_node cleaned_tree in
+          let* one_liner_node_raw_expr =
+            get_oneliner suffix_node cleaned_tree
+          in
 
           let flattened = Nary_tree.flatten proof_tree in
 
@@ -840,8 +845,8 @@ let turn_into_oneliner (_ : Rocq_document.t)
             List.find (fun node -> node_can_open_proof node) flattened
           in
 
-          let* relocated_one_liner_node =
-            Syntax_node.syntax_node_of_string one_liner_node.repr
+          let* one_liner_node =
+            Syntax_node.raw_tactic_expr_to_syntax_node one_liner_node_raw_expr
               first_step_node.range.start
           in
 
@@ -854,7 +859,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
             (remove_steps
             @ [
                 Attach (proof_node, LineAfter, first_step_node.id);
-                Attach (relocated_one_liner_node, LineAfter, proof_node.id);
+                Attach (one_liner_node, LineAfter, proof_node.id);
               ]))
 
 let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
@@ -1053,7 +1058,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
         Option.iter
           (fun new_node ->
             print_endline
-              (new_node.repr ^ " " ^ Code_range.to_string new_node.range))
+              (repr new_node ^ " " ^ Code_range.to_string new_node.range))
           new_node;
         new_node
     | _ -> None
@@ -1117,7 +1122,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
         let intro_pattern_expr =
           List.hd new_vars
           |> List.map (fun x ->
-                 string_to_intro_pattern_expr x |> Option.get |> CAst.make)
+              string_to_intro_pattern_expr x |> Option.get |> CAst.make)
         in
         let new_raw_tac =
           TacAtom (TacIntroPattern (eflag, intro_pattern_expr)) |> CAst.make
