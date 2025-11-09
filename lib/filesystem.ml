@@ -41,3 +41,41 @@ let copy_file (src : string) (dst : string) : (unit, Error.t) result =
   with
   | Sys_error msg -> Error.string_to_or_error msg
   | e -> Error.string_to_or_error (Printexc.to_string e)
+
+let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
+    : (unit, Error.t) result =
+  (* ensure target dir exists *)
+  (try Unix.mkdir dst 0o755 with Unix.Unix_error (EEXIST, _, _) -> ());
+
+  let dh = Unix.opendir src in
+  let rec loop () =
+    match Unix.readdir dh with
+    | exception End_of_file ->
+        Unix.closedir dh;
+        Ok ()
+    | entry -> (
+        if entry = "." || entry = ".." then loop ()
+        else
+          let src_path = Filename.concat src entry in
+          let dst_path = Filename.concat dst entry in
+          match (Unix.lstat src_path).st_kind with
+          | S_REG ->
+              (* TODO remove O(n^2) check *)
+              if List.mem (Filename.basename src_path) filenames_to_copy then (
+                match copy_file src_path dst_path with
+                | Ok () -> loop ()
+                | Error e ->
+                    Unix.closedir dh;
+                    Error e)
+              else loop ()
+          | S_DIR -> (
+              match copy_dir src_path dst_path filenames_to_copy with
+              | Ok () -> loop ()
+              | Error e ->
+                  Unix.closedir dh;
+                  Error e)
+          | _ ->
+              (* skip symlinks/devices/etc. *)
+              loop ())
+  in
+  loop ()

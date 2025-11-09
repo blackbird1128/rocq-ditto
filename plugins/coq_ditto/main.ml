@@ -30,6 +30,7 @@ let verbose = ref false
 let save_vo = ref false
 let reverse_order = ref false
 let quiet = ref false
+let skipped_files = ref []
 
 let transformations_help =
   [
@@ -70,44 +71,6 @@ let help_to_string (transformation_help : (transformation_kind * string) list) :
       acc ^ (transformation_kind_to_string kind ^ ": " ^ help) ^ "\n")
     "" transformation_help
 
-let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
-    : (unit, Error.t) result =
-  (* ensure target dir exists *)
-  (try Unix.mkdir dst 0o755 with Unix.Unix_error (EEXIST, _, _) -> ());
-
-  let dh = Unix.opendir src in
-  let rec loop () =
-    match Unix.readdir dh with
-    | exception End_of_file ->
-        Unix.closedir dh;
-        Ok ()
-    | entry -> (
-        if entry = "." || entry = ".." then loop ()
-        else
-          let src_path = Filename.concat src entry in
-          let dst_path = Filename.concat dst entry in
-          match (Unix.lstat src_path).st_kind with
-          | S_REG ->
-              (* TODO remove O(n^2) check *)
-              if List.mem (Filename.basename src_path) filenames_to_copy then (
-                match Filesystem.copy_file src_path dst_path with
-                | Ok () -> loop ()
-                | Error e ->
-                    Unix.closedir dh;
-                    Error e)
-              else loop ()
-          | S_DIR -> (
-              match copy_dir src_path dst_path filenames_to_copy with
-              | Ok () -> loop ()
-              | Error e ->
-                  Unix.closedir dh;
-                  Error e)
-          | _ ->
-              (* skip symlinks/devices/etc. *)
-              loop ())
-  in
-  loop ()
-
 let set_input_arg (path : string) : unit =
   if Filesystem.is_directory path || Sys.file_exists path then input_arg := path
   else raise (Arg.Bad (Printf.sprintf "Invalid input file or folder: %s" path))
@@ -125,6 +88,33 @@ let set_transformation (t : string) : unit =
            (err ^ "\nvalid transformations:\n"
            ^ help_to_string transformations_help))
 
+let skipped_files = ref []
+
+let parse_skip (s : string) : (string list, Error.t) result =
+  try
+    let files =
+      s |> String.split_on_char ' '
+      |> List.filter (fun x -> String.trim x <> "")
+    in
+    Ok files
+  with exn ->
+    Error
+      (Error.of_exn exn
+      |> Error.tag
+           ~tag:
+             ("failed to parse " ^ s
+            ^ "into a space separated list of arguments"))
+
+let set_skip (skip_str : string) : unit =
+  match parse_skip skip_str with
+  | Ok files -> skipped_files := files
+  | Error err ->
+      raise
+        (Arg.Bad
+           (Error.to_string_hum err
+          ^ "\nExpected a space-separated list of filenames, e.g.:\n"
+          ^ "  --skip \"file1.v file2.v proofs/foo.v\""))
+
 let string_of_process_status = function
   | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
   | Unix.WSIGNALED signal -> Printf.sprintf "Killed by signal %d" signal
@@ -139,9 +129,10 @@ let remove_prefix (str : string) (prefix : string) =
 let speclist =
   [
     ("-v", Arg.Set verbose, "Enable debug output, incompatible with --quiet");
-    ("-i", Arg.String set_input_arg, "Input folder or filename");
+    ("-i", Arg.Set_string input_arg, "Input folder or filename");
     ("-o", Arg.Set_string output_arg, "Output folder or filename");
     ("-t", Arg.String set_transformation, "Transformation to apply");
+    ("--skip", Arg.String set_skip, "Files to skip");
     ("--save-vo", Arg.Set save_vo, "Save a vo of the transformed file");
     ( "--reverse-order",
       Arg.Set reverse_order,
@@ -200,17 +191,21 @@ let transform_project () : (int, Error.t) result =
     | _ -> assert false
   in
 
+  let pathkind = Filesystem.get_pathkind !input_arg in
+
   if !input_arg = "" then
     Error.string_to_or_error "Please provide an input folder or file"
   else if !output_arg = "" then
     Error.string_to_or_error "Please provide an output folder or filename"
+  else if pathkind = File && List.length !skipped_files > 0 then
+    Error.string_to_or_error "Using --skip with a file input doesn't make sense"
   else if !transformation_arg = "" then
     Error.string_to_or_error "Please provide a transformation"
   else if !verbose && !quiet then
     Error.string_to_or_error
       "verbose option (-v) and quiet option (--quiet) are incompatible together"
   else
-    match Filesystem.get_pathkind !input_arg with
+    match pathkind with
     | File -> (
         if Filesystem.is_directory !output_arg then
           Error.string_to_or_error
@@ -270,7 +265,7 @@ let transform_project () : (int, Error.t) result =
             let* dep_files = Compile.coqproject_sorted_files coqproject_path in
             let* new_dir_state = Filesystem.make_dir !output_arg in
             warn_if_exists new_dir_state;
-            let* _ = copy_dir !input_arg !output_arg filenames in
+            let* _ = Filesystem.copy_dir !input_arg !output_arg filenames in
 
             let* _ =
               Filesystem.copy_file coqproject_path
