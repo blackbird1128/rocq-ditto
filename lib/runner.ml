@@ -219,7 +219,7 @@ let count_goals (token : Coq.Limits.Token.t) (st : Coq.State.t) : int =
   | Ok None -> 0
   | Error _ -> 0
 
-let goals_at_state (token : Coq.Limits.Token.t) (st : Coq.State.t) :
+let reified_goals_at_state (token : Coq.Limits.Token.t) (st : Coq.State.t) :
     string Coq.Goals.Reified_goal.t list =
   let goals = goals ~token ~st in
   match goals with

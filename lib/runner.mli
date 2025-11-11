@@ -41,7 +41,7 @@ val goals :
 
 val get_proof_state : (Coq.State.t, Loc.t) Coq.Protect.E.t -> Coq.State.t
 
-val goals_at_state :
+val reified_goals_at_state :
   Coq.Limits.Token.t -> Coq.State.t -> string Coq.Goals.Reified_goal.t list
 
 val count_goals : Coq.Limits.Token.t -> Coq.State.t -> int

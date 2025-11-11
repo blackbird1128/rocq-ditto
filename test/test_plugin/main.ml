@@ -72,8 +72,9 @@ let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
 let range_testable = Alcotest.testable Code_range.pp ( = )
 let uuidm_testable = Alcotest.testable Uuidm.pp ( = )
 let error_testable = Alcotest.testable Error.pp ( = )
-let goal_select_view_testable = Alcotest.testable Goal_select_view.pp_t ( = )
+let goal_select_view_testable = Alcotest.testable Goal_select_view.pp ( = )
 let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
+let reified_goal_testable = Alcotest.testable Reified_goal.pp ( = )
 
 let vernacexpr_testable =
   Alcotest.testable
@@ -350,6 +351,21 @@ let test_parsing_instance (doc : Doc.t) () : unit =
   Alcotest.check proof_status_testable "The proof should be proved" Proof.Proved
     first_proof.status
 
+let test_parsing_unicode (doc : Doc.t) () : unit =
+  let doc = Rocq_document.parse_document doc in
+  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  Alcotest.(check int)
+    "The wrong number of proofs was parsed." 1 (List.length proofs);
+  let first_proof = List.hd proofs in
+
+  let proof_prop = first_proof.proposition in
+  Alcotest.check proof_status_testable "The proof should be proved" Proof.Proved
+    first_proof.status;
+
+  Alcotest.(check string)
+    "The proof prop should be the following: "
+    "Lemma demo : forall P Q: Prop, P ∧ Q → Q ∧ P." (repr proof_prop)
+
 let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let reconstructed = Rocq_document.dump_to_string doc in
@@ -557,6 +573,54 @@ let test_drop_goal_selector_nth (_ : Doc.t) () : unit =
 
   Alcotest.(
     check bool "The node selector should be None" true has_goal_selector)
+
+let test_creating_select_already_focused (_ : Doc.t) () : unit =
+  let point : Code_point.t = { line = 0; character = 0 } in
+  let node =
+    Syntax_node.syntax_node_of_string "reflexivity." point |> Result.get_ok
+  in
+
+  let node_with_select_already_focused_repr =
+    Syntax_node.add_goal_selector node Goal_select_view.SelectAlreadyFocused
+    |> Result.map Syntax_node.repr
+  in
+
+  Alcotest.(
+    check
+      (result string error_testable)
+      "the node with the selector: select_already_focused should be created \
+       correctly"
+      (Ok "!: reflexivity.") node_with_select_already_focused_repr)
+
+let test_selecting_first_goal_with_goal_select (doc : Doc.t) () : unit =
+  let token = Coq.Limits.Token.create () in
+  let parsed_document = Rocq_document.parse_document doc in
+  let third_node = List.nth parsed_document.elements 2 in
+
+  let state =
+    Runner.get_init_state parsed_document third_node token |> Result.get_ok
+  in
+  let goals_at_state = Runner.reified_goals_at_state token state in
+  let goal_selector : Goal_select_view.t =
+    Goal_select_view.SelectList [ Goal_select_view.NthSelector 1 ]
+  in
+
+  let selected_goals =
+    Goal_select_view.apply_goal_selector_view goal_selector goals_at_state
+  in
+  let selected_goals_len = Result.map List.length selected_goals in
+  let selected_goal_hd = Result.map List.hd selected_goals in
+
+  let expected_goal = List.nth goals_at_state 0 in
+  Alcotest.(
+    check
+      (result int error_testable)
+      "Only one goal should have been selected." (Ok 1) selected_goals_len);
+
+  Alcotest.(
+    check
+      (result reified_goal_testable error_testable)
+      "The correct goal should be selected" (Ok expected_goal) selected_goal_hd)
 
 let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
@@ -1150,6 +1214,12 @@ let explicit_fresh_variables_simple_induction (doc : Doc.t) () : unit =
 let explicit_fresh_variables_list_induction (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.explicit_fresh_variables ()
 
+let test_flattening_goal_select_simple (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.flatten_goal_selectors ()
+
+let test_flattening_goal_select_range (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.flatten_goal_selectors ()
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -1482,6 +1552,12 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test dropping a goal selector from a tactic"
        test_drop_goal_selector_nth doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test adding the goal selector: SelectAlreadyFocused"
+       test_creating_select_already_focused doc);
+  Hashtbl.add table "ex_goal_selecting_one.v"
+    (create_fixed_test "test applying a Goal_select_view to a list of goals"
+       test_selecting_first_goal_with_goal_select doc);
 
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test checking if detecting \"Proof with\" is correct"
@@ -1536,6 +1612,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_instance1.v"
     (create_fixed_test "test parsing an instance proof" test_parsing_instance
        doc);
+  Hashtbl.add table "ex_unicode.v"
+    (create_fixed_test "test parsing a file containing Unicode"
+       test_parsing_unicode doc);
 
   Hashtbl.add table "ex_parsing2.v"
     (create_fixed_test "test names and steps retrival ex 2"
@@ -1682,6 +1761,10 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "test making explicit the fresh variables of a list induction"
        explicit_fresh_variables_list_induction doc);
+  Hashtbl.add table "ex_goal_select_flattening1.v"
+    (create_fixed_test "test flattening a single goal selector"
+       test_flattening_goal_select_simple doc);
+
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
   (*      test_replace_auto_using_zarith_by_steps doc); *)

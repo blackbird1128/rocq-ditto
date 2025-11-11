@@ -3,8 +3,11 @@ open Syntax_node
 open Vernacexpr
 open Nary_tree
 
-type proof_status = Admitted | Proved | Aborted [@@deriving show]
-type attach_position = LineAfter | LineBefore [@@deriving show]
+type proof_status = Admitted | Proved | Aborted
+[@@deriving show { with_path = false }]
+
+type attach_position = LineAfter | LineBefore
+[@@deriving show { with_path = false }]
 
 type transformation_step =
   | Remove of Uuidm.t
@@ -15,20 +18,17 @@ type transformation_step =
 let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
     : unit =
   match step with
-  | Remove id ->
-      Format.fprintf fmt "Removing node with id : %s." (Uuidm.to_string id)
+  | Remove id -> Format.fprintf fmt "Remove(%s)." (Uuidm.to_string id)
   | Replace (id, new_node) ->
       if new_node.range.start.line != new_node.range.end_.line then
-        Format.fprintf fmt "Replacing node with id: %s by node: %s at %s"
-          (Uuidm.to_string id) (repr new_node)
+        Format.fprintf fmt "Replace(%s, %s) at %s" (Uuidm.to_string id)
+          (repr new_node)
           (Code_range.to_string new_node.range)
   | Add new_node ->
-      Format.fprintf fmt "Adding new node: %s at %s" (repr new_node)
+      Format.fprintf fmt "Add(%s) at %s" (repr new_node)
         (Code_range.to_string new_node.range)
   | Attach (attached_node, attach_position, anchor_id) ->
-      Format.fprintf fmt
-        "Attaching node %s to node with id: %s with attach position: %s"
-        (repr attached_node)
+      Format.fprintf fmt "Attach(%s, %s, %s)" (repr attached_node)
         (Uuidm.to_string anchor_id)
         (show_attach_position attach_position)
 
