@@ -41,7 +41,10 @@ let pp_goal_range_selector (fmt : Format.formatter) (x : goal_range_selector) =
       let name_str = Names.Id.to_string name in
       Format.fprintf fmt "IdSelector (%s)" name_str
 
-let pp_t (fmt : Format.formatter) (x : t) =
+let goal_range_selector_to_string (x : goal_range_selector) : string =
+  Format.asprintf "%a" pp_goal_range_selector x
+
+let pp (fmt : Format.formatter) (x : t) =
   match x with
   | SelectAlreadyFocused -> Format.fprintf fmt "SelectAlreadyFocused"
   | SelectList select_list ->
@@ -50,3 +53,42 @@ let pp_t (fmt : Format.formatter) (x : t) =
            pp_goal_range_selector)
         select_list
   | SelectAll -> Format.fprintf fmt "SelectAll"
+
+let to_string (x : t) : string = Format.asprintf "%a" pp x
+
+let range_to_list i j =
+  let rec aux n acc = if n < i then acc else aux (n - 1) (n :: acc) in
+  aux j []
+
+let apply_goal_selector_view (x : t) (goals : 'a Coq.Goals.Reified_goal.t list)
+    : ('a Coq.Goals.Reified_goal.t list, Error.t) result =
+  match x with
+  | SelectAlreadyFocused ->
+      if List.length goals = 1 then Ok goals
+      else Error.string_to_or_error "Can't select with (!:) more than one goals"
+  | SelectList select_list ->
+      let selected =
+        List.fold_left
+          (fun (acc : 'a Coq.Goals.Reified_goal.t option list)
+               (x : goal_range_selector) ->
+            match x with
+            | NthSelector n -> List.nth_opt goals (n - 1) :: acc
+            | RangeSelector range ->
+                let range_list = range_to_list (fst range) (snd range) in
+                List.map (fun n -> List.nth_opt goals (n - 1)) range_list @ acc
+            | IdSelector id ->
+                let goal =
+                  List.find
+                    (fun (x : 'a Coq.Goals.Reified_goal.t) ->
+                      Option.equal ( = ) x.info.name (Some id))
+                    goals
+                in
+                [ Some goal ])
+          [] select_list
+      in
+      if List.for_all Option.has_some selected then
+        Ok (List.map Option.get selected)
+      else
+        Error.string_to_or_error
+          "Failed to get one or more of the goal in the goal selector"
+  | SelectAll -> Ok goals
