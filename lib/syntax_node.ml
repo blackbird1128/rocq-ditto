@@ -562,6 +562,23 @@ let drop_goal_selector (x : t) : t =
            args x.range.start)
   | None -> x
 
+let add_goal_selector (x : t) (selector : Goal_select_view.t) :
+    (t, Error.t) result =
+  match get_node_goal_selector_opt x with
+  | Some selector ->
+      Error.format_to_or_error "%s already contains a goal selector: %s"
+        (repr x)
+        (Goal_select_view.to_string selector)
+  | None -> (
+      match get_node_raw_tactic_expr x with
+      | Some expr ->
+          raw_tactic_expr_to_syntax_node expr ?selector:(Some selector)
+            x.range.start
+      | None ->
+          Error.format_to_or_error
+            "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
+            (repr x))
+
 let is_syntax_node_intros (x : t) : bool =
   let raw_tactic_expr = get_node_raw_tactic_expr x in
   let raw_atomic_expr =

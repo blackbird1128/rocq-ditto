@@ -145,6 +145,7 @@ val get_node_raw_atomic_tactic_expr :
 
 val get_node_ltac_elements : t -> ltac_elements option
 val drop_goal_selector : t -> t
+val add_goal_selector : t -> Goal_select_view.t -> (t, Error.t) result
 val is_syntax_node_intros : t -> bool
 
 val apply_tac_then :
