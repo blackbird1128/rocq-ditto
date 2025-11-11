@@ -1,15 +1,15 @@
 (lang dune 3.15)
 
-(name coq-ditto)
+(name rocq-ditto)
 
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github blackbird1128/rocq-ditto))
 
-(authors "Author Name")
+(authors "Alexandre Jean")
 
-(maintainers "Maintainer Name")
+(maintainers "Alexandre Jean")
 
 (license LICENSE)
 
@@ -25,7 +25,7 @@
  (name coq-ditto)
  (synopsis "Rocq ditto lib")
  (description "libraries used by the plugins")
- (depends ocaml dune ppx_import coq-lsp base-unix re alcotest uuidm ppx_deriving_yojson ppx_deriving ppx_sexp_message ppx_sexp_value ppx_variants_conv logs)
+ (depends ocaml dune coq-lsp base-unix re fpath logs alcotest uuidm ppx_import ppx_deriving_yojson ppx_deriving ppx_sexp_message ppx_sexp_value ppx_variants_conv)
  (tags
   (topics "to describe" your project)))
 
