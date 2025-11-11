@@ -1,9 +1,11 @@
 _build/
 _opam/
 _ignore/
+.direnv/
+vendor/
 **.diags
 **.vo
 **.target.json
 **.lia.cache
 **.jsondump.json
-lib/coq_version_optcomp.mlh
+lib/rocq_version_optcomp.mlh
