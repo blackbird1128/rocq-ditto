@@ -480,25 +480,23 @@ let ltac_selector_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
       Some (Sexplib.Std.option_of_sexp Serlib.Ser_goal_select.t_of_sexp rems)
   | _ -> None
 
-let raw_generic_argument_of_ltac_selector (selector : Goal_select.t option) :
+let raw_generic_argument_of_ltac_selector (sel : Goal_select.t option) :
     Genarg.raw_generic_argument =
-  let selector_sexp =
-    match selector with
-    | Some selector -> Serlib.Ser_goal_select.sexp_of_t selector
-    | None -> List []
+  let rems = Sexplib.Std.sexp_of_option Serlib.Ser_goal_select.sexp_of_t sel in
+  let sexp =
+    Sexplib.Sexp.List
+      [
+        Atom "GenArg";
+        List
+          [
+            Atom "Rawwit";
+            List
+              [ Atom "OptArg"; List [ Atom "ExtraArg"; Atom "ltac_selector" ] ];
+          ];
+        rems;
+      ]
   in
-
-  Serlib.Ser_genarg.raw_generic_argument_of_sexp
-    (List
-       [
-         Atom "GenArg";
-         List
-           [
-             Atom "Rawwit";
-             List [ Atom "OptArg"; List [ Atom "ExtraArg"; Atom "ltac_info" ] ];
-           ];
-         selector_sexp;
-       ])
+  Serlib.Ser_genarg.raw_generic_argument_of_sexp sexp
 
 type ltac_elements = {
   selector : Goal_select.t option;
