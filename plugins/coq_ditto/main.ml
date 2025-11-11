@@ -6,6 +6,7 @@ type transformation_kind =
   | ExplicitFreshVariables
   | TurnIntoOneliner
   | ReplaceAutoWithSteps
+  | FlattenGoalSelectors
   | CompressIntro
   | IdTransformation
 [@@deriving variants]
@@ -44,8 +45,11 @@ let transformations_help =
       "Turn all proof steps into a single tactic call using ';' and '[]' \
        tacticals." );
     ( ReplaceAutoWithSteps,
-      "Replace 'auto' with the expanded steps obtained from 'info_auto'." );
+      "Replace 'auto' with the expanded steps obtained from 'info_auo'." );
     (CompressIntro, "Compress consecutive 'intro' calls into one 'intros'.");
+    ( FlattenGoalSelectors,
+      "Experimental: Remove goal selectors by moving and possibly duplicating \
+       tactics" );
     (IdTransformation, "Keep the file unchanged.");
   ]
 
@@ -65,6 +69,7 @@ let arg_to_transformation_kind (arg : string) :
   | "turn_into_oneliner" -> Ok TurnIntoOneliner
   | "replace_auto_with_steps" -> Ok ReplaceAutoWithSteps
   | "compress_intro" -> Ok CompressIntro
+  | "flatten_goal_selectors" -> Ok FlattenGoalSelectors
   | "id_transformation" -> Ok IdTransformation
   | _ ->
       Error

@@ -49,6 +49,9 @@ val cut_replace_branch :
 val explicit_fresh_variables :
   Rocq_document.t -> proof -> (transformation_step list, Error.t) result
 
+val flatten_goal_selectors :
+  Rocq_document.t -> proof -> (transformation_step list, Error.t) result
+
 val turn_into_oneliner :
   Rocq_document.t ->
   Syntax_node.t nary_tree ->

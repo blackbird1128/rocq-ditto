@@ -412,6 +412,76 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : proof) :
       Ok steps
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
+let flatten_goal_selectors (doc : Rocq_document.t) (proof : proof) :
+    (transformation_step list, Error.t) result =
+  let token = Coq.Limits.Token.create () in
+  let ( let* ) = Result.bind in
+
+  let reified_goal_hashtbl = Hashtbl.create 50 in
+
+  let* steps =
+    Runner.fold_proof_with_state doc token
+      (fun (state : Coq.State.t) step_acc node ->
+        let goals = Runner.reified_goals_at_state token state in
+        let* new_state = Runner.run_node token state node in
+        let node_without_selector = Syntax_node.drop_goal_selector node in
+        let* new_step_acc =
+          match Syntax_node.get_node_goal_selector_opt node with
+          | Some goal_selector ->
+              Logs.debug (fun m -> m "found a goal selector: %s" (repr node));
+
+              let view = Goal_select_view.make goal_selector in
+              let new_goals = Runner.reified_goals_at_state token new_state in
+              (*Otherwise we can never get them later *)
+              let* selected_goals =
+                Goal_select_view.apply_goal_selector_view view new_goals
+              in
+
+              Logs.debug (fun m -> m "selected goals:");
+              List.iter
+                (fun x -> Logs.debug (fun m -> m "%a" Reified_goal.pp x))
+                selected_goals;
+              Logs.debug (fun m -> m "-------------");
+
+              let _ =
+                List.iter
+                  (fun goal ->
+                    Hashtbl.add reified_goal_hashtbl goal node_without_selector)
+                  selected_goals
+              in
+
+              Ok (Remove node.id :: step_acc)
+          | None -> Ok step_acc
+        in
+        match List.nth_opt goals 0 with
+        | Some goal ->
+            let all_found = Hashtbl.find_all reified_goal_hashtbl goal in
+            let _ =
+              if List.length all_found > 0 then
+                Logs.debug (fun m ->
+                    m "attaching to %s at %s " (repr node)
+                      (Code_range.to_string node.range))
+              else ()
+            in
+            let attach_steps =
+              List.map (fun x -> Attach (x, LineBefore, node.id)) all_found
+            in
+            List.iter
+              (fun _ -> Hashtbl.remove reified_goal_hashtbl goal)
+              all_found;
+
+            Ok (new_state, attach_steps @ new_step_acc)
+        | None -> Ok (new_state, new_step_acc))
+      [] proof
+  in
+
+  List.iter
+    (fun step ->
+      pp_transformation_step Format.std_formatter step;
+      Format.pp_print_newline Format.std_formatter ())
+    steps;
+  Ok (List.rev steps)
+
 let compress_intro (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
@@ -1163,12 +1233,12 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
       match find_rewriter node with
       | Some rewriter -> (
           let old_goals_vars =
-            Runner.goals_at_state token state
+            Runner.reified_goals_at_state token state
             |> List.map Runner.get_hypothesis_names
           in
 
           let new_goals_vars =
-            Runner.goals_at_state token new_state
+            Runner.reified_goals_at_state token new_state
             |> List.map Runner.get_hypothesis_names
           in
 

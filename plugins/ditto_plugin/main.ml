@@ -7,6 +7,7 @@ type transformation_kind =
   | ExplicitFreshVariables
   | TurnIntoOneliner
   | ReplaceAutoWithSteps
+  | FlattenGoalSelectors
   | CompressIntro
   | IdTransformation
 [@@deriving variants]
@@ -33,6 +34,7 @@ let arg_to_transformation_kind (arg : string) :
   else if normalized = "turn_into_oneliner" then Ok TurnIntoOneliner
   else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
   else if normalized = "compress_intro" then Ok CompressIntro
+  else if normalized = "flatten_goal_selectors" then Ok FlattenGoalSelectors
   else if normalized = "id_transformation" then Ok IdTransformation
   else
     Error.string_to_or_error
@@ -55,6 +57,7 @@ let transformation_kind_to_function (kind : transformation_kind) :
         Transformations.turn_into_oneliner doc proof_tree
   | ReplaceAutoWithSteps -> Transformations.replace_auto_with_steps
   | CompressIntro -> Transformations.compress_intro
+  | FlattenGoalSelectors -> Transformations.flatten_goal_selectors
   | IdTransformation -> Transformations.id_transform
 
 let print_help (transformation_help : (transformation_kind * string) list) :
@@ -68,20 +71,18 @@ let print_help (transformation_help : (transformation_kind * string) list) :
 let transformations_help =
   [
     ( ExplicitFreshVariables,
-      "replace call to tactics creating fresh variables such as intros with \
-       intros V_1  V_2 V_n\n\
-       where each V_i corresponds to a variable automatically introduced by \
-       the tactic." );
+      "Replace calls to tactics creating fresh variables such as `intros` with \
+       explicit variable names (`intros V1 V2 ... Vn`)." );
     ( TurnIntoOneliner,
-      "Remove all commands from the proof and turn all steps into a single \
-       tactic call using the ';' and '[]' tacticals." );
+      "Turn all proof steps into a single tactic call using ';' and '[]' \
+       tacticals." );
     ( ReplaceAutoWithSteps,
-      "Replace all calls to the 'auto' tactic with the steps effectively used \
-       by auto using 'info_auto' trace." );
-    ( CompressIntro,
-      "Replace consecutive calls to the 'intro' tactic with one call to \
-       'intros'." );
-    (IdTransformation, "Keep the file the same.");
+      "Replace 'auto' with the expanded steps obtained from 'info_auo'." );
+    (CompressIntro, "Compress consecutive 'intro' calls into one 'intros'.");
+    ( FlattenGoalSelectors,
+      "Experimental: Remove goal selectors by moving and possibly duplicating \
+       tactics" );
+    (IdTransformation, "Keep the file unchanged.");
   ]
 
 let local_apply_proof_transformation (doc_acc : Rocq_document.t)
@@ -233,7 +234,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
               Variants_of_transformation_kind.fold ~init:[] ~help:add
                 ~explicitfreshvariables:add ~turnintooneliner:add
                 ~compressintro:add ~idtransformation:add
-                ~replaceautowithsteps:add
+                ~replaceautowithsteps:add ~flattengoalselectors:add
               |> List.map camel_to_snake
             in
             let not_recognized =
