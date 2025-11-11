@@ -400,10 +400,11 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
   match shift_method with
   | ShiftHorizontally ->
       if new_node.range.start.line != new_node.range.end_.line then
-        Error.string_to_or_error
-          ("Error when trying to shift " ^ repr new_node ^ " at : "
-          ^ Code_range.to_string new_node.range
-          ^ ". Shifting horizontally is only possible with 1 line height node")
+        Error.format_to_or_error
+          "Error when trying to shift %s at: %s.@.Shifting horizontally is \
+           only possible with 1 line height node"
+          (repr new_node)
+          (Code_range.to_string new_node.range)
       else
         let multi_lines_nodes_after_same_line =
           elements_starting_at_line new_node.range.start.line
@@ -414,10 +415,10 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
           |> Option.has_some
         in
         if multi_lines_nodes_after_same_line then
-          Error.string_to_or_error
-            ("Can't shift multi-lines nodes on the same line ("
-            ^ string_of_int new_node.range.start.line
-            ^ ") as the node inserted")
+          Error.format_to_or_error
+            "Can't shift multi-lines nodes on the same line (%d) as the node \
+             inserted"
+            new_node.range.start.line
         else
           let elements =
             element_before_new_node_start
@@ -561,10 +562,16 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
   | Add new_node -> insert_node new_node doc
   | Attach (attached_node, attach_position, anchor_id) -> (
       match element_with_id_opt anchor_id doc with
+      | None ->
+          Error.format_to_or_error
+            "Can't find the node with id: %s to attach to"
+            (Uuidm.to_string anchor_id)
       | Some target ->
           let attached_node_start_point =
             match attach_position with
-            | LineBefore -> shift_point (-1) 0 target.range.start
+            | LineBefore ->
+                target.range.start
+                (* we don't shift back as by default, equal elements are pushed after *)
             | LineAfter -> shift_point 1 0 target.range.end_
           in
 
@@ -572,7 +579,6 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
             Range_utils.range_from_starting_point_and_repr
               attached_node_start_point (repr attached_node)
           in
-
           let new_node_range : Code_range.t =
             {
               start =
@@ -601,11 +607,7 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
                 { node with id = attached_node.id }
           in
 
-          insert_node new_node doc
-      | None ->
-          Error.string_to_or_error
-            ("Can't find the node with id: " ^ Uuidm.to_string anchor_id
-           ^ " to attach to"))
+          insert_node new_node doc)
 
 let apply_transformations_steps (steps : transformation_step list) (doc : t) :
     (t, Error.t) result =
