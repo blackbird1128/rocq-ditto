@@ -860,27 +860,20 @@ let turn_into_oneliner (_ : Rocq_document.t)
     (transformation_step list, Error.t) result =
   let* proof = Runner.tree_to_proof proof_tree in
 
-  let proof_status = Proof.get_proof_status proof in
   let dummy_point : Code_point.t = { line = 0; character = 0 } in
 
-  match proof_status with
+  match Proof.get_proof_status proof with
   | None ->
       Error.string_to_or_error
         "Can't find the proof status of the proof: invalid proof"
-  | Some Proof.Aborted | Some Proof.Admitted -> Ok []
+  | Some (Proof.Aborted | Proof.Admitted) -> Ok []
   | Some Proof.Proved -> (
-      let suffix =
-        List.find_opt Syntax_node.is_syntax_node_proof_command proof.proof_steps
-        |> Option.map Syntax_node.get_syntax_node_proof_with_tactic
-        |> Option.flatten
-      in
-
       let suffix_node =
-        Option.map
-          (fun x ->
+        proof.proof_steps
+        |> List.find_map Syntax_node.get_syntax_node_proof_with_tactic
+        |> Option.map (fun x ->
             Syntax_node.syntax_node_of_string (x ^ ".") dummy_point
             |> Result.get_ok)
-          suffix
       in
 
       let cleaned_tree =
@@ -895,7 +888,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
 
       match cleaned_tree with
       | None -> Ok []
-      | Some cleaned_tree ->
+      | Some cleaned_tree -> (
           let* one_liner_node_raw_expr =
             get_oneliner suffix_node cleaned_tree
           in
@@ -905,8 +898,10 @@ let turn_into_oneliner (_ : Rocq_document.t)
           let remove_steps =
             List.filter_map
               (fun node ->
-                if node_can_open_proof node || node_can_close_proof node then
-                  None
+                if
+                  node_can_open_proof node || node_can_close_proof node
+                  || is_syntax_node_proof_command node
+                then None
                 else Some (Remove node.id))
               flattened
           in
@@ -920,17 +915,42 @@ let turn_into_oneliner (_ : Rocq_document.t)
               first_step_node.range.start
           in
 
-          let* proof_node =
-            Syntax_node.syntax_node_of_string "Proof."
-              first_step_node.range.end_
+          let* first_proof_node =
+            List.find_opt
+              (fun x -> is_syntax_node_proof_command x || node_can_open_proof x)
+              (List.rev flattened)
+            |> Option_utils.to_result
+                 ~none:
+                   (Error.format_to_or_error
+                      "can't find a starting node to attach to.")
           in
 
-          Ok
-            (remove_steps
-            @ [
-                Attach (proof_node, LineAfter, first_step_node.id);
-                Attach (one_liner_node, LineAfter, proof_node.id);
-              ]))
+          let attach_position =
+            if
+              first_proof_node.range.end_.line
+              = first_step_node.range.start.line
+            then SameLine
+            else LineAfter
+          in
+
+          match suffix_node with
+          | Some suffix_node ->
+              let* proof_node =
+                Syntax_node.syntax_node_of_string "Proof."
+                  suffix_node.range.start
+              in
+              Ok
+                (remove_steps
+                @ [
+                    Replace (suffix_node.id, proof_node);
+                    Attach (one_liner_node, attach_position, first_proof_node.id);
+                  ])
+          | None ->
+              Ok
+                (remove_steps
+                @ [
+                    Attach (one_liner_node, attach_position, first_proof_node.id);
+                  ])))
 
 let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
   let env = Global.env () in

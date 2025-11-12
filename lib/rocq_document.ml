@@ -566,13 +566,13 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
           Error.format_to_or_error
             "Can't find the node with id: %s to attach to"
             (Uuidm.to_string anchor_id)
-      | Some target ->
+      | Some target -> (
           let attached_node_start_point =
             match attach_position with
-            | LineBefore ->
-                target.range.start
-                (* we don't shift back as by default, equal elements are pushed after *)
+            | LineBefore -> target.range.start
+            (* we don't shift back as by default, equal elements are pushed after *)
             | LineAfter -> shift_point 1 0 target.range.end_
+            | SameLine -> shift_point 0 1 target.range.end_
           in
 
           let new_node_range =
@@ -580,13 +580,16 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
               attached_node_start_point (repr attached_node)
           in
           let new_node_range : Code_range.t =
-            {
-              start =
-                shift_point 0
-                  (-new_node_range.start.character)
-                  new_node_range.start;
-              end_ = shift_point 0 0 new_node_range.end_;
-            }
+            match attach_position with
+            | SameLine -> new_node_range
+            | LineAfter | LineBefore ->
+                {
+                  start =
+                    shift_point 0
+                      (-new_node_range.start.character)
+                      new_node_range.start;
+                  end_ = shift_point 0 0 new_node_range.end_;
+                }
           in
 
           let new_node =
@@ -607,7 +610,10 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
                 { node with id = attached_node.id }
           in
 
-          insert_node new_node doc)
+          match attach_position with
+          | SameLine -> insert_node ~shift_method:ShiftHorizontally new_node doc
+          | LineAfter | LineBefore ->
+              insert_node ~shift_method:ShiftVertically new_node doc))
 
 let apply_transformations_steps (steps : transformation_step list) (doc : t) :
     (t, Error.t) result =

@@ -6,7 +6,7 @@ open Nary_tree
 type proof_status = Admitted | Proved | Aborted
 [@@deriving show { with_path = false }]
 
-type attach_position = LineAfter | LineBefore
+type attach_position = LineAfter | LineBefore | SameLine
 [@@deriving show { with_path = false }]
 
 type transformation_step =
