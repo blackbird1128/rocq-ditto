@@ -12,6 +12,7 @@ type t =
   | SelectAll
 
 val make : Goal_select.t -> t
+val to_goal_select : t -> Goal_select.t
 
 [%%else]
 
@@ -21,6 +22,7 @@ type goal_range_selector = [%import: Proofview.goal_range_selector]
 type t = [%import: Goal_select.t]
 
 val make : Goal_select.t -> t
+val to_goal_select : t -> Goal_select.t
 
 [%%endif]
 

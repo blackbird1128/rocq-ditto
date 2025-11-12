@@ -1,5 +1,6 @@
 [%%import "rocq_version_optcomp.mlh"]
 [%%if rocq_version < (9, 1, 0)]
+[%%warning "inferior to 9.1.0"]
 
 type goal_range_selector =
   | NthSelector of int
@@ -21,7 +22,28 @@ let make (x : Goal_select.t) : t =
   | Goal_select.SelectId id -> SelectList [ IdSelector id ]
   | Goal_select.SelectAll -> SelectAll
 
+let to_goal_select (x : t) : Goal_select.t =
+  match x with
+  | SelectAlreadyFocused -> Goal_select.SelectAlreadyFocused
+  | SelectAll -> Goal_select.SelectAll
+  | SelectList selectors -> (
+      match selectors with
+      | [ NthSelector n ] -> Goal_select.SelectNth n
+      | [ RangeSelector (a, b) ] -> Goal_select.SelectList [ (a, b) ]
+      | [ IdSelector id ] -> Goal_select.SelectId id
+      | lst ->
+          let ranges =
+            List.filter_map
+              (function
+                | RangeSelector (a, b) -> Some (a, b)
+                | NthSelector n -> Some (n, n)
+                | IdSelector _ -> None)
+              lst
+          in
+          Goal_select.SelectList ranges)
+
 [%%else]
+[%%warning "superior to 9.0.0"]
 
 type goal_range_selector = [%import: Proofview.goal_range_selector]
 [@@derive show]
@@ -29,6 +51,7 @@ type goal_range_selector = [%import: Proofview.goal_range_selector]
 type t = [%import: Goal_select.t]
 
 let make (x : Goal_select.t) : t = x
+let to_goal_select (x : t) = x
 
 [%%endif]
 
@@ -73,8 +96,8 @@ let apply_goal_selector_view (x : t) (goals : 'a Coq.Goals.Reified_goal.t list)
                (x : goal_range_selector) ->
             match x with
             | NthSelector n -> List.nth_opt goals (n - 1) :: acc
-            | RangeSelector range ->
-                let range_list = range_to_list (fst range) (snd range) in
+            | RangeSelector (start, end_) ->
+                let range_list = range_to_list start end_ in
                 List.map (fun n -> List.nth_opt goals (n - 1)) range_list @ acc
             | IdSelector id ->
                 let goal =

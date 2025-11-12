@@ -430,11 +430,11 @@ let flatten_goal_selectors (doc : Rocq_document.t) (proof : proof) :
           | Some goal_selector ->
               Logs.debug (fun m -> m "found a goal selector: %s" (repr node));
 
-              let view = Goal_select_view.make goal_selector in
               let new_goals = Runner.reified_goals_at_state token new_state in
               (*Otherwise we can never get them later *)
               let* selected_goals =
-                Goal_select_view.apply_goal_selector_view view new_goals
+                Goal_select_view.apply_goal_selector_view goal_selector
+                  new_goals
               in
 
               Logs.debug (fun m -> m "selected goals:");

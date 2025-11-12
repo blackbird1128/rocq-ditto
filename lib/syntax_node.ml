@@ -489,7 +489,7 @@ let get_node_ltac_elements (x : t) : ltac_elements option =
   |> Option.map raw_arguments_to_ltac_elements
   |> Option.flatten
 
-let get_node_goal_selector_opt (x : t) : Goal_select.t option =
+let get_node_goal_selector_opt (x : t) : Goal_select_view.t option =
   get_tactic_raw_generic_arguments x
   |> Option.map raw_arguments_to_goal_selector
   |> Option.flatten
@@ -519,10 +519,11 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
 
 let raw_tactic_expr_to_syntax_node
     (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
-    ?(selector : Goal_select.t option) ?(use_default = false)
+    ?(selector : Goal_select_view.t option) ?(use_default = false)
     (starting_point : Code_point.t) : (t, Error.t) result =
   let selector_raw_arg =
-    Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector
+    Raw_gen_args_converter.raw_generic_argument_of_ltac_selector
+      (Option.map Goal_select_view.to_goal_select selector)
   in
   let use_default_raw_arg =
     Raw_gen_args_converter.raw_generic_argument_of_ltac_use_default use_default

@@ -132,12 +132,12 @@ val tactic_raw_generic_arguments_to_syntax_node :
 
 val raw_tactic_expr_to_syntax_node :
   Ltac_plugin.Tacexpr.raw_tactic_expr ->
-  ?selector:Goal_select.t ->
+  ?selector:Goal_select_view.t ->
   ?use_default:bool ->
   Code_point.t ->
   (t, Error.t) result
 
-val get_node_goal_selector_opt : t -> Goal_select.t option
+val get_node_goal_selector_opt : t -> Goal_select_view.t option
 val get_node_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
 val get_node_raw_atomic_tactic_expr :

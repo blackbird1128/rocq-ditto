@@ -97,7 +97,7 @@ val lconstr_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Constrexpr.constr_expr option
 
 val ltac_selector_of_raw_generic_argument :
-  Genarg.raw_generic_argument -> Goal_select.t option option
+  Genarg.raw_generic_argument -> Goal_select_view.t option option
 
 val raw_generic_argument_of_ltac_selector :
   Goal_select.t option -> Genarg.raw_generic_argument
@@ -109,7 +109,7 @@ type ltac_elements = {
 }
 
 val raw_arguments_to_goal_selector :
-  Genarg.raw_generic_argument list -> Goal_select.t option
+  Genarg.raw_generic_argument list -> Goal_select_view.t option
 
 val raw_arguments_to_ltac_elements :
   Genarg.raw_generic_argument list -> ltac_elements option
