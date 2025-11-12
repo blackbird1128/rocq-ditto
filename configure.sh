@@ -43,6 +43,7 @@ else
   fi
   mkdir -p vendor/
   cp ./_opam/bin/fcc ./vendor/fcc
+  eval "$(opam env)"
   make build
 fi
 
