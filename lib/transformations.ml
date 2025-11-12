@@ -894,6 +894,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
           in
 
           let flattened = Nary_tree.flatten proof_tree in
+          let rev_flattened = List.rev flattened in
 
           let remove_steps =
             List.filter_map
@@ -906,23 +907,31 @@ let turn_into_oneliner (_ : Rocq_document.t)
               flattened
           in
 
-          let first_step_node =
-            List.find (fun node -> node_can_open_proof node) flattened
+          let* first_proof_node_idx =
+            List.find_index
+              (fun x -> is_syntax_node_proof_command x || node_can_open_proof x)
+              rev_flattened
+            |> Option_utils.to_result
+                 ~none:
+                   (Error.format_to_or_error
+                      "can't find a starting node to attach to.")
+          in
+
+          let first_proof_node = List.nth rev_flattened first_proof_node_idx in
+
+          let* first_step_node =
+            List.nth_opt rev_flattened (first_proof_node_idx - 1)
+            (* the list is reverse so next is prev *)
+            |> Option_utils.to_result
+                 ~none:
+                   (Error.format_to_or_error
+                      "There should be a node after the Proof or proposition \
+                       node in this case")
           in
 
           let* one_liner_node =
             Syntax_node.raw_tactic_expr_to_syntax_node one_liner_node_raw_expr
               first_step_node.range.start
-          in
-
-          let* first_proof_node =
-            List.find_opt
-              (fun x -> is_syntax_node_proof_command x || node_can_open_proof x)
-              (List.rev flattened)
-            |> Option_utils.to_result
-                 ~none:
-                   (Error.format_to_or_error
-                      "can't find a starting node to attach to.")
           in
 
           let attach_position =
@@ -942,8 +951,9 @@ let turn_into_oneliner (_ : Rocq_document.t)
               Ok
                 (remove_steps
                 @ [
-                    Replace (suffix_node.id, proof_node);
-                    Attach (one_liner_node, attach_position, first_proof_node.id);
+                    Replace (first_proof_node.id, proof_node);
+                    (* Here, we are sure to have a Proof node in first_proof_node *)
+                    Attach (one_liner_node, attach_position, proof_node.id);
                   ])
           | None ->
               Ok
