@@ -482,9 +482,12 @@ let ltac_selector_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
         |> Option.map Goal_select_view.make)
   | _ -> None
 
-let raw_generic_argument_of_ltac_selector (sel : Goal_select.t option) :
+let raw_generic_argument_of_ltac_selector (sel : Goal_select_view.t option) :
     Genarg.raw_generic_argument =
-  let rems = Sexplib.Std.sexp_of_option Serlib.Ser_goal_select.sexp_of_t sel in
+  let rems =
+    Sexplib.Std.sexp_of_option Serlib.Ser_goal_select.sexp_of_t
+      (Option.map Goal_select_view.to_goal_select sel)
+  in
   let sexp =
     Sexplib.Sexp.List
       [
@@ -501,7 +504,7 @@ let raw_generic_argument_of_ltac_selector (sel : Goal_select.t option) :
   Serlib.Ser_genarg.raw_generic_argument_of_sexp sexp
 
 type ltac_elements = {
-  selector : Goal_select.t option;
+  selector : Goal_select_view.t option;
   raw_tactic_expr : Ltac_plugin.Tacexpr.raw_tactic_expr;
   use_default : bool; (* TODO parse last args *)
 }
@@ -529,7 +532,6 @@ let raw_arguments_to_ltac_elements (args : Genarg.raw_generic_argument list) :
       let use_default =
         Option.get (ltac_use_default_of_raw_generic_argument use_default_arg)
       in
-      let selector = Option.map Goal_select_view.to_goal_select selector in
       Some { selector; raw_tactic_expr; use_default }
   | _ -> None
 

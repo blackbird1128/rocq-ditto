@@ -522,8 +522,7 @@ let raw_tactic_expr_to_syntax_node
     ?(selector : Goal_select_view.t option) ?(use_default = false)
     (starting_point : Code_point.t) : (t, Error.t) result =
   let selector_raw_arg =
-    Raw_gen_args_converter.raw_generic_argument_of_ltac_selector
-      (Option.map Goal_select_view.to_goal_select selector)
+    Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector
   in
   let use_default_raw_arg =
     Raw_gen_args_converter.raw_generic_argument_of_ltac_use_default use_default
