@@ -18,6 +18,8 @@ You will also need the `gmp-dev` and `linux-headers` library.
 `rocq-ditto` can be configured by running `./configure.sh $ROCQ_VERSION_HERE` with `$ROCQ_VERSION_HERE` being either a full Rocq version (ie 9.0.0)
 to pin `rocq-ditto` to that version, or using `latest` to have the latest Rocq version not pinned.
 
+Once this is done, run `eval $(opam) env`.
+
 If `./configure.sh` fail, run `rm -rf _opam/` in the `rocq-ditto` directory to remove the local opam switch and retry.
 If for some reasons, you can't or don't want to use the `./configure.sh` script, you can use the following manual instructions:
 
