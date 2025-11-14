@@ -12,7 +12,7 @@ bug-reports: "https://github.com/blackbird1128/rocq-ditto/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.15"}
-  "coq-lsp"
+  "coq-lsp" {>= "0.2.4"}
   "base-unix"
   "re"
   "fpath"
