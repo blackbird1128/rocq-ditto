@@ -30,6 +30,12 @@
   (topics "to describe" your project)))
 
 (package
+  (name ditto-cli-lib)
+  (synopsis "library used by the coq-ditto cli")
+  (description "library used by the coq-ditto cli")
+  (depends coq-ditto))
+
+(package
   (name ditto-plugin)
   (synopsis "Basic Fleche plugin used by rocq-ditto to run transformation" )
   (allow_empty)

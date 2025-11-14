@@ -1,343 +1,307 @@
+open Ditto_cli_lib.Cli
+open Fleche
 open Ditto
-open Cmdliner
+open Ditto.Proof
 
-type transformation_kind =
-  | Help
-  | ExplicitFreshVariables
-  | TurnIntoOneliner
-  | ReplaceAutoWithSteps
-  | FlattenGoalSelectors
-  | CompressIntro
-  | IdTransformation
-[@@deriving variants]
+type scoped_function =
+  | ProofScope of
+      (Rocq_document.t ->
+      Proof.proof ->
+      (transformation_step list, Error.t) result)
+  | DocScope of (Rocq_document.t -> (transformation_step list, Error.t) result)
 
-type cli_options = {
-  input : string;
-  output : string;
-  transformation : transformation_kind;
-  verbose : bool;
-  quiet : bool;
-  save_vo : bool;
-  reverse_order : bool;
-  skipped_files : string list;
-}
+let wrap_to_treeify (doc : Rocq_document.t) (x : proof) :
+    (Syntax_node.t Nary_tree.nary_tree, Error.t) result =
+  Runner.treeify_proof doc x
 
-let camel_to_snake (s : string) : string =
-  let b = Buffer.create (String.length s * 2) in
-  String.iteri
-    (fun i c ->
-      if 'A' <= c && c <= 'Z' then (
-        if i > 0 then Buffer.add_char b '_';
-        Buffer.add_char b (Char.lowercase_ascii c))
-      else Buffer.add_char b c)
-    s;
-  Buffer.contents b
-
-let transformation_kind_to_string (kind : transformation_kind) : string =
-  Variants_of_transformation_kind.to_name kind |> camel_to_snake
-
-let transformations_help =
-  [
-    ( ExplicitFreshVariables,
-      "Replace calls to tactics creating fresh variables such as `intros` with \
-       explicit variable names (`intros V1 V2 ... Vn`)." );
-    ( TurnIntoOneliner,
-      "Turn all proof steps into a single tactic call using ';' and '[]' \
-       tacticals." );
-    ( ReplaceAutoWithSteps,
-      "Replace 'auto' with the expanded steps obtained from 'info_auo'." );
-    (CompressIntro, "Compress consecutive 'intro' calls into one 'intros'.");
-    ( FlattenGoalSelectors,
-      "Experimental: Remove goal selectors by moving and possibly duplicating \
-       tactics" );
-    (IdTransformation, "Keep the file unchanged.");
-  ]
-
-let help_to_string (transformation_help : (transformation_kind * string) list) :
-    string =
-  List.fold_left
-    (fun acc (kind, help) ->
-      acc ^ transformation_kind_to_string kind ^ ": " ^ help ^ "\n")
-    "" transformation_help
-
-let arg_to_transformation_kind (arg : string) :
-    (transformation_kind, string) result =
-  let normalized = String.lowercase_ascii arg in
-  match normalized with
-  | "help" -> Ok Help
-  | "explicit_fresh_variables" -> Ok ExplicitFreshVariables
-  | "turn_into_oneliner" -> Ok TurnIntoOneliner
-  | "replace_auto_with_steps" -> Ok ReplaceAutoWithSteps
-  | "compress_intro" -> Ok CompressIntro
-  | "flatten_goal_selectors" -> Ok FlattenGoalSelectors
-  | "id_transformation" -> Ok IdTransformation
-  | _ ->
-      Error
-        ("Unknown transformation: " ^ arg ^ "\nValid transformations:\n"
-        ^ help_to_string transformations_help)
-
-let string_of_process_status = function
-  | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
-  | Unix.WSIGNALED signal -> Printf.sprintf "Killed by signal %d" signal
-  | Unix.WSTOPPED signal -> Printf.sprintf "Stopped by signal %d" signal
-
-let remove_prefix (str : string) (prefix : string) =
-  let prefix_len = String.length prefix in
-  if String.length str >= prefix_len && String.sub str 0 prefix_len = prefix
-  then String.sub str prefix_len (String.length str - prefix_len)
-  else str
-
-let warn_if_exists (dir_state : Filesystem.newDirState) =
-  match dir_state with
-  | AlreadyExists ->
-      print_endline "Warning: output directory already exists: replacing files"
-  | _ -> ()
-
-let pp_level_lowercase (fmt : Format.formatter) (level : Logs.level) : unit =
-  Format.pp_print_string fmt (Logs.level_to_string (Some level))
-
-let pp_header_no_app fmt (level, _msg_header_opt) =
-  match level with
-  | Logs.App -> ()
-  | _ -> Format.fprintf fmt "[%a] " pp_level_lowercase level
-
-let transform_project (opts : cli_options) : (int, Error.t) result =
+let transformation_kind_to_scoped_function (kind : transformation_kind) :
+    scoped_function =
   let ( let* ) = Result.bind in
-  let input = opts.input
-  and output = opts.output
-  and transformation = transformation_kind_to_string opts.transformation
-  and verbose = opts.verbose
-  and quiet = opts.quiet
-  and save_vo = opts.save_vo
-  and reverse_order = opts.reverse_order
-  and skipped_files = opts.skipped_files in
+  match kind with
+  | Help -> DocScope (fun _ -> Ok [])
+  | ExplicitFreshVariables ->
+      ProofScope Transformations.explicit_fresh_variables
+  | TurnIntoOneliner ->
+      ProofScope
+        (fun doc x ->
+          let* proof_tree = wrap_to_treeify doc x in
+          Transformations.turn_into_oneliner doc proof_tree)
+  | ReplaceAutoWithSteps -> ProofScope Transformations.replace_auto_with_steps
+  | CompressIntro -> ProofScope Transformations.compress_intro
+  | FlattenGoalSelectors -> ProofScope Transformations.flatten_goal_selectors
+  | ConstructivizeGeocoq -> DocScope Constructivisation.constructivize_doc
+  | IdTransformation -> ProofScope Transformations.id_transform
 
-  List.iter print_endline skipped_files;
+let local_apply_doc_transformation (doc_acc : Rocq_document.t)
+    (trans : Rocq_document.t -> (transformation_step list, Error.t) result)
+    (transformation_kind : transformation_kind) (verbose : bool) (quiet : bool)
+    : (Rocq_document.t, Error.t) result =
+  let transformation_steps = trans doc_acc in
+  match transformation_steps with
+  | Ok steps ->
+      List.fold_left
+        (fun doc_acc_err step ->
+          match doc_acc_err with
+          | Ok doc -> Rocq_document.apply_transformation_step step doc
+          | Error err -> Error err)
+        (Ok doc_acc) steps
+  | Error err -> Error err
+
+let local_apply_proof_transformation (doc_acc : Rocq_document.t)
+    (transformation :
+      Rocq_document.t -> proof -> (transformation_step list, Error.t) result)
+    (transformation_kind : transformation_kind)
+    (proofs_rec : (proof list, Error.t) result) (verbose : bool) (quiet : bool)
+    =
+  match proofs_rec with
+  | Ok proofs ->
+      let proof_total = List.length proofs in
+      List.fold_left
+        (fun ((doc_acc_bis, proof_count) :
+               (Rocq_document.t, Error.t) result * int) (proof : Proof.proof) ->
+          match doc_acc_bis with
+          | Ok acc -> (
+              let proof_name =
+                Option.default "anonymous" (Proof.get_proof_name proof)
+              in
+              let _ =
+                if verbose then (
+                  Printf.printf "Running transformation %s on %-20s(%d/%d)%!\n"
+                    (transformation_kind_to_string transformation_kind)
+                    proof_name (proof_count + 1) proof_total;
+                  print_newline ())
+                else if not quiet then
+                  Printf.printf
+                    "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
+                    (transformation_kind_to_string transformation_kind)
+                    proof_name (proof_count + 1) proof_total
+                else ()
+              in
+
+              let transformation_steps = transformation acc proof in
+              match transformation_steps with
+              | Ok steps ->
+                  ( List.fold_left
+                      (fun doc_acc_err step ->
+                        match doc_acc_err with
+                        | Ok doc ->
+                            Rocq_document.apply_transformation_step step doc
+                        | Error err -> Error err)
+                      doc_acc_bis steps,
+                    proof_count + 1 )
+              | Error err -> (Error err, proof_count))
+          | Error err -> (Error err, proof_count))
+        (Ok doc_acc, 0) proofs
+  | Error err -> (Error err, 0)
+
+let print_info (filename : string) (verbose : bool) : unit =
   print_newline ();
+  print_endline ("All transformations applied, writing to file " ^ filename);
+
+  if verbose then (
+    let stats = Stats.Global.dump () in
+    Logs.debug (fun m ->
+        m "rocq-ditto stats: %s" (Stats.Global.to_string stats));
+    Logs.debug (fun m -> m "rocq-ditto %s" (Memo.GlobalCacheStats.stats ())))
+  else ()
+
+let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
+    (unit, Error.t) result =
+  let ( let* ) = Result.bind in
+
+  let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
+
+  let verbose = Option.default false (bool_of_string_opt verbose) in
+
+  let quiet =
+    Option.default "false" (Sys.getenv_opt "QUIET")
+    |> bool_of_string_opt |> Option.default false
+  in
 
   let out = Format.std_formatter in
   let reporter =
     Logs_fmt.reporter ~pp_header:pp_header_no_app ~app:out ~dst:out ()
   in
   Logs.set_reporter reporter;
+
   if verbose then Logs.set_level (Some Logs.Debug)
   else Logs.set_level (Some Logs.Info);
 
-  let exec_name = Filename.basename Sys.argv.(0) in
-  (match exec_name with
-  | "coq-ditto" ->
-      Logs.warn (fun m ->
-          m
-            "Alias coq-ditto might disappear in the future, please use \
-             rocq-ditto instead")
-  | _ -> ());
+  Printexc.record_backtrace true;
+  let uri = doc.uri in
+  let uri_str = Lang.LUri.File.to_string_uri uri in
+  let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
+  let errors = List.filter Lang.Diagnostic.is_error diags in
 
-  let pathkind = Filesystem.get_pathkind input in
+  let max_errors = 5 in
+  let limited_errors = List.filteri (fun i _ -> i < max_errors) errors in
 
-  if pathkind = File && List.length skipped_files > 0 then
-    Error.string_to_or_error
-      "Using --skip with a single file doesn't make sense"
-  else if verbose && quiet then
-    Error.string_to_or_error "Cannot use both --verbose and --quiet"
-  else
-    match pathkind with
-    | File -> (
-        if Filesystem.is_directory output then
-          Error.string_to_or_error
-            "Output must be a filename when input is a file"
-        else
-          let coqproject_opt = Compile.find_coqproject_dir_and_file input in
+  match doc.completed with
+  | Doc.Completion.Stopped range_stop ->
+      Error.format_to_or_error
+        "parsing stopped at %s\n\
+         %s\n\
+         NOTE: errors after the first might be due to the first error."
+        (Lang.Range.to_string range_stop)
+        (String.concat "\n"
+           (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
+  | Doc.Completion.Failed range_failed ->
+      Error.format_to_or_error
+        "parsing failed at %s\n\
+         %s\n\
+         NOTE: errors after the first might be due to the first error."
+        (Lang.Range.to_string range_failed)
+        (String.concat "\n"
+           (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
+  | Doc.Completion.Yes _ -> (
+      if errors <> [] then
+        Error.format_to_or_error
+          "Document was parsed with errors:\n\
+           %s\n\
+           NOTE: errors after the first might be due to the first error."
+          (String.concat "\n"
+             (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
+      else
+        let transformations_steps =
+          Sys.getenv_opt "DITTO_TRANSFORMATION"
+          |> Option.map (String.split_on_char ',')
+          |> Option.map (List.map arg_to_transformation_kind)
+        in
 
-          let input_dir =
-            match coqproject_opt with
-            | Some (dir, _) -> dir
-            | None -> Filename.dirname input
-          in
+        let reverse_order =
+          Option.default false
+            (Sys.getenv_opt "REVERSE_ORDER"
+            |> Option.map bool_of_string_opt
+            |> Option.flatten)
+        in
 
-          let env =
-            Array.append (Unix.environment ())
-              [|
-                "DITTO_TRANSFORMATION=" ^ transformation;
-                "OUTPUT_FILENAME=" ^ output;
-                "DEBUG_LEVEL=" ^ string_of_bool verbose;
-                "SAVE_VO=" ^ string_of_bool save_vo;
-                "QUIET=" ^ string_of_bool quiet;
-                "REVERSE_ORDER=" ^ string_of_bool reverse_order;
-              |]
-          in
-          let prog = "fcc" in
-          let args =
-            [| prog; "--root=" ^ input_dir; "--plugin=ditto-plugin"; input |]
-          in
-          let pid =
-            Unix.create_process_env prog args env Unix.stdin Unix.stdout
-              Unix.stderr
-          in
-          let _, status = Unix.waitpid [] pid in
-          match status with
-          | Unix.WEXITED 0 -> Ok 0
-          | _ -> Error.string_to_or_error (string_of_process_status status))
-    | Dir -> (
-        match Compile.find_coqproject_dir_and_file input with
+        match transformations_steps with
         | None ->
+            Error.string_to_or_error
+              "Please specify the wanted transformation using the environment \
+               variable: DITTO_TRANSFORMATION\n\
+               If you want help about the different transformation, specify \
+               DITTO_TRANSFORMATION=HELP"
+        | Some steps when List.exists Result.is_error steps ->
+            let not_recognized =
+              String.concat "\n"
+                (List.map
+                   (fun x -> Error.to_string_hum (Result.get_error x))
+                   ((List.filter Result.is_error) steps))
+            in
             Error.format_to_or_error
-              "No _CoqProject or _RocqProject file found in %s" input
-        | Some (coqproject_dir, coqproject_file) ->
-            let coqproject_path =
-              Filename.concat coqproject_dir coqproject_file
+              "Transformations not recognized:\n\
+               %s\n\
+               Recognized transformations: %s"
+              not_recognized
+              (String.concat "\n" transformations_list)
+        | Some steps when List.mem (Ok Help) steps ->
+            print_endline (help_to_string transformations_help);
+            Ok ()
+        | Some steps -> (
+            let transformations_steps = List.map Result.get_ok steps in
+            let parsed_document = Rocq_document.parse_document doc in
+            let scoped_transformations :
+                (transformation_kind * scoped_function) list =
+              List.map
+                (fun x -> (x, transformation_kind_to_scoped_function x))
+                transformations_steps
             in
-            let open CoqProject_file in
-            let p =
-              CoqProject_file.read_project_file
-                ~warning_fn:(fun _ -> ())
-                coqproject_path
-            in
-            let files = List.map (fun x -> x.thing) p.files in
-            let filenames = List.map Filename.basename files in
-            let* dep_files = Compile.coqproject_sorted_files coqproject_path in
-            let* new_dir_state = Filesystem.make_dir output in
-            warn_if_exists new_dir_state;
-            let* _ = Filesystem.copy_dir input output filenames in
-            let* _ =
-              Filesystem.copy_file coqproject_path
-                (Filename.concat output coqproject_file)
-            in
-            let env =
-              Array.append (Unix.environment ())
-                [|
-                  "DITTO_TRANSFORMATION=" ^ transformation;
-                  "DEBUG_LEVEL=" ^ string_of_bool verbose;
-                  "SAVE_VO=" ^ string_of_bool save_vo;
-                  "QUIET=" ^ string_of_bool quiet;
-                  "REVERSE_ORDER=" ^ string_of_bool reverse_order;
-                |]
-            in
-            let prog = "fcc" in
-            let args =
-              [| prog; "--root=" ^ output; "--plugin=ditto-plugin" |]
-            in
-            let args =
-              if verbose then Array.append args [| "--display=verbose" |]
-              else args
-            in
-            let args =
-              if save_vo then Array.append args [| "--no_vo" |] else args
-            in
-            let transformations_status =
+
+            let res =
               List.fold_left
-                (fun err_acc x ->
-                  match err_acc with
-                  | Unix.WEXITED 0, _ ->
-                      let rel_path = remove_prefix x input in
-                      let curr_path = Filename.concat output rel_path in
-                      let curr_args = Array.append args [| curr_path |] in
-                      let curr_env =
-                        Array.append env [| "OUTPUT_FILENAME=" ^ curr_path |]
-                      in
-                      let pid =
-                        Unix.create_process_env prog curr_args curr_env
-                          Unix.stdin Unix.stdout Unix.stderr
-                      in
-                      flush_all ();
-                      let _, status = Unix.waitpid [] pid in
-                      (status, x)
-                  | err -> err)
-                (Unix.WEXITED 0, "default")
-                dep_files
+                (fun (doc_acc : (Rocq_document.t, Error.t) result)
+                     (transformation_kind, transformation) ->
+                  match (doc_acc, transformation) with
+                  | Ok doc_acc, scoped_trans -> (
+                      match scoped_trans with
+                      | ProofScope trans -> (
+                          print_endline
+                            ("applying transformation : "
+                            ^ transformation_kind_to_string transformation_kind
+                            );
+
+                          let proofs_rec =
+                            if reverse_order then
+                              Result.map List.rev
+                                (Rocq_document.get_proofs doc_acc)
+                            else Rocq_document.get_proofs doc_acc
+                          in
+                          let doc_res =
+                            local_apply_proof_transformation doc_acc trans
+                              transformation_kind proofs_rec verbose quiet
+                          in
+                          match doc_res with
+                          | Ok new_doc, _ -> Ok new_doc
+                          | Error err, _ -> Error err)
+                      | DocScope trans ->
+                          local_apply_doc_transformation doc_acc trans
+                            transformation_kind verbose quiet)
+                  | Error err, _ -> Error err)
+                (Ok parsed_document) scoped_transformations
             in
-            if fst transformations_status != Unix.WEXITED 0 then
-              Error.string_to_or_error
-                (string_of_process_status (fst transformations_status)
-                ^ " filename " ^ snd transformations_status)
-            else Ok 0)
 
-(* --- Cmdliner definitions ------------------------------------------- *)
+            let filename =
+              Option.default
+                (Filename.remove_extension uri_str ^ "_bis.v")
+                (Sys.getenv_opt "OUTPUT_FILENAME")
+            in
 
-let transformation_kind_conv =
-  let parse s =
-    match arg_to_transformation_kind s with
-    | Ok v -> Ok v
-    | Error e -> Error (`Msg e)
-  in
-  let print ppf k = Format.fprintf ppf "%s" (transformation_kind_to_string k) in
-  Cmdliner.Arg.conv (parse, print)
+            let save_vo =
+              Option.default false
+                (Sys.getenv_opt "SAVE_VO"
+                |> Option.map bool_of_string_opt
+                |> Option.flatten)
+            in
 
-let string_list_conv =
-  let parse s = Ok (String.split_on_char ' ' s |> List.filter (( <> ) "")) in
-  let print fmt lst = Format.fprintf fmt "%s" (String.concat " " lst) in
-  Arg.conv (parse, print)
+            match (res, save_vo) with
+            | Ok res, false ->
+                print_info filename verbose;
+                let out = open_out filename in
 
-let input_t =
-  let doc = "Input folder or filename." in
-  Arg.(
-    required & opt (some string) None & info [ "i"; "input" ] ~docv:"PATH" ~doc)
+                let* doc_repr = Rocq_document.dump_to_string res in
 
-let output_t =
-  let doc = "Output folder or filename." in
-  Arg.(
-    required & opt (some string) None & info [ "o"; "output" ] ~docv:"PATH" ~doc)
+                output_string out doc_repr;
+                flush_all ();
+                Ok ()
+            | Ok res, true ->
+                print_info filename verbose;
 
-let transformation_t =
-  let doc = "Transformation to apply." in
-  Arg.(
-    required
-    & opt (some transformation_kind_conv) None
-    & info [ "t"; "transformation" ] ~docv:"KIND" ~doc)
+                let out = open_out filename in
+                let* doc_repr = Rocq_document.dump_to_string res in
+                output_string out doc_repr;
+                print_endline "Saving vo:";
+                let uri =
+                  Lang.LUri.of_string filename
+                  |> Lang.LUri.File.of_uri |> Result.get_ok
+                in
 
-let skip_t =
-  let doc = "Files to skip (can be given multiple times)." in
-  Arg.(value & opt_all string [] & info [ "skip" ] ~docv:"FILE" ~doc)
+                let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc.uri in
+                let in_file = Lang.LUri.File.to_string_file uri in
+                let* state =
+                  match List_utils.last res.elements with
+                  | Some last ->
+                      let* st = Runner.get_init_state res last token in
+                      Runner.run_node token st last
+                  | None -> Ok res.initial_state
+                in
 
-let verbose_t =
-  Arg.(value & flag & info [ "v"; "verbose" ] ~doc:"Enable verbose output.")
+                let res =
+                  Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
+                  |> Runner.protect_to_result
+                in
+                Result.iter (fun _ -> print_endline "vo saved successfully") res;
+                res
+            | Error err, _ ->
+                print_endline (Error.to_string_hum err);
+                exit 1))
 
-let quiet_t =
-  Arg.(value & flag & info [ "quiet" ] ~doc:"Suppress non-error output.")
+let ditto_plugin_hook ~io ~token ~(doc : Doc.t) : unit =
+  match ditto_plugin ~io ~token ~doc with
+  | Ok _ -> exit 0
+  | Error err ->
+      prerr_endline (Error.to_string_hum err);
+      exit 1
 
-let save_vo_t =
-  Arg.(value & flag & info [ "save-vo" ] ~doc:"Save .vo of transformed file.")
-
-let reverse_order_t =
-  Arg.(
-    value & flag
-    & info [ "reverse-order" ]
-        ~doc:
-          "Reverse the order of proof processing to improve cache hits (may \
-           produce invalid output).")
-
-let cli_options_t =
-  let combine input output transformation verbose quiet save_vo reverse_order
-      skipped_files =
-    {
-      input;
-      output;
-      transformation;
-      verbose;
-      quiet;
-      save_vo;
-      reverse_order;
-      skipped_files;
-    }
-  in
-  Term.(
-    const combine $ input_t $ output_t $ transformation_t $ verbose_t $ quiet_t
-    $ save_vo_t $ reverse_order_t $ skip_t)
-
-let main opts =
-  match opts.transformation with
-  | Help ->
-      print_endline "Available transformations:\n";
-      print_endline (help_to_string transformations_help);
-      exit 0
-  | _ -> (
-      match transform_project opts with
-      | Ok res -> exit res
-      | Error err ->
-          prerr_endline (Error.to_string_hum err);
-          exit 1)
-
-let cmd =
-  let doc = "Apply Rocq-Ditto transformations to Coq projects." in
-  Cmd.v (Cmd.info "rocq-ditto" ~doc) Term.(const main $ cli_options_t)
-
-let () = exit (Cmd.eval cmd)
+let main () = Theory.Register.Completed.add ditto_plugin_hook
+let () = main ()

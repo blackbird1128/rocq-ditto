@@ -1,13 +1,45 @@
+(library
+ (public_name ditto-cli-lib)
+ (name ditto_cli_lib)
+ (modules cli)
+ (preprocess (pps ppx_deriving.show ppx_variants_conv))
+ (libraries coq-ditto logs logs.fmt)
+)
+
+(library
+ (public_name ditto-plugin)
+ (name ditto_plugin)
+ (modules main)
+ (preprocess (pps ppx_deriving.show ppx_variants_conv))
+ (libraries coq-ditto ditto-cli-lib rocq-runtime.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche logs logs.fmt)
+ (enabled_if (= "%{coq:version.major}" 9))
+)
+
+(library
+ (public_name ditto-plugin)
+ (name ditto_plugin)
+ (modules main )
+ (preprocess (pps ppx_deriving.show ppx_variants_conv))
+ (libraries coq-ditto ditto-cli-lib coq-core.plugins.ltac coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche logs logs.fmt)
+ (enabled_if (< "%{coq:version.major}" 9))
+)
+
 (executable
- (name main)
+ (name coq_ditto)
  (package coq-ditto)
  (public_name coq-ditto)
+ (modules coq_ditto)
  (preprocess (pps ppx_deriving.show ppx_variants_conv))
- (libraries unix logs logs.fmt coq-ditto coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche)
+ (libraries unix logs logs.fmt coq-ditto ditto-cli-lib coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche)
 )
 
 (install
  (package coq-ditto)
  (section bin)
  (files
-  (main.exe as rocq-ditto)))
+  (coq_ditto.exe as rocq-ditto)))
+
+(install
+ (package coq-ditto)
+ (files "../../vendor/fcc")
+ (section bin))
