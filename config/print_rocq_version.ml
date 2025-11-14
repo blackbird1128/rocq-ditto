@@ -1,9 +1,3 @@
-let is_directory (path : string) : bool =
-  try
-    let stats = Unix.stat path in
-    stats.Unix.st_kind = Unix.S_DIR
-  with Unix.Unix_error _ -> String.ends_with ~suffix:Filename.dir_sep path
-
 let rec find_rocq_ditto_dir (dir : string) : string option =
   let build_dirname = "_build" in
   if Sys.file_exists (Filename.concat dir build_dirname) then Some dir

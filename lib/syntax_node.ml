@@ -172,18 +172,6 @@ let remove_outer_parentheses s =
     String.sub s 1 (len - 3) ^ "."
   else s
 
-let (memo_pr_vernac : vernac_control -> scope_name) =
-  let cache = Hashtbl.create 256 in
-  fun coq_ast ->
-    let key = Coq.Ast.of_coq coq_ast |> Coq.Ast.hash in
-
-    match Hashtbl.find_opt cache key with
-    | Some result -> result
-    | None ->
-        let result = Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds in
-        Hashtbl.add cache key result;
-        result
-
 let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
   let coq_ast = Coq.Ast.to_coq ast in
   let repr =

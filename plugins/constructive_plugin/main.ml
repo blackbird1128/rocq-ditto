@@ -19,14 +19,6 @@ let print_lident (x : Names.lident) = print_endline (Names.Id.to_string x.v)
 let print_qualid (x : Libnames.qualid) =
   print_endline (Libnames.string_of_qualid x)
 
-let print_binder_type (x : Constrexpr.local_binder_expr) =
-  match x with
-  | Constrexpr.CLocalAssum
-      (lnames, relevance_info_expr, binder_kind, constr_expr) ->
-      print_endline "assum kind (forall ?)"
-  | Constrexpr.CLocalDef (_, _, _, _) -> print_endline "local def kind "
-  | Constrexpr.CLocalPattern _ -> print_endline "local pattern kind"
-
 let is_raw_assert (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : bool =
   match tac.CAst.v with
   | Ltac_plugin.Tacexpr.TacAtom atom -> (

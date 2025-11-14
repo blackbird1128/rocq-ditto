@@ -11,23 +11,6 @@ let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) result =
       Error.string_to_or_error ("Anomaly " ^ Pp.string_of_ppcmds msg)
   | { r = Completed (Ok r); feedback = _ } -> Ok r
 
-let protect_run_to_result (r : (Coq.State.t, Loc.t) Coq.Protect.E.t) :
-    (Coq.State.t, Error.t) result =
-  match r with
-  | { r = Interrupted; feedback = _ } -> Error.string_to_or_error "Interrupted"
-  | { r = Completed (Error (User payload)); feedback = _ } -> (
-      match payload.range with
-      | Some loc ->
-          let err = Error.of_string (Pp.string_of_ppcmds payload.msg) in
-          let err_tagged =
-            Error.tag_arg err "loc" loc Serlib.Ser_loc.sexp_of_t
-          in
-          Error err_tagged
-      | None -> Error.string_to_or_error (Pp.string_of_ppcmds payload.msg))
-  | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
-      Error.string_to_or_error ("Anomaly " ^ Pp.string_of_ppcmds msg)
-  | { r = Completed (Ok r); feedback = _ } -> Ok r
-
 let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
     ('a * 'b Coq.Message.t list, Error.t * 'b Coq.Message.t list) Result.t =
   match r with

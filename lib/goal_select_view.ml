@@ -1,6 +1,5 @@
 [%%import "rocq_version_optcomp.mlh"]
 [%%if rocq_version < (9, 1, 0)]
-[%%warning "inferior to 9.1.0"]
 
 type goal_range_selector =
   | NthSelector of int
@@ -43,7 +42,6 @@ let to_goal_select (x : t) : Goal_select.t =
           Goal_select.SelectList ranges)
 
 [%%else]
-[%%warning "superior to 9.0.0"]
 
 type goal_range_selector = [%import: Proofview.goal_range_selector]
 [@@derive show]

@@ -118,7 +118,7 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
               proof_trees remove_random_tactics_steps
           in
 
-          let simple_repair_apply_steps, res =
+          let _, res =
             List.fold_left
               (fun (step_acc, doc_acc) tree ->
                 let steps = Transformations.simple_proof_repair doc_acc tree in

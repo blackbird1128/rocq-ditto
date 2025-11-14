@@ -1,7 +1,6 @@
 open Nary_tree
 open Proof
 open Syntax_node
-open Vernacexpr
 open Runner
 open Sexplib.Conv
 open Re
@@ -388,7 +387,11 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let token_reduce = Coq.Limits.Token.create () in
 
-  let rec aux state acc nodes : transformation_step list =
+  let rec aux (state : Coq.State.t)
+      (acc : (transformation_step list, Error.t) result)
+      (nodes : Syntax_node.t list) : (transformation_step list, Error.t) result
+      =
+    let ( let* ) = Result.bind in
     match nodes with
     | [] -> acc
     | x :: tail -> (
@@ -396,20 +399,16 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : proof) :
           ((not (is_syntax_node_proof_intro_or_end x))
           && not (is_syntax_node_bullet x))
           && Runner.can_reduce_to_zero_goals state tail
-        then aux state (Remove x.id :: acc) tail
+        then
+          let* acc = acc in
+          aux state (Ok (Remove x.id :: acc)) tail
         else
-          let token = Coq.Limits.Token.create () in
-          match Runner.run_node token state x with
+          match Runner.run_node token_reduce state x with
           | Ok state_node -> aux state_node acc tail
-          | Error err ->
-              print_endline (Error.to_string_hum err);
-              raise Exit;
-              [])
+          | Error err -> Error err)
   in
   match get_init_state doc proof.proposition token_reduce with
-  | Ok state ->
-      let steps = aux state [] (proof_nodes proof) in
-      Ok steps
+  | Ok state -> aux state (Ok []) (proof_nodes proof)
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let flatten_goal_selectors (doc : Rocq_document.t) (proof : proof) :
@@ -1002,9 +1001,7 @@ let is_syntax_node_assert_by (x : Syntax_node.t) : bool =
 
 let is_syntax_node_induction_without_set_var (x : Syntax_node.t) : bool =
   match Syntax_node.get_node_raw_atomic_tactic_expr x with
-  | Some
-      (TacInductionDestruct (true, false, (induction_clause_l, with_bindings)))
-    ->
+  | Some (TacInductionDestruct (true, false, (induction_clause_l, _))) ->
       List.exists
         (fun x ->
           let _, (_, locus_or_var_or_and_intro_pattern_opt), _ = x in
@@ -1016,7 +1013,7 @@ let string_to_intro_pattern_naming_expr (x : string) :
     Namegen.intro_pattern_naming_expr option =
   let ( let* ) = Option.bind in
   let* name =
-    try Some (Names.Id.of_string x) with CErrors.UserError err -> None
+    try Some (Names.Id.of_string x) with CErrors.UserError _ -> None
   in
   Some (Namegen.IntroIdentifier name)
 
@@ -1085,8 +1082,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
         let new_induction_clause_l =
           List.map
             (fun ( destruction_arg,
-                   ( intro_pattern_naming_expr_opt,
-                     locus_or_var_or_and_intro_pattern_opt ),
+                   (intro_pattern_naming_expr_opt, _),
                    clause_expr_opt ) ->
               let destruct_arg_str =
                 destruction_arg_to_string destruction_arg
@@ -1112,7 +1108,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                   in
 
                   List.mapi
-                    (fun i l ->
+                    (fun _ l ->
                       let mapped =
                         List.map
                           (fun x ->

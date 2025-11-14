@@ -521,7 +521,6 @@ let raw_arguments_to_ltac_elements (args : Genarg.raw_generic_argument list) :
   match args with
   | [ selector_arg; _; raw_tactic_arg; use_default_arg ] ->
       (* Ltac info *)
-      let use_default_arg = List.nth args 3 in
       let selector =
         Option.get (ltac_selector_of_raw_generic_argument selector_arg)
       in
