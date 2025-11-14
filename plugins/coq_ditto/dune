@@ -3,7 +3,7 @@
  (name ditto_cli_lib)
  (modules cli)
  (preprocess (pps ppx_deriving.show ppx_variants_conv))
- (libraries coq-ditto logs logs.fmt)
+ (libraries coq-ditto logs logs.fmt ppx_variants_conv)
 )
 
 (library
