@@ -12,10 +12,16 @@ transform them into different representations.
 
 ### prerequisites
 
-To install `rocq-ditto`, you will first need a working and initialized `opam` installation.
+To configure `rocq-ditto`, you will first need a working and initialized `opam` installation.
 You will also need the `gmp-dev` and `linux-headers` library.
 
-Then if you want to install `rocq-ditto` with the latest version of Rocq, use the following instructions:
+`rocq-ditto` can be configured by running `./configure.sh $ROCQ_VERSION_HERE` with `$ROCQ_VERSION_HERE` being either a full Rocq version (ie 9.0.0)
+to pin `rocq-ditto` to that version, or using `latest` to have the latest Rocq version not pinned.
+
+If `./configure.sh` fail, run `rm -rf _opam/` in the `rocq-ditto` directory to remove the local opam switch and retry.
+If for some reasons, you can't or don't want to use the `./configure.sh` script, you can use the following manual instructions:
+
+If you want to configure `rocq-ditto` with the latest version of Rocq, use the following instructions:
 ```shell
 opam switch -y create . ocaml-base-compiler --deps-only
 opam install rocq-stdlib # the stdlib is not packaged with rocq anymore, not used to build but used to run rocq files
@@ -25,7 +31,7 @@ ln -s _opam/bin/rocq _opam/bin/coqc # this is needed for now so that dune can us
 cp ./_opam/bin/fcc ./vendor/fcc
 make build
 ```
-Otherwise, to install with a specific Rocq version, use the following instructions:
+Otherwise, to configure with a specific Rocq version, use the following instructions:
 ```shell
 opam switch create . --empty
 opam pin add # (coq-core $COQ_VERSION_HERE (ie 8.20.0) for version < 9.0) or rocq-core $ROCQ_VERSION_HERE (ie 9.0.0)
@@ -43,7 +49,7 @@ To run `rocq-ditto` on a project needing Rocq libraries, install them in the sam
 To first know what transformations are available, you can run the following command:
 
 ``` shell
-dune exec --profile=release rocq-ditto -- -t help
+dune exec --profile=release rocq-ditto -- -i _ -o _ -t help
 ```
 
 Then, to run the plugin on a single file, run the following command:
