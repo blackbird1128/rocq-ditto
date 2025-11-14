@@ -7,34 +7,8 @@ open Vernacexpr
 open Theorem_query
 open Result
 
-let wrap_to_treeify doc x = Result.get_ok (Runner.treeify_proof doc x)
-
-let print_prim_token (x : Constrexpr.prim_token) =
-  match x with
-  | Constrexpr.Number num -> print_endline (NumTok.Signed.to_string num)
-  | Constrexpr.String string -> print_endline string
-
-let print_lident (x : Names.lident) = print_endline (Names.Id.to_string x.v)
-
-let print_qualid (x : Libnames.qualid) =
-  print_endline (Libnames.string_of_qualid x)
-
-let is_raw_assert (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : bool =
-  match tac.CAst.v with
-  | Ltac_plugin.Tacexpr.TacAtom atom -> (
-      match atom with
-      | Ltac_plugin.Tacexpr.TacAssert (_, _, _, _, _) -> true
-      | _ -> false)
-  | _ -> false
-
-let get_assert_constr_expr (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
-    Constrexpr.constr_expr option =
-  match tac.CAst.v with
-  | Ltac_plugin.Tacexpr.TacAtom atom -> (
-      match atom with
-      | Ltac_plugin.Tacexpr.TacAssert (_, _, _, _, e) -> Some e
-      | _ -> None)
-  | _ -> None
+let ( let* ) = Result.bind
+let ( let+ ) = Option.bind
 
 let replace_func_map (old_fun_name : string) (new_fun_name : string)
     (term : Constrexpr.constr_expr) : Constrexpr.constr_expr =
@@ -63,7 +37,7 @@ let replace_or_by_constructive_or_map (term : Constrexpr.constr_expr) :
 
 let replace_bet_by_betl_in_proof (x : proof) : transformation_step option =
   let x_start = x.proposition.range.start in
-  let components = Option.get (Proof.get_theorem_components x) in
+  let+ components = Proof.get_theorem_components x in
 
   let expr = components.expr in
 
@@ -71,53 +45,32 @@ let replace_bet_by_betl_in_proof (x : proof) : transformation_step option =
   let new_expr, did_replace =
     Expr_substitution.constr_expr_map replace_by_betl_map expr
   in
-  if did_replace then (
-    print_endline "in here";
-    let new_components = { components with expr = new_expr } in
-    let new_node =
-      Proof.syntax_node_from_theorem_components new_components x_start
-    in
-
-    Some (Replace (x.proposition.id, new_node)))
-  else None
-
-let replace_or_by_constructive_or (x : proof) : transformation_step option =
-  let x_start = x.proposition.range.start in
-  let components = Option.get (Proof.get_theorem_components x) in
-  let expr = components.expr in
-
-  let new_expr, did_replace =
-    Expr_substitution.constr_expr_map replace_or_by_constructive_or_map expr
-  in
   if did_replace then
     let new_components = { components with expr = new_expr } in
     let new_node =
-      Proof.syntax_node_from_theorem_components new_components x_start
+      Proof.syntax_node_of_theorem_components new_components x_start
     in
 
     Some (Replace (x.proposition.id, new_node))
   else None
 
-let replace_tactic_by_other (previous_tac : string) (new_tac : string)
-    (x : proof) : transformation_step list =
-  let replace_if_contains target replacement s =
-    let re = Re.compile (Re.str target) in
-    if Re.execp re s then
-      Some (Re.replace_string ~all:true re ~by:replacement s)
-    else None
-  in
+let replace_or_by_constructive_or (x : proof) : transformation_step option =
+  let x_start = x.proposition.range.start in
+  let+ components = Proof.get_theorem_components x in
 
-  List.filter_map
-    (fun node ->
-      match replace_if_contains previous_tac new_tac (repr node) with
-      | Some rep ->
-          let new_node =
-            Result.get_ok
-              (Syntax_node.syntax_node_of_string rep node.range.start)
-          in
-          Some (Replace (node.id, new_node))
-      | None -> None)
-    x.proof_steps
+  let new_expr, did_replace =
+    Expr_substitution.constr_expr_map replace_or_by_constructive_or_map
+      components.expr
+  in
+  if did_replace then
+    let new_components = { components with expr = new_expr } in
+
+    let new_node =
+      Proof.syntax_node_of_theorem_components new_components x_start
+    in
+
+    Some (Replace (x.proposition.id, new_node))
+  else None
 
 let replace_context (x : Syntax_node.t) : transformation_step option =
   if Syntax_node.is_syntax_node_context x then
@@ -128,15 +81,15 @@ let replace_context (x : Syntax_node.t) : transformation_step option =
       \        {Dim : dimension}\n\
       \        {ITnD : @independent_Tarski_nD Pred ITn (incr (incr Dim))}."
     in
-    let new_context_node =
+    let+ new_context_node =
       Syntax_node.syntax_node_of_string new_context_str x.range.start
-      |> Result.get_ok
+      |> Result.to_option
     in
     Some (Replace (x.id, new_context_node))
   else None
 
 let replace_require (x : Syntax_node.t) : transformation_step option =
-  let split_prefix prefix s =
+  let split_prefix (prefix : string) (s : string) =
     let plen = String.length prefix in
     if String.length s >= plen && String.sub s 0 plen = prefix then
       Some (prefix, String.sub s plen (String.length s - plen))
@@ -177,12 +130,12 @@ let replace_require (x : Syntax_node.t) : transformation_step option =
                       CAst.make { control = []; attrs = []; expr = new_expr }
                     in
 
-                    let new_coq_node =
+                    let new_node =
                       Syntax_node.syntax_node_of_coq_ast
                         (Coq.Ast.of_coq new_vernac_control)
                         x.range.start
                     in
-                    Some (Replace (x.id, new_coq_node))
+                    Some (Replace (x.id, new_node))
                   else None
               | None -> None)
           | _ -> None)
@@ -191,7 +144,7 @@ let replace_require (x : Syntax_node.t) : transformation_step option =
 
 let admit_exists_proof_in_doc (doc : Rocq_document.t) :
     (Rocq_document.t, Error.t) result =
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let* proofs = Rocq_document.get_proofs doc in
 
   let exists_query =
     Q_anywhere
@@ -228,47 +181,23 @@ let admit_exists_proof_in_doc (doc : Rocq_document.t) :
 
 let replace_bet_by_betl_in_doc (doc : Rocq_document.t) :
     (Rocq_document.t, Error.t) result =
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let* proofs = Rocq_document.get_proofs doc in
 
   let replace_bet_by_betl_steps =
     List.filter_map (fun proof -> replace_bet_by_betl_in_proof proof) proofs
   in
-  print_endline "entering apply transformation steps in replace bet by betL";
 
-  let r =
-    Rocq_document.apply_transformations_steps replace_bet_by_betl_steps doc
-  in
-  print_endline "exiting apply transformation steps";
-  r
+  Rocq_document.apply_transformations_steps replace_bet_by_betl_steps doc
 
 let replace_or_by_constructive_or_in_doc (doc : Rocq_document.t) :
     (Rocq_document.t, Error.t) result =
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let* proofs = Rocq_document.get_proofs doc in
   let replace_or_by_constructive_or_steps =
     List.filter_map (fun proof -> replace_or_by_constructive_or proof) proofs
   in
 
   Rocq_document.apply_transformations_steps replace_or_by_constructive_or_steps
     doc
-
-let replace_non_constructive_tactics_in_doc (doc : Rocq_document.t) :
-    (Rocq_document.t, Error.t) result =
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
-  let replace_tactics_steps =
-    List.concat_map
-      (fun proof ->
-        List.concat
-          [
-            replace_tactic_by_other "left" "stab_left" proof;
-            replace_tactic_by_other "right" "stab_right" proof;
-            replace_tactic_by_other "segment_construction"
-              "apply by segment_construction" proof;
-            replace_tactic_by_other "inner_pasch" "apply by_inner_pasch" proof;
-          ])
-      proofs
-  in
-
-  Rocq_document.apply_transformations_steps replace_tactics_steps doc
 
 let replace_context_in_doc (doc : Rocq_document.t) :
     (Rocq_document.t, Error.t) result =
@@ -281,77 +210,70 @@ let replace_requires_in_doc (doc : Rocq_document.t) :
 
   Rocq_document.apply_transformations_steps require_transform_steps doc
 
-let experiment_theorem ~io:_ ~token:_ ~(doc : Doc.t) =
+let constructivization_plugin ~io:_ ~token:_ ~(doc : Doc.t) :
+    (unit, Error.t) result =
   let uri = doc.uri in
   let uri_str = Lang.LUri.File.to_string_uri uri in
 
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
   let errors = List.filter Lang.Diagnostic.is_error diags in
 
+  let max_errors = 5 in
+
+  let limited_errors = List.filteri (fun i _ -> i < max_errors) errors in
+
   match doc.completed with
   | Doc.Completion.Stopped range_stop ->
-      prerr_endline ("parsing stopped at " ^ Lang.Range.to_string range_stop);
-      print_diagnostics errors
+      Error.format_to_or_error
+        "parsing stopped at %s\n\
+         %s\n\
+         NOTE: errors after the first might be due to the first error."
+        (Lang.Range.to_string range_stop)
+        (String.concat "\n"
+           (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
   | Doc.Completion.Failed range_failed ->
-      prerr_endline ("parsing failed at " ^ Lang.Range.to_string range_failed);
-      print_diagnostics errors
-  | Doc.Completion.Yes _ -> (
-      let ( let* ) = Result.bind in
-
+      Error.format_to_or_error
+        "parsing failed at %s\n\
+         %s\n\
+         NOTE: errors after the first might be due to the first error."
+        (Lang.Range.to_string range_failed)
+        (String.concat "\n"
+           (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
+  | Doc.Completion.Yes _ ->
       let parsed_document = Rocq_document.parse_document doc in
 
-      let res =
-        let* doc_with_exists_proof_admitted =
-          admit_exists_proof_in_doc parsed_document
-        in
-
-        (* List.iter *)
-        (*   (fun x -> *)
-        (*     print_endline (x.repr ^ " " ^ Code_range.to_string x.range); *)
-        (*     print_endline "") *)
-        (*   doc_with_exists_proof_admitted.elements; *)
-        (* print_endline "------------------------------------------------------"; *)
-        let* doc_with_requires_replaced =
-          replace_requires_in_doc doc_with_exists_proof_admitted
-        in
-
-        let* doc_with_context_replaced =
-          replace_context_in_doc doc_with_requires_replaced
-        in
-
-        (* let* string_dump = *)
-        (*   Rocq_document.dump_to_string doc_with_context_replaced *)
-        (* in *)
-
-        (* print_endline string_dump; *)
-
-        (* print_endline "entering replace bet with betL"; *)
-
-        (* let* doc_with_bet_replaced_by_betl = *)
-        (*   replace_bet_by_betl_in_doc doc_with_context_replaced *)
-        (* in *)
-
-        (* print_endline "ending replacing bet with betL"; *)
-        (* let* doc_with_or_replaced_by_constructive_or = *)
-        (*   replace_or_by_constructive_or_in_doc doc_with_bet_replaced_by_betl *)
-        (* in *)
-        Ok doc_with_context_replaced
+      let* doc_with_requires_replaced =
+        replace_requires_in_doc parsed_document
       in
 
-      match res with
-      | Ok res ->
-          let filename =
-            "../private-geocoq/theories/Constructive/"
-            ^ (Filename.basename uri_str |> Filename.remove_extension)
-            ^ "_bis.v"
-          in
-          print_endline
-            ("All transformations applied, writing to file" ^ filename);
-          let out = open_out filename in
-          Result.fold ~ok:(output_string out)
-            ~error:(fun e -> print_endline (Error.to_string_hum e))
-            (Rocq_document.dump_to_string res)
-      | Error err -> print_endline (Error.to_string_hum err))
+      let* doc_with_context_replaced =
+        replace_context_in_doc doc_with_requires_replaced
+      in
 
-let main () = Theory.Register.Completed.add experiment_theorem
+      let* doc_with_proofs_commented =
+        Transformations.apply_proof_transformation
+          Transformations.admit_and_comment_proof_steps
+          doc_with_context_replaced
+      in
+
+      let filename =
+        "../private-geocoq/theories/Constructive/"
+        ^ (Filename.basename uri_str |> Filename.remove_extension)
+        ^ "_bis.v"
+      in
+      print_endline ("All transformations applied, writing to file" ^ filename);
+      let out = open_out filename in
+
+      let* res = Rocq_document.dump_to_string doc_with_proofs_commented in
+      output_string out res;
+      Ok ()
+
+let constructivization_hook ~io ~token ~(doc : Doc.t) : unit =
+  match constructivization_plugin ~io ~token ~doc with
+  | Ok _ -> exit 0
+  | Error err ->
+      prerr_endline (Error.to_string_hum err);
+      exit 1
+
+let main () = Theory.Register.Completed.add constructivization_hook
 let () = main ()

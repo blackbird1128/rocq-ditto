@@ -49,7 +49,7 @@ type theorem_components = {
 
 val get_theorem_components : proof -> theorem_components option
 
-val syntax_node_from_theorem_components :
+val syntax_node_of_theorem_components :
   theorem_components -> Code_point.t -> Syntax_node.t
 
 val get_proof_name : proof -> string option

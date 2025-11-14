@@ -1269,9 +1269,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
           in
 
           match rewriter node (Some old_goals_vars) (Some new_goals_vars) with
-          | Some x ->
-              let r = Replace (node.id, x) in
-              Ok (new_state, r :: acc)
+          | Some x -> Ok (new_state, Replace (node.id, x) :: acc)
           | None -> Ok (new_state, acc))
       | None -> Ok (new_state, acc))
     [] proof
@@ -1332,9 +1330,9 @@ let apply_proof_tree_transformation
                       match doc_acc_err with
                       | Ok doc ->
                           Rocq_document.apply_transformation_step step doc
-                      | Error err -> Error err)
+                      | err -> err)
                     doc_acc steps
               | Error err -> Error err)
-          | Error err -> Error err)
+          | err -> err)
         (Ok doc) proof_trees
   | Error err -> Error err

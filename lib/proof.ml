@@ -116,7 +116,7 @@ let get_theorem_components (x : proof) : theorem_components option =
           | _ -> None))
   | None -> None
 
-let syntax_node_from_theorem_components (c : theorem_components)
+let syntax_node_of_theorem_components (c : theorem_components)
     (start_point : Code_point.t) : Syntax_node.t =
   let expr_syn =
     Vernacexpr.VernacStartTheoremProof
