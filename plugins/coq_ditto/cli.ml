@@ -9,7 +9,7 @@ type transformation_kind =
   | CompressIntro
   | IdTransformation
   | ConstructivizeGeocoq
-[@@deriving variants]
+[@@deriving show { with_path = false }, enum]
 
 let camel_to_snake (s : string) : string =
   let b = Buffer.create (String.length s * 2) in
@@ -23,15 +23,17 @@ let camel_to_snake (s : string) : string =
   Buffer.contents b
 
 let transformation_kind_to_string (kind : transformation_kind) : string =
-  Variants_of_transformation_kind.to_name kind |> camel_to_snake
+  show_transformation_kind kind |> camel_to_snake
+
+let all_transformation_kinds =
+  List.init
+    (max_transformation_kind - min_transformation_kind + 1)
+    (fun i -> transformation_kind_of_enum (i + min_transformation_kind))
+  |> List.map (function Some c -> c | None -> assert false)
 
 let transformations_list =
-  let add acc var = var.Variantslib.Variant.name :: acc in
-  Variants_of_transformation_kind.fold ~init:[] ~help:add
-    ~explicitfreshvariables:add ~turnintooneliner:add ~compressintro:add
-    ~idtransformation:add ~replaceautowithsteps:add ~flattengoalselectors:add
-    ~constructivizegeocoq:add
-  |> List.map camel_to_snake
+  all_transformation_kinds
+  |> List.map (fun c -> show_transformation_kind c |> camel_to_snake)
 
 let transformations_help =
   [

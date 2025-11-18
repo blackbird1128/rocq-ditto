@@ -95,7 +95,7 @@ let simple_proof_repair (doc : Rocq_document.t)
       in
 
       let removed_steps =
-        SyntaxNodeSet.to_list ignore_acc |> List.map (fun x -> Remove x.id)
+        SyntaxNodeSet.elements ignore_acc |> List.map (fun x -> Remove x.id)
       in
       Ok (steps_acc @ removed_steps)
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
@@ -333,12 +333,16 @@ let admit_proof (_ : Rocq_document.t) (proof : proof) :
   in
   Ok [ Replace (proof_close_node.id, admitted_node) ]
 
+let int_in_range ~min ~max =
+  if min > max then invalid_arg "int_in_range";
+  min + Random.int (max - min + 1)
+
 let remove_random_step (_ : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let num_steps = List.length proof.proof_steps in
   if num_steps <= 2 then Ok []
   else
-    let rand_num = Random.int_in_range ~min:1 ~max:(num_steps - 2) in
+    let rand_num = int_in_range ~min:1 ~max:(num_steps - 2) in
     let rand_node = List.nth proof.proof_steps rand_num in
     let incorrect_node =
       Syntax_node.syntax_node_of_string "fail." rand_node.range.start
@@ -907,7 +911,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
           in
 
           let* first_proof_node_idx =
-            List.find_index
+            List_utils.find_index
               (fun x -> is_syntax_node_proof_command x || node_can_open_proof x)
               rev_flattened
             |> Option_utils.to_result

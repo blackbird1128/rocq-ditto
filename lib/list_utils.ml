@@ -37,6 +37,13 @@ let last_and_len (lst : 'a list) : 'a option * int =
   in
   aux None 0 lst
 
+let find_index f xs =
+  let rec aux i = function
+    | [] -> None
+    | x :: rest -> if f x then Some i else aux (i + 1) rest
+  in
+  aux 0 xs
+
 let map2_pad ?(pad1 = None) ?(pad2 = None) (f : 'a -> 'b -> 'c) (l1 : 'a list)
     (l2 : 'b list) : 'c list =
   let rec aux (acc : 'c list) (l1 : 'a list) (l2 : 'b list) =

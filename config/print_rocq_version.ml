@@ -10,13 +10,20 @@ let is_directory (path : string) : bool =
     stats.Unix.st_kind = Unix.S_DIR
   with Unix.Unix_error _ -> String.ends_with ~suffix:Filename.dir_sep path
 
+let is_regular_file path =
+  try
+    let stats = Unix.lstat path in
+    stats.st_kind = Unix.S_REG
+  with _ ->
+    false
+
 let find_executable (names : string list) =
   let cur_dir = Sys.getcwd () in
   let coq_ditto_dir = find_rocq_ditto_dir cur_dir |> Option.get in
   let local_ocaml_switch_bin_dir = Filename.concat coq_ditto_dir "_opam/bin/" in
   if is_directory local_ocaml_switch_bin_dir then
     List.map (Filename.concat local_ocaml_switch_bin_dir) names
-    |> List.find_opt (fun x -> Sys.file_exists x && Sys.is_regular_file x)
+    |> List.find_opt (fun x -> Sys.file_exists x && is_regular_file x)
   else
     let rec aux = function
       | [] -> None
