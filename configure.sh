@@ -25,7 +25,7 @@ if [[ "$VERSION" == "latest" ]]; then
   make build
 else
   echo ">> Setting up with Rocq version $VERSION..."
-  opam switch create . ocaml-base-compiler.5.0.0 --no-install
+  opam switch create . ocaml-base-compiler.5.4.0 --no-install
   # Pin either rocq-core (>=9.0.0) or coq-core (<9.0.0)
   if [[ "$VERSION" =~ ^9\. ]]; then
     echo "Pinning rocq-core $VERSION..."
