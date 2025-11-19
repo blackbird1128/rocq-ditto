@@ -3,29 +3,13 @@ open Ltac_plugin
 
 let raw_tactic_expr_of_raw_generic_argument (arg : Genarg.raw_generic_argument)
     : Tacexpr.raw_tactic_expr option =
-  match Serlib.Ser_genarg.sexp_of_raw_generic_argument arg with
-  | List
-      [
-        Atom "GenArg";
-        List [ Atom "Rawwit"; List [ Atom "ExtraArg"; Atom "tactic" ] ];
-        rems;
-      ] ->
-      Some (Serlib_ltac.Ser_tacexpr.raw_tactic_expr_of_sexp rems)
-  | _ -> None
+  let atype = Genarg.Rawwit Tacarg.wit_tactic in
+  if Genarg.has_type arg atype then Some (Genarg.out_gen atype arg) else None
 
-let raw_generic_argument_of_raw_tactic_expr (tac : Tacexpr.raw_tactic_expr) :
+let raw_generic_argument_of_raw_tactic_expr (arg : Tacexpr.raw_tactic_expr) :
     Genarg.raw_generic_argument =
-  let open Sexplib0.Sexp in
-  let tac_sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr tac in
-  let sexp =
-    List
-      [
-        Atom "GenArg";
-        List [ Atom "Rawwit"; List [ Atom "ExtraArg"; Atom "tactic" ] ];
-        tac_sexp;
-      ]
-  in
-  Serlib.Ser_genarg.raw_generic_argument_of_sexp sexp
+  let atype = Genarg.Rawwit Tacarg.wit_tactic in
+  Genarg.in_gen atype arg
 
 let tacdef_body_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
     Tacexpr.tacdef_body list option =
