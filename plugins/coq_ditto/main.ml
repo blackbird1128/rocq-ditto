@@ -49,11 +49,10 @@ let local_apply_doc_transformation (doc_acc : Rocq_document.t)
 
 let print_current_running proof_count proof_total proof_name transformation_kind
     quiet verbose =
-  if verbose then (
-    Printf.printf "Running transformation %s on %-20s(%d/%d)%!\n"
+  if verbose then
+    Printf.printf "Running transformation %s on %-20s (%d/%d)%!\n%!"
       (transformation_kind_to_string transformation_kind)
-      proof_name (proof_count + 1) proof_total;
-    print_newline ())
+      proof_name (proof_count + 1) proof_total
   else if not quiet then
     Printf.printf "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
       (transformation_kind_to_string transformation_kind)
@@ -76,55 +75,79 @@ let apply_steps
         Some proof )
   | Error err -> (Error err, proof_count, curr_doc, Some proof)
 
+let display_transformation_error prev_proof transformation_kind =
+  let prev_proof_name =
+    match prev_proof with
+    | Some prev_proof ->
+        Option.default "anonymous" (Proof.get_proof_name prev_proof)
+    | None -> "None"
+  in
+  let transformation_name = transformation_kind_to_string transformation_kind in
+
+  Printf.eprintf
+    "Error when running the transformation %s on %s, canceling it\n%!"
+    transformation_name prev_proof_name
+
 let local_apply_proof_transformation (doc_acc : Rocq_document.t)
     (transformation :
       Rocq_document.t -> proof -> (transformation_step list, Error.t) result)
     (transformation_kind : transformation_kind) (proof_list : proof list)
-    (verbose : bool) (quiet : bool) : (Rocq_document.t, Error.t) result * int =
+    (verbose : bool) (quiet : bool) : Rocq_document.t =
   let proof_total = List.length proof_list in
   let first_proof = List.nth_opt proof_list 0 in
   let token = Coq.Limits.Token.create () in
-  let res, proof_count, _, _ =
+  let res, proof_count, prev_doc, prev_proof =
     List.fold_left
-      (fun (doc_acc_bis, proof_count, prev_doc, prev_proof) proof ->
-        match doc_acc_bis with
-        | Ok curr_doc -> (
-            let status_before =
-              Runner.get_init_state curr_doc proof.proposition token
+      (fun (doc_acc_bis, proof_count, prev_doc, (prev_proof : proof option))
+           proof ->
+        let curr_doc =
+          match doc_acc_bis with
+          | Ok curr_doc -> curr_doc
+          | Error err ->
+              display_transformation_error prev_proof transformation_kind;
+              prev_doc
+        in
+
+        let status_before =
+          Runner.get_init_state curr_doc proof.proposition token
+        in
+        let proof_name =
+          Option.default "anonymous" (Proof.get_proof_name proof)
+        in
+        print_current_running proof_count proof_total proof_name
+          transformation_kind quiet verbose;
+        match status_before with
+        | Ok _ ->
+            let transformation_steps = transformation curr_doc proof in
+            apply_steps transformation_steps curr_doc proof_count proof
+        | Error err ->
+            let prev_proof_name =
+              Option.map (fun p -> Proof.get_proof_name p) prev_proof
+              |> Option.flatten
+              |> Option.default "No previous proof ? This might be a bug\n"
             in
-            let proof_name =
-              Option.default "anonymous" (Proof.get_proof_name proof)
-            in
-            print_current_running proof_count proof_total proof_name
-              transformation_kind quiet verbose;
-            match status_before with
-            | Ok _ ->
-                let transformation_steps = transformation curr_doc proof in
-                apply_steps transformation_steps curr_doc proof_count proof
-            | Error err ->
-                let prev_proof_name =
-                  Option.map (fun p -> Proof.get_proof_name p) prev_proof
-                  |> Option.flatten |> Option.default "None"
-                in
-                Logs.debug (fun m ->
-                    m "Error in %s transformation, canceling it" prev_proof_name);
-                let transformation_steps = transformation prev_doc proof in
-                apply_steps transformation_steps prev_doc proof_count proof)
-        | Error err -> (Error err, proof_count, doc_acc, Some proof))
+            Printf.printf
+              "Invalid state after transforming proof %s, canceling it \n"
+              prev_proof_name;
+            let transformation_steps = transformation prev_doc proof in
+            apply_steps transformation_steps prev_doc proof_count proof)
       (Ok doc_acc, 0, doc_acc, first_proof)
       proof_list
   in
-  (res, proof_count)
+  match res with
+  | Ok res -> res
+  | Error err ->
+      display_transformation_error prev_proof transformation_kind;
+      doc_acc
 
 let print_info (filename : string) (verbose : bool) : unit =
-  print_newline ();
-  print_endline ("All transformations applied, writing to file " ^ filename);
+  Printf.printf "\n";
+  Printf.printf "All transformations applied, writing to file %s\n" filename;
 
   if verbose then (
     let stats = Stats.Global.dump () in
-    Logs.debug (fun m ->
-        m "rocq-ditto stats: %s" (Stats.Global.to_string stats));
-    Logs.debug (fun m -> m "rocq-ditto %s" (Memo.GlobalCacheStats.stats ())))
+    Printf.printf "rocq-ditto stats: %s\n" (Stats.Global.to_string stats);
+    Printf.printf "rocq-ditto %s\n" (Memo.GlobalCacheStats.stats ()))
   else ()
 
 let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
@@ -218,7 +241,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
               not_recognized
               (String.concat "\n" transformations_list)
         | Some steps when List.mem (Ok Help) steps ->
-            print_endline (help_to_string transformations_help);
+            Printf.printf "%s\n" (help_to_string transformations_help);
             Ok ()
         | Some steps -> (
             let transformations_steps = List.map Result.get_ok steps in
@@ -237,11 +260,9 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                   match (doc_acc, transformation) with
                   | Ok doc_acc, scoped_trans -> (
                       match scoped_trans with
-                      | ProofScope trans -> (
-                          print_endline
-                            ("applying transformation : "
-                            ^ transformation_kind_to_string transformation_kind
-                            );
+                      | ProofScope trans ->
+                          Printf.printf "applying transformation : %s\n"
+                            (transformation_kind_to_string transformation_kind);
 
                           let* proof_list =
                             if reverse_order then
@@ -249,13 +270,10 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                                 (Rocq_document.get_proofs doc_acc)
                             else Rocq_document.get_proofs doc_acc
                           in
-                          let doc_res =
-                            local_apply_proof_transformation doc_acc trans
-                              transformation_kind proof_list verbose quiet
-                          in
-                          match doc_res with
-                          | Ok new_doc, _ -> Ok new_doc
-                          | Error err, _ -> Error err)
+
+                          Ok
+                            (local_apply_proof_transformation doc_acc trans
+                               transformation_kind proof_list verbose quiet)
                       | DocScope trans ->
                           local_apply_doc_transformation doc_acc trans
                             transformation_kind verbose quiet)
@@ -292,7 +310,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 let out = open_out filename in
                 let* doc_repr = Rocq_document.dump_to_string res in
                 output_string out doc_repr;
-                print_endline "Saving vo:";
+                Printf.printf "Saving vo:\n";
                 let uri =
                   Lang.LUri.of_string filename
                   |> Lang.LUri.File.of_uri |> Result.get_ok
@@ -312,10 +330,12 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                   Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
                   |> Runner.protect_to_result
                 in
-                Result.iter (fun _ -> print_endline "vo saved successfully") res;
+                Result.iter
+                  (fun _ -> Printf.printf "vo saved successfully\n")
+                  res;
                 res
             | Error err, _ ->
-                print_endline (Error.to_string_hum err);
+                Printf.eprintf "%s\n" (Error.to_string_hum err);
                 exit 1))
 
 let ditto_plugin_hook ~io ~token ~(doc : Doc.t) : unit =
