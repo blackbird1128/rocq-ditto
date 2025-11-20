@@ -322,6 +322,8 @@ let id_transform (_ : Rocq_document.t) (_ : proof) :
     (transformation_step list, Error.t) result =
   Ok []
 
+(* let buggy_transformation (_ : Rocq_document.t) (_ : proof) : (transformation_step list, Error.t) result  *)
+
 let admit_proof (_ : Rocq_document.t) (proof : proof) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
@@ -832,7 +834,14 @@ let rec get_oneliner (suffix : Syntax_node.t option)
                   Error.format_to_or_error
                     "Error applying then between %s and %s." (repr x)
                     suffix_repr)
-        else Ok (x |> Syntax_node.get_node_raw_tactic_expr |> Option.get)
+        else
+          Syntax_node.get_node_raw_tactic_expr x
+          |> Option_utils.to_result
+               ~none:
+                 (Error.format_to_or_error
+                    "%s isn't convertible to a raw_tactic_expr (It probably \
+                     isn't Ltac)"
+                    (repr x))
       in
 
       let last_children_opt, childrens_length =
