@@ -47,52 +47,74 @@ let local_apply_doc_transformation (doc_acc : Rocq_document.t)
         (Ok doc_acc) steps
   | Error err -> Error err
 
+let print_current_running proof_count proof_total proof_name transformation_kind
+    quiet verbose =
+  if verbose then (
+    Printf.printf "Running transformation %s on %-20s(%d/%d)%!\n"
+      (transformation_kind_to_string transformation_kind)
+      proof_name (proof_count + 1) proof_total;
+    print_newline ())
+  else if not quiet then
+    Printf.printf "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
+      (transformation_kind_to_string transformation_kind)
+      proof_name (proof_count + 1) proof_total
+  else ()
+
+let apply_steps
+    (transformation_steps : (transformation_step list, Error.t) result)
+    (curr_doc : Rocq_document.t) (proof_count : int) (proof : 'a) =
+  match transformation_steps with
+  | Ok steps ->
+      ( List.fold_left
+          (fun doc_acc_err step ->
+            match doc_acc_err with
+            | Ok doc -> Rocq_document.apply_transformation_step step doc
+            | Error err -> Error err)
+          (Ok curr_doc) steps,
+        proof_count + 1,
+        curr_doc,
+        Some proof )
+  | Error err -> (Error err, proof_count, curr_doc, Some proof)
+
 let local_apply_proof_transformation (doc_acc : Rocq_document.t)
     (transformation :
       Rocq_document.t -> proof -> (transformation_step list, Error.t) result)
-    (transformation_kind : transformation_kind)
-    (proofs_rec : (proof list, Error.t) result) (verbose : bool) (quiet : bool)
-    =
-  match proofs_rec with
-  | Ok proofs ->
-      let proof_total = List.length proofs in
-      List.fold_left
-        (fun ((doc_acc_bis, proof_count) :
-               (Rocq_document.t, Error.t) result * int) (proof : Proof.proof) ->
-          match doc_acc_bis with
-          | Ok acc -> (
-              let proof_name =
-                Option.default "anonymous" (Proof.get_proof_name proof)
-              in
-              let _ =
-                if verbose then (
-                  Printf.printf "Running transformation %s on %-20s(%d/%d)%!\n"
-                    (transformation_kind_to_string transformation_kind)
-                    proof_name (proof_count + 1) proof_total;
-                  print_newline ())
-                else if not quiet then
-                  Printf.printf
-                    "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
-                    (transformation_kind_to_string transformation_kind)
-                    proof_name (proof_count + 1) proof_total
-                else ()
-              in
-
-              let transformation_steps = transformation acc proof in
-              match transformation_steps with
-              | Ok steps ->
-                  ( List.fold_left
-                      (fun doc_acc_err step ->
-                        match doc_acc_err with
-                        | Ok doc ->
-                            Rocq_document.apply_transformation_step step doc
-                        | Error err -> Error err)
-                      doc_acc_bis steps,
-                    proof_count + 1 )
-              | Error err -> (Error err, proof_count))
-          | Error err -> (Error err, proof_count))
-        (Ok doc_acc, 0) proofs
-  | Error err -> (Error err, 0)
+    (transformation_kind : transformation_kind) (proof_list : proof list)
+    (verbose : bool) (quiet : bool) : (Rocq_document.t, Error.t) result * int =
+  let proof_total = List.length proof_list in
+  let first_proof = List.nth_opt proof_list 0 in
+  let token = Coq.Limits.Token.create () in
+  let res, proof_count, _, _ =
+    List.fold_left
+      (fun (doc_acc_bis, proof_count, prev_doc, prev_proof) proof ->
+        match doc_acc_bis with
+        | Ok curr_doc -> (
+            let status_before =
+              Runner.get_init_state curr_doc proof.proposition token
+            in
+            let proof_name =
+              Option.default "anonymous" (Proof.get_proof_name proof)
+            in
+            print_current_running proof_count proof_total proof_name
+              transformation_kind quiet verbose;
+            match status_before with
+            | Ok _ ->
+                let transformation_steps = transformation curr_doc proof in
+                apply_steps transformation_steps curr_doc proof_count proof
+            | Error err ->
+                let prev_proof_name =
+                  Option.map (fun p -> Proof.get_proof_name p) prev_proof
+                  |> Option.flatten |> Option.default "None"
+                in
+                Logs.debug (fun m ->
+                    m "Error in %s transformation, canceling it" prev_proof_name);
+                let transformation_steps = transformation prev_doc proof in
+                apply_steps transformation_steps prev_doc proof_count proof)
+        | Error err -> (Error err, proof_count, doc_acc, Some proof))
+      (Ok doc_acc, 0, doc_acc, first_proof)
+      proof_list
+  in
+  (res, proof_count)
 
 let print_info (filename : string) (verbose : bool) : unit =
   print_newline ();
@@ -221,7 +243,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                             ^ transformation_kind_to_string transformation_kind
                             );
 
-                          let proofs_rec =
+                          let* proof_list =
                             if reverse_order then
                               Result.map List.rev
                                 (Rocq_document.get_proofs doc_acc)
@@ -229,7 +251,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                           in
                           let doc_res =
                             local_apply_proof_transformation doc_acc trans
-                              transformation_kind proofs_rec verbose quiet
+                              transformation_kind proof_list verbose quiet
                           in
                           match doc_res with
                           | Ok new_doc, _ -> Ok new_doc

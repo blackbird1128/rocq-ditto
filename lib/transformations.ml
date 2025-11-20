@@ -1111,6 +1111,10 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
                     |> Option.get
                   in
 
+                  Logs.debug (fun m ->
+                      m "new goals vars: %s"
+                        (list_of_list_of_str_to_str new_goals_vars));
+
                   List.mapi
                     (fun _ l ->
                       let mapped =
@@ -1271,6 +1275,14 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : proof) :
             Runner.reified_goals_at_state token new_state
             |> List.map Runner.get_hypothesis_names
           in
+
+          let new_goals = Runner.reified_goals_at_state token new_state in
+
+          List.iter
+            (fun x ->
+              Reified_goal.pp Format.std_formatter x;
+              Format.pp_print_newline Format.std_formatter ())
+            new_goals;
 
           match rewriter node (Some old_goals_vars) (Some new_goals_vars) with
           | Some x -> Ok (new_state, Replace (node.id, x) :: acc)

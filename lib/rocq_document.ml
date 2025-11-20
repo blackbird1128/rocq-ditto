@@ -63,6 +63,7 @@ let get_line_col_positions text pos : Code_point.t =
     else if text.[index] = '\n' then aux (line + 1) 0 (index + 1)
     else aux line (col + 1) (index + 1)
   in
+
   let line, character, _ = aux 0 0 0 in
   (* Start from line 0, column 0, character 0 *)
   { line; character }

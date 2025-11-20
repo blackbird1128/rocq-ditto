@@ -16,14 +16,12 @@ Fixpoint count (l : light) : nat :=
 
 Theorem count_positive : forall l, count l > 0.
 Proof.
-  induction l as [ (* case Red *) 
-                 | (* case Green *)
-                 | (* case Blue *)
-    | a b IHa IHb ].xop
+ intros.
+ induction l as [ | | | l1 IHl1 l2 IHl2 ].
   - auto with arith.
   - auto with arith.
   - auto with arith.
   - auto with arith.
-    simpl.
+    simpl;
     auto with arith.
 Qed.
