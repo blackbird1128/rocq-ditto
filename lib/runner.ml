@@ -12,7 +12,7 @@ let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) result =
   | { r = Completed (Ok r); feedback = _ } -> Ok r
 
 let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
-    ('a * 'b Coq.Message.t list, Error.t * 'b Coq.Message.t list) Result.t =
+    ('a * 'b Coq.Message.t list, Error.t * 'b Coq.Message.t list) result =
   match r with
   | { r = Interrupted; feedback } ->
       Error (Error.of_string "Interrupted", feedback)

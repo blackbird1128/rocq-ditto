@@ -2,8 +2,12 @@ open Format
 
 let pp_opt pp fmt = function None -> fprintf fmt "none" | Some x -> pp fmt x
 
-let pp_list ?(sep = ";@ ") pp fmt xs =
-  pp_print_list ~pp_sep:(fun fmt () -> fprintf fmt "%s" sep) pp fmt xs
+let pp_list ?(sep = "; ") pp fmt xs =
+  pp_print_list
+    ~pp_sep:(fun fmt () ->
+      pp_print_string fmt sep;
+      pp_print_cut fmt ())
+    pp fmt xs
 
 let pp_hyp fmt (x : string Coq.Goals.Reified_goal.hyp) =
   fprintf fmt "@[<v2>{ hyp:@ ";
