@@ -53,5 +53,7 @@ dump-json:
 
 clean:
 	dune clean
+	dune cache clear
+	cp ./_opam/bin/fcc ./vendor/fcc
 	rm -f ./lib/rocq_version_optcomp.mlh
 	rm -f test/fixtures/unit_test_fixtures/*.target.json
