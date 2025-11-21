@@ -65,6 +65,73 @@ let coqproject_sorted_files (coqproject_file : string) :
       Error.string_to_or_error
         (Rocq_version.dep_executable ^ " terminated abnormally")
 
+let list_to_str pp_elem l =
+  let elems = List.map pp_elem l |> String.concat "; " in
+  "[" ^ elems ^ "]"
+
+let list_of_list_to_str pp_elem lsts =
+  let inner = List.map (list_to_str pp_elem) lsts |> String.concat "; " in
+  "[" ^ inner ^ "]"
+
+let list_of_list_of_str_to_str lsts : string = list_of_list_to_str Fun.id lsts
+
+let coqproject_to_dep_graph (coqproject_file : string) :
+    (string Nary_tree.nary_tree, Error.t) result =
+  let cmd =
+    Rocq_version.dep_executable ^ Printf.sprintf " -f %s" coqproject_file
+  in
+  let ic = Unix.open_process_in cmd in
+  let lines = read_all ic in
+  let lines_concat = String.concat "\n" lines in
+  match Unix.close_process_in ic with
+  | Unix.WEXITED 0 ->
+      let re = Re.compile (Re.str "required_vo:") in
+      let split = List.map (Re.split_delim re) lines in
+      let filenames =
+        List.map
+          (fun x ->
+            let hd = List.hd x in
+            let filename_vo = String.split_on_char ' ' hd |> List.hd in
+            let filename =
+              String.sub filename_vo 0 (String.length filename_vo - 1)
+            in
+            filename)
+          split
+      in
+      let tails =
+        List.map
+          (fun x ->
+            let tl = List.nth x 1 in
+            (String.split_on_char ' ') tl)
+          split
+      in
+
+      let tails_filenames =
+        List.map
+          (fun l ->
+            List.filter_map
+              (fun x ->
+                let trimmed = String.trim x in
+
+                if String.ends_with ~suffix:".vo" trimmed then
+                  Some (String.sub trimmed 0 (String.length trimmed - 1))
+                else if String.ends_with ~suffix:".v" trimmed then Some trimmed
+                else None)
+              l)
+          tails
+      in
+
+      Logs.debug (fun m ->
+          m "tails:\n%s" (list_of_list_of_str_to_str tails_filenames));
+      Logs.debug (fun m -> m "filenames: %s" (list_to_str Fun.id filenames));
+      Ok (Node (lines_concat, []))
+  | Unix.WEXITED n ->
+      Error.format_to_or_error "%s exited with %d; output:\n%s"
+        Rocq_version.dep_executable n (String.concat "\n" lines)
+  | _ ->
+      Error.string_to_or_error
+        (Rocq_version.dep_executable ^ " terminated abnormally")
+
 let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
   let msg_string = Pp.string_of_ppcmds x.message in
 

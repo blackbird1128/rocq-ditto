@@ -125,6 +125,8 @@ let transform_project (opts : cli_options) : (int, Error.t) result =
             let files = List.map (fun x -> x.thing) p.files in
             let filenames = List.map Filename.basename files in
             let* dep_files = Compile.coqproject_sorted_files coqproject_path in
+            let* dep_graph = Compile.coqproject_to_dep_graph coqproject_path in
+
             let* new_dir_state = Filesystem.make_dir output in
             warn_if_exists new_dir_state;
             let* _ = Filesystem.copy_dir input output filenames in
