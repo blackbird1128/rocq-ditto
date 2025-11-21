@@ -25,6 +25,12 @@ let rec pp_nary_tree (pp_a : Format.formatter -> 'a -> unit)
       children;
     Format.fprintf fmt ")")
 
+let rec tree_from_parents (cur_node : 'a) (parents : ('a, 'a) Hashtbl.t) :
+    'a nary_tree =
+  let childs = Hashtbl.find_all parents cur_node in
+  Node
+    (cur_node, List.rev_map (fun node -> tree_from_parents node parents) childs)
+
 let rec flatten_filter (f : 'a -> bool) (Node (x, children)) : 'a nary_tree list
     =
   let processed_children = List.concat_map (flatten_filter f) children in

@@ -14,6 +14,8 @@ val pp_nary_tree :
 (** [pp_nary_tree pp_a fmt (Node (a, children))] prints the n-ary tree with root
     value [a] and [children] using the printer [pp_a] *)
 
+val tree_from_parents : 'a -> ('a, 'a) Hashtbl.t -> 'a nary_tree
+
 val add_child : 'a nary_tree -> 'a nary_tree -> 'a nary_tree
 (** Add a child node to an n-ary tree. [add_child tree child] returns a new
     n-ary tree where [child] has been added to the list of children of [tree].
