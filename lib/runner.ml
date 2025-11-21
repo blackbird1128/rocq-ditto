@@ -238,9 +238,7 @@ let can_reduce_to_zero_goals (init_state : Coq.State.t)
     match nodes with
     | [] -> Ok acc
     | x :: tail -> (
-        let state_node_res =
-          run_with_timeout ~token ~timeout:5 ~f:(run_node token state) x
-        in
+        let state_node_res = run_node token state x in
         match state_node_res with
         | Ok state_node -> aux state_node state_node tail
         | Error _ -> Error "")
