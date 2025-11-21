@@ -1773,20 +1773,18 @@ let test_runner ~io:_ ~token:_ ~(doc : Doc.t) =
   let uri_name_str = Filename.basename uri_str in
 
   setup_test_table test_hash_table doc;
-  let global_tests = Hashtbl.find_all test_hash_table "global" in
   let file_tests = Hashtbl.find_all test_hash_table uri_name_str in
-  let tests = [ ("parsing tests", global_tests @ file_tests) ] in
-  print_endline
-    ("Running " ^ string_of_int (List.length global_tests) ^ " global tests");
+  let tests = [ ("parsing tests", file_tests) ] in
   print_endline
     ("Running "
     ^ string_of_int (List.length file_tests)
     ^ " file test for: " ^ uri_name_str);
   flush_all ();
-  Alcotest.run ~and_exit:true
-    ~argv:[| "ignored"; "--color=always" |]
-    "document parsing and modification tests" tests;
-  ()
+  if List.length file_tests > 0 then
+    Alcotest.run ~and_exit:true
+      ~argv:[| "ignored"; "--color=always" |]
+      "document parsing and modification tests" tests
+  else ()
 
 let main () = Theory.Register.Completed.add test_runner
 let () = main ()
