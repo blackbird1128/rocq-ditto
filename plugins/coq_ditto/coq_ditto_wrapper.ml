@@ -27,8 +27,39 @@ let remove_prefix (str : string) (prefix : string) =
 let warn_if_exists (dir_state : Filesystem.newDirState) =
   match dir_state with
   | AlreadyExists ->
-      print_endline "Warning: output directory already exists: replacing files"
+      Printf.printf
+        "Warning: output directory already exists: replacing files\n%!"
   | _ -> ()
+
+let validate_opts opts pathkind =
+  if pathkind = Filesystem.File && opts.skipped_files <> [] then
+    Error.string_to_or_error
+      "Using --skip with a single file doesn't make sense"
+  else if opts.verbose && opts.quiet then
+    Error.string_to_or_error "Cannot use both --verbose and --quiet"
+  else Ok ()
+
+let run_process ~(env : string array) ~(args : string array) (prog : string) =
+  (* Open /dev/null for output redirection *)
+  (* let devnull = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0o666 in *)
+  let pid =
+    Unix.create_process_env prog args env Unix.stdin Unix.stdout Unix.stderr
+  in
+  let _, status = Unix.waitpid [] pid in
+  match status with
+  | WEXITED 0 -> Ok 0
+  | _ -> Error.string_to_or_error (string_of_process_status status)
+
+let make_args (prog : string) (root : string) (verbose : bool) (save_vo : bool)
+    (input_file : string) =
+  let base =
+    [| prog; "--root=" ^ root; "--plugin=ditto-plugin"; input_file |]
+  in
+  base |> fun a ->
+  if verbose then Array.append a [| "--display=verbose" |]
+  else
+    Array.append a [| "--display=quiet" |] |> fun a ->
+    if save_vo then Array.append a [| "--no_vo" |] else a
 
 let transform_project (opts : cli_options) : (int, Error.t) result =
   let ( let* ) = Result.bind in
@@ -38,18 +69,14 @@ let transform_project (opts : cli_options) : (int, Error.t) result =
   and verbose = opts.verbose
   and quiet = opts.quiet
   and save_vo = opts.save_vo
-  and reverse_order = opts.reverse_order
-  and skipped_files = opts.skipped_files in
-
-  print_newline ();
+  and reverse_order = opts.reverse_order in
 
   let out = Format.std_formatter in
   let reporter =
     Logs_fmt.reporter ~pp_header:pp_header_no_app ~app:out ~dst:out ()
   in
   Logs.set_reporter reporter;
-  if verbose then Logs.set_level (Some Logs.Debug)
-  else Logs.set_level (Some Logs.Info);
+  Logs.set_level (Some (if verbose then Debug else Info));
 
   let exec_name = Filename.basename Sys.argv.(0) in
   (match exec_name with
@@ -62,126 +89,98 @@ let transform_project (opts : cli_options) : (int, Error.t) result =
 
   let pathkind = Filesystem.get_pathkind input in
 
-  if pathkind = File && List.length skipped_files > 0 then
-    Error.string_to_or_error
-      "Using --skip with a single file doesn't make sense"
-  else if verbose && quiet then
-    Error.string_to_or_error "Cannot use both --verbose and --quiet"
-  else
-    match pathkind with
-    | File -> (
-        if Filesystem.is_directory output then
-          Error.string_to_or_error
-            "Output must be a filename when input is a file"
-        else if not (Sys.file_exists input) then
-          Error.string_to_or_error "Input must be an existing file"
-        else
-          let coqproject_opt = Compile.find_coqproject_dir_and_file input in
+  let* () = validate_opts opts pathkind in
 
-          let input_dir =
-            match coqproject_opt with
-            | Some (dir, _) -> dir
-            | None -> Filename.dirname input
+  let base_env =
+    Array.append (Unix.environment ())
+      [|
+        "DITTO_TRANSFORMATION=" ^ transformation;
+        "DEBUG_LEVEL=" ^ string_of_bool verbose;
+        "SAVE_VO=" ^ string_of_bool save_vo;
+        "QUIET=" ^ string_of_bool quiet;
+        "REVERSE_ORDER=" ^ string_of_bool reverse_order;
+      |]
+  in
+  let prog = "fcc" in
+  match pathkind with
+  | File ->
+      if Filesystem.is_directory output then
+        Error.string_to_or_error
+          "Output must be a filename when input is a file"
+      else if not (Sys.file_exists input) then
+        Error.string_to_or_error "Input must be an existing file"
+      else
+        let coqproject_opt = Compile.find_coqproject_dir_and_file input in
+
+        let input_dir =
+          match coqproject_opt with
+          | Some (dir, _) -> dir
+          | None -> Filename.dirname input
+        in
+
+        let env = Array.append base_env [| "OUTPUT_FILENAME=" ^ output |] in
+
+        let args = make_args prog input_dir verbose save_vo input in
+        run_process ~env ~args prog
+  | Dir -> (
+      match Compile.find_coqproject_dir_and_file input with
+      | None ->
+          Error.format_to_or_error
+            "No _CoqProject or _RocqProject file found in %s" input
+      | Some (coqproject_dir, coqproject_file) ->
+          let coqproject_path =
+            Filename.concat coqproject_dir coqproject_file
+          in
+          let open CoqProject_file in
+          let p =
+            CoqProject_file.read_project_file
+              ~warning_fn:(fun _ -> ())
+              coqproject_path
           in
 
-          let env =
-            Array.append (Unix.environment ())
-              [|
-                "DITTO_TRANSFORMATION=" ^ transformation;
-                "OUTPUT_FILENAME=" ^ output;
-                "DEBUG_LEVEL=" ^ string_of_bool verbose;
-                "SAVE_VO=" ^ string_of_bool save_vo;
-                "QUIET=" ^ string_of_bool quiet;
-                "REVERSE_ORDER=" ^ string_of_bool reverse_order;
-              |]
+          let filenames =
+            List.map (fun x -> Filename.basename x.thing) p.files
           in
-          let prog = "fcc" in
-          let args =
-            [| prog; "--root=" ^ input_dir; "--plugin=ditto-plugin"; input |]
-          in
-          let pid =
-            Unix.create_process_env prog args env Unix.stdin Unix.stdout
-              Unix.stderr
-          in
-          let _, status = Unix.waitpid [] pid in
-          match status with
-          | Unix.WEXITED 0 -> Ok 0
-          | _ -> Error.string_to_or_error (string_of_process_status status))
-    | Dir -> (
-        match Compile.find_coqproject_dir_and_file input with
-        | None ->
-            Error.format_to_or_error
-              "No _CoqProject or _RocqProject file found in %s" input
-        | Some (coqproject_dir, coqproject_file) ->
-            let coqproject_path =
-              Filename.concat coqproject_dir coqproject_file
-            in
-            let open CoqProject_file in
-            let p =
-              CoqProject_file.read_project_file
-                ~warning_fn:(fun _ -> ())
-                coqproject_path
-            in
-            let files = List.map (fun x -> x.thing) p.files in
-            let filenames = List.map Filename.basename files in
-            let* dep_files = Compile.coqproject_sorted_files coqproject_path in
-            let* dep_graph = Compile.coqproject_to_dep_graph coqproject_path in
+          let* dep_files = Compile.coqproject_sorted_files coqproject_path in
+          let* dep_graph = Compile.coqproject_to_dep_graph coqproject_path in
 
-            let* new_dir_state = Filesystem.make_dir output in
-            warn_if_exists new_dir_state;
-            let* _ = Filesystem.copy_dir input output filenames in
-            let* _ =
-              Filesystem.copy_file coqproject_path
-                (Filename.concat output coqproject_file)
-            in
-            let env =
-              Array.append (Unix.environment ())
-                [|
-                  "DITTO_TRANSFORMATION=" ^ transformation;
-                  "DEBUG_LEVEL=" ^ string_of_bool verbose;
-                  "SAVE_VO=" ^ string_of_bool save_vo;
-                  "QUIET=" ^ string_of_bool quiet;
-                  "REVERSE_ORDER=" ^ string_of_bool reverse_order;
-                |]
-            in
-            let prog = "fcc" in
-            let args =
-              [| prog; "--root=" ^ output; "--plugin=ditto-plugin" |]
-            in
-            let args =
-              if verbose then Array.append args [| "--display=verbose" |]
-              else args
-            in
-            let args =
-              if save_vo then Array.append args [| "--no_vo" |] else args
-            in
-            let transformations_status =
-              List.fold_left
-                (fun err_acc x ->
-                  match err_acc with
-                  | Unix.WEXITED 0, _ ->
-                      let rel_path = remove_prefix x input in
-                      let curr_path = Filename.concat output rel_path in
-                      let curr_args = Array.append args [| curr_path |] in
-                      let curr_env =
-                        Array.append env [| "OUTPUT_FILENAME=" ^ curr_path |]
-                      in
-                      let pid =
-                        Unix.create_process_env prog curr_args curr_env
-                          Unix.stdin Unix.stdout Unix.stderr
-                      in
-                      flush_all ();
-                      let _, status = Unix.waitpid [] pid in
-                      (status, x)
-                  | err -> err)
-                (Unix.WEXITED 0, "default")
-                dep_files
-            in
-            if fst transformations_status != Unix.WEXITED 0 then
-              Error.string_to_or_error
-                (string_of_process_status (fst transformations_status)
-                ^ " filename " ^ snd transformations_status)
-            else Ok 0)
+          let* new_dir_state = Filesystem.make_dir output in
+          warn_if_exists new_dir_state;
+          let* _ = Filesystem.copy_dir input output filenames in
+          let* _ =
+            Filesystem.copy_file coqproject_path
+              (Filename.concat output coqproject_file)
+          in
+
+          let total_file_count = List.length dep_files in
+
+          let transformations_status =
+            List.fold_left
+              (fun (err_acc, curr_file_count) curr_file ->
+                match err_acc with
+                | Ok 0 ->
+                    let rel_path = remove_prefix curr_file input in
+                    let curr_out_path = Filename.concat output rel_path in
+                    let curr_args =
+                      make_args prog output verbose save_vo curr_out_path
+                    in
+                    let curr_env =
+                      Array.append base_env
+                        [|
+                          "OUTPUT_FILENAME=" ^ curr_out_path;
+                          "CURRENT_FILE_COUNT=" ^ string_of_int curr_file_count;
+                          "TOTAL_FILE_COUNT=" ^ string_of_int total_file_count;
+                        |]
+                    in
+                    let status =
+                      run_process ~env:curr_env ~args:curr_args prog
+                    in
+                    Printf.printf "\n%!";
+                    (status, curr_file_count + 1)
+                | err -> (err, curr_file_count + 1))
+              (Ok 0, 1) dep_files
+          in
+          fst transformations_status)
 
 (* --- Cmdliner definitions ------------------------------------------- *)
 
@@ -262,8 +261,8 @@ let cli_options_t =
 let main opts =
   match opts.transformation with
   | Help ->
-      print_endline "Available transformations:\n";
-      print_endline (help_to_string transformations_help);
+      Printf.printf "Available transformations:\n";
+      Printf.printf "%s\n%!" (help_to_string transformations_help);
       exit 0
   | _ -> (
       match transform_project opts with

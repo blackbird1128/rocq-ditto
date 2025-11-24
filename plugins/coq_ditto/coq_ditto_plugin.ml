@@ -143,8 +143,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
       doc_acc
 
 let print_info (filename : string) (verbose : bool) : unit =
-  Printf.printf "\n";
-  Printf.printf "All transformations applied, writing to file %s\n" filename;
+  Printf.printf "\nAll transformations applied, writing to file %s\n%!" filename;
 
   if verbose then (
     let stats = Stats.Global.dump () in
@@ -182,6 +181,25 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
 
   let max_errors = 5 in
   let limited_errors = List.filteri (fun i _ -> i < max_errors) errors in
+
+  let total_files =
+    Sys.getenv_opt "TOTAL_FILE_COUNT"
+    |> Option.map int_of_string_opt
+    |> Option.flatten
+  in
+
+  let current_file_count =
+    Sys.getenv_opt "CURRENT_FILE_COUNT"
+    |> Option.map int_of_string_opt
+    |> Option.flatten
+  in
+  let _ =
+    match (current_file_count, total_files) with
+    | Some curr_count, Some total_files ->
+        Printf.printf "Running rocq-ditto on %s (%d/%d) \n%!" uri_str curr_count
+          total_files
+    | _, _ -> Printf.printf "running rocq-ditto on %s\n%!" uri_str
+  in
 
   match doc.completed with
   | Doc.Completion.Stopped range_stop ->
@@ -312,7 +330,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 let out = open_out filename in
                 let* doc_repr = Rocq_document.dump_to_string res in
                 output_string out doc_repr;
-                Printf.printf "Saving vo:\n";
+                Printf.printf "Saving vo: ";
                 let uri =
                   Lang.LUri.of_string filename
                   |> Lang.LUri.File.of_uri |> Result.get_ok
