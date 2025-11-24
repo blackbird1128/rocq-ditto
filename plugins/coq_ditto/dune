@@ -25,10 +25,10 @@
 )
 
 (executable
- (name coq_ditto)
+ (name coq_ditto_wrapper)
  (package coq-ditto)
  (public_name coq-ditto)
- (modules coq_ditto)
+ (modules coq_ditto_wrapper)
  (preprocess (pps ppx_deriving.show ppx_deriving.enum))
  (libraries unix logs logs.fmt coq-ditto ditto-cli-lib coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche)
 )
@@ -37,7 +37,7 @@
  (package coq-ditto)
  (section bin)
  (files
-  (coq_ditto.exe as rocq-ditto)))
+  (coq_ditto_wrapper.exe as rocq-ditto)))
 
 (install
  (package coq-ditto)

@@ -47,8 +47,9 @@ let local_apply_doc_transformation (doc_acc : Rocq_document.t)
         (Ok doc_acc) steps
   | Error err -> Error err
 
-let print_current_running proof_count proof_total proof_name transformation_kind
-    quiet verbose =
+let print_current_running (proof_count : int) (proof_total : int)
+    (proof_name : string) (transformation_kind : transformation_kind) quiet
+    verbose =
   if verbose then
     Printf.printf "Running transformation %s on %-20s (%d/%d)%!\n%!"
       (transformation_kind_to_string transformation_kind)
