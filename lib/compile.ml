@@ -75,6 +75,14 @@ let list_of_list_to_str pp_elem lsts =
 
 let list_of_list_of_str_to_str lsts : string = list_of_list_to_str Fun.id lsts
 
+let string_of_table (tbl : (string, string list) Hashtbl.t) =
+  Hashtbl.fold
+    (fun key values acc ->
+      let joined = String.concat ", " values in
+      (key ^ " -> " ^ joined) :: acc)
+    tbl []
+  |> String.concat "\n"
+
 let coqproject_to_dep_graph (coqproject_file : string) :
     (string Nary_tree.nary_tree, Error.t) result =
   let cmd =
@@ -91,7 +99,9 @@ let coqproject_to_dep_graph (coqproject_file : string) :
         List.map
           (fun x ->
             let hd = List.hd x in
-            let filename_vo = String.split_on_char ' ' hd |> List.hd in
+            let filename_vo =
+              String.split_on_char ' ' hd |> List.hd |> String.trim
+            in
             let filename =
               String.sub filename_vo 0 (String.length filename_vo - 1)
             in
@@ -112,7 +122,6 @@ let coqproject_to_dep_graph (coqproject_file : string) :
             List.filter_map
               (fun x ->
                 let trimmed = String.trim x in
-
                 if String.ends_with ~suffix:".vo" trimmed then
                   Some (String.sub trimmed 0 (String.length trimmed - 1))
                 else if String.ends_with ~suffix:".v" trimmed then Some trimmed
@@ -121,9 +130,20 @@ let coqproject_to_dep_graph (coqproject_file : string) :
           tails
       in
 
+      let parents_table = Hashtbl.create (List.length filenames) in
+      List.iteri
+        (fun idx x ->
+          let matching_tail =
+            List.nth tails_filenames idx
+            |> List.filter (fun elem_tl -> not (String.equal elem_tl x))
+            (* avoid making a recursive parent table *)
+          in
+          if List.length matching_tail > 0 then
+            Hashtbl.add parents_table x matching_tail)
+        filenames;
       Logs.debug (fun m ->
-          m "tails:\n%s" (list_of_list_of_str_to_str tails_filenames));
-      Logs.debug (fun m -> m "filenames: %s" (list_to_str Fun.id filenames));
+          m "parents table:\n%s" (string_of_table parents_table));
+
       Ok (Node (lines_concat, []))
   | Unix.WEXITED n ->
       Error.format_to_or_error "%s exited with %d; output:\n%s"
