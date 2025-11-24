@@ -1095,7 +1095,6 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
 
   let new_doc = Rocq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
-
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
@@ -1200,6 +1199,9 @@ let explicit_fresh_variables_simple_induction (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.explicit_fresh_variables ()
 
 let explicit_fresh_variables_list_induction (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_fresh_variables ()
+
+let explicit_fresh_variables_two_induction_hypotheses (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.explicit_fresh_variables ()
 
 let test_flattening_goal_select_simple (doc : Doc.t) () : unit =
@@ -1749,16 +1751,21 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "test making explicit the fresh variables of a list induction"
        explicit_fresh_variables_list_induction doc);
+  Hashtbl.add table "ex_explicit_induction_long_inductive.v"
+    (create_fixed_test
+       "test making explicit the fresh variables of an induction with two \
+        induction hypotheses"
+       explicit_fresh_variables_two_induction_hypotheses doc);
   Hashtbl.add table "ex_goal_select_flattening1.v"
     (create_fixed_test "test flattening a single goal selector"
        test_flattening_goal_select_simple doc);
 
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
-  (*      test_replace_auto_using_zarith_by_steps doc); *)
-  (* Hashtbl.add table "ex_auto4.v" *)
-  (*   (create_fixed_test "test replacing auto with backtracking by steps" *)
-  (*      test_replace_auto_with_backtracking doc); *)
+  (* test_replace_auto_using_zarith_by_steps doc); *)
+  Hashtbl.add table "ex_auto4.v"
+    (create_fixed_test "test replacing auto with backtracking by steps"
+       test_replace_auto_with_backtracking doc);
   (* TODO commit files *)
   ()
 
