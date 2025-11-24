@@ -23,7 +23,7 @@ type mapper = {
   map_arg : mapper -> r_dispatch gen_tactic_arg -> r_dispatch gen_tactic_arg;
 }
 
-let rec default_mapper : mapper =
+let default_mapper : mapper =
   {
     map_expr =
       (fun self (expr : raw_tactic_expr) ->

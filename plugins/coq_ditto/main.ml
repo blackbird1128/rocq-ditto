@@ -75,7 +75,8 @@ let apply_steps
         Some proof )
   | Error err -> (Error err, proof_count, curr_doc, Some proof)
 
-let display_transformation_error prev_proof transformation_kind =
+let display_transformation_error (prev_proof : proof option)
+    (transformation_kind : transformation_kind) (err : Error.t) =
   let prev_proof_name =
     match prev_proof with
     | Some prev_proof ->
@@ -85,8 +86,8 @@ let display_transformation_error prev_proof transformation_kind =
   let transformation_name = transformation_kind_to_string transformation_kind in
 
   Printf.eprintf
-    "Error when running the transformation %s on %s, canceling it\n%!"
-    transformation_name prev_proof_name
+    "Error when running the transformation %s on %s, canceling it\nError: %s%!"
+    transformation_name prev_proof_name (Error.to_string_hum err)
 
 let local_apply_proof_transformation (doc_acc : Rocq_document.t)
     (transformation :
@@ -96,7 +97,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
   let proof_total = List.length proof_list in
   let first_proof = List.nth_opt proof_list 0 in
   let token = Coq.Limits.Token.create () in
-  let res, proof_count, prev_doc, prev_proof =
+  let res, _, prev_doc, prev_proof =
     List.fold_left
       (fun (doc_acc_bis, proof_count, prev_doc, (prev_proof : proof option))
            proof ->
@@ -104,7 +105,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
           match doc_acc_bis with
           | Ok curr_doc -> curr_doc
           | Error err ->
-              display_transformation_error prev_proof transformation_kind;
+              display_transformation_error prev_proof transformation_kind err;
               prev_doc
         in
 
@@ -120,7 +121,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
         | Ok _ ->
             let transformation_steps = transformation curr_doc proof in
             apply_steps transformation_steps curr_doc proof_count proof
-        | Error err ->
+        | Error _ ->
             let prev_proof_name =
               Option.map (fun p -> Proof.get_proof_name p) prev_proof
               |> Option.flatten
@@ -137,7 +138,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
   match res with
   | Ok res -> res
   | Error err ->
-      display_transformation_error prev_proof transformation_kind;
+      display_transformation_error prev_proof transformation_kind err;
       doc_acc
 
 let print_info (filename : string) (verbose : bool) : unit =

@@ -1,7 +1,6 @@
 open Fleche
 open Ditto
 open Ditto.Proof
-open Ditto.Diagnostic_utils
 open Ditto.Syntax_node
 open Vernacexpr
 open Theorem_query
