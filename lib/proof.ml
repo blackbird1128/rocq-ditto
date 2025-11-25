@@ -171,7 +171,11 @@ let proof_from_nodes (nodes : Syntax_node.t list) : (proof, Error.t) result =
   if List.length nodes < 2 then
     Error.string_to_or_error
       ("Not enough elements to create a proof from the nodes.\nnodes: "
-      ^ String.concat "" (List.map (fun node -> repr node) nodes))
+      ^ String.concat ""
+          (List.map
+             (fun node ->
+               repr node ^ " range:" ^ Code_range.to_string node.range)
+             nodes))
   else
     let last_node_status =
       List.hd (List.rev nodes) |> proof_status_from_last_node

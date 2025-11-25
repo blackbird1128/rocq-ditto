@@ -78,6 +78,31 @@ let offset_of_code_point (doc : t) (p : Code_point.t) =
   let before_lines_len = sum_lengths 0 p.line in
   before_lines_len + p.character
 
+let mark_string_regions (s : string) : bool array =
+  let n = String.length s in
+  let rec loop i in_string escape acc =
+    if i = n then Array.of_list (List.rev acc)
+    else
+      let c = s.[i] in
+
+      if in_string then
+        let acc' = true :: acc in
+        if escape then loop (i + 1) true false acc'
+        else begin
+          match c with
+          | '\\' -> loop (i + 1) true true acc'
+          | '"' -> loop (i + 1) false false acc'
+          | _ -> loop (i + 1) true false acc'
+        end
+      else
+        (* Outside a string *)
+        let acc' = false :: acc in
+        match c with
+        | '"' -> loop (i + 1) true false acc'
+        | _ -> loop (i + 1) false false acc'
+  in
+  loop 0 false false []
+
 let get_comments (content : string) :
     ((string * Code_range.t) list, string) result =
   let explode s =
@@ -96,7 +121,11 @@ let get_comments (content : string) :
     aux [] lst
   in
 
-  let pairs = pairwise repr in
+  let string_mask = mark_string_regions content in
+
+  let pairs =
+    pairwise repr |> List.filter (fun ((i, _), _) -> not string_mask.(i))
+  in
   let* _, res =
     List.fold_left
       (fun acc pair ->
