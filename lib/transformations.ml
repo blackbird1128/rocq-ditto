@@ -1051,14 +1051,6 @@ let get_new_vars ?(keep : string list = [])
     (new_goals_vars : string list list option) : string list list option =
   match (old_goals_vars, new_goals_vars) with
   | Some old_goals_vars, Some new_goals_vars ->
-      (* Logs.debug (fun m -> *)
-      (*     m "new goals vars: %s " (list_of_list_of_str_to_str new_goals_vars)); *)
-      (* Logs.debug (fun m -> *)
-      (*     m "len new goals vars: %d" (List.length new_goals_vars)); *)
-
-      (* Logs.debug (fun m -> *)
-      (*     m "pad: %s" *)
-      (*       (list_to_str Fun.id (List.nth_opt old_goals_vars 0 |> Option.get))); *)
       Some
         (List_utils.map2_pad
            ~pad1:(List.nth_opt old_goals_vars 0)

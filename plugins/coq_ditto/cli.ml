@@ -9,6 +9,7 @@ type transformation_kind =
   | CompressIntro
   | IdTransformation
   | ConstructivizeGeocoq
+  | RocqToLean
 [@@deriving show { with_path = false }, enum]
 
 let camel_to_snake (s : string) : string =
@@ -51,6 +52,7 @@ let transformations_help =
        tactics" );
     ( ConstructivizeGeocoq,
       "Experimental: Transformation to use to constructivize Geocoq" );
+    (RocqToLean, "Experimental: Turn Rocq code to lean");
     (IdTransformation, "Keep the file unchanged.");
   ]
 
@@ -71,6 +73,7 @@ let arg_to_transformation_kind (arg : string) :
   else if normalized = "compress_intro" then Ok CompressIntro
   else if normalized = "flatten_goal_selectors" then Ok FlattenGoalSelectors
   else if normalized = "constructivize_geocoq" then Ok ConstructivizeGeocoq
+  else if normalized = "rocq_to_lean" then Ok RocqToLean
   else if normalized = "id_transformation" then Ok IdTransformation
   else
     Error.string_to_or_error

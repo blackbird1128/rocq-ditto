@@ -30,6 +30,7 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   | CompressIntro -> ProofScope Transformations.compress_intro
   | FlattenGoalSelectors -> ProofScope Transformations.flatten_goal_selectors
   | ConstructivizeGeocoq -> DocScope Constructivisation.constructivize_doc
+  | RocqToLean -> DocScope Rocq_to_lean.rocq_to_lean
   | IdTransformation -> ProofScope Transformations.id_transform
 
 let local_apply_doc_transformation (doc_acc : Rocq_document.t)
@@ -355,7 +356,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                   res;
                 res
             | Error err, _ ->
-                Printf.eprintf "%s\n" (Error.to_string_hum err);
+                Printf.eprintf "%s\n%!" (Error.to_string_hum err);
                 exit 1))
 
 let ditto_plugin_hook ~io ~token ~(doc : Doc.t) : unit =
