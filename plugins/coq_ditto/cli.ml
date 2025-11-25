@@ -12,6 +12,9 @@ type transformation_kind =
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
 
+type dependency_action = NoAction | CompileDependency | TransformDependency
+[@@deriving show { with_path = false }, enum]
+
 let camel_to_snake (s : string) : string =
   let b = Buffer.create (String.length s * 2) in
   String.iteri
@@ -26,11 +29,20 @@ let camel_to_snake (s : string) : string =
 let transformation_kind_to_string (kind : transformation_kind) : string =
   show_transformation_kind kind |> camel_to_snake
 
+let dependency_action_to_string (action : dependency_action) : string =
+  show_dependency_action action |> camel_to_snake
+
 let all_transformation_kinds =
   List.init
     (max_transformation_kind - min_transformation_kind + 1)
     (fun i -> transformation_kind_of_enum (i + min_transformation_kind))
-  |> List.map (function Some c -> c | None -> assert false)
+  |> List.map Option.get
+
+let all_dependency_action =
+  List.init
+    (max_dependency_action - min_dependency_action + 1)
+    (fun i -> dependency_action_of_enum (i + min_dependency_action))
+  |> List.map Option.get
 
 let transformations_list =
   all_transformation_kinds
@@ -63,23 +75,32 @@ let help_to_string (transformation_help : (transformation_kind * string) list) :
       acc ^ transformation_kind_to_string kind ^ ": " ^ help ^ "\n")
     "" transformation_help
 
-let arg_to_transformation_kind (arg : string) :
-    (transformation_kind, Error.t) result =
+let arg_to_transformation_kind arg =
   let normalized = String.lowercase_ascii arg in
-  if normalized = "help" then Ok Help
-  else if normalized = "explicit_fresh_variables" then Ok ExplicitFreshVariables
-  else if normalized = "turn_into_oneliner" then Ok TurnIntoOneliner
-  else if normalized = "replace_auto_with_steps" then Ok ReplaceAutoWithSteps
-  else if normalized = "compress_intro" then Ok CompressIntro
-  else if normalized = "flatten_goal_selectors" then Ok FlattenGoalSelectors
-  else if normalized = "constructivize_geocoq" then Ok ConstructivizeGeocoq
-  else if normalized = "rocq_to_lean" then Ok RocqToLean
-  else if normalized = "id_transformation" then Ok IdTransformation
-  else
-    Error.string_to_or_error
-      ("transformation " ^ arg
-     ^ " wasn't recognized as a valid transformation.\n Valid transformations: "
-      ^ String.concat "\n" transformations_list)
+  match
+    List.find_opt
+      (fun k -> transformation_kind_to_string k = normalized)
+      all_transformation_kinds
+  with
+  | Some k -> Ok k
+  | None ->
+      Error.string_to_or_error
+        ("unknown transformation: " ^ arg ^ "\nValid transformations:\n"
+        ^ String.concat "\n" transformations_list)
+
+let arg_to_dependency_action arg =
+  let normalized = String.lowercase_ascii arg in
+  match
+    List.find_opt
+      (fun action -> dependency_action_to_string action = normalized)
+      all_dependency_action
+  with
+  | Some k -> Ok k
+  | None ->
+      Error.string_to_or_error
+        ("unknown dependency action: " ^ arg ^ "valid actions:\n"
+        ^ (List.map dependency_action_to_string all_dependency_action
+          |> String.concat "\n"))
 
 let pp_level_lowercase (fmt : Format.formatter) (level : Logs.level) : unit =
   Format.pp_print_string fmt (Logs.level_to_string (Some level))
