@@ -36,8 +36,12 @@ let get_proofs (doc : t) : (proof list, Error.t) result =
         if Syntax_node.node_can_open_proof x then
           aux tail [ x ] proofs_acc ProofOpened
         else if Syntax_node.node_can_close_proof x then
-          let proof = proof_from_nodes (List.rev (x :: cur_proof_acc)) in
-          aux tail [] (proof :: proofs_acc) NoProof
+          if List.is_empty cur_proof_acc then
+            aux tail [] proofs_acc
+              NoProof (* TODO: proper handling of Program and Obligation *)
+          else
+            let proof = proof_from_nodes (List.rev (x :: cur_proof_acc)) in
+            aux tail [] (proof :: proofs_acc) NoProof
         else
           match cur_state with
           | NoProof -> aux tail [] proofs_acc NoProof

@@ -356,6 +356,24 @@ let is_syntax_node_instance_start (x : t) : bool =
           match expr with Vernacexpr.VernacInstance _ -> true | _ -> false))
   | None -> false
 
+let is_syntax_node_program_instance_start (x : t) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with
+          | Vernacexpr.VernacInstance _ ->
+              let flags = (Coq.Ast.to_coq ast.v).v.attrs in
+
+              List.exists
+                (fun (flag : Attributes.vernac_flag) ->
+                  let str, flag_value = flag.v in
+                  str = "program")
+                flags
+          | _ -> false))
+  | None -> false
+
 let is_syntax_node_definition_with_proof (x : t) : bool =
   (* TODO: check if this include anonymous goals *)
   match x.ast with
@@ -663,10 +681,15 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
           (repr a) (repr b))
 
 let node_can_open_proof (x : t) : bool =
-  is_syntax_node_proof_start x
-  || is_syntax_node_definition_with_proof x
-  || is_syntax_node_instance_start x
-  || is_syntax_node_function_start x
+  let res =
+    is_syntax_node_proof_start x
+    || is_syntax_node_definition_with_proof x
+    || is_syntax_node_instance_start x
+       && not (is_syntax_node_program_instance_start x)
+       (* TODO actually treat Program and Obligation *)
+    || is_syntax_node_function_start x
+  in
+  res
 
 let node_can_close_proof (x : t) : bool =
   is_syntax_node_proof_abort x || is_syntax_node_proof_end x
