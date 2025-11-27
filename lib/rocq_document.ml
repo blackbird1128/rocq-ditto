@@ -355,9 +355,9 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
   let ( let* ) = Result.bind in
   match element_with_id_opt target_id doc with
   | None ->
-      Error.string_to_or_error
-        ("The element with id: " ^ Uuidm.to_string target_id
-       ^ " wasn't found in the document")
+      Error.format_to_or_error
+        "The element with id: %s wasn't found in the document"
+        (Uuidm.to_string target_id)
   | Some removed_node -> (
       let before, after = split_at_id target_id doc in
       let block_height =

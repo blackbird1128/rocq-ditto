@@ -1036,16 +1036,6 @@ let string_to_intro_pattern_expr (x : string) :
     (fun a -> Tactypes.IntroNaming a)
     (string_to_intro_pattern_naming_expr x)
 
-let list_to_str pp_elem l =
-  let elems = List.map pp_elem l |> String.concat "; " in
-  "[" ^ elems ^ "]"
-
-let list_of_list_to_str pp_elem lsts =
-  let inner = List.map (list_to_str pp_elem) lsts |> String.concat "; " in
-  "[" ^ inner ^ "]"
-
-let list_of_list_of_str_to_str lsts : string = list_of_list_to_str Fun.id lsts
-
 let get_new_vars ?(keep : string list = [])
     (old_goals_vars : string list list option)
     (new_goals_vars : string list list option) : string list list option =

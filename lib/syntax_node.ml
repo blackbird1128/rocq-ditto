@@ -199,11 +199,6 @@ let reformat_node (x : t) : (t, Error.t) result =
   | None ->
       Error.string_to_or_error "The node need to have an AST to be reformatted"
 
-let string_of_syntax_node (node : t) : string =
-  match node.ast with
-  | Some ast -> Ppvernac.pr_vernac (Coq.Ast.to_coq ast.v) |> Pp.string_of_ppcmds
-  | None -> repr node
-
 let shift_point (n_line : int) (n_char : int) (x : Code_point.t) : Code_point.t
     =
   { line = x.line + n_line; character = x.character + n_char }
@@ -368,7 +363,7 @@ let is_syntax_node_program_instance_start (x : t) : bool =
 
               List.exists
                 (fun (flag : Attributes.vernac_flag) ->
-                  let str, flag_value = flag.v in
+                  let str, _ = flag.v in
                   str = "program")
                 flags
           | _ -> false))
