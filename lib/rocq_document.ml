@@ -494,7 +494,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         {
           replacement with
           range =
-            Range_utils.range_from_starting_point_and_repr target.range.start
+            Code_range.range_from_starting_point_and_repr target.range.start
               (repr replacement);
         }
       in
@@ -610,7 +610,7 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
           in
 
           let new_node_range =
-            Range_utils.range_from_starting_point_and_repr
+            Code_range.range_from_starting_point_and_repr
               attached_node_start_point (repr attached_node)
           in
           let new_node_range : Code_range.t =
