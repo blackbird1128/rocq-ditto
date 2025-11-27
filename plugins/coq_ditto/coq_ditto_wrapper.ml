@@ -215,9 +215,6 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
                   res)
         in
 
-        (* (dep_files : string list) (prog : string) *)
-        (*     (total_file_count : int) (base_env : string array) (save_vo : bool) *)
-        (*     (verbose : bool) (input : string) (output : string)  *)
         let env = Array.append base_env [| "OUTPUT_FILENAME=" ^ output |] in
 
         let args =
