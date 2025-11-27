@@ -154,7 +154,9 @@ let get_file_dependencies (fname : string)
   let rec aux filename : string list =
     let curr_deps = Hashtbl.find_all dep_graph filename |> List.concat in
     (* we want an empty list in case of no value found *)
-    let deps = List.map aux curr_deps |> List.concat in
+    let deps =
+      List.map aux curr_deps |> List.concat |> List.sort_uniq String.compare
+    in
     curr_deps @ deps
   in
   aux fname

@@ -12,7 +12,10 @@ type transformation_kind =
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
 
-type dependency_action = NoAction | CompileDependency | TransformDependency
+type dependencies_action =
+  | NoAction
+  | CompileDependencies
+  | TransformDependencies
 [@@deriving show { with_path = false }, enum]
 
 let camel_to_snake (s : string) : string =
@@ -29,8 +32,8 @@ let camel_to_snake (s : string) : string =
 let transformation_kind_to_string (kind : transformation_kind) : string =
   show_transformation_kind kind |> camel_to_snake
 
-let dependency_action_to_string (action : dependency_action) : string =
-  show_dependency_action action |> camel_to_snake
+let dependencies_action_to_string (action : dependencies_action) : string =
+  show_dependencies_action action |> camel_to_snake
 
 let all_transformation_kinds =
   List.init
@@ -38,10 +41,10 @@ let all_transformation_kinds =
     (fun i -> transformation_kind_of_enum (i + min_transformation_kind))
   |> List.map Option.get
 
-let all_dependency_action =
+let all_dependencies_action =
   List.init
-    (max_dependency_action - min_dependency_action + 1)
-    (fun i -> dependency_action_of_enum (i + min_dependency_action))
+    (max_dependencies_action - min_dependencies_action + 1)
+    (fun i -> dependencies_action_of_enum (i + min_dependencies_action))
   |> List.map Option.get
 
 let transformations_list =
@@ -88,18 +91,18 @@ let arg_to_transformation_kind arg =
         ("unknown transformation: " ^ arg ^ "\nValid transformations:\n"
         ^ String.concat "\n" transformations_list)
 
-let arg_to_dependency_action arg =
+let arg_to_dependencies_action arg =
   let normalized = String.lowercase_ascii arg in
   match
     List.find_opt
-      (fun action -> dependency_action_to_string action = normalized)
-      all_dependency_action
+      (fun action -> dependencies_action_to_string action = normalized)
+      all_dependencies_action
   with
   | Some k -> Ok k
   | None ->
       Error.string_to_or_error
-        ("unknown dependency action: " ^ arg ^ "valid actions:\n"
-        ^ (List.map dependency_action_to_string all_dependency_action
+        ("unknown dependency action: " ^ arg ^ " valid actions:\n"
+        ^ (List.map dependencies_action_to_string all_dependencies_action
           |> String.concat "\n"))
 
 let pp_level_lowercase (fmt : Format.formatter) (level : Logs.level) : unit =

@@ -11,7 +11,7 @@ type cli_options = {
   save_vo : bool;
   reverse_order : bool;
   skipped_files : string list;
-  dependency_action : dependency_action;
+  dependencies_action : dependencies_action;
 }
 
 let string_of_process_status = function
@@ -36,7 +36,7 @@ let validate_opts opts pathkind =
   if pathkind = Filesystem.File && opts.skipped_files <> [] then
     Error.string_to_or_error
       "Using --skip with a single file doesn't make sense"
-  else if opts.dependency_action != NoAction && pathkind = Filesystem.Dir then
+  else if opts.dependencies_action != NoAction && pathkind = Filesystem.Dir then
     Error.string_to_or_error
       "Using a dependency action when targeting a folder doesn't make sense"
   else if opts.verbose && opts.quiet then
@@ -50,7 +50,7 @@ let run_process ~(env : string array) ~(args : string array) (prog : string)
   let pid = Unix.create_process_env prog args env stdin stdout stderr in
   let _, status = Unix.waitpid [] pid in
   match status with
-  | WEXITED 0 -> Ok 0
+  | WEXITED 0 -> Ok ()
   | _ -> Error.string_to_or_error (string_of_process_status status)
 
 let run_process_loud ~(env : string array) ~(args : string array)
@@ -61,6 +61,9 @@ let run_process_silent ~(env : string array) ~(args : string array)
     (prog : string) =
   let devnull = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0o666 in
   run_process ~env ~args prog devnull devnull devnull
+
+let show_string_array arr =
+  "[| " ^ String.concat "; " (Array.to_list arr) ^ " |]"
 
 let make_args_transform_files (prog : string) (root : string) (verbose : bool)
     (save_vo : bool) (input_file : string) =
@@ -74,24 +77,22 @@ let make_args_transform_files (prog : string) (root : string) (verbose : bool)
     if save_vo then Array.append a [| "--no_vo" |] else a
 
 let make_args_compile_files (root : string) (input_file : string) =
-  [| "fcc"; "--root=" ^ root; "--plugin=ditto-plugin"; input_file |]
+  [| "fcc"; "--root=" ^ root; input_file |]
 
-let transform_files (dep_files : string list) (prog : string)
+let transform_files (root : string) (dep_files : string list) (prog : string)
     (total_file_count : int) (base_env : string array) (save_vo : bool)
-    (verbose : bool) (input : string) (output : string) =
+    (verbose : bool) =
   List.fold_left
     (fun (err_acc, curr_file_count) curr_file ->
       match err_acc with
-      | Ok 0 ->
-          let rel_path = remove_prefix curr_file input in
-          let curr_out_path = Filename.concat output rel_path in
+      | Ok () ->
           let curr_args =
-            make_args_transform_files prog output verbose save_vo curr_out_path
+            make_args_transform_files prog root verbose save_vo curr_file
           in
           let curr_env =
             Array.append base_env
               [|
-                "OUTPUT_FILENAME=" ^ curr_out_path;
+                "OUTPUT_FILENAME=" ^ curr_file;
                 "CURRENT_FILE_COUNT=" ^ string_of_int curr_file_count;
                 "TOTAL_FILE_COUNT=" ^ string_of_int total_file_count;
               |]
@@ -100,24 +101,22 @@ let transform_files (dep_files : string list) (prog : string)
           Printf.printf "\n%!";
           (status, curr_file_count + 1)
       | err -> (err, curr_file_count + 1))
-    (Ok 0, 1) dep_files
+    (Ok (), 1) dep_files
 
-let compile_files (files : string list) (input : string) (output : string) =
+let compile_files (files : string list) (input : string) (root : string) =
   let prog = "fcc" in
   List.fold_left
     (fun (err_acc, curr_file_count) curr_file ->
       match err_acc with
-      | Ok 0 ->
-          let rel_path = remove_prefix curr_file input in
-          let curr_out_path = Filename.concat output rel_path in
-          let curr_args = make_args_compile_files output curr_out_path in
-
+      | Ok () ->
+          Printf.printf "compiling file %s\n%!" curr_file;
+          let curr_args = make_args_compile_files root curr_file in
           let status = run_process_silent ~env:[||] ~args:curr_args prog in
           (status, curr_file_count + 1)
       | err -> (err, curr_file_count + 1))
-    (Ok 0, 1) files
+    (Ok (), 1) files
 
-let transform_project (opts : cli_options) : (int, Error.t) result =
+let transform_project (opts : cli_options) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let input = opts.input
   and output = opts.output
@@ -145,7 +144,7 @@ let transform_project (opts : cli_options) : (int, Error.t) result =
 
   let pathkind = Filesystem.get_pathkind input in
 
-  let* () = validate_opts opts pathkind in
+  let _ = validate_opts opts pathkind in
 
   let base_env =
     Array.append (Unix.environment ())
@@ -175,11 +174,14 @@ let transform_project (opts : cli_options) : (int, Error.t) result =
         in
 
         let* _ =
-          match opts.dependency_action with
+          match opts.dependencies_action with
           | NoAction -> Ok ()
-          | CompileDependency -> (
+          | CompileDependencies -> (
               match coqproject_opt with
-              | None -> Error.string_to_or_error "hi"
+              | None ->
+                  Error.string_to_or_error
+                    "No _CoqProject or _RocqProject found, impossible to run a \
+                     dependency action"
               | Some (dir, file) ->
                   let* dep_graph =
                     Compile.coqproject_to_dep_graph (Filename.concat dir file)
@@ -187,13 +189,35 @@ let transform_project (opts : cli_options) : (int, Error.t) result =
                   let dependencies =
                     Compile.get_file_dependencies input dep_graph
                   in
-                  List.iter
-                    (fun dep -> Logs.debug (fun m -> m "dep: %s" dep))
-                    dependencies;
-                  Ok ())
-          | TransformDependency -> Ok ()
+                  Printf.printf "Compiling %d dependencies\n%!"
+                    (List.length dependencies);
+                  let res, _ = compile_files dependencies input dir in
+                  res)
+          | TransformDependencies -> (
+              match coqproject_opt with
+              | None ->
+                  Error.string_to_or_error
+                    "No _CoqProject or _RocqProject found, impossible to run a \
+                     dependency action"
+              | Some (dir, file) ->
+                  let* dep_graph =
+                    Compile.coqproject_to_dep_graph (Filename.concat dir file)
+                  in
+                  let dependencies =
+                    Compile.get_file_dependencies input dep_graph
+                  in
+                  let length_dep = List.length dependencies in
+                  Printf.printf "Transforming %d dependencies\n%!" length_dep;
+                  let res, _ =
+                    transform_files dir dependencies "fcc" length_dep base_env
+                      true verbose
+                  in
+                  res)
         in
 
+        (* (dep_files : string list) (prog : string) *)
+        (*     (total_file_count : int) (base_env : string array) (save_vo : bool) *)
+        (*     (verbose : bool) (input : string) (output : string)  *)
         let env = Array.append base_env [| "OUTPUT_FILENAME=" ^ output |] in
 
         let args =
@@ -220,7 +244,15 @@ let transform_project (opts : cli_options) : (int, Error.t) result =
             List.map (fun x -> Filename.basename x.thing) p.files
           in
           let* dep_files = Compile.coqproject_sorted_files coqproject_path in
-          let* dep_graph = Compile.coqproject_to_dep_graph coqproject_path in
+          let dep_files =
+            List.map
+              (fun file ->
+                let rel_file_path = remove_prefix file input in
+                let out_path = Filename.concat output rel_file_path in
+
+                out_path)
+              dep_files
+          in
 
           let* new_dir_state = Filesystem.make_dir output in
           warn_if_exists new_dir_state;
@@ -233,8 +265,8 @@ let transform_project (opts : cli_options) : (int, Error.t) result =
           let total_file_count = List.length dep_files in
 
           let transformations_status =
-            transform_files dep_files prog total_file_count base_env save_vo
-              verbose input output
+            transform_files output dep_files prog total_file_count base_env
+              save_vo verbose
           in
           fst transformations_status)
 
@@ -249,13 +281,13 @@ let transformation_kind_conv =
   let print fmt k = Format.fprintf fmt "%s" (transformation_kind_to_string k) in
   Cmdliner.Arg.conv (parse, print)
 
-let dependency_action_conv =
+let dependencies_action_conv =
   let parse s =
-    match arg_to_dependency_action s with
+    match arg_to_dependencies_action s with
     | Ok v -> Ok v
     | Error e -> Error (`Msg (Error.to_string_hum e))
   in
-  let print fmt k = Format.fprintf fmt "%s" (dependency_action_to_string k) in
+  let print fmt k = Format.fprintf fmt "%s" (dependencies_action_to_string k) in
   Cmdliner.Arg.conv (parse, print)
 
 let string_list_conv =
@@ -284,13 +316,13 @@ let transformation_t =
     & opt (some transformation_kind_conv) None
     & info [ "t"; "transformation" ] ~docv:"KIND" ~doc)
 
-let dependency_action_t =
+let dependencies_action_t =
   let doc =
     "Action to apply on the dependencies (only when targeting a single file)"
   in
   Arg.(
     value
-    & opt dependency_action_conv NoAction
+    & opt dependencies_action_conv NoAction
     & info [ "a"; "action" ] ~docv:"ACTION" ~doc)
 
 let skip_t =
@@ -316,7 +348,7 @@ let reverse_order_t =
 
 let cli_options_t =
   let combine input output transformation verbose quiet save_vo reverse_order
-      skipped_files dependency_action =
+      skipped_files dependencies_action =
     {
       input;
       output;
@@ -326,12 +358,12 @@ let cli_options_t =
       save_vo;
       reverse_order;
       skipped_files;
-      dependency_action;
+      dependencies_action;
     }
   in
   Term.(
     const combine $ input_t $ output_t $ transformation_t $ verbose_t $ quiet_t
-    $ save_vo_t $ reverse_order_t $ skip_t $ dependency_action_t)
+    $ save_vo_t $ reverse_order_t $ skip_t $ dependencies_action_t)
 
 let main opts =
   match opts.transformation with
@@ -341,7 +373,7 @@ let main opts =
       exit 0
   | _ -> (
       match transform_project opts with
-      | Ok res -> exit res
+      | Ok res -> exit 0
       | Error err ->
           prerr_endline (Error.to_string_hum err);
           exit 1)
