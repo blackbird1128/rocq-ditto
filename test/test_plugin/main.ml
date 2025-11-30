@@ -1144,8 +1144,8 @@ let test_tree_transformation (doc : Doc.t)
 
 let test_proof_transformation (doc : Doc.t)
     (proof_transformation :
-      Rocq_document.t -> proof -> (transformation_step list, Error.t) result) ()
-    : unit =
+      Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result)
+    () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Rocq_document.parse_document doc in
 
