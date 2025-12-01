@@ -1,0 +1,43 @@
+name: Rocq Ditto CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        rocq-version: ["latest", "9.0.0", "8.20.0"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install opam and OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.1"
+          opam-repositories: |
+            default: https://opam.ocaml.org
+
+      - name: Cache opam
+        uses: actions/cache@v4
+        with:
+          path: ~/.opam
+          key: opam-${{ matrix.rocq-version }}-${{ hashFiles('**/*.opam', 'configure.sh') }}
+
+      - name: Configure Rocq Ditto
+        run: |
+          set -eux
+          ./configure.sh ${{ matrix.rocq-version }}
+          eval $(opam env)
+
+      - name: Build
+        run: make build
+
+      - name: Run tests
+        run: dune runtest
