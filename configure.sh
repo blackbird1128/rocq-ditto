@@ -19,6 +19,7 @@ if [[ $# -ne 1 ]]; then
 fi
 
 VERSION="$1"
+PKG="$(detect_pkg "$VERSION")"
 
 if [[ -d _opam ]]; then
   echo ">> Trying to reuse local opam switch"
@@ -54,7 +55,6 @@ if [[ $REUSE_SWITCH -eq 0 ]]; then
 	opam switch create . ocaml-base-compiler.5.4.0 --no-install
 	# Pin either rocq-core (>=9.0.0) or coq-core (<9.0.0)
 
-	PKG="$(detect_pkg "$VERSION")"
 	echo ">> Pinning $PKG $VERSION..."
 	opam pin add -y "$PKG" "$VERSION"
   
