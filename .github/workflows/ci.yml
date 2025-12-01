@@ -8,23 +8,25 @@ on:
 
 jobs:
   build:
-
     strategy:
       matrix:
-        rocq-version: ["9.1.0","9.0.0","8.20.0"]
-	os: ["ubuntu-latest","macos-latest"]
+        rocq-version: ["9.1.0", "9.0.0", "8.20.0"]
+        os: ["ubuntu-latest", "macos-latest"]
 
-    runs-on: ${{ matrix.os }}	
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install opam (no switch)
+      - name: Install opam
         run: |
-          sudo apt update
-          sudo apt install -y opam
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt update
+            sudo apt install -y opam
+          else
+            brew install opam
+          fi
           opam init -y --bare
-          eval "$(opam env)"
 
       - name: Cache local opam switch
         uses: actions/cache@v4
@@ -32,7 +34,7 @@ jobs:
           path: _opam
           key: opam-local-${{ matrix.rocq-version }}-${{ hashFiles('dune-project', '**/*.opam', 'configure.sh') }}
           restore-keys: opam-local-
-          
+
       - name: Configure Rocq-ditto
         run: |
           set -eux
@@ -40,7 +42,7 @@ jobs:
           eval "$(opam env)"
 
       - name: Build Rocq-ditto
-        run:
+        run: |
           eval "$(opam env --switch=./)"
           dune build
 
