@@ -18,10 +18,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install opam (no switch)
-        uses: ocaml/setup-ocaml@v3
-        with:
-          ocaml-compiler: "system"
-          opam-disable-sandboxing: true
+        run: |
+          sudo apt update
+          sudo apt install -y opam
+          opam init -y --bare
+          eval "$(opam env)"
 
       - name: Cache opam root
         uses: actions/cache@v4
