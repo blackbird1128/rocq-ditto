@@ -34,7 +34,7 @@ if [[ -d _opam ]]; then
       if [[ "$CURRENT_VERSION" == "$VERSION" ]]; then
 	  echo ">> Switch matches requested version ($CURRENT_VERSION) (reusing)"
 	  REUSE_SWITCH=1
-	  eval "$(opam env --switch=./)"
+	  eval "$(opam env --switch=./ --set-switch)"
       else
 	  echo ">> Switch mismatch ($CURRENT_VERSION <> $VERSION) (rebuilding)"
 	  REUSE_SWITCH=0
@@ -49,7 +49,6 @@ if [[ $REUSE_SWITCH -eq 0 ]]; then
 	echo ">> Setting up with the latest Rocq version..."
 	opam switch -y create . ocaml-base-compiler --deps-only
 	#  opam install -y rocq-stdlib
-	eval "$(opam env)"
     else
 	echo ">> Setting up with Rocq version $VERSION..."
 	opam switch create . ocaml-base-compiler.5.4.0 --no-install
@@ -61,7 +60,7 @@ if [[ $REUSE_SWITCH -eq 0 ]]; then
 	opam install -y . --deps-only
 	# For pinned Rocq version, dune still expects coqc to exist
 
-    fi
+    fi    
 fi
 
 if [[ -f _opam/bin/rocq ]]; then

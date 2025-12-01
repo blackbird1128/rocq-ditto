@@ -39,10 +39,10 @@ jobs:
         run: |
           set -eux
           ./configure.sh ${{ matrix.rocq-version }}
-          eval "$(opam env)"
+          eval "$(opam env --switch=./ --set-switch)"
 
       - name: Build Rocq-ditto
         run: |
-          eval "$(opam env --switch=./)"
+          eval "$(opam env --switch=./ --set-switch)"
           dune build
 
