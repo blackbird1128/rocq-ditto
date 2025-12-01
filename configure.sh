@@ -21,9 +21,24 @@ fi
 VERSION="$1"
 
 if [[ -d _opam ]]; then
-  echo ">> Reusing local opam switch"
+  echo ">> Trying to reuse local opam switch"
   eval "$(opam env)"
-  REUSE_SWITCH=1
+  if [[ "$VERSION" == "latest" ]]; then
+      echo ">> Creating fresh local switch"
+      REUSE_SWITCH=0
+  else
+      # Try to detect the version of the pinned package inside _opam
+      CURRENT_VERSION="$(opam show --field=version "$PKG" 2>/dev/null || echo none)"
+      
+      if [[ "$CURRENT_VERSION" == "$VERSION" ]]; then
+	  echo ">> Switch matches requested version ($CURRENT_VERSION) (reusing)"
+	  REUSE_SWITCH=1
+	  eval "$(opam env --switch=./)"
+      else
+	  echo ">> Switch mismatch ($CURRENT_VERSION <> $VERSION) (rebuilding)"
+	  REUSE_SWITCH=0
+      fi
+  fi
 else
   REUSE_SWITCH=0
 fi

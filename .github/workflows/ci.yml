@@ -24,12 +24,12 @@ jobs:
           opam init -y --bare
           eval "$(opam env)"
 
-      - name: Cache opam root
+      - name: Cache local opam switch
         uses: actions/cache@v4
         with:
-          path: ~/.opam
-          key: opam-root-${{ matrix.rocq-version }}-${{ hashFiles('configure.sh', '**/*.opam') }}
-          restore-keys: opam-root-
+          path: _opam
+          key: opam-local-${{ matrix.rocq-version }}-${{ hashFiles('dune-project', '**/*.opam', 'configure.sh') }}
+          restore-keys: opam-local-
           
       - name: Configure Rocq-ditto
         run: |
