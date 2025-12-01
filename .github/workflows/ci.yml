@@ -32,7 +32,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: _opam
-          key: opam-local-${{ matrix.rocq-version }}-${{ hashFiles('dune-project', '**/*.opam', 'configure.sh') }}
+          key: opam-local-${{ matrix.os }}-${{ matrix.rocq-version }}-${{ hashFiles('dune-project', '**/*.opam', 'configure.sh') }}
           restore-keys: opam-local-
 
       - name: Configure Rocq-ditto
