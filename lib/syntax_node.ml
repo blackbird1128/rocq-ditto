@@ -369,6 +369,15 @@ let is_syntax_node_program_instance_start (x : t) : bool =
           | _ -> false))
   | None -> false
 
+let is_syntax_node_definition (x : t) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with Vernacexpr.VernacDefinition _ -> true | _ -> false))
+  | None -> false
+
 let is_syntax_node_definition_with_proof (x : t) : bool =
   (* TODO: check if this include anonymous goals *)
   match x.ast with
