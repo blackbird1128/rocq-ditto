@@ -128,11 +128,9 @@ let replace_fun_name_in_proof (old_fun_name : string) (new_fun_name : string)
 
   let expr = components.expr in
 
-  let replace_by_betl_map =
-    replace_fun_name_in_constrexpr old_fun_name new_fun_name
-  in
+  let replace_map = replace_fun_name_in_constrexpr old_fun_name new_fun_name in
   let new_expr, did_replace =
-    Expr_substitution.constr_expr_map replace_by_betl_map expr
+    Expr_substitution.constr_expr_map replace_map expr
   in
   if did_replace then
     let new_components = { components with expr = new_expr } in
@@ -142,6 +140,45 @@ let replace_fun_name_in_proof (old_fun_name : string) (new_fun_name : string)
 
     Some (Replace (x.proposition.id, new_node))
   else None
+
+let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  let pp = Ppconstr.pr_constr_expr env sigma x in
+  Pp.string_of_ppcmds pp
+
+let replace_fun_name_in_definition (old_fun_name : string)
+    (new_fun_name : string) (x : Syntax_node.t) : transformation_step option =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      | VernacSynterp _ -> None
+      | VernacSynPure expr -> (
+          match expr with
+          | Vernacexpr.VernacDefinition
+              ( (discharge, definition_object_kind),
+                (name_decl : Constrexpr.name_decl),
+                expr ) -> (
+              match expr with
+              | ProveBody _ -> None
+              | DefineBody (binders, raw_red_expr_opt, expr1, opt_expr) ->
+                  Logs.debug (fun m -> m "DefineBody");
+                  Logs.debug (fun m ->
+                      m "expr1: %s" (constrexpr_to_string expr1));
+
+                  let replace_map =
+                    replace_fun_name_in_constrexpr old_fun_name new_fun_name
+                  in
+                  let new_expr, did_replace =
+                    Expr_substitution.constr_expr_map replace_map expr1
+                  in
+
+                  if did_replace then None else None)
+          | _ -> None))
+  | None -> None
+
+type definition_object_kind = [%import: Decls.definition_object_kind]
+[@@deriving show]
 
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
@@ -172,6 +209,41 @@ let constructivize_doc (doc : Rocq_document.t) :
   let replace_bet_by_betl_steps =
     List.filter_map (replace_fun_name_in_proof "Bet" "BetL") proofs
   in
+
+  let definitions =
+    List.filter Syntax_node.is_syntax_node_definition doc.elements
+  in
+  List.iter
+    (fun (x : Syntax_node.t) ->
+      match x.ast with
+      | Some ast -> (
+          match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+          | VernacSynterp _ -> ()
+          | VernacSynPure expr -> (
+              match expr with
+              | Vernacexpr.VernacDefinition
+                  ( (discharge, definition_object_kind),
+                    (name_decl : Constrexpr.name_decl),
+                    expr ) -> (
+                  Logs.debug (fun m ->
+                      m "definition kind: %s"
+                        (show_definition_object_kind definition_object_kind));
+                  let lname, univ_decl_expr_opt = name_decl in
+                  Logs.debug (fun m ->
+                      m "lname: %s"
+                        (Pp.string_of_ppcmds (Names.Name.print lname.v)));
+                  match expr with
+                  | ProveBody (binders, expr) ->
+                      Logs.debug (fun m -> m "ProveBody");
+                      ()
+                  | DefineBody (binders, raw_red_expr_opt, expr1, opt_expr) ->
+                      Logs.debug (fun m -> m "DefineBody");
+                      Logs.debug (fun m ->
+                          m "expr1: %s" (constrexpr_to_string expr1));
+                      ())
+              | _ -> ()))
+      | None -> ())
+    definitions;
 
   Ok
     (replace_require_steps @ replace_contex_steps @ admit_proof_steps
