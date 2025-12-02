@@ -131,17 +131,27 @@ let coqproject_to_dep_graph (coqproject_file : string) :
       Error.format_to_or_error "%s terminated abnormally"
         Rocq_version.dep_executable
 
+let dedup l =
+  let seen = Hashtbl.create 16 in
+  let rec aux acc = function
+    | [] -> List.rev acc
+    | x :: tl ->
+        if Hashtbl.mem seen x then aux acc tl
+        else (
+          Hashtbl.add seen x ();
+          aux (x :: acc) tl)
+  in
+  aux [] l
+
 let get_file_dependencies (fname : string)
     (dep_graph : (string, string list) Hashtbl.t) : string list =
   let rec aux filename : string list =
     let curr_deps = Hashtbl.find_all dep_graph filename |> List.concat in
     (* we want an empty list in case of no value found *)
-    let deps =
-      List.map aux curr_deps |> List.concat |> List.sort_uniq String.compare
-    in
+    let deps = List.map aux curr_deps |> List.concat in
     curr_deps @ deps
   in
-  aux fname
+  aux fname |> dedup
 
 let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
   let msg_string = Pp.string_of_ppcmds x.message in
