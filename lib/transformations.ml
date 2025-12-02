@@ -360,12 +360,12 @@ let admit_and_comment_proof_steps (_ : Rocq_document.t) (proof : Proof.t) :
   let first_proof_node = List.hd proof.proof_steps in
 
   let comment_content =
-    List.fold_left
-      (fun str_acc step -> str_acc ^ repr step ^ "\n")
-      "(* "
-      (List_utils.take
-         (max 0 (List.length proof.proof_steps - 1))
-         proof.proof_steps)
+    "(* "
+    ^ String.concat "\n"
+        (List_utils.take
+           (max 0 (List.length proof.proof_steps - 1))
+           proof.proof_steps
+        |> List.map repr)
     ^ " *)"
   in
 
