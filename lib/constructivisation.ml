@@ -172,8 +172,27 @@ let replace_fun_name_in_definition (old_fun_name : string)
                   let new_expr, did_replace =
                     Expr_substitution.constr_expr_map replace_map expr1
                   in
-
-                  if did_replace then None else None)
+                  if did_replace then
+                    let new_define_body =
+                      DefineBody (binders, raw_red_expr_opt, new_expr, opt_expr)
+                    in
+                    let new_vernacexpr =
+                      VernacSynPure
+                        (VernacDefinition
+                           ( (discharge, definition_object_kind),
+                             name_decl,
+                             new_define_body ))
+                    in
+                    let new_vernac_control =
+                      Syntax_node.mk_vernac_control new_vernacexpr
+                    in
+                    let new_node =
+                      Syntax_node.syntax_node_of_coq_ast
+                        (Coq.Ast.of_coq new_vernac_control)
+                        x.range.start
+                    in
+                    Some (Replace (x.id, new_node))
+                  else None)
           | _ -> None))
   | None -> None
 
@@ -206,7 +225,7 @@ let constructivize_doc (doc : Rocq_document.t) :
       proofs
   in
 
-  let replace_bet_by_betl_steps =
+  let replace_bet_by_betl_in_proofs_steps =
     List.filter_map (replace_fun_name_in_proof "Bet" "BetL") proofs
   in
 
@@ -245,6 +264,11 @@ let constructivize_doc (doc : Rocq_document.t) :
       | None -> ())
     definitions;
 
+  let replace_bet_by_betl_in_definitions_steps =
+    List.filter_map (replace_fun_name_in_definition "Bet" "BetL") definitions
+  in
+
   Ok
     (replace_require_steps @ replace_contex_steps @ admit_proof_steps
-   @ replace_or_by_constructive_or_steps @ replace_bet_by_betl_steps)
+   @ replace_or_by_constructive_or_steps @ replace_bet_by_betl_in_proofs_steps
+   @ replace_bet_by_betl_in_definitions_steps)
