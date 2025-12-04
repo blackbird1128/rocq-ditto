@@ -27,6 +27,12 @@ val run_node_with_diagnostics :
     Error.t * Lang.Diagnostic.t list )
   result
 
+val get_state_after :
+  Coq.State.t ->
+  Coq.Limits.Token.t ->
+  Syntax_node.t list ->
+  (Coq.State.t, Error.t) result
+
 val get_init_state :
   Rocq_document.t ->
   Syntax_node.t ->

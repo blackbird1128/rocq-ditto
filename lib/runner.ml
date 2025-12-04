@@ -140,12 +140,11 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
       let err, messages = err in
       Error (err, List.map (message_to_diagnostic node.range) messages)
 
-let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
-    (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
+let get_state_after (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
+    (nodes : Syntax_node.t list) : (Coq.State.t, Error.t) result =
   let open Sexplib.Std in
-  let nodes_before, _ = Rocq_document.split_at_id node.id doc in
-  let init_state = doc.initial_state in
   let error_tagged = false in
+
   let state, error_tagged, last_node =
     List.fold_left
       (fun (state, error_tagged, prev_node) node ->
@@ -155,6 +154,7 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
             if error_tagged then (Error err, error_tagged, Some node)
             else
               let prev_node_repr = Option.map (fun x -> repr x) prev_node in
+
               let msg =
                 [%message
                   ""
@@ -163,7 +163,7 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
               in
               (Error (Error.tag_sexp err "info" msg), true, Some node))
       (Ok init_state, error_tagged, None)
-      nodes_before
+      nodes
   in
   Result.map_error
     (fun err ->
@@ -171,15 +171,22 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
         let last_node_repr =
           Option.map (fun x -> Syntax_node.repr x) last_node
         in
+        let last_node_range = Option.map (fun x -> x.range) last_node in
         let msg =
           [%message
             ""
-              ~loc:(node.range : Code_range.t)
+              ~loc:(last_node_range : Code_range.t option)
               ~repr:(last_node_repr : string option)]
         in
         Error.tag_sexp err "info" msg
       else err)
     state
+
+let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
+    (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
+  let nodes_before, _ = Rocq_document.split_at_id node.id doc in
+  let init_state = doc.initial_state in
+  get_state_after init_state token nodes_before
 
 let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
     =
