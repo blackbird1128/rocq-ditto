@@ -249,31 +249,25 @@ let add_node_after_require (doc : Rocq_document.t) (node : Syntax_node.t) :
 type definition_object_kind = [%import: Decls.definition_object_kind]
 [@@deriving show]
 
-(* let rec update_replaces (l1 : transformation_step list) *)
-(*     (l2 : transformation_step list) : transformation_step list = *)
-(*   let r = *)
-(*     List.fold_left *)
-(*       (fun (acc : transformation_step list) (x : transformation_step) -> *)
-(*         match x with *)
-
-(*         | Replace (id_x, replace_with) -> ( *)
-(*            let c = *)
-(*           List.map *)
-(*             (fun el -> *)
-(*               match el with *)
-(*               | Replace (id_a, b) -> if Uuidm.equal id_a id_x then  el else el *)
-(*               | Remove _ | Add _ | Attach _ -> el) *)
-(*             acc *)
-(*         in *)
-(*         acc *)
-(*         ) *)
-(*         | Remove _  *)
-(*         | Add _  *)
-(*         | Attach _  -> acc  *)
-(* ) *)
-(*       l2 l1 *)
-(*   in *)
-(*   [] *)
+let rec update_replaces (l : transformation_step list) =
+  match l with
+  | [] -> []
+  | x :: tl -> (
+      match x with
+      | Replace (id_curr, new_node_curr) ->
+          let new_tl =
+            List.map
+              (fun el_tl ->
+                match el_tl with
+                | Replace (id_el, new_node_el) ->
+                    if Uuidm.equal id_el id_curr then
+                      Replace (new_node_curr.id, new_node_el)
+                    else Replace (id_el, new_node_el)
+                | Add _ | Remove _ | Attach _ -> el_tl)
+              tl
+          in
+          x :: update_replaces new_tl
+      | Add _ | Remove _ | Attach _ -> x :: update_replaces tl)
 
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
@@ -369,9 +363,7 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
 
   let steps_stage_one =
-    definitions_file_specific_steps @ replace_require_steps
-    @ replace_context_steps @ admit_proof_steps
-    @ replace_or_by_constructive_or_in_proofs_steps
+    replace_or_by_constructive_or_in_proofs_steps
     @ replace_or_by_constructive_or_in_definitions_steps
   in
   (***** end of stage 1 **************)
@@ -396,15 +388,11 @@ let constructivize_doc (doc : Rocq_document.t) :
       definitions_stage_two
   in
 
-  let steps_stage_two =
-    replace_bet_by_betl_in_proofs_steps
-    @ replace_bet_by_betl_in_definitions_steps
-  in
-
   Ok
-    (definitions_file_specific_steps @ replace_require_steps
-   @ replace_context_steps @ admit_proof_steps
-   @ replace_bet_by_betl_in_proofs_steps
-   @ replace_bet_by_betl_in_definitions_steps
-   @ replace_or_by_constructive_or_in_definitions_steps
-   @ replace_or_by_constructive_or_in_proofs_steps)
+    (update_replaces
+       (definitions_file_specific_steps @ replace_require_steps
+      @ replace_context_steps @ admit_proof_steps
+      @ replace_or_by_constructive_or_in_definitions_steps
+      @ replace_or_by_constructive_or_in_proofs_steps
+      @ replace_bet_by_betl_in_proofs_steps
+      @ replace_bet_by_betl_in_definitions_steps))
