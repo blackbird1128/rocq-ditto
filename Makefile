@@ -21,6 +21,16 @@ lens:
 	dune build --profile=release
 	dune exec fcc -- --plugin=lens-query-plugin ./test/fixtures/ex_this_or_that.v
 
+constructivization: build
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Axioms/Definitions.v -o ../geocoq_bis/theories/Constructive/Definitions.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -o ../geocoq_bis/theories/Constructive/Ch04_cong_bet.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -o ../geocoq_bis/theories/Constructive/Ch05_bet_le.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch06_out_lines.v -o ../geocoq_bis/theories/Constructive/Ch06_out_lines.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch07_midpoint.v -o ../geocoq_bis/theories/Constructive/Ch07_midpoint.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch08_orthogonality.v -o ../geocoq_bis/theories/Constructive/Ch08_orthogonality.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch09_plane.v -o ../geocoq_bis/theories/Constructive/Ch09_plane.v -t constructivize_geocoq -v
+
+
 # Rule to generate a .v.target.json from its .v source
 %.v.target.json: %.v
 	dune exec fcc -- --plugin=target-generator-plugin $< 2>/dev/null
