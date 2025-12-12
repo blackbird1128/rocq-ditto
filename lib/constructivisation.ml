@@ -106,6 +106,47 @@ let replace_notation_in_proof_proposition (old_notation : string)
     Some (Replace (x.proposition.id, new_node))
   else None
 
+let replace_taccall_tacarg_in_tacexpr (old_tac_call_name : string)
+    (new_tac_call_name : string) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
+    : Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let open Ltac_plugin.Tacexpr in
+  match tacexpr.v with
+  | TacArg gen_tac_arg -> (
+      match gen_tac_arg with
+      | TacCall call_arg ->
+          let old_call_qualid, old_call_args = call_arg.v in
+          let old_call_qualid_str = Libnames.string_of_qualid old_call_qualid in
+          let new_tac_call_name_qualid =
+            Libnames.qualid_of_string new_tac_call_name
+          in
+          let new_tac_call =
+            CAst.make (new_tac_call_name_qualid, old_call_args)
+          in
+          if old_call_qualid_str = old_tac_call_name then
+            TacArg (TacCall new_tac_call) |> CAst.make
+          else tacexpr
+      | _ -> tacexpr)
+  | _ -> tacexpr
+
+let replace_taccall_tacarg_in_node (old_tac_call_name : string)
+    (new_tac_call_name : string) (node : Syntax_node.t) :
+    transformation_step option =
+  let+ raw_tac_expr = Syntax_node.get_node_raw_tactic_expr node in
+  let f =
+    replace_taccall_tacarg_in_tacexpr old_tac_call_name new_tac_call_name
+  in
+  let raw_expr_mapped, did_replace = Tacexpr_map.tacexpr_map f raw_tac_expr in
+  if did_replace then (
+    let selector = Syntax_node.get_node_goal_selector_opt node in
+    let+ new_node =
+      Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
+        ~use_default:false node.range.start
+      |> Result.to_option
+    in
+    Logs.debug (fun m -> m "One replacing steps !");
+    Some (Replace (node.id, new_node)))
+  else None
+
 let replace_fun_name_in_constrexpr (old_fun_name : string)
     (new_fun_name : string) (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
@@ -277,7 +318,7 @@ let constructivize_doc (doc : Rocq_document.t) :
 
   let* require_stable_node =
     Syntax_node.syntax_node_of_string
-      "Require Export GeoCoq.Constructive.Stable." dummy_start
+      "Require Import GeoCoq.Constructive.Stable." dummy_start
   in
   let _ =
     Runner.get_state_after doc.initial_state token [ require_stable_node ]
@@ -285,7 +326,7 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
 
   let* definitions_file_specific_steps =
-    if Filename.basename doc.filename = "Definitions.v" then
+    if Filename.basename doc.filename = "Definitions.v" then (
       let first_require =
         List.find Syntax_node.is_syntax_node_require doc.elements
       in
@@ -307,6 +348,7 @@ let constructivize_doc (doc : Rocq_document.t) :
            GeoCoq.Algebraic.Counter_models.nD.stability_properties."
           dummy_start
       in
+      Logs.debug (fun m -> m "here !!\n                              ");
 
       let* betl_definition =
         Syntax_node.syntax_node_of_string
@@ -320,32 +362,35 @@ let constructivize_doc (doc : Rocq_document.t) :
           dummy_start
       in
 
+      Logs.debug (fun m -> m "then afterr");
+
       Ok
         [
           Replace (first_require.id, new_first_require);
           Attach (second_require, LineAfter, new_first_require.id);
           Attach (third_require, LineAfter, second_require.id);
           Attach (betl_definition, LineAfter, third_require.id);
-        ]
+        ])
     else Ok []
   in
 
+  Logs.debug (fun m -> m "here");
   let replace_require_steps = List.filter_map replace_require doc.elements in
 
   let replace_context_steps = List.filter_map replace_context doc.elements in
 
-  let* admit_proof_steps =
-    List.fold_left
-      (fun res_acc proof ->
-        match res_acc with
-        | Ok res_acc ->
-            let* steps =
-              Transformations.admit_and_comment_proof_steps doc proof
-            in
-            Ok (steps @ res_acc)
-        | Error err -> Error err)
-      (Ok []) proofs
-  in
+  (* let* admit_proof_steps = *)
+  (*   List.fold_left *)
+  (*     (fun res_acc proof -> *)
+  (*       match res_acc with *)
+  (*       | Ok res_acc -> *)
+  (*           let* steps = *)
+  (*             Transformations.admit_and_comment_proof_steps doc proof *)
+  (*           in *)
+  (*           Ok (steps @ res_acc) *)
+  (*       | Error err -> Error err) *)
+  (*     (Ok []) proofs *)
+  (* in *)
   let definitions =
     List.filter Syntax_node.is_syntax_node_definition doc.elements
   in
@@ -368,6 +413,8 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
   (***** end of stage 1 **************)
 
+  Logs.debug (fun m -> m "End stage 1");
+
   let* new_doc =
     Rocq_document.apply_transformations_steps steps_stage_one doc
   in
@@ -388,11 +435,16 @@ let constructivize_doc (doc : Rocq_document.t) :
       definitions_stage_two
   in
 
+  let replace_left_by_right =
+    List.filter_map (replace_taccall_tacarg_in_node "left" "right") doc.elements
+  in
+
   Ok
     (update_replaces
        (definitions_file_specific_steps @ replace_require_steps
-      @ replace_context_steps @ admit_proof_steps
+      @ replace_context_steps @ replace_left_by_right
+      (* @ admit_proof_steps *)
       @ replace_or_by_constructive_or_in_definitions_steps
-      @ replace_or_by_constructive_or_in_proofs_steps
-      @ replace_bet_by_betl_in_proofs_steps
-      @ replace_bet_by_betl_in_definitions_steps))
+       @ replace_or_by_constructive_or_in_proofs_steps
+       @ replace_bet_by_betl_in_proofs_steps
+       @ replace_bet_by_betl_in_definitions_steps))
