@@ -435,14 +435,16 @@ let constructivize_doc (doc : Rocq_document.t) :
       definitions_stage_two
   in
 
-  let replace_left_by_right =
-    List.filter_map (replace_taccall_tacarg_in_node "left" "right") doc.elements
+  let replace_left_by_stab_left =
+    List.filter_map
+      (replace_taccall_tacarg_in_node "left" "stab_left")
+      doc.elements
   in
 
   Ok
     (update_replaces
        (definitions_file_specific_steps @ replace_require_steps
-      @ replace_context_steps @ replace_left_by_right
+      @ replace_context_steps @ replace_left_by_stab_left
       (* @ admit_proof_steps *)
       @ replace_or_by_constructive_or_in_definitions_steps
        @ replace_or_by_constructive_or_in_proofs_steps
