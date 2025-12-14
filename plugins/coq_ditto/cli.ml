@@ -7,7 +7,8 @@ type transformation_kind =
   | ReplaceAutoWithSteps
   | FlattenGoalSelectors
   | CompressIntro
-  | IdTransformation
+  | IdProofTransformation
+  | IdDocTransformation
   | ConstructivizeGeocoq
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
@@ -68,7 +69,10 @@ let transformations_help =
     ( ConstructivizeGeocoq,
       "Experimental: Transformation to use to constructivize Geocoq" );
     (RocqToLean, "Experimental: Turn Rocq code to lean");
-    (IdTransformation, "Keep the file unchanged.");
+    (IdProofTransformation, "Keep the file unchanged, run on each proof.");
+    ( IdDocTransformation,
+      "Keep the file unchanged, don't run any transformation except initial \
+       parsing" );
   ]
 
 let help_to_string (transformation_help : (transformation_kind * string) list) :
