@@ -136,15 +136,14 @@ let replace_taccall_tacarg_in_node (old_tac_call_name : string)
     replace_taccall_tacarg_in_tacexpr old_tac_call_name new_tac_call_name
   in
   let raw_expr_mapped, did_replace = Tacexpr_map.tacexpr_map f raw_tac_expr in
-  if did_replace then (
+  if did_replace then
     let selector = Syntax_node.get_node_goal_selector_opt node in
     let+ new_node =
       Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
         ~use_default:false node.range.start
       |> Result.to_option
     in
-    Logs.debug (fun m -> m "One replacing steps !");
-    Some (Replace (node.id, new_node)))
+    Some (Replace (node.id, new_node))
   else None
 
 let replace_fun_name_in_constrexpr (old_fun_name : string)
@@ -290,6 +289,34 @@ let add_node_after_require (doc : Rocq_document.t) (node : Syntax_node.t) :
 type definition_object_kind = [%import: Decls.definition_object_kind]
 [@@deriving show]
 
+let fold_constr_expr (f : 'a -> Constrexpr.constr_expr -> 'a) (init : 'a)
+    (t : Constrexpr.constr_expr) : Constrexpr.constr_expr =
+  Constrexpr_ops.fold_constr_expr_with_binders
+    (fun _ a -> a) (* ignore binders *)
+    (fun _ acc e -> f acc e)
+    () init t
+
+let map_constr_expr (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (t : Constrexpr.constr_expr) : Constrexpr.constr_expr =
+  Constrexpr_ops.map_constr_expr_with_binders
+    (fun _ a -> a)
+    (fun _ (e : Constrexpr.constr_expr) -> f e)
+    () t
+
+let is_proof_about_exists (p : Proof.t) : bool =
+  let ( let@ ) o f = match o with None -> false | Some x -> f x in
+  let@ components = Proof.get_theorem_components p in
+
+  Constrexpr_fold.exists
+    (fun expr ->
+      match expr.v with
+      | Constrexpr.CNotation
+          (opt_scope, (notation_entry, notation_key), notation_substitution) ->
+          Logs.debug (fun m -> m "notation key: %s" notation_key);
+          notation_key = "exists _ .. _ , _"
+      | _ -> false)
+    components.expr
+
 let rec update_replaces (l : transformation_step list) =
   match l with
   | [] -> []
@@ -374,7 +401,6 @@ let constructivize_doc (doc : Rocq_document.t) :
     else Ok []
   in
 
-  Logs.debug (fun m -> m "here");
   let replace_require_steps = List.filter_map replace_require doc.elements in
 
   let replace_context_steps = List.filter_map replace_context doc.elements in
@@ -391,6 +417,11 @@ let constructivize_doc (doc : Rocq_document.t) :
   (*       | Error err -> Error err) *)
   (*     (Ok []) proofs *)
   (* in *)
+  let proofs_with_exists = List.filter is_proof_about_exists proofs in
+  List.iter
+    (fun x -> Logs.debug (fun m -> m "%s" (Syntax_node.repr x.proposition)))
+    proofs_with_exists;
+
   let definitions =
     List.filter Syntax_node.is_syntax_node_definition doc.elements
   in
@@ -413,16 +444,14 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
   (***** end of stage 1 **************)
 
-  Logs.debug (fun m -> m "End stage 1");
-
-  let* new_doc =
+  let* stage_one_doc =
     Rocq_document.apply_transformations_steps steps_stage_one doc
   in
 
-  let* proofs_stage_two = Rocq_document.get_proofs new_doc in
+  let* proofs_stage_two = Rocq_document.get_proofs stage_one_doc in
 
   let definitions_stage_two =
-    List.filter Syntax_node.is_syntax_node_definition new_doc.elements
+    List.filter Syntax_node.is_syntax_node_definition stage_one_doc.elements
   in
 
   let replace_bet_by_betl_in_proofs_steps =
@@ -438,13 +467,26 @@ let constructivize_doc (doc : Rocq_document.t) :
   let replace_left_by_stab_left =
     List.filter_map
       (replace_taccall_tacarg_in_node "left" "stab_left")
-      doc.elements
+      stage_one_doc.elements
+  in
+
+  let steps_stage_two = replace_left_by_stab_left in
+
+  let* stage_two_doc =
+    Rocq_document.apply_transformations_steps steps_stage_two stage_one_doc
+  in
+
+  let replace_right_by_stab_right =
+    List.filter_map
+      (replace_taccall_tacarg_in_node "right" "stab_right")
+      stage_two_doc.elements
   in
 
   Ok
     (update_replaces
        (definitions_file_specific_steps @ replace_require_steps
       @ replace_context_steps @ replace_left_by_stab_left
+      @ replace_right_by_stab_right
       (* @ admit_proof_steps *)
       @ replace_or_by_constructive_or_in_definitions_steps
        @ replace_or_by_constructive_or_in_proofs_steps
