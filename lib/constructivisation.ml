@@ -137,13 +137,12 @@ let map_assert_constr_expr
   | TacAtom atom -> (
       match atom with
       | TacAssert (a, b, c, d, asrt) ->
-          TacAtom (TacAssert (a, b, c, d, asrt)) |> CAst.make
+          TacAtom (TacAssert (a, b, c, d, f asrt)) |> CAst.make
       | _ -> tacexpr)
   | _ -> tacexpr
 
-let map_assert_in_node (node : Syntax_node.t)
-    (f : Constrexpr.constr_expr -> Constrexpr.constr_expr) :
-    transformation_step option =
+let map_assert_in_node (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (node : Syntax_node.t) : transformation_step option =
   let+ raw_tac_expr = Syntax_node.get_node_raw_tactic_expr node in
   let raw_expr_mapped, did_replace =
     Tacexpr_map.tacexpr_map (map_assert_constr_expr f) raw_tac_expr
@@ -546,6 +545,22 @@ let constructivize_doc (doc : Rocq_document.t) :
 
   let steps_stage_three = replace_right_by_stab_right in
 
+  let* stage_four_doc =
+    Rocq_document.apply_transformations_steps steps_stage_three stage_three_doc
+  in
+
+  let replace_bet_by_bet_in_constr_expr =
+    replace_fun_name_in_constrexpr "Bet" "BetL"
+  in
+
+  let replace_bet_by_betl_in_assert_steps =
+    List.filter_map
+      (map_assert_in_node replace_bet_by_bet_in_constr_expr)
+      stage_four_doc.elements
+  in
+
+  let steps_stage_four = replace_bet_by_betl_in_assert_steps in
+
   Ok
     (update_replaces steps_stage_zero
-    @ steps_stage_one @ steps_stage_two @ steps_stage_three)
+    @ steps_stage_one @ steps_stage_two @ steps_stage_three @ steps_stage_four)
