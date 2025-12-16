@@ -598,8 +598,9 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
       match element_with_id_opt anchor_id doc with
       | None ->
           Error.format_to_or_error
-            "Can't find the node with id: %s to attach to"
+            "Can't find the node with id: %s to attach (%s) to"
             (Uuidm.to_string anchor_id)
+            (repr attached_node)
       | Some target -> (
           let attached_node_start_point =
             match attach_position with
