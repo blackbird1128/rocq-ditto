@@ -312,7 +312,6 @@ let is_proof_about_exists (p : Proof.t) : bool =
       match expr.v with
       | Constrexpr.CNotation
           (opt_scope, (notation_entry, notation_key), notation_substitution) ->
-          Logs.debug (fun m -> m "notation key: %s" notation_key);
           notation_key = "exists _ .. _ , _"
       | _ -> false)
     components.expr
@@ -331,11 +330,34 @@ let rec update_replaces (l : transformation_step list) =
                     if Uuidm.equal id_el id_curr then
                       Replace (new_node_curr.id, new_node_el)
                     else Replace (id_el, new_node_el)
-                | Add _ | Remove _ | Attach _ -> el_tl)
+                | Attach (new_node_el, attach_position, id_el) ->
+                    if Uuidm.equal id_el id_curr then
+                      Attach (new_node_el, attach_position, new_node_curr.id)
+                    else Replace (id_el, new_node_el)
+                | Add _ | Remove _ -> el_tl)
               tl
           in
           x :: update_replaces new_tl
       | Add _ | Remove _ | Attach _ -> x :: update_replaces tl)
+
+(* remove all the steps referring to a removed node *)
+let rec update_removes (l : transformation_step list) =
+  match l with
+  | [] -> []
+  | x :: tl -> (
+      match x with
+      | Remove id_curr ->
+          let new_tl =
+            List.filter_map
+              (fun el_tl ->
+                match el_tl with
+                | Replace (id_el, _) | Remove id_el ->
+                    if Uuidm.equal id_el id_curr then None else Some el_tl
+                | Add _ | Attach _ -> Some el_tl)
+              tl
+          in
+          x :: update_removes new_tl
+      | Add _ | Replace _ | Attach _ -> x :: update_removes tl)
 
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
@@ -352,8 +374,9 @@ let constructivize_doc (doc : Rocq_document.t) :
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
+  (* stage 0 *)
   let* definitions_file_specific_steps =
-    if Filename.basename doc.filename = "Definitions.v" then (
+    if Filename.basename doc.filename = "Definitions.v" then
       let first_require =
         List.find Syntax_node.is_syntax_node_require doc.elements
       in
@@ -375,7 +398,6 @@ let constructivize_doc (doc : Rocq_document.t) :
            GeoCoq.Algebraic.Counter_models.nD.stability_properties."
           dummy_start
       in
-      Logs.debug (fun m -> m "here !!\n                              ");
 
       let* betl_definition =
         Syntax_node.syntax_node_of_string
@@ -389,15 +411,13 @@ let constructivize_doc (doc : Rocq_document.t) :
           dummy_start
       in
 
-      Logs.debug (fun m -> m "then afterr");
-
       Ok
         [
           Replace (first_require.id, new_first_require);
           Attach (second_require, LineAfter, new_first_require.id);
           Attach (third_require, LineAfter, second_require.id);
           Attach (betl_definition, LineAfter, third_require.id);
-        ])
+        ]
     else Ok []
   in
 
@@ -417,11 +437,6 @@ let constructivize_doc (doc : Rocq_document.t) :
   (*       | Error err -> Error err) *)
   (*     (Ok []) proofs *)
   (* in *)
-  let proofs_with_exists = List.filter is_proof_about_exists proofs in
-  List.iter
-    (fun x -> Logs.debug (fun m -> m "%s" (Syntax_node.repr x.proposition)))
-    proofs_with_exists;
-
   let definitions =
     List.filter Syntax_node.is_syntax_node_definition doc.elements
   in
@@ -438,20 +453,48 @@ let constructivize_doc (doc : Rocq_document.t) :
       definitions
   in
 
-  let steps_stage_one =
-    replace_or_by_constructive_or_in_proofs_steps
+  let steps_stage_zero =
+    replace_require_steps @ replace_context_steps
+    @ replace_or_by_constructive_or_in_proofs_steps
     @ replace_or_by_constructive_or_in_definitions_steps
+    @ definitions_file_specific_steps
   in
   (***** end of stage 1 **************)
 
   let* stage_one_doc =
-    Rocq_document.apply_transformations_steps steps_stage_one doc
+    Rocq_document.apply_transformations_steps steps_stage_zero doc
   in
 
-  let* proofs_stage_two = Rocq_document.get_proofs stage_one_doc in
+  let* proofs_stage_one = Rocq_document.get_proofs stage_one_doc in
+
+  let proofs_with_exists = List.filter is_proof_about_exists proofs_stage_one in
+  List.iter
+    (fun x -> Logs.debug (fun m -> m "%s" (Syntax_node.repr x.proposition)))
+    proofs_with_exists;
+
+  let* admit_exists_proofs_steps =
+    List.fold_left
+      (fun res_acc proof ->
+        match res_acc with
+        | Ok res_acc ->
+            let* steps =
+              Transformations.admit_and_comment_proof_steps doc proof
+            in
+            Ok (steps @ res_acc)
+        | Error err -> Error err)
+      (Ok []) proofs_with_exists
+  in
+
+  let steps_stage_one = admit_exists_proofs_steps in
+
+  let* stage_two_doc =
+    Rocq_document.apply_transformations_steps steps_stage_one stage_one_doc
+  in
+
+  let* proofs_stage_two = Rocq_document.get_proofs stage_two_doc in
 
   let definitions_stage_two =
-    List.filter Syntax_node.is_syntax_node_definition stage_one_doc.elements
+    List.filter Syntax_node.is_syntax_node_definition stage_two_doc.elements
   in
 
   let replace_bet_by_betl_in_proofs_steps =
@@ -467,28 +510,26 @@ let constructivize_doc (doc : Rocq_document.t) :
   let replace_left_by_stab_left =
     List.filter_map
       (replace_taccall_tacarg_in_node "left" "stab_left")
-      stage_one_doc.elements
+      stage_two_doc.elements
   in
 
-  let steps_stage_two = replace_left_by_stab_left in
+  let steps_stage_two =
+    replace_bet_by_betl_in_proofs_steps
+    @ replace_bet_by_betl_in_definitions_steps @ replace_left_by_stab_left
+  in
 
-  let* stage_two_doc =
-    Rocq_document.apply_transformations_steps steps_stage_two stage_one_doc
+  let* stage_three_doc =
+    Rocq_document.apply_transformations_steps steps_stage_two stage_two_doc
   in
 
   let replace_right_by_stab_right =
     List.filter_map
       (replace_taccall_tacarg_in_node "right" "stab_right")
-      stage_two_doc.elements
+      stage_three_doc.elements
   in
 
+  let steps_stage_three = replace_right_by_stab_right in
+
   Ok
-    (update_replaces
-       (definitions_file_specific_steps @ replace_require_steps
-      @ replace_context_steps @ replace_left_by_stab_left
-      @ replace_right_by_stab_right
-      (* @ admit_proof_steps *)
-      @ replace_or_by_constructive_or_in_definitions_steps
-       @ replace_or_by_constructive_or_in_proofs_steps
-       @ replace_bet_by_betl_in_proofs_steps
-       @ replace_bet_by_betl_in_definitions_steps))
+    (update_replaces steps_stage_zero
+    @ steps_stage_one @ steps_stage_two @ steps_stage_three)
