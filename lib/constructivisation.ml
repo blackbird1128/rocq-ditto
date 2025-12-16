@@ -128,6 +128,36 @@ let replace_taccall_tacarg_in_tacexpr (old_tac_call_name : string)
       | _ -> tacexpr)
   | _ -> tacexpr
 
+let map_assert_constr_expr
+    (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let open Ltac_plugin.Tacexpr in
+  match tacexpr.v with
+  | TacAtom atom -> (
+      match atom with
+      | TacAssert (a, b, c, d, asrt) ->
+          TacAtom (TacAssert (a, b, c, d, asrt)) |> CAst.make
+      | _ -> tacexpr)
+  | _ -> tacexpr
+
+let map_assert_in_node (node : Syntax_node.t)
+    (f : Constrexpr.constr_expr -> Constrexpr.constr_expr) :
+    transformation_step option =
+  let+ raw_tac_expr = Syntax_node.get_node_raw_tactic_expr node in
+  let raw_expr_mapped, did_replace =
+    Tacexpr_map.tacexpr_map (map_assert_constr_expr f) raw_tac_expr
+  in
+  if did_replace then
+    let selector = Syntax_node.get_node_goal_selector_opt node in
+    let+ new_node =
+      Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
+        ~use_default:false node.range.start
+      |> Result.to_option
+    in
+    Some (Replace (node.id, new_node))
+  else None
+
 let replace_taccall_tacarg_in_node (old_tac_call_name : string)
     (new_tac_call_name : string) (node : Syntax_node.t) :
     transformation_step option =
@@ -288,20 +318,6 @@ let add_node_after_require (doc : Rocq_document.t) (node : Syntax_node.t) :
 
 type definition_object_kind = [%import: Decls.definition_object_kind]
 [@@deriving show]
-
-let fold_constr_expr (f : 'a -> Constrexpr.constr_expr -> 'a) (init : 'a)
-    (t : Constrexpr.constr_expr) : Constrexpr.constr_expr =
-  Constrexpr_ops.fold_constr_expr_with_binders
-    (fun _ a -> a) (* ignore binders *)
-    (fun _ acc e -> f acc e)
-    () init t
-
-let map_constr_expr (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (t : Constrexpr.constr_expr) : Constrexpr.constr_expr =
-  Constrexpr_ops.map_constr_expr_with_binders
-    (fun _ a -> a)
-    (fun _ (e : Constrexpr.constr_expr) -> f e)
-    () t
 
 let is_proof_about_exists (p : Proof.t) : bool =
   let ( let@ ) o f = match o with None -> false | Some x -> f x in
