@@ -1,3 +1,17 @@
+let map_node
+    ~(recurse : Constrexpr.constr_expr -> Constrexpr.constr_expr * bool)
+    ~(make : Constrexpr.constr_expr list -> Constrexpr.constr_expr)
+    ~(children : Constrexpr.constr_expr list) ~(orig : Constrexpr.constr_expr)
+    ~(m : Constrexpr.constr_expr -> Constrexpr.constr_expr) =
+  let children', changed_children = List.split (List.map recurse children) in
+  let rebuilt = make children' in
+  let mapped = m rebuilt in
+  let changed =
+    List.exists Fun.id changed_children
+    || not (Constrexpr_ops.constr_expr_eq mapped orig)
+  in
+  (mapped, changed)
+
 let rec constr_expr_map (m : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (term : Constrexpr.constr_expr) : Constrexpr.constr_expr * bool =
   let open Constrexpr in
