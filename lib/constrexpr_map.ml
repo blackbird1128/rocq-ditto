@@ -1,50 +1,149 @@
-let map_node
-    ~(recurse : Constrexpr.constr_expr -> Constrexpr.constr_expr * bool)
-    ~(make : Constrexpr.constr_expr list -> Constrexpr.constr_expr)
-    ~(children : Constrexpr.constr_expr list) ~(orig : Constrexpr.constr_expr)
-    ~(m : Constrexpr.constr_expr -> Constrexpr.constr_expr) =
-  let children', changed_children = List.split (List.map recurse children) in
-  let rebuilt = make children' in
-  let mapped = m rebuilt in
-  let changed =
-    List.exists Fun.id changed_children
-    || not (Constrexpr_ops.constr_expr_eq mapped orig)
-  in
-  (mapped, changed)
+open Constrexpr
 
-let rec constr_expr_map (m : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (term : Constrexpr.constr_expr) : Constrexpr.constr_expr * bool =
-  let open Constrexpr in
-  let recurse = constr_expr_map m in
-  let default t = m t in
-  let new_term =
-    match term.v with
-    | CRef _ | CFix _ | CCoFix _ | CAppExpl _ | CProj _ | CRecord _ | CCases _
-    | CLetTuple _ | CIf _ | CHole _ | CGenarg _ | CGenargGlob _ | CPatVar _
-    | CEvar _ | CSort _ | CGeneralization _ | CPrim _ | CDelimiters _ | CArray _
-      ->
-        default term
-    | CProdN (binders, expr) ->
-        let expr', _ = recurse expr in
-        default (CAst.make (CProdN (binders, expr')))
-    | CLambdaN (binders, expr) ->
-        let expr', _ = recurse expr in
-        default (CAst.make (CLambdaN (binders, expr')))
-    | CLetIn (name, expr, expr_opt, expr_bis) ->
-        let expr', _ = recurse expr in
-        let expr_opt' = Option.map (fun e -> fst (recurse e)) expr_opt in
-        let expr_bis', _ = recurse expr_bis in
-        default (CAst.make (CLetIn (name, expr', expr_opt', expr_bis')))
-    | CApp (f, args) ->
-        let f', _ = recurse f in
-        default (CAst.make (CApp (f', args)))
-    | CCast (from, kind, to_) ->
-        let from', _ = recurse from in
-        let to_', _ = recurse to_ in
-        default (CAst.make (CCast (from', kind, to_')))
-    | CNotation (scope, (entry, key), (l1, ll, pat, binders)) ->
-        let l1' = List.map (fun e -> fst (recurse e)) l1 in
-        default
-          (CAst.make (CNotation (scope, (entry, key), (l1', ll, pat, binders))))
+let option_map f = function None -> None | Some x -> Some (f x)
+
+let rec cases_pattern_expr_map m (cp : cases_pattern_expr) =
+  let v =
+    match cp.v with
+    | CPatAlias (p, id) -> CPatAlias (cases_pattern_expr_map m p, id)
+    | CPatCstr (c, args_opt, args) ->
+        CPatCstr
+          ( c,
+            option_map (List.map (cases_pattern_expr_map m)) args_opt,
+            List.map (cases_pattern_expr_map m) args )
+    | CPatOr ps -> CPatOr (List.map (cases_pattern_expr_map m) ps)
+    | CPatNotation (s, a, b, ps) ->
+        CPatNotation (s, a, b, List.map (cases_pattern_expr_map m) ps)
+    | CPatRecord fields ->
+        CPatRecord
+          (List.map (fun (l, p) -> (l, cases_pattern_expr_map m p)) fields)
+    | CPatDelimiters (a, b, p) ->
+        CPatDelimiters (a, b, cases_pattern_expr_map m p)
+    | CPatCast (p, e) ->
+        CPatCast (cases_pattern_expr_map m p, constr_expr_map m e)
+    | CPatAtom _ | CPatPrim _ -> cp.v
   in
-  (new_term, not (Constrexpr_ops.constr_expr_eq new_term term))
+  v |> CAst.make
+
+and local_binder_expr_map m = function
+  | CLocalAssum (ids, k, b, ty) -> CLocalAssum (ids, k, b, constr_expr_map m ty)
+  | CLocalDef (id, k, rhs, ty_opt) ->
+      CLocalDef
+        (id, k, constr_expr_map m rhs, option_map (constr_expr_map m) ty_opt)
+  | CLocalPattern _ as lb -> lb
+
+and fixpoint_order_expr_map m (fo : fixpoint_order_expr) =
+  let (v : fixpoint_order_expr_r) =
+    match fo.v with
+    | CStructRec _ -> fo.v
+    | CWfRec (id, e) -> CWfRec (id, constr_expr_map m e)
+    | CMeasureRec (id, measure, rel_opt) ->
+        CMeasureRec
+          (id, constr_expr_map m measure, option_map (constr_expr_map m) rel_opt)
+  in
+  v |> CAst.make
+
+and constr_expr_map (m : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (term : Constrexpr.constr_expr) : Constrexpr.constr_expr =
+  let res =
+    match term.v with
+    | CRef _ -> term.v
+    | CFix (k, defs) ->
+        CFix
+          ( k,
+            List.map
+              (fun (id, bl, ord_opt, binders, body, ty) ->
+                ( id,
+                  bl,
+                  option_map (fixpoint_order_expr_map m) ord_opt,
+                  List.map (local_binder_expr_map m) binders,
+                  constr_expr_map m body,
+                  constr_expr_map m ty ))
+              defs )
+    | CCoFix (k, defs) ->
+        CCoFix
+          ( k,
+            List.map
+              (fun (id, bl, binders, body, ty) ->
+                ( id,
+                  bl,
+                  List.map (local_binder_expr_map m) binders,
+                  constr_expr_map m body,
+                  constr_expr_map m ty ))
+              defs )
+    | CProdN (binders, body) ->
+        CProdN
+          (List.map (local_binder_expr_map m) binders, constr_expr_map m body)
+    | CLambdaN (binders, body) ->
+        CLambdaN
+          (List.map (local_binder_expr_map m) binders, constr_expr_map m body)
+    | CLetIn (id, rhs, ty_opt, body) ->
+        CLetIn
+          ( id,
+            constr_expr_map m rhs,
+            option_map (constr_expr_map m) ty_opt,
+            constr_expr_map m body )
+    | CAppExpl (f, args) -> CAppExpl (f, List.map (constr_expr_map m) args)
+    | CApp (fn, args) ->
+        CApp
+          ( constr_expr_map m fn,
+            List.map (fun (e, i) -> (constr_expr_map m e, i)) args )
+    | CProj (p, q, args, scrut) ->
+        CProj
+          ( p,
+            q,
+            List.map (fun (e, i) -> (constr_expr_map m e, i)) args,
+            constr_expr_map m scrut )
+    | CRecord fields ->
+        CRecord (List.map (fun (l, e) -> (l, constr_expr_map m e)) fields)
+    | CCases (sty, ret_ty_opt, cases, branches) ->
+        CCases
+          ( sty,
+            option_map (constr_expr_map m) ret_ty_opt,
+            List.map
+              (fun (scrut, k, pat_opt) -> (constr_expr_map m scrut, k, pat_opt))
+              cases,
+            List.map
+              (fun (b : branch_expr) ->
+                let pats, body = b.v in
+
+                ( List.map (List.map (cases_pattern_expr_map m)) pats,
+                  constr_expr_map m body )
+                |> CAst.make)
+              branches )
+    | CLetTuple (ids, (na, ret_ty_opt), scrut, body) ->
+        CLetTuple
+          ( ids,
+            (na, option_map (constr_expr_map m) ret_ty_opt),
+            constr_expr_map m scrut,
+            constr_expr_map m body )
+    | CIf (cond, (na, ret_ty_opt), then_, else_) ->
+        CIf
+          ( constr_expr_map m cond,
+            (na, option_map (constr_expr_map m) ret_ty_opt),
+            constr_expr_map m then_,
+            constr_expr_map m else_ )
+    | CEvar (k, insts) ->
+        CEvar (k, List.map (fun (id, e) -> (id, constr_expr_map m e)) insts)
+    | CCast (e, k, ty) -> CCast (constr_expr_map m e, k, constr_expr_map m ty)
+    | CNotation (s, a, (es, ess, kps, lbs)) ->
+        CNotation
+          ( s,
+            a,
+            ( List.map (constr_expr_map m) es,
+              List.map (List.map (constr_expr_map m)) ess,
+              List.map (fun (p, k) -> (cases_pattern_expr_map m p, k)) kps,
+              List.map (List.map (local_binder_expr_map m)) lbs ) )
+    | CGeneralization (k, e) -> CGeneralization (k, constr_expr_map m e)
+    | CDelimiters (a, b, e) -> CDelimiters (a, b, constr_expr_map m e)
+    | CArray (k, arr, default, ty) ->
+        CArray
+          ( k,
+            Array.map (constr_expr_map m) arr,
+            constr_expr_map m default,
+            constr_expr_map m ty )
+    | CHole _ | CGenarg _ | CGenargGlob _ | CPatVar _ | CSort _ | CPrim _ ->
+        term.v
+  in
+
+  m (res |> CAst.make)
