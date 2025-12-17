@@ -41,10 +41,8 @@ let replace_bet_by_betl_in_proof (x : Proof.t) : transformation_step option =
   let expr = components.expr in
 
   let replace_by_betl_map = replace_func_map "Bet" "BetL" in
-  let new_expr, did_replace =
-    Constrexpr_map.constr_expr_map replace_by_betl_map expr
-  in
-  if did_replace then
+  let new_expr = Constrexpr_map.constr_expr_map replace_by_betl_map expr in
+  if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
     let new_components = { components with expr = new_expr } in
     let new_node =
       Proof.syntax_node_of_theorem_components new_components x_start
@@ -57,11 +55,11 @@ let replace_or_by_constructive_or (x : Proof.t) : transformation_step option =
   let x_start = x.proposition.range.start in
   let+ components = Proof.get_theorem_components x in
 
-  let new_expr, did_replace =
+  let new_expr =
     Constrexpr_map.constr_expr_map replace_or_by_constructive_or_map
       components.expr
   in
-  if did_replace then
+  if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
     let new_components = { components with expr = new_expr } in
 
     let new_node =

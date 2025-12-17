@@ -91,12 +91,12 @@ let replace_notation_in_proof_proposition (old_notation : string)
   let x_start = x.proposition.range.start in
   let+ components = Proof.get_theorem_components x in
 
-  let new_expr, did_replace =
+  let new_expr =
     Constrexpr_map.constr_expr_map
       (replace_notation_in_constrexpr old_notation new_notation)
       components.expr
   in
-  if did_replace then
+  if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
     let new_components = { components with expr = new_expr } in
 
     let new_node =
@@ -137,7 +137,19 @@ let map_assert_constr_expr
   | TacAtom atom -> (
       match atom with
       | TacAssert (a, b, c, d, asrt) ->
-          TacAtom (TacAssert (a, b, c, d, f asrt)) |> CAst.make
+          let x = TacAtom (TacAssert (a, b, c, d, f asrt)) |> CAst.make in
+          let env = Environ.empty_env in
+          let evd = Evd.empty in
+
+          let assrt_repr =
+            Ppconstr.pr_constr_expr env evd (f asrt) |> Pp.string_of_ppcmds
+          in
+          let x_repr =
+            Ltac_plugin.Pptactic.pr_raw_tactic env evd x |> Pp.string_of_ppcmds
+          in
+          Logs.debug (fun m -> m "assrt_repr : %s" assrt_repr);
+          Logs.debug (fun m -> m "x: %s" x_repr);
+          x
       | _ -> tacexpr)
   | _ -> tacexpr
 
@@ -178,16 +190,25 @@ let replace_taccall_tacarg_in_node (old_tac_call_name : string)
 let replace_fun_name_in_constrexpr (old_fun_name : string)
     (new_fun_name : string) (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
+  let old_q = Libnames.qualid_of_string old_fun_name in
+  let new_q = Libnames.qualid_of_string new_fun_name in
+  let mk_ref () = CAst.make (Constrexpr.CRef (new_q, None)) in
+
+  let matches_ref q =
+    (* more robust than string_of_qualid equality *)
+    Libnames.qualid_eq q old_q
+  in
+
   match term.v with
+  | Constrexpr.CRef (q, _) when matches_ref q ->
+      CAst.make (Constrexpr.CRef (new_q, None))
   | Constrexpr.CApp (f, args) -> (
       match f.v with
-      | Constrexpr.CRef (qualid, _) ->
-          if Libnames.string_of_qualid qualid = old_fun_name then
-            let new_fun_qualid = Libnames.qualid_of_string new_fun_name in
-            let new_fun = CAst.make (Constrexpr.CRef (new_fun_qualid, None)) in
-            CAst.make (Constrexpr.CApp (new_fun, args))
-          else term
+      | Constrexpr.CRef (q, _) when matches_ref q ->
+          CAst.make (Constrexpr.CApp (mk_ref (), args))
       | _ -> term)
+  | Constrexpr.CAppExpl ((q, instance_expr_opt), l) ->
+      CAst.make (Constrexpr.CAppExpl ((new_q, instance_expr_opt), l))
   | _ -> term
 
 let replace_fun_name_in_proof (old_fun_name : string) (new_fun_name : string)
@@ -198,8 +219,8 @@ let replace_fun_name_in_proof (old_fun_name : string) (new_fun_name : string)
   let expr = components.expr in
 
   let replace_map = replace_fun_name_in_constrexpr old_fun_name new_fun_name in
-  let new_expr, did_replace = Constrexpr_map.constr_expr_map replace_map expr in
-  if did_replace then
+  let new_expr = Constrexpr_map.constr_expr_map replace_map expr in
+  if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
     let new_components = { components with expr = new_expr } in
     let new_node =
       Proof.syntax_node_of_theorem_components new_components x_start
@@ -232,10 +253,10 @@ let replace_fun_name_in_definition (old_fun_name : string)
                   let replace_map =
                     replace_fun_name_in_constrexpr old_fun_name new_fun_name
                   in
-                  let new_expr, did_replace =
+                  let new_expr =
                     Constrexpr_map.constr_expr_map replace_map expr1
                   in
-                  if did_replace then
+                  if not (Constrexpr_ops.constr_expr_eq expr1 new_expr) then
                     let new_define_body =
                       DefineBody (binders, raw_red_expr_opt, new_expr, opt_expr)
                     in
@@ -278,11 +299,11 @@ let replace_notation_in_definition (old_notation : string)
                     replace_notation_in_constrexpr old_notation new_notation
                   in
 
-                  let new_expr, did_replace =
+                  let new_expr =
                     Constrexpr_map.constr_expr_map replace_map expr1
                   in
 
-                  if did_replace then
+                  if not (Constrexpr_ops.constr_expr_eq expr1 new_expr) then
                     let new_define_body =
                       DefineBody (binders, raw_red_expr_opt, new_expr, opt_expr)
                     in
