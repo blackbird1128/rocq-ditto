@@ -92,7 +92,7 @@ let replace_notation_in_proof_proposition (old_notation : string)
   let+ components = Proof.get_theorem_components x in
 
   let new_expr, did_replace =
-    Expr_substitution.constr_expr_map
+    Constrexpr_map.constr_expr_map
       (replace_notation_in_constrexpr old_notation new_notation)
       components.expr
   in
@@ -198,9 +198,7 @@ let replace_fun_name_in_proof (old_fun_name : string) (new_fun_name : string)
   let expr = components.expr in
 
   let replace_map = replace_fun_name_in_constrexpr old_fun_name new_fun_name in
-  let new_expr, did_replace =
-    Expr_substitution.constr_expr_map replace_map expr
-  in
+  let new_expr, did_replace = Constrexpr_map.constr_expr_map replace_map expr in
   if did_replace then
     let new_components = { components with expr = new_expr } in
     let new_node =
@@ -235,7 +233,7 @@ let replace_fun_name_in_definition (old_fun_name : string)
                     replace_fun_name_in_constrexpr old_fun_name new_fun_name
                   in
                   let new_expr, did_replace =
-                    Expr_substitution.constr_expr_map replace_map expr1
+                    Constrexpr_map.constr_expr_map replace_map expr1
                   in
                   if did_replace then
                     let new_define_body =
@@ -281,7 +279,7 @@ let replace_notation_in_definition (old_notation : string)
                   in
 
                   let new_expr, did_replace =
-                    Expr_substitution.constr_expr_map replace_map expr1
+                    Constrexpr_map.constr_expr_map replace_map expr1
                   in
 
                   if did_replace then
