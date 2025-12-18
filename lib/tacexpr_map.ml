@@ -1,87 +1,95 @@
 open Ltac_plugin
 
-let rec tacexpr_map (m : Tacexpr.raw_tactic_expr -> Tacexpr.raw_tactic_expr)
-    (expr : Tacexpr.raw_tactic_expr) : Tacexpr.raw_tactic_expr * bool =
-  let recurse =
-   fun x ->
-    let res, _ = tacexpr_map m x in
-    res
+let rec tacexpr_map
+    (f : 'a Tacexpr.gen_tactic_expr -> 'a Tacexpr.gen_tactic_expr)
+    (expr : 'a Tacexpr.gen_tactic_expr) : 'a Tacexpr.gen_tactic_expr =
+  let map = tacexpr_map f in
+  let map_list = List.map map in
+  let map_array = Array.map map in
+  let map_opt = Option.map map in
+  let mk v = CAst.make ?loc:expr.loc v in
+
+  let rec map_arg (arg : 'a Tacexpr.gen_tactic_arg) : 'a Tacexpr.gen_tactic_arg
+      =
+    match arg with
+    | Tacexpr.TacGeneric _ -> arg
+    | Tacexpr.ConstrMayEval _ -> arg
+    | Tacexpr.Reference _ -> arg
+    | Tacexpr.TacFreshId _ -> arg
+    | Tacexpr.TacPretype _ -> arg
+    | Tacexpr.TacNumgoals -> arg
+    | Tacexpr.Tacexp t -> Tacexpr.Tacexp (map t)
+    | Tacexpr.TacCall call ->
+        let r, args = call.v in
+        CAst.make ?loc:call.loc (r, List.map map_arg args) |> fun call' ->
+        Tacexpr.TacCall call'
   in
-  let default t = m t in
-  let new_expr =
+
+  let map_atomic (a : 'a Tacexpr.gen_atomic_tactic_expr) :
+      'a Tacexpr.gen_atomic_tactic_expr =
+    match a with
+    | Tacexpr.TacIntroPattern _ -> a
+    | Tacexpr.TacApply _ -> a
+    | Tacexpr.TacElim _ -> a
+    | Tacexpr.TacCase _ -> a
+    | Tacexpr.TacMutualFix _ -> a
+    | Tacexpr.TacMutualCofix _ -> a
+    | Tacexpr.TacGeneralize _ -> a
+    | Tacexpr.TacLetTac _ -> a
+    | Tacexpr.TacInductionDestruct _ -> a
+    | Tacexpr.TacReduce _ -> a
+    | Tacexpr.TacChange _ -> a
+    | Tacexpr.TacInversion _ -> a
+    | Tacexpr.TacAssert (ev, b, tacoptopt, ipatopt, trm) ->
+        let tacoptopt' = Option.map (Option.map map) tacoptopt in
+        Tacexpr.TacAssert (ev, b, tacoptopt', ipatopt, trm)
+    | Tacexpr.TacRewrite (ev, l, clause, tacopt) ->
+        let tacopt' = map_opt tacopt in
+        Tacexpr.TacRewrite (ev, l, clause, tacopt')
+  in
+
+  let expr' =
     match expr.v with
-    | Tacexpr.TacAtom _ -> default expr
-    | Tacexpr.TacThen (a, b) ->
-        let a' = recurse a in
-        let b' = recurse b in
-        default (CAst.make (Tacexpr.TacThen (a', b')))
-    | Tacexpr.TacDispatch tacexpr_list ->
-        let mapped_l = List.map recurse tacexpr_list in
-        default (CAst.make (Tacexpr.TacDispatch mapped_l))
-    | Tacexpr.TacExtendTac (tacexpr_array1, tacexpr, tacexpr_array2) ->
-        let mapped_a1 = Array.map recurse tacexpr_array1 in
-        let mapped_tacexpr = recurse tacexpr in
-        let mapped_a2 = Array.map recurse tacexpr_array2 in
-        default
-          (CAst.make
-             (Tacexpr.TacExtendTac (mapped_a1, mapped_tacexpr, mapped_a2)))
-    | Tacexpr.TacThens (tacexpr, tacexpr_list) ->
-        let tacexpr_mapped = recurse tacexpr in
-        let mapped_l = List.map recurse tacexpr_list in
-        default (CAst.make (Tacexpr.TacThens (tacexpr_mapped, mapped_l)))
-    | Tacexpr.TacThens3parts (_, _, _, _) -> default expr
-    | Tacexpr.TacFirst tacexpr_list ->
-        let mapped_l = List.map recurse tacexpr_list in
-        default (CAst.make (Tacexpr.TacFirst mapped_l))
-    | Tacexpr.TacSolve tacexpr_list ->
-        let mapped_l = List.map recurse tacexpr_list in
-        default (CAst.make (Tacexpr.TacSolve mapped_l))
-    | Tacexpr.TacTry a ->
-        let a' = recurse a in
-        default (CAst.make (Tacexpr.TacTry a'))
-    | Tacexpr.TacOr (a, b) ->
-        let a' = recurse a in
-        let b' = recurse b in
-        default (CAst.make (Tacexpr.TacOr (a', b')))
-    | Tacexpr.TacOnce tacexpr ->
-        let mapped_tacexpr = recurse tacexpr in
-        default (CAst.make (Tacexpr.TacOnce mapped_tacexpr))
-    | Tacexpr.TacExactlyOnce tacexpr ->
-        let mapped_tacexpr = recurse tacexpr in
-        default (CAst.make (Tacexpr.TacExactlyOnce mapped_tacexpr))
-    | Tacexpr.TacIfThenCatch (_, _, _) -> default expr
-    | Tacexpr.TacOrelse (a, b) ->
-        let a' = recurse a in
-        let b' = recurse b in
-        default (CAst.make (Tacexpr.TacOrelse (a', b')))
-    | Tacexpr.TacDo (n, tacexpr) ->
-        let mapped_tacexpr = recurse tacexpr in
-        default (CAst.make (Tacexpr.TacDo (n, mapped_tacexpr)))
-    | Tacexpr.TacTimeout (n, tacexpr) ->
-        let mapped_tacexpr = recurse tacexpr in
-        default (CAst.make (Tacexpr.TacTimeout (n, mapped_tacexpr)))
-    | Tacexpr.TacTime (opt_str, tacexpr) ->
-        let mapped_tacexpr = recurse tacexpr in
-        default (CAst.make (Tacexpr.TacTime (opt_str, mapped_tacexpr)))
-    | Tacexpr.TacRepeat tacexpr ->
-        let mapped_tacexpr = recurse tacexpr in
-        default (CAst.make (Tacexpr.TacRepeat mapped_tacexpr))
-    | Tacexpr.TacProgress tacexpr ->
-        let mapped_tacexpr = recurse tacexpr in
-        default (CAst.make (Tacexpr.TacProgress mapped_tacexpr))
-    | Tacexpr.TacAbstract (tacexpr, opt_name) ->
-        let mapped_tacexpr = recurse tacexpr in
-        default (CAst.make (Tacexpr.TacAbstract (mapped_tacexpr, opt_name)))
-    | Tacexpr.TacId _ | Tacexpr.TacFail (_, _, _) -> default expr
-    | Tacexpr.TacLetIn (_, _, _) -> default expr
-    | Tacexpr.TacMatch (_, _, _) -> default expr
-    | Tacexpr.TacMatchGoal (_, _, _) -> default expr
-    | Tacexpr.TacFun _ -> default expr
-    | Tacexpr.TacArg tacexpr -> default expr
-    | Tacexpr.TacSelect (goal_select, tacexpr) ->
-        let mapped_tacexpr = recurse tacexpr in
-        default (CAst.make (Tacexpr.TacSelect (goal_select, mapped_tacexpr)))
-    | Tacexpr.TacML (_, _) -> default expr
-    | Tacexpr.TacAlias (ltac_constant, tacexpr_list) -> default expr
+    | Tacexpr.TacAtom a -> mk (Tacexpr.TacAtom (map_atomic a))
+    | Tacexpr.TacThen (a, b) -> mk (Tacexpr.TacThen (map a, map b))
+    | Tacexpr.TacDispatch l -> mk (Tacexpr.TacDispatch (map_list l))
+    | Tacexpr.TacExtendTac (a1, t, a2) ->
+        mk (Tacexpr.TacExtendTac (map_array a1, map t, map_array a2))
+    | Tacexpr.TacThens (t, l) -> mk (Tacexpr.TacThens (map t, map_list l))
+    | Tacexpr.TacThens3parts (t1, a1, t2, a2) ->
+        mk (Tacexpr.TacThens3parts (map t1, map_array a1, map t2, map_array a2))
+    | Tacexpr.TacFirst l -> mk (Tacexpr.TacFirst (map_list l))
+    | Tacexpr.TacSolve l -> mk (Tacexpr.TacSolve (map_list l))
+    | Tacexpr.TacTry t -> mk (Tacexpr.TacTry (map t))
+    | Tacexpr.TacOr (a, b) -> mk (Tacexpr.TacOr (map a, map b))
+    | Tacexpr.TacOnce t -> mk (Tacexpr.TacOnce (map t))
+    | Tacexpr.TacExactlyOnce t -> mk (Tacexpr.TacExactlyOnce (map t))
+    | Tacexpr.TacIfThenCatch (a, b, c) ->
+        mk (Tacexpr.TacIfThenCatch (map a, map b, map c))
+    | Tacexpr.TacOrelse (a, b) -> mk (Tacexpr.TacOrelse (map a, map b))
+    | Tacexpr.TacDo (n, t) -> mk (Tacexpr.TacDo (n, map t))
+    | Tacexpr.TacTimeout (n, t) -> mk (Tacexpr.TacTimeout (n, map t))
+    | Tacexpr.TacTime (s, t) -> mk (Tacexpr.TacTime (s, map t))
+    | Tacexpr.TacRepeat t -> mk (Tacexpr.TacRepeat (map t))
+    | Tacexpr.TacProgress t -> mk (Tacexpr.TacProgress (map t))
+    | Tacexpr.TacAbstract (t, nameopt) ->
+        mk (Tacexpr.TacAbstract (map t, nameopt))
+    | Tacexpr.TacId _ -> expr
+    | Tacexpr.TacFail _ -> expr
+    | Tacexpr.TacLetIn (rf, binds, body) ->
+        let binds' = List.map (fun (ln, a) -> (ln, map_arg a)) binds in
+        mk (Tacexpr.TacLetIn (rf, binds', map body))
+    | Tacexpr.TacMatch (lf, scrut, rules) ->
+        mk (Tacexpr.TacMatch (lf, map scrut, rules))
+    | Tacexpr.TacMatchGoal (lf, dir, rules) -> expr
+    | Tacexpr.TacFun (names, body) -> mk (Tacexpr.TacFun (names, map body))
+    | Tacexpr.TacArg a -> mk (Tacexpr.TacArg (map_arg a))
+    | Tacexpr.TacSelect (gs, t) -> mk (Tacexpr.TacSelect (gs, map t))
+    | Tacexpr.TacML (entry, args) ->
+        mk (Tacexpr.TacML (entry, List.map map_arg args))
+    | Tacexpr.TacAlias (kn, args) ->
+        mk (Tacexpr.TacAlias (kn, List.map map_arg args))
   in
-  (new_expr, expr != new_expr)
+
+  (* bottom-up: apply user function after mapping children *)
+  f expr'
