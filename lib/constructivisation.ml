@@ -4,6 +4,25 @@ open Vernacexpr
 let ( let* ) = Result.bind
 let ( let+ ) = Option.bind
 
+let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  let pp = Ppconstr.pr_constr_expr env sigma x in
+  Pp.string_of_ppcmds pp
+
+let rec remove_loc (s : Sexplib.Sexp.t) : Sexplib.Sexp.t option =
+  match s with
+  | Atom _ as a -> Some a
+  | List (Atom "loc" :: _) -> None (* drop the whole (loc ...) *)
+  | List xs ->
+      let xs' = xs |> List.filter_map remove_loc in
+      Some (List xs')
+
+let strip_loc sexp =
+  match remove_loc sexp with
+  | Some s -> s
+  | None -> List [] (* should basically never happen at the top *)
+
 let replace_require (x : Syntax_node.t) : transformation_step option =
   let split_prefix (prefix : string) (s : string) =
     let plen = String.length prefix in
@@ -137,29 +156,19 @@ let map_assert_constr_expr
   | TacAtom atom -> (
       match atom with
       | TacAssert (a, b, c, d, asrt) ->
-          let x = TacAtom (TacAssert (a, b, c, d, f asrt)) |> CAst.make in
-          let env = Environ.empty_env in
-          let evd = Evd.empty in
-
-          let assrt_repr =
-            Ppconstr.pr_constr_expr env evd (f asrt) |> Pp.string_of_ppcmds
-          in
-          let x_repr =
-            Ltac_plugin.Pptactic.pr_raw_tactic env evd x |> Pp.string_of_ppcmds
-          in
-          Logs.debug (fun m -> m "assrt_repr : %s" assrt_repr);
-          Logs.debug (fun m -> m "x: %s" x_repr);
-          x
+          TacAtom
+            (TacAssert (a, b, c, d, Constrexpr_map.constr_expr_map f asrt))
+          |> CAst.make
       | _ -> tacexpr)
   | _ -> tacexpr
 
 let map_assert_in_node (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (node : Syntax_node.t) : transformation_step option =
   let+ raw_tac_expr = Syntax_node.get_node_raw_tactic_expr node in
-  let raw_expr_mapped, did_replace =
+  let raw_expr_mapped =
     Tacexpr_map.tacexpr_map (map_assert_constr_expr f) raw_tac_expr
   in
-  if did_replace then
+  if not (raw_tac_expr = raw_expr_mapped) then
     let selector = Syntax_node.get_node_goal_selector_opt node in
     let+ new_node =
       Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
@@ -176,8 +185,8 @@ let replace_taccall_tacarg_in_node (old_tac_call_name : string)
   let f =
     replace_taccall_tacarg_in_tacexpr old_tac_call_name new_tac_call_name
   in
-  let raw_expr_mapped, did_replace = Tacexpr_map.tacexpr_map f raw_tac_expr in
-  if did_replace then
+  let raw_expr_mapped = Tacexpr_map.tacexpr_map f raw_tac_expr in
+  if not (raw_tac_expr = raw_expr_mapped) then
     let selector = Syntax_node.get_node_goal_selector_opt node in
     let+ new_node =
       Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
@@ -192,7 +201,6 @@ let replace_fun_name_in_constrexpr (old_fun_name : string)
     Constrexpr.constr_expr =
   let old_q = Libnames.qualid_of_string old_fun_name in
   let new_q = Libnames.qualid_of_string new_fun_name in
-  let mk_ref () = CAst.make (Constrexpr.CRef (new_q, None)) in
 
   let matches_ref q =
     (* more robust than string_of_qualid equality *)
@@ -200,13 +208,11 @@ let replace_fun_name_in_constrexpr (old_fun_name : string)
   in
 
   match term.v with
-  | Constrexpr.CRef (q, _) when matches_ref q ->
-      CAst.make (Constrexpr.CRef (new_q, None))
-  | Constrexpr.CApp (f, args) -> (
-      match f.v with
-      | Constrexpr.CRef (q, _) when matches_ref q ->
-          CAst.make (Constrexpr.CApp (mk_ref (), args))
-      | _ -> term)
+  | Constrexpr.CApp (fn, args) -> term
+  | Constrexpr.CRef (q, instance_expr_opt) ->
+      if matches_ref q then
+        CAst.make (Constrexpr.CRef (new_q, instance_expr_opt))
+      else term
   | Constrexpr.CAppExpl ((q, instance_expr_opt), l) ->
       CAst.make (Constrexpr.CAppExpl ((new_q, instance_expr_opt), l))
   | _ -> term
@@ -228,12 +234,6 @@ let replace_fun_name_in_proof (old_fun_name : string) (new_fun_name : string)
 
     Some (Replace (x.proposition.id, new_node))
   else None
-
-let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
-  let env = Global.env () in
-  let sigma = Evd.from_env env in
-  let pp = Ppconstr.pr_constr_expr env sigma x in
-  Pp.string_of_ppcmds pp
 
 let replace_fun_name_in_definition (old_fun_name : string)
     (new_fun_name : string) (x : Syntax_node.t) : transformation_step option =
@@ -568,17 +568,19 @@ let constructivize_doc (doc : Rocq_document.t) :
     Rocq_document.apply_transformations_steps steps_stage_three stage_three_doc
   in
 
-  let replace_bet_by_bet_in_constr_expr =
-    replace_fun_name_in_constrexpr "Bet" "BetL"
+  let f_assert =
+   fun x ->
+    replace_fun_name_in_constrexpr "Bet" "BetL" x
+    |> replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _"
   in
 
-  let replace_bet_by_betl_in_assert_steps =
-    List.filter_map
-      (map_assert_in_node replace_bet_by_bet_in_constr_expr)
-      stage_four_doc.elements
+  let replace_bet_by_betl_and_or_by_cons_or_in_assert_steps =
+    List.filter_map (map_assert_in_node f_assert) stage_four_doc.elements
   in
 
-  let steps_stage_four = replace_bet_by_betl_in_assert_steps in
+  let steps_stage_four =
+    replace_bet_by_betl_and_or_by_cons_or_in_assert_steps
+  in
 
   Ok
     (update_replaces steps_stage_zero
