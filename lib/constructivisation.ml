@@ -6,6 +6,7 @@ let ( let+ ) = Option.bind
 
 let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
   let env = Global.env () in
+
   let sigma = Evd.from_env env in
   let pp = Ppconstr.pr_constr_expr env sigma x in
   Pp.string_of_ppcmds pp
@@ -62,7 +63,7 @@ let replace_require (x : Syntax_node.t) : transformation_step option =
                              new_libnames_import_list ))
                     in
                     let new_vernac_control =
-                      CAst.make { control = []; attrs = []; expr = new_expr }
+                      Syntax_node.mk_vernac_control new_expr
                     in
 
                     let new_node =
@@ -235,6 +236,53 @@ let replace_fun_name_in_proof (old_fun_name : string) (new_fun_name : string)
     Some (Replace (x.proposition.id, new_node))
   else None
 
+let get_cref_qualid (x : Constrexpr.constr_expr) : Libnames.qualid option =
+  match x.v with
+  | Constrexpr.CRef (qualid, instance_expr) -> Some qualid
+  | _ -> None
+
+let is_constrexpr_eq_dec_points_a_b (x : Constrexpr.constr_expr) : bool =
+  match x.v with
+  | Constrexpr.CApp (func, _) ->
+      Option.map Libnames.string_of_qualid (get_cref_qualid func)
+      = Some "eq_dec_points"
+  | _ -> false
+
+let get_func_args (x : Constrexpr.constr_expr) : Constrexpr.constr_expr list =
+  match x.v with Constrexpr.CApp (_, args) -> List.map fst args | _ -> []
+
+let replace_induction_by_stab_eq_point (x : Syntax_node.t) :
+    transformation_step option =
+  let+ raw_atomic_expr = Syntax_node.get_node_raw_atomic_tactic_expr x in
+
+  match raw_atomic_expr with
+  | TacInductionDestruct (true, false, (induction_clause_l, opt_bindings)) -> (
+      if List.length induction_clause_l != 1 then None
+      else
+        let induction_clause_head = List.hd induction_clause_l in
+        let (tac_flag, core_destruction_arg), _, _ = induction_clause_head in
+
+        match core_destruction_arg with
+        | ElimOnConstr (constrexpr, NoBindings)
+          when is_constrexpr_eq_dec_points_a_b constrexpr ->
+            let fun_args = get_func_args constrexpr in
+            let fun_args_str =
+              List.map
+                (fun x ->
+                  get_cref_qualid x |> Option.get |> Libnames.string_of_qualid)
+                fun_args
+            in
+            let new_node_str =
+              "stab_eq_point " ^ String.concat " " fun_args_str ^ "; intros ?H."
+            in
+            let+ new_node =
+              Syntax_node.syntax_node_of_string new_node_str x.range.start
+              |> Result.to_option
+            in
+            Some (Replace (x.id, new_node))
+        | _ -> None)
+  | _ -> None
+
 let replace_fun_name_in_definition (old_fun_name : string)
     (new_fun_name : string) (x : Syntax_node.t) : transformation_step option =
   match x.ast with
@@ -367,7 +415,7 @@ let rec update_replaces (l : transformation_step list) =
                 | Attach (new_node_el, attach_position, id_el) ->
                     if Uuidm.equal id_el id_curr then
                       Attach (new_node_el, attach_position, new_node_curr.id)
-                    else Replace (id_el, new_node_el)
+                    else Attach (new_node_el, attach_position, id_el)
                 | Add _ | Remove _ -> el_tl)
               tl
           in
@@ -414,6 +462,7 @@ let constructivize_doc (doc : Rocq_document.t) :
       let first_require =
         List.find Syntax_node.is_syntax_node_require doc.elements
       in
+
       let* new_first_require =
         Syntax_node.syntax_node_of_string
           "Require Export \
@@ -502,10 +551,6 @@ let constructivize_doc (doc : Rocq_document.t) :
   let* proofs_stage_one = Rocq_document.get_proofs stage_one_doc in
 
   let proofs_with_exists = List.filter is_proof_about_exists proofs_stage_one in
-  List.iter
-    (fun x -> Logs.debug (fun m -> m "%s" (Syntax_node.repr x.proposition)))
-    proofs_with_exists;
-
   let* admit_exists_proofs_steps =
     List.fold_left
       (fun res_acc proof ->
@@ -582,6 +627,25 @@ let constructivize_doc (doc : Rocq_document.t) :
     replace_bet_by_betl_and_or_by_cons_or_in_assert_steps
   in
 
+  let* stage_five_doc =
+    Rocq_document.apply_transformations_steps steps_stage_four stage_four_doc
+  in
+
+  let replace_cong_by_econg_steps =
+    List.filter_map
+      (replace_taccall_tacarg_in_node "Cong" "eCong")
+      stage_five_doc.elements
+  in
+
+  let replace_induction_by_stab_eq_point_steps =
+    List.filter_map replace_induction_by_stab_eq_point stage_five_doc.elements
+  in
+
+  let steps_stage_five =
+    replace_cong_by_econg_steps @ replace_induction_by_stab_eq_point_steps
+  in
+
   Ok
     (update_replaces steps_stage_zero
-    @ steps_stage_one @ steps_stage_two @ steps_stage_three @ steps_stage_four)
+    @ steps_stage_one @ steps_stage_two @ steps_stage_three @ steps_stage_four
+    @ steps_stage_five)
