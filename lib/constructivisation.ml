@@ -536,6 +536,19 @@ let constructivize_doc (doc : Rocq_document.t) :
       definitions
   in
 
+  let assert_steps =
+    List.filter Syntax_node.is_syntax_node_assert doc.elements
+  in
+
+  let assert_names =
+    List.map
+      (fun x ->
+        let* state_assert_before = Runner.get_init_state doc x token in
+        let* state_assert_after = Runner.run_node token state_assert_before x in
+        x)
+      assert_steps
+  in
+
   let steps_stage_zero =
     replace_require_steps @ replace_context_steps
     @ replace_or_by_constructive_or_in_proofs_steps

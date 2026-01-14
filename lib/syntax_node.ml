@@ -598,6 +598,15 @@ let is_syntax_node_intros (x : t) : bool =
   | Some (Ltac_plugin.Tacexpr.TacIntroPattern _) -> true
   | _ -> false
 
+let is_syntax_node_assert (x : t) : bool =
+  let raw_tactic_expr = get_node_raw_tactic_expr x in
+  let raw_atomic_expr =
+    Option.map Ltac.get_raw_atomic_tactic_expr raw_tactic_expr
+  in
+  match Option.flatten raw_atomic_expr with
+  | Some (Ltac_plugin.Tacexpr.TacAssert _) -> true
+  | _ -> false
+
 (* single-pass validation + conversion *)
 let l_to_raw_tactics (l : t list) =
   let rec aux (acc : Ltac_plugin.Tacexpr.raw_tactic_expr list) (i : int) =
