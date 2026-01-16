@@ -4,6 +4,21 @@ open Vernacexpr
 let ( let* ) = Result.bind
 let ( let+ ) = Option.bind
 
+let get_new_vars ?(keep : string list = [])
+    (old_goals_vars : string list list option)
+    (new_goals_vars : string list list option) : string list list option =
+  match (old_goals_vars, new_goals_vars) with
+  | Some old_goals_vars, Some new_goals_vars ->
+      Some
+        (List_utils.map2_pad
+           ~pad1:(List.nth_opt old_goals_vars 0)
+           (fun old_vars new_vars ->
+             List.filter
+               (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
+               new_vars)
+           old_goals_vars new_goals_vars)
+  | _ -> None
+
 let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
   let env = Global.env () in
 
@@ -125,6 +140,42 @@ let replace_notation_in_proof_proposition (old_notation : string)
 
     Some (Replace (x.proposition.id, new_node))
   else None
+
+let is_syntax_node_prolong (x : Syntax_node.t) : bool =
+  let ( let@ ) opt f = match opt with Some x -> f x | None -> false in
+
+  let open Ltac_plugin.Tacexpr in
+  let@ raw_tactic_expr = Syntax_node.get_node_raw_tactic_expr x in
+
+  match raw_tactic_expr.v with
+  | TacArg (TacCall call_arg) ->
+      let call_qualid, _ = call_arg.v in
+      let call_qualid_str = Libnames.string_of_qualid call_qualid in
+      call_qualid_str = "prolong"
+  | _ -> false
+
+let get_prolong_args (x : Syntax_node.t) =
+  let+ raw_tactic_expr = Syntax_node.get_node_raw_tactic_expr x in
+
+  match raw_tactic_expr.v with
+  | TacArg (TacCall call_arg) ->
+      let _, fun_args = call_arg.v in
+      Some fun_args
+  | _ -> None
+
+let prolong_arg_to_string
+    (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
+    string option =
+  match x with
+  | Ltac_plugin.Tacexpr.TacGeneric _ -> None
+  | Ltac_plugin.Tacexpr.ConstrMayEval _ -> None
+  | Ltac_plugin.Tacexpr.Reference reference ->
+      Some (Libnames.string_of_qualid reference)
+  | Ltac_plugin.Tacexpr.TacCall _ -> None
+  | Ltac_plugin.Tacexpr.TacFreshId _ -> None
+  | Ltac_plugin.Tacexpr.Tacexp _ -> None
+  | Ltac_plugin.Tacexpr.TacPretype _ -> None
+  | Ltac_plugin.Tacexpr.TacNumgoals -> None
 
 let replace_taccall_tacarg_in_tacexpr (old_tac_call_name : string)
     (new_tac_call_name : string) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -398,6 +449,11 @@ let is_proof_about_exists (p : Proof.t) : bool =
       | _ -> false)
     components.expr
 
+let get_syntax_node_assert_expr (x : Syntax_node.t) =
+  match Syntax_node.get_node_raw_atomic_tactic_expr x with
+  | Some (TacAssert (false, true, _, _, expr)) -> Some expr
+  | _ -> None
+
 let rec update_replaces (l : transformation_step list) =
   match l with
   | [] -> []
@@ -446,6 +502,22 @@ let constructivize_doc (doc : Rocq_document.t) :
   let token = Coq.Limits.Token.create () in
   let* proofs = Rocq_document.get_proofs doc in
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
+
+  let prolong_node =
+    Syntax_node.syntax_node_of_string "prolong A' C' E' C E." dummy_start
+    |> Result.get_ok
+  in
+
+  let prolong_raw_tactic_expr =
+    Syntax_node.get_node_raw_tactic_expr prolong_node |> Option.get
+  in
+
+  let prolong_sexp =
+    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr prolong_raw_tactic_expr
+  in
+
+  Logs.debug (fun m ->
+      m "prolong sexp: %s" (Sexplib.Sexp.to_string_hum prolong_sexp));
 
   let* require_stable_node =
     Syntax_node.syntax_node_of_string
@@ -534,19 +606,6 @@ let constructivize_doc (doc : Rocq_document.t) :
     List.filter_map
       (replace_notation_in_definition "_ \\/ _" "_ \\_/ _")
       definitions
-  in
-
-  let assert_steps =
-    List.filter Syntax_node.is_syntax_node_assert doc.elements
-  in
-
-  let assert_names =
-    List.map
-      (fun x ->
-        let* state_assert_before = Runner.get_init_state doc x token in
-        let* state_assert_after = Runner.run_node token state_assert_before x in
-        x)
-      assert_steps
   in
 
   let steps_stage_zero =
@@ -658,6 +717,122 @@ let constructivize_doc (doc : Rocq_document.t) :
     replace_cong_by_econg_steps @ replace_induction_by_stab_eq_point_steps
   in
 
+  let* stage_six_doc =
+    Rocq_document.apply_transformations_steps steps_stage_five stage_five_doc
+  in
+
+  (* let prolong_nodes_and_args = *)
+  (*   List.filter is_syntax_node_prolong stage_six_doc.elements *)
+  (*   |> List.map (fun x -> (x, get_prolong_args x)) *)
+  (* in *)
+
+  (* let prolong_nodes_and_str_args = List.map (fun (x, args) -> ) prolong_nodes_and_args *)
+
+  (* let assert_nodes = *)
+  (*   List.filter Syntax_node.is_syntax_node_assert stage_six_doc.elements *)
+  (* in *)
+
+  (* List.iter *)
+  (*   (fun x -> Logs.debug (fun m -> m "assert node: %s " (Syntax_node.repr x))) *)
+  (*   assert_nodes; *)
+
+  (* let decomposed_asserts = *)
+  (*   List.map *)
+  (*     (fun x -> *)
+  (*       let* state_assert_before = Runner.get_init_state doc x token in *)
+  (*       Logs.debug (fun m -> m "here !"); *)
+  (*       let* state_assert_after = Runner.run_node token state_assert_before x in *)
+  (*       let old_goals_vars = *)
+  (*         Runner.reified_goals_at_state token state_assert_before *)
+  (*         |> List.map Runner.get_hypothesis_names *)
+  (*         |> Option.make *)
+  (*       in *)
+
+  (*       let new_goals_vars = *)
+  (*         Runner.reified_goals_at_state token state_assert_after *)
+  (*         |> List.map Runner.get_hypothesis_names *)
+  (*         |> Option.make *)
+  (*       in *)
+  (*       Logs.debug (fun m -> m "here !!"); *)
+
+  (*       let* new_vars = *)
+  (*         get_new_vars old_goals_vars new_goals_vars *)
+  (*         |> Option_utils.to_result *)
+  (*              ~none: *)
+  (*                (Error.format_to_or_error "Error getting new vars for node %s" *)
+  (*                   (Syntax_node.repr x)) *)
+  (*       in *)
+
+  (*       let assert_generated_name = *)
+  (*         if Syntax_node.is_syntax_node_assert_by x then *)
+  (*           List.nth new_vars 0 |> List.hd *)
+  (*         else List.nth new_vars 1 |> List.hd *)
+  (*       in *)
+
+  (*       let assert_expr = get_syntax_node_assert_expr x |> Option.get in *)
+  (*       (\* this should also catch human named assert *\) *)
+
+  (*       Ok (x, assert_generated_name, assert_expr)) *)
+  (*     assert_nodes *)
+  (* in *)
+
+  (* let decomposed_asserts_cleaned = *)
+  (*   List.map Result.to_option decomposed_asserts |> List.filter_map Fun.id *)
+  (* in *)
+
+  (* List.iter *)
+  (*   (fun (assert_node, assert_name, assert_expr) -> *)
+  (*     Logs.debug (fun m -> *)
+  (*         m "node: %s has name %s and assert expr: %s" *)
+  (*           (Syntax_node.repr assert_node) *)
+  (*           assert_name *)
+  (*           (constrexpr_to_string assert_expr))) *)
+  (*   decomposed_asserts_cleaned; *)
+
+  (* let stab_assert_steps = *)
+  (*   List.filter_map *)
+  (*     (fun ((assert_node : Syntax_node.t), assert_name, assert_expr) -> *)
+  (*       let assert_expr_str = constrexpr_to_string assert_expr in *)
+  (*       let stab_assert_node_str = *)
+  (*         Printf.sprintf "stab_assert (%s: (%s))." assert_name assert_expr_str *)
+  (*       in *)
+  (*       let+ stab_assert_node = *)
+  (*         Syntax_node.syntax_node_of_string stab_assert_node_str *)
+  (*           assert_node.range.start *)
+  (*         |> Result.to_option *)
+  (*       in *)
+
+  (*       let+ unNNnode = *)
+  (*         Syntax_node.syntax_node_of_string "unNN." dummy_start *)
+  (*         |> Result.to_option *)
+  (*       in *)
+
+  (*       let assert_by_tac = *)
+  (*         Syntax_node.get_syntax_node_assert_by_raw_tac_expr assert_node *)
+  (*       in *)
+
+  (*       match assert_by_tac with *)
+  (*       | Some tac -> *)
+  (*           let+ tac_node = *)
+  (*             Syntax_node.raw_tactic_expr_to_syntax_node tac dummy_start *)
+  (*             |> Result.to_option *)
+  (*           in *)
+  (*           Some *)
+  (*             [ *)
+  (*               Replace (assert_node.id, stab_assert_node); *)
+  (*               Attach (unNNnode, SameLine, stab_assert_node.id); *)
+  (*               Attach (tac_node, LineAfter, unNNnode.id); *)
+  (*             ] *)
+  (*       | None -> *)
+  (*           Some *)
+  (*             [ *)
+  (*               Replace (assert_node.id, stab_assert_node); *)
+  (*               Attach (unNNnode, SameLine, stab_assert_node.id); *)
+  (*             ]) *)
+  (*     decomposed_asserts_cleaned *)
+  (*   |> List.concat *)
+  (* in *)
+  (* let steps_stage_six = stab_assert_steps in *)
   Ok
     (update_replaces steps_stage_zero
     @ steps_stage_one @ steps_stage_two @ steps_stage_three @ steps_stage_four
