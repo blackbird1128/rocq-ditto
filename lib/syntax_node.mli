@@ -150,6 +150,10 @@ val drop_goal_selector : t -> t
 val add_goal_selector : t -> Goal_select_view.t -> (t, Error.t) result
 val is_syntax_node_intros : t -> bool
 val is_syntax_node_assert : t -> bool
+val is_syntax_node_assert_by : t -> bool
+
+val get_syntax_node_assert_by_raw_tac_expr :
+  t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
 val apply_tac_then :
   t -> t -> ?start_point:Code_point.t -> unit -> (t, Error.t) result

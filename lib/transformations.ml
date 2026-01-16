@@ -1007,11 +1007,6 @@ let is_syntax_node_assert_without_set_var (x : Syntax_node.t) : bool =
   | Some (TacAssert (false, true, _, None, _)) -> true
   | _ -> false
 
-let is_syntax_node_assert_by (x : Syntax_node.t) : bool =
-  match Syntax_node.get_node_raw_atomic_tactic_expr x with
-  | Some (TacAssert (false, true, Some (Some _), _, _)) -> true
-  | _ -> false
-
 let is_syntax_node_induction_without_set_var (x : Syntax_node.t) : bool =
   match Syntax_node.get_node_raw_atomic_tactic_expr x with
   | Some (TacInductionDestruct (true, false, (induction_clause_l, _))) ->

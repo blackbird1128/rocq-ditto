@@ -607,6 +607,20 @@ let is_syntax_node_assert (x : t) : bool =
   | Some (Ltac_plugin.Tacexpr.TacAssert _) -> true
   | _ -> false
 
+let is_syntax_node_assert_by (x : t) : bool =
+  match get_node_raw_atomic_tactic_expr x with
+  | Some (Ltac_plugin.Tacexpr.TacAssert (false, true, Some (Some _), _, _)) ->
+      true
+  | _ -> false
+
+let get_syntax_node_assert_by_raw_tac_expr (x : t) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr option =
+  match get_node_raw_atomic_tactic_expr x with
+  | Some (Ltac_plugin.Tacexpr.TacAssert (false, true, Some (Some expr), _, _))
+    ->
+      Some expr
+  | _ -> None
+
 (* single-pass validation + conversion *)
 let l_to_raw_tactics (l : t list) =
   let rec aux (acc : Ltac_plugin.Tacexpr.raw_tactic_expr list) (i : int) =
