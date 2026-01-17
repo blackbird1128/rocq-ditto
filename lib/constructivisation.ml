@@ -503,22 +503,6 @@ let constructivize_doc (doc : Rocq_document.t) :
   let* proofs = Rocq_document.get_proofs doc in
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
 
-  let prolong_node =
-    Syntax_node.syntax_node_of_string "prolong A' C' E' C E." dummy_start
-    |> Result.get_ok
-  in
-
-  let prolong_raw_tactic_expr =
-    Syntax_node.get_node_raw_tactic_expr prolong_node |> Option.get
-  in
-
-  let prolong_sexp =
-    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr prolong_raw_tactic_expr
-  in
-
-  Logs.debug (fun m ->
-      m "prolong sexp: %s" (Sexplib.Sexp.to_string_hum prolong_sexp));
-
   let* require_stable_node =
     Syntax_node.syntax_node_of_string
       "Require Import GeoCoq.Constructive.Stable." dummy_start
@@ -721,12 +705,50 @@ let constructivize_doc (doc : Rocq_document.t) :
     Rocq_document.apply_transformations_steps steps_stage_five stage_five_doc
   in
 
-  (* let prolong_nodes_and_args = *)
-  (*   List.filter is_syntax_node_prolong stage_six_doc.elements *)
-  (*   |> List.map (fun x -> (x, get_prolong_args x)) *)
-  (* in *)
+  let prolong_nodes_and_args =
+    List.filter is_syntax_node_prolong stage_six_doc.elements
+    |> List.map (fun x -> (x, get_prolong_args x |> Option.get))
+  in
 
-  (* let prolong_nodes_and_str_args = List.map (fun (x, args) -> ) prolong_nodes_and_args *)
+  let prolong_nodes_and_str_args =
+    List.map
+      (fun (x, args) ->
+        let args_str_opt = List.map prolong_arg_to_string args in
+        let args_str = List.map Option.get args_str_opt in
+        (x, args_str))
+      prolong_nodes_and_args
+  in
+
+  (* prolong #0 #1 #2 #3 #4 peut être remplacé par apply (by_segment_construction #0 #1 #3 #4); [solve_stable|intros [#2 [H#1 H#3]]] *)
+  List.iter
+    (fun (x, args_str) ->
+      Logs.debug (fun m ->
+          m "node:%s, args: %s" (Syntax_node.repr x)
+            (String.concat " " args_str)))
+    prolong_nodes_and_str_args;
+
+  let prolongs_nodes_and_args_to_segment_construction_steps =
+    List.filter_map
+      (fun ((x : Syntax_node.t), args_str) ->
+        match args_str with
+        | [ args0; args1; args2; args3; args4 ] ->
+            let segment_construction_str =
+              Printf.sprintf
+                "apply (by_segment_construction %s %s %s %s); [solve_stable | \
+                 intros [%s [?H%s ?H%s]]]."
+                args0 args1 args3 args4 args2 args1 args3
+            in
+            Logs.debug (fun m ->
+                m "segment construction str: %s" segment_construction_str);
+            let+ segment_construction_node =
+              Syntax_node.syntax_node_of_string segment_construction_str
+                x.range.start
+              |> Result.to_option
+            in
+            Some (Replace (x.id, segment_construction_node))
+        | _ -> None)
+      prolong_nodes_and_str_args
+  in
 
   (* let assert_nodes = *)
   (*   List.filter Syntax_node.is_syntax_node_assert stage_six_doc.elements *)
@@ -833,7 +855,8 @@ let constructivize_doc (doc : Rocq_document.t) :
   (*   |> List.concat *)
   (* in *)
   (* let steps_stage_six = stab_assert_steps in *)
+  let steps_stage_six = prolongs_nodes_and_args_to_segment_construction_steps in
   Ok
     (update_replaces steps_stage_zero
     @ steps_stage_one @ steps_stage_two @ steps_stage_three @ steps_stage_four
-    @ steps_stage_five)
+    @ steps_stage_five @ steps_stage_six)
