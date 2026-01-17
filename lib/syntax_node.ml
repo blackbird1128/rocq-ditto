@@ -237,7 +237,7 @@ let is_syntax_node_command_allowed_in_proof (x : t) : bool =
 let is_syntax_node_tactic (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, _) ->
@@ -250,7 +250,7 @@ let is_syntax_node_tactic (x : t) : bool =
 let is_syntax_node_proof_command (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with Vernacexpr.VernacProof _ -> true | _ -> false))
@@ -259,7 +259,7 @@ let is_syntax_node_proof_command (x : t) : bool =
 let is_syntax_node_proof_with (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with
@@ -272,7 +272,7 @@ let is_syntax_node_proof_with (x : t) : bool =
 let get_syntax_node_proof_with_tactic (x : t) : string option =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> None
       | VernacSynPure expr -> (
           match expr with
@@ -291,7 +291,7 @@ let get_syntax_node_proof_with_tactic (x : t) : string option =
 let get_syntax_node_proof_with_tactic (x : t) : string option =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> None
       | VernacSynPure expr -> (
           match expr with
@@ -332,7 +332,7 @@ let is_syntax_node_require (x : t) : bool =
 let is_syntax_node_function_start (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, _) ->
@@ -345,7 +345,7 @@ let is_syntax_node_function_start (x : t) : bool =
 let is_syntax_node_instance_start (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with Vernacexpr.VernacInstance _ -> true | _ -> false))
@@ -354,7 +354,7 @@ let is_syntax_node_instance_start (x : t) : bool =
 let is_syntax_node_program_instance_start (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with
@@ -372,7 +372,7 @@ let is_syntax_node_program_instance_start (x : t) : bool =
 let is_syntax_node_definition (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with Vernacexpr.VernacDefinition _ -> true | _ -> false))
@@ -382,7 +382,7 @@ let is_syntax_node_definition_with_proof (x : t) : bool =
   (* TODO: check if this include anonymous goals *)
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with
@@ -394,7 +394,7 @@ let is_syntax_node_definition_with_proof (x : t) : bool =
 let is_syntax_node_bullet (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with Vernacexpr.VernacBullet _ -> true | _ -> false))
@@ -421,7 +421,7 @@ let is_syntax_node_closing_bracket (x : t) : bool =
 let is_syntax_node_focus_command (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with Vernacexpr.VernacFocus _ -> true | _ -> false))
@@ -435,7 +435,7 @@ let is_syntax_node_focusing_goal (x : t) : bool =
 let is_syntax_node_proof_start (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with
@@ -446,7 +446,7 @@ let is_syntax_node_proof_start (x : t) : bool =
 let is_syntax_node_proof_end (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false))
@@ -455,7 +455,7 @@ let is_syntax_node_proof_end (x : t) : bool =
 let is_syntax_node_proof_abort (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with
@@ -469,7 +469,7 @@ let is_syntax_node_proof_abort (x : t) : bool =
 let get_syntax_node_extend_name (x : t) : extend_name option =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, _) -> Some ext
@@ -481,7 +481,7 @@ let get_tactic_raw_generic_arguments (x : t) :
     Genarg.raw_generic_argument list option =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, args) ->
@@ -531,22 +531,14 @@ let raw_tactic_expr_to_syntax_node
     (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     ?(selector : Goal_select_view.t option) ?(use_default = false)
     (starting_point : Code_point.t) : (t, Error.t) result =
-  let selector_raw_arg =
-    Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector
-  in
-  let use_default_raw_arg =
-    Raw_gen_args_converter.raw_generic_argument_of_ltac_use_default use_default
-  in
-  let ltac_info_arg =
-    Raw_gen_args_converter.raw_generic_argument_of_empty_ltac_info ()
-  in
-
-  let raw_expr_raw_arg =
-    Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr raw_expr
-  in
-
   let args =
-    [ selector_raw_arg; ltac_info_arg; raw_expr_raw_arg; use_default_raw_arg ]
+    [
+      Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector;
+      Raw_gen_args_converter.raw_generic_argument_of_empty_ltac_info ();
+      Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr raw_expr;
+      Raw_gen_args_converter.raw_generic_argument_of_ltac_use_default
+        use_default;
+    ]
   in
 
   let ext = Ltac.default_extend_name in
@@ -581,9 +573,7 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
         (Goal_select_view.to_string selector)
   | None -> (
       match get_node_raw_tactic_expr x with
-      | Some expr ->
-          raw_tactic_expr_to_syntax_node expr ?selector:(Some selector)
-            x.range.start
+      | Some expr -> raw_tactic_expr_to_syntax_node expr ~selector x.range.start
       | None ->
           Error.format_to_or_error
             "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
