@@ -241,8 +241,7 @@ let is_syntax_node_tactic (x : t) : bool =
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
           | VernacExtend (ext, _) ->
-              if ext.ext_plugin = Rocq_version.ltac_ext_plugin_name then true
-              else false
+              ext.ext_plugin = Rocq_version.ltac_ext_plugin_name
           | _ -> false)
       | VernacSynPure _ -> false)
   | None -> false
@@ -484,10 +483,9 @@ let get_tactic_raw_generic_arguments (x : t) :
       match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp synterp_expr -> (
           match synterp_expr with
-          | VernacExtend (ext, args) ->
-              if ext.ext_plugin = Rocq_version.ltac_ext_plugin_name then
-                Some args
-              else None
+          | VernacExtend (ext, args)
+            when ext.ext_plugin = Rocq_version.ltac_ext_plugin_name ->
+              Some args
           | _ -> None)
       | VernacSynPure _ -> None)
   | None -> None
@@ -509,6 +507,19 @@ let get_node_raw_tactic_expr (x : t) :
   get_tactic_raw_generic_arguments x
   |> Option.map raw_arguments_to_raw_tactic_expr
   |> Option.flatten
+
+let string_to_raw_tactic_expr (str : string) :
+    (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
+  let ( let* ) = Result.bind in
+  let dummy_point : Code_point.t = { line = 0; character = 0 } in
+  let* syntax_node = syntax_node_of_string str dummy_point in
+  Option_utils.to_result
+    (get_node_raw_tactic_expr syntax_node)
+    ~none:
+      (Error.format_to_or_error
+         "%s isn't convertible to a raw_tactic_expr (It probably isn't valid \
+          Ltac"
+         str)
 
 let get_node_raw_atomic_tactic_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option =

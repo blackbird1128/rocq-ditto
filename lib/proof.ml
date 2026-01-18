@@ -139,7 +139,7 @@ let proof_status_from_last_node (node : Syntax_node.t) :
     (proof_status, Error.t) result =
   match node.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).CAst.v.expr with
+      match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> Error.string_to_or_error "not a valid closing node"
       | VernacSynPure expr ->
           proof_status_of_vernacexpr expr
