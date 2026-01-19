@@ -44,6 +44,27 @@ let find_index f xs =
   in
   aux 0 xs
 
+let concat_result (l : ('a list, 'e) result list) : ('a list, 'e) result =
+  let rec aux acc = function
+    | [] -> Ok (List.rev acc)
+    | Error e :: _ -> Error e
+    | Ok xs :: tl -> aux (List.rev_append xs acc) tl
+  in
+  aux [] l
+
+let concat_map_result (f : 'a -> ('b list, 'e) result) (l : 'a list) :
+    ('b list, 'e) result =
+  let rec aux acc = function
+    | [] -> Ok (List.rev acc)
+    | x :: xs -> (
+        match f x with
+        | Error e -> Error e
+        | Ok ys ->
+            (* prepend ys (in order) onto acc *)
+            aux (List.rev_append ys acc) xs)
+  in
+  aux [] l
+
 let map2_pad ?(pad1 = None) ?(pad2 = None) (f : 'a -> 'b -> 'c) (l1 : 'a list)
     (l2 : 'b list) : 'c list =
   let rec aux (acc : 'c list) (l1 : 'a list) (l2 : 'b list) =

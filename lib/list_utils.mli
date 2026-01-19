@@ -5,6 +5,10 @@ val drop_while : ('a -> bool) -> 'a list -> 'a list
 val last : 'a list -> 'a option
 val last_and_len : 'a list -> 'a option * int
 val find_index : ('a -> bool) -> 'a list -> int option
+val concat_result : ('a list, 'e) result list -> ('a list, 'e) result
+
+val concat_map_result :
+  ('a -> ('b list, 'e) result) -> 'a list -> ('b list, 'e) result
 
 val map2_pad :
   ?pad1:'a option ->
