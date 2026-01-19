@@ -208,6 +208,35 @@ let replace_taccall_tacarg_in_tacexpr (old_tac_call_name : string)
       else tacexpr
   | _ -> tacexpr
 
+let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  match x.v with
+  | TacArg (TacCall call_arg) ->
+      let call_qualid, _ = call_arg.v in
+      let call_qualid_str = Libnames.string_of_qualid call_qualid in
+      if call_qualid_str = "prolong" then
+        let _, fun_args = call_arg.v in
+        let args_str_opt = List.map prolong_arg_to_string fun_args in
+        let args_str = List.map Option.get args_str_opt in
+        match args_str with
+        | [ args0; args1; args2; args3; args4 ] ->
+            let segment_construction_str =
+              Printf.sprintf
+                "apply (by_segment_construction %s %s %s %s); [solve_stable | \
+                 intros [%s [?H%s ?H%s]]]."
+                args0 args1 args3 args4 args2 args1 args3
+            in
+            let segment_construction_raw_tactic_expr =
+              Syntax_node.string_to_raw_tactic_expr segment_construction_str
+            in
+            Result.fold
+              ~ok:(fun a -> a)
+              ~error:(fun e -> x)
+              segment_construction_raw_tactic_expr
+        | _ -> x
+      else x
+  | _ -> x
+
 let map_assert_constr_expr
     (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
@@ -259,16 +288,15 @@ let is_constrexpr_eq_dec_points_a_b (x : Constrexpr.constr_expr) : bool =
 let get_func_args (x : Constrexpr.constr_expr) : Constrexpr.constr_expr list =
   match x.v with Constrexpr.CApp (_, args) -> List.map fst args | _ -> []
 
-let replace_induction_by_stab_eq_point (x : Syntax_node.t) :
-    transformation_step option =
-  let+ raw_atomic_expr = Syntax_node.get_node_raw_atomic_tactic_expr x in
-
-  match raw_atomic_expr with
-  | TacInductionDestruct (true, false, ([ induction_clause_head ], _)) -> (
+let replace_induction_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr)
+    : Ltac_plugin.Tacexpr.raw_tactic_expr =
+  match x.v with
+  | TacAtom (TacInductionDestruct (true, false, ([ induction_clause_head ], _)))
+    -> (
       let (tac_flag, core_destruction_arg), _, _ = induction_clause_head in
       match core_destruction_arg with
       | ElimOnConstr (constrexpr, NoBindings)
-        when is_constrexpr_eq_dec_points_a_b constrexpr ->
+        when is_constrexpr_eq_dec_points_a_b constrexpr -> (
           let fun_args = get_func_args constrexpr in
           let fun_args_str =
             List.map
@@ -276,16 +304,15 @@ let replace_induction_by_stab_eq_point (x : Syntax_node.t) :
                 get_cref_qualid x |> Option.get |> Libnames.string_of_qualid)
               fun_args
           in
-          let new_node_str =
+          let stab_eq_str =
             "stab_eq_point " ^ String.concat " " fun_args_str ^ "; intros ?H."
           in
-          let+ new_node =
-            Syntax_node.syntax_node_of_string new_node_str x.range.start
-            |> Result.to_option
+          let raw_tac_expr_stab_eq =
+            Syntax_node.string_to_raw_tactic_expr stab_eq_str
           in
-          Some (Replace (x.id, new_node))
-      | _ -> None)
-  | _ -> None
+          match raw_tac_expr_stab_eq with Ok expr -> expr | Error _ -> x)
+      | _ -> x)
+  | _ -> x
 
 let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (x : Syntax_node.t) : transformation_step option =
@@ -595,7 +622,9 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
 
   let replace_induction_by_stab_eq_point_steps =
-    List.filter_map replace_induction_by_stab_eq_point stage_five_doc.elements
+    List.filter_map
+      (map_raw_tactic_expr_in_node replace_induction_by_stab_eq_point)
+      stage_five_doc.elements
   in
 
   let steps_stage_five =
@@ -606,49 +635,10 @@ let constructivize_doc (doc : Rocq_document.t) :
     Rocq_document.apply_transformations_steps steps_stage_five stage_five_doc
   in
 
-  let prolong_nodes_and_args =
-    List.filter is_syntax_node_prolong stage_six_doc.elements
-    |> List.map (fun x -> (x, get_prolong_args x |> Option.get))
-  in
-
-  let prolong_nodes_and_str_args =
-    List.map
-      (fun (x, args) ->
-        let args_str_opt = List.map prolong_arg_to_string args in
-        let args_str = List.map Option.get args_str_opt in
-        (x, args_str))
-      prolong_nodes_and_args
-  in
-
-  (* prolong #0 #1 #2 #3 #4 peut être remplacé par apply (by_segment_construction #0 #1 #3 #4); [solve_stable|intros [#2 [H#1 H#3]]] *)
-  List.iter
-    (fun (x, args_str) ->
-      Logs.debug (fun m ->
-          m "node:%s, args: %s" (Syntax_node.repr x)
-            (String.concat " " args_str)))
-    prolong_nodes_and_str_args;
-
-  let prolongs_nodes_and_args_to_segment_construction_steps =
+  let prolong_to_segment_cons_steps =
     List.filter_map
-      (fun ((x : Syntax_node.t), args_str) ->
-        match args_str with
-        | [ args0; args1; args2; args3; args4 ] ->
-            let segment_construction_str =
-              Printf.sprintf
-                "apply (by_segment_construction %s %s %s %s); [solve_stable | \
-                 intros [%s [?H%s ?H%s]]]."
-                args0 args1 args3 args4 args2 args1 args3
-            in
-            Logs.debug (fun m ->
-                m "segment construction str: %s" segment_construction_str);
-            let+ segment_construction_node =
-              Syntax_node.syntax_node_of_string segment_construction_str
-                x.range.start
-              |> Result.to_option
-            in
-            Some (Replace (x.id, segment_construction_node))
-        | _ -> None)
-      prolong_nodes_and_str_args
+      (map_raw_tactic_expr_in_node replace_prolong_by_segment_cons)
+      stage_six_doc.elements
   in
 
   (* let assert_nodes = *)
@@ -755,8 +745,7 @@ let constructivize_doc (doc : Rocq_document.t) :
   (*     decomposed_asserts_cleaned *)
   (*   |> List.concat *)
   (* in *)
-  (* let steps_stage_six = stab_assert_steps in *)
-  let steps_stage_six = prolongs_nodes_and_args_to_segment_construction_steps in
+  let steps_stage_six = prolong_to_segment_cons_steps @ stab_assert_steps in
   Ok
     (update_replaces steps_stage_zero
     @ steps_stage_one @ steps_stage_two @ steps_stage_three @ steps_stage_four
