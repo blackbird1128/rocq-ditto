@@ -175,15 +175,6 @@ let is_syntax_node_prolong (x : Syntax_node.t) : bool =
       call_qualid_str = "prolong"
   | _ -> false
 
-let get_prolong_args (x : Syntax_node.t) =
-  let+ raw_tactic_expr = Syntax_node.get_node_raw_tactic_expr x in
-
-  match raw_tactic_expr.v with
-  | TacArg (TacCall call_arg) ->
-      let _, fun_args = call_arg.v in
-      Some fun_args
-  | _ -> None
-
 let prolong_arg_to_string
     (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
     string option =
@@ -439,6 +430,76 @@ let rec update_removes (l : transformation_step list) =
           x :: update_removes new_tl
       | Add _ | Replace _ | Attach _ -> x :: update_removes tl)
 
+let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
+    (transformation_step list, Error.t) result =
+  let dummy_start : Code_point.t = { line = 0; character = 0 } in
+  let raw_tactic_expr = Syntax_node.get_node_raw_tactic_expr x in
+  let raw_atomic_expr =
+    Option.map Ltac.get_raw_atomic_tactic_expr raw_tactic_expr
+  in
+  match Option.flatten raw_atomic_expr with
+  | Some
+      (Ltac_plugin.Tacexpr.TacAssert (false, true, by_content, _, assert_expr))
+    -> (
+      let token = Coq.Limits.Token.create () in
+      let* state_assert_before = Runner.get_init_state doc x token in
+      let* state_assert_after = Runner.run_node token state_assert_before x in
+      let old_goals_vars =
+        Runner.reified_goals_at_state token state_assert_before
+        |> List.map Runner.get_hypothesis_names
+        |> Option.make
+      in
+
+      let new_goals_vars =
+        Runner.reified_goals_at_state token state_assert_after
+        |> List.map Runner.get_hypothesis_names
+        |> Option.make
+      in
+      let* new_vars =
+        get_new_vars old_goals_vars new_goals_vars
+        |> Option_utils.to_result
+             ~none:
+               (Error.format_to_or_error "Error getting new vars for node %s"
+                  (Syntax_node.repr x))
+      in
+
+      let assert_generated_name =
+        if Syntax_node.is_syntax_node_assert_by x then
+          List.nth new_vars 0 |> List.hd
+        else List.nth new_vars 1 |> List.hd
+      in
+
+      let assert_expr_str = constrexpr_to_string assert_expr in
+      Logs.debug (fun m -> m "assert_expr_str: %s" assert_expr_str);
+      let stab_assert_node_str =
+        Printf.sprintf "stab_assert (%s: (%s))." assert_generated_name
+          assert_expr_str
+      in
+      Logs.debug (fun m -> m "stab_assert_node_str: %s" stab_assert_node_str);
+      let* stab_assert_node =
+        Syntax_node.syntax_node_of_string stab_assert_node_str x.range.start
+      in
+
+      let* unNNnode = Syntax_node.syntax_node_of_string "unNN." dummy_start in
+      match by_content with
+      | Some (Some expr) ->
+          let* tac_node =
+            Syntax_node.raw_tactic_expr_to_syntax_node expr dummy_start
+          in
+          Ok
+            [
+              Replace (x.id, stab_assert_node);
+              Attach (unNNnode, SameLine, stab_assert_node.id);
+              Attach (tac_node, LineAfter, unNNnode.id);
+            ]
+      | _ ->
+          Ok
+            [
+              Replace (x.id, stab_assert_node);
+              Attach (unNNnode, SameLine, stab_assert_node.id);
+            ])
+  | _ -> Ok []
+
 let get_definition_file_steps (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
@@ -652,113 +713,7 @@ let constructivize_doc (doc : Rocq_document.t) :
       stage_six_doc.elements
   in
 
-  let assert_nodes =
-    List.filter Syntax_node.is_syntax_node_assert stage_six_doc.elements
-  in
-
-  List.iter
-    (fun x -> Logs.debug (fun m -> m "assert node: %s " (Syntax_node.repr x)))
-    assert_nodes;
-
-  let decomposed_asserts =
-    List.map
-      (fun x ->
-        Logs.debug (fun m -> m "x: %s" (Syntax_node.repr x));
-        Logs.debug (fun m -> m "this ??");
-        let* state_assert_before = Runner.get_init_state doc x token in
-        Logs.debug (fun m -> m "here !");
-        let* state_assert_after = Runner.run_node token state_assert_before x in
-        let old_goals_vars =
-          Runner.reified_goals_at_state token state_assert_before
-          |> List.map Runner.get_hypothesis_names
-          |> Option.make
-        in
-
-        let new_goals_vars =
-          Runner.reified_goals_at_state token state_assert_after
-          |> List.map Runner.get_hypothesis_names
-          |> Option.make
-        in
-        let* new_vars =
-          get_new_vars old_goals_vars new_goals_vars
-          |> Option_utils.to_result
-               ~none:
-                 (Error.format_to_or_error "Error getting new vars for node %s"
-                    (Syntax_node.repr x))
-        in
-
-        let assert_generated_name =
-          if Syntax_node.is_syntax_node_assert_by x then
-            List.nth new_vars 0 |> List.hd
-          else List.nth new_vars 1 |> List.hd
-        in
-
-        let assert_expr = get_syntax_node_assert_expr x |> Option.get in
-        (* this should also catch human named assert *)
-
-        Ok (x, assert_generated_name, assert_expr))
-      assert_nodes
-  in
-
-  let decomposed_asserts_cleaned =
-    List.map Result.to_option decomposed_asserts |> List.filter_map Fun.id
-  in
-
-  List.iter
-    (fun (assert_node, assert_name, assert_expr) ->
-      Logs.debug (fun m ->
-          m "node: %s has name %s and assert expr: %s"
-            (Syntax_node.repr assert_node)
-            assert_name
-            (constrexpr_to_string assert_expr)))
-    decomposed_asserts_cleaned;
-
-  let stab_assert_steps =
-    List.filter_map
-      (fun ((assert_node : Syntax_node.t), assert_name, assert_expr) ->
-        let assert_expr_str = constrexpr_to_string assert_expr in
-        Logs.debug (fun m -> m "assert_expr_str: %s" assert_expr_str);
-        let stab_assert_node_str =
-          Printf.sprintf "stab_assert (%s: (%s))." assert_name assert_expr_str
-        in
-        Logs.debug (fun m -> m "stab_assert_node_str: %s" stab_assert_node_str);
-        let+ stab_assert_node =
-          Syntax_node.syntax_node_of_string stab_assert_node_str
-            assert_node.range.start
-          |> Result.to_option
-        in
-
-        let+ unNNnode =
-          Syntax_node.syntax_node_of_string "unNN." dummy_start
-          |> Result.to_option
-        in
-
-        let assert_by_tac =
-          Syntax_node.get_syntax_node_assert_by_raw_tac_expr assert_node
-        in
-
-        match assert_by_tac with
-        | Some tac ->
-            let+ tac_node =
-              Syntax_node.raw_tactic_expr_to_syntax_node tac dummy_start
-              |> Result.to_option
-            in
-            Some
-              [
-                Replace (assert_node.id, stab_assert_node);
-                Attach (unNNnode, SameLine, stab_assert_node.id);
-                Attach (tac_node, LineAfter, unNNnode.id);
-              ]
-        | None ->
-            Some
-              [
-                Replace (assert_node.id, stab_assert_node);
-                Attach (unNNnode, SameLine, stab_assert_node.id);
-              ])
-      decomposed_asserts_cleaned
-    |> List.concat
-  in
-  let steps_stage_six = prolong_to_segment_cons_steps @ stab_assert_steps in
+  let steps_stage_six = prolong_to_segment_cons_steps in
   Ok
     (update_replaces
        (List.concat
