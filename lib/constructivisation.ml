@@ -38,7 +38,8 @@ let strip_loc sexp =
   | Some s -> s
   | None -> List [] (* should basically never happen at the top *)
 
-let replace_require (x : Syntax_node.t) : transformation_step option =
+let replace_require (x : Syntax_node.t) :
+    (transformation_step list, Error.t) result =
   let split_prefix (prefix : string) (s : string) =
     let plen = String.length prefix in
     if String.length s >= plen && String.sub s 0 plen = prefix then
@@ -79,13 +80,16 @@ let replace_require (x : Syntax_node.t) : transformation_step option =
                       (Coq.Ast.of_coq new_vernac_control)
                       x.range.start
                   in
-                  Some (Replace (x.id, new_node))
-              | None -> None)
-          | None -> None)
-      | _ -> None)
-  | None -> None
+                  Ok [ Replace (x.id, new_node) ]
+              | None -> Ok [])
+          | None ->
+              Error.format_to_or_error
+                "Error getting libnames_import_list in %s" (Syntax_node.repr x))
+      | _ -> Ok [])
+  | None -> Ok []
 
-let replace_context (x : Syntax_node.t) : transformation_step option =
+let replace_context (x : Syntax_node.t) :
+    (transformation_step list, Error.t) result =
   if Syntax_node.is_syntax_node_context x then
     let new_context_str : string =
       "Context {Pred : predicates}\n\
@@ -94,12 +98,12 @@ let replace_context (x : Syntax_node.t) : transformation_step option =
       \        {Dim : dimension}\n\
       \        {ITnD : @independent_Tarski_nD Pred ITn (incr (incr Dim))}."
     in
-    let+ new_context_node =
+    let* new_context_node =
       Syntax_node.syntax_node_of_string new_context_str x.range.start
-      |> Result.to_option
     in
-    Some (Replace (x.id, new_context_node))
-  else None
+
+    Ok [ Replace (x.id, new_context_node) ]
+  else Ok []
 
 let replace_notation_in_constrexpr (old_notation : string)
     (new_notation : string) (term : Constrexpr.constr_expr) :
@@ -435,6 +439,54 @@ let rec update_removes (l : transformation_step list) =
           x :: update_removes new_tl
       | Add _ | Replace _ | Attach _ -> x :: update_removes tl)
 
+let get_definition_file_steps (doc : Rocq_document.t) :
+    (transformation_step list, Error.t) result =
+  let dummy_start : Code_point.t = { line = 0; character = 0 } in
+
+  if Filename.basename doc.filename = "Definitions.v" then
+    let first_require =
+      List.find Syntax_node.is_syntax_node_require doc.elements
+    in
+
+    let* new_first_require =
+      Syntax_node.syntax_node_of_string
+        "Require Export GeoCoq.Algebraic.Counter_models.nD.independent_version."
+        first_require.range.start
+    in
+    let* second_require =
+      Syntax_node.syntax_node_of_string
+        "Require Export GeoCoq.Constructive.Stable." dummy_start
+    in
+    (* the node is attached so we dont care where it start *)
+
+    let* third_require =
+      Syntax_node.syntax_node_of_string
+        "Require Import \
+         GeoCoq.Algebraic.Counter_models.nD.stability_properties."
+        dummy_start
+    in
+
+    let* betl_definition =
+      Syntax_node.syntax_node_of_string
+        "Definition BetL {Pred : predicates}\n\
+        \                {ITn : independent_Tarski_neutral_dimensionless Pred}\n\
+        \                {ES : Eq_stability Pred ITn}\n\
+        \                {Dim : dimension}\n\
+        \                {ITnD : @independent_Tarski_nD Pred ITn (incr (incr \
+         Dim))}\n\
+        \                A B C := A = B \\_/ B = C \\_/ BetS A B C."
+        dummy_start
+    in
+
+    Ok
+      [
+        Replace (first_require.id, new_first_require);
+        Attach (second_require, LineAfter, new_first_require.id);
+        Attach (third_require, LineAfter, second_require.id);
+        Attach (betl_definition, LineAfter, third_require.id);
+      ]
+  else Ok []
+
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
@@ -451,56 +503,15 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
 
   (* stage 0 *)
-  let* definitions_file_specific_steps =
-    if Filename.basename doc.filename = "Definitions.v" then
-      let first_require =
-        List.find Syntax_node.is_syntax_node_require doc.elements
-      in
+  let* definitions_file_specific_steps = get_definition_file_steps doc in
 
-      let* new_first_require =
-        Syntax_node.syntax_node_of_string
-          "Require Export \
-           GeoCoq.Algebraic.Counter_models.nD.independent_version."
-          first_require.range.start
-      in
-      let* second_require =
-        Syntax_node.syntax_node_of_string
-          "Require Export GeoCoq.Constructive.Stable." dummy_start
-      in
-      (* the node is attached so we dont care where it start *)
-
-      let* third_require =
-        Syntax_node.syntax_node_of_string
-          "Require Import \
-           GeoCoq.Algebraic.Counter_models.nD.stability_properties."
-          dummy_start
-      in
-
-      let* betl_definition =
-        Syntax_node.syntax_node_of_string
-          "Definition BetL {Pred : predicates}\n\
-          \                {ITn : independent_Tarski_neutral_dimensionless Pred}\n\
-          \                {ES : Eq_stability Pred ITn}\n\
-          \                {Dim : dimension}\n\
-          \                {ITnD : @independent_Tarski_nD Pred ITn (incr (incr \
-           Dim))}\n\
-          \                A B C := A = B \\_/ B = C \\_/ BetS A B C."
-          dummy_start
-      in
-
-      Ok
-        [
-          Replace (first_require.id, new_first_require);
-          Attach (second_require, LineAfter, new_first_require.id);
-          Attach (third_require, LineAfter, second_require.id);
-          Attach (betl_definition, LineAfter, third_require.id);
-        ]
-    else Ok []
+  let* replace_require_steps =
+    List_utils.concat_map_result replace_require doc.elements
   in
 
-  let replace_require_steps = List.filter_map replace_require doc.elements in
-
-  let replace_context_steps = List.filter_map replace_context doc.elements in
+  let* replace_context_steps =
+    List_utils.concat_map_result replace_context doc.elements
+  in
 
   let definitions =
     List.filter Syntax_node.is_syntax_node_definition doc.elements
@@ -641,112 +652,122 @@ let constructivize_doc (doc : Rocq_document.t) :
       stage_six_doc.elements
   in
 
-  (* let assert_nodes = *)
-  (*   List.filter Syntax_node.is_syntax_node_assert stage_six_doc.elements *)
-  (* in *)
+  let assert_nodes =
+    List.filter Syntax_node.is_syntax_node_assert stage_six_doc.elements
+  in
 
-  (* List.iter *)
-  (*   (fun x -> Logs.debug (fun m -> m "assert node: %s " (Syntax_node.repr x))) *)
-  (*   assert_nodes; *)
+  List.iter
+    (fun x -> Logs.debug (fun m -> m "assert node: %s " (Syntax_node.repr x)))
+    assert_nodes;
 
-  (* let decomposed_asserts = *)
-  (*   List.map *)
-  (*     (fun x -> *)
-  (*       let* state_assert_before = Runner.get_init_state doc x token in *)
-  (*       Logs.debug (fun m -> m "here !"); *)
-  (*       let* state_assert_after = Runner.run_node token state_assert_before x in *)
-  (*       let old_goals_vars = *)
-  (*         Runner.reified_goals_at_state token state_assert_before *)
-  (*         |> List.map Runner.get_hypothesis_names *)
-  (*         |> Option.make *)
-  (*       in *)
+  let decomposed_asserts =
+    List.map
+      (fun x ->
+        Logs.debug (fun m -> m "x: %s" (Syntax_node.repr x));
+        Logs.debug (fun m -> m "this ??");
+        let* state_assert_before = Runner.get_init_state doc x token in
+        Logs.debug (fun m -> m "here !");
+        let* state_assert_after = Runner.run_node token state_assert_before x in
+        let old_goals_vars =
+          Runner.reified_goals_at_state token state_assert_before
+          |> List.map Runner.get_hypothesis_names
+          |> Option.make
+        in
 
-  (*       let new_goals_vars = *)
-  (*         Runner.reified_goals_at_state token state_assert_after *)
-  (*         |> List.map Runner.get_hypothesis_names *)
-  (*         |> Option.make *)
-  (*       in *)
-  (*       Logs.debug (fun m -> m "here !!"); *)
+        let new_goals_vars =
+          Runner.reified_goals_at_state token state_assert_after
+          |> List.map Runner.get_hypothesis_names
+          |> Option.make
+        in
+        let* new_vars =
+          get_new_vars old_goals_vars new_goals_vars
+          |> Option_utils.to_result
+               ~none:
+                 (Error.format_to_or_error "Error getting new vars for node %s"
+                    (Syntax_node.repr x))
+        in
 
-  (*       let* new_vars = *)
-  (*         get_new_vars old_goals_vars new_goals_vars *)
-  (*         |> Option_utils.to_result *)
-  (*              ~none: *)
-  (*                (Error.format_to_or_error "Error getting new vars for node %s" *)
-  (*                   (Syntax_node.repr x)) *)
-  (*       in *)
+        let assert_generated_name =
+          if Syntax_node.is_syntax_node_assert_by x then
+            List.nth new_vars 0 |> List.hd
+          else List.nth new_vars 1 |> List.hd
+        in
 
-  (*       let assert_generated_name = *)
-  (*         if Syntax_node.is_syntax_node_assert_by x then *)
-  (*           List.nth new_vars 0 |> List.hd *)
-  (*         else List.nth new_vars 1 |> List.hd *)
-  (*       in *)
+        let assert_expr = get_syntax_node_assert_expr x |> Option.get in
+        (* this should also catch human named assert *)
 
-  (*       let assert_expr = get_syntax_node_assert_expr x |> Option.get in *)
-  (*       (\* this should also catch human named assert *\) *)
+        Ok (x, assert_generated_name, assert_expr))
+      assert_nodes
+  in
 
-  (*       Ok (x, assert_generated_name, assert_expr)) *)
-  (*     assert_nodes *)
-  (* in *)
+  let decomposed_asserts_cleaned =
+    List.map Result.to_option decomposed_asserts |> List.filter_map Fun.id
+  in
 
-  (* let decomposed_asserts_cleaned = *)
-  (*   List.map Result.to_option decomposed_asserts |> List.filter_map Fun.id *)
-  (* in *)
+  List.iter
+    (fun (assert_node, assert_name, assert_expr) ->
+      Logs.debug (fun m ->
+          m "node: %s has name %s and assert expr: %s"
+            (Syntax_node.repr assert_node)
+            assert_name
+            (constrexpr_to_string assert_expr)))
+    decomposed_asserts_cleaned;
 
-  (* List.iter *)
-  (*   (fun (assert_node, assert_name, assert_expr) -> *)
-  (*     Logs.debug (fun m -> *)
-  (*         m "node: %s has name %s and assert expr: %s" *)
-  (*           (Syntax_node.repr assert_node) *)
-  (*           assert_name *)
-  (*           (constrexpr_to_string assert_expr))) *)
-  (*   decomposed_asserts_cleaned; *)
+  let stab_assert_steps =
+    List.filter_map
+      (fun ((assert_node : Syntax_node.t), assert_name, assert_expr) ->
+        let assert_expr_str = constrexpr_to_string assert_expr in
+        Logs.debug (fun m -> m "assert_expr_str: %s" assert_expr_str);
+        let stab_assert_node_str =
+          Printf.sprintf "stab_assert (%s: (%s))." assert_name assert_expr_str
+        in
+        Logs.debug (fun m -> m "stab_assert_node_str: %s" stab_assert_node_str);
+        let+ stab_assert_node =
+          Syntax_node.syntax_node_of_string stab_assert_node_str
+            assert_node.range.start
+          |> Result.to_option
+        in
 
-  (* let stab_assert_steps = *)
-  (*   List.filter_map *)
-  (*     (fun ((assert_node : Syntax_node.t), assert_name, assert_expr) -> *)
-  (*       let assert_expr_str = constrexpr_to_string assert_expr in *)
-  (*       let stab_assert_node_str = *)
-  (*         Printf.sprintf "stab_assert (%s: (%s))." assert_name assert_expr_str *)
-  (*       in *)
-  (*       let+ stab_assert_node = *)
-  (*         Syntax_node.syntax_node_of_string stab_assert_node_str *)
-  (*           assert_node.range.start *)
-  (*         |> Result.to_option *)
-  (*       in *)
+        let+ unNNnode =
+          Syntax_node.syntax_node_of_string "unNN." dummy_start
+          |> Result.to_option
+        in
 
-  (*       let+ unNNnode = *)
-  (*         Syntax_node.syntax_node_of_string "unNN." dummy_start *)
-  (*         |> Result.to_option *)
-  (*       in *)
+        let assert_by_tac =
+          Syntax_node.get_syntax_node_assert_by_raw_tac_expr assert_node
+        in
 
-  (*       let assert_by_tac = *)
-  (*         Syntax_node.get_syntax_node_assert_by_raw_tac_expr assert_node *)
-  (*       in *)
-
-  (*       match assert_by_tac with *)
-  (*       | Some tac -> *)
-  (*           let+ tac_node = *)
-  (*             Syntax_node.raw_tactic_expr_to_syntax_node tac dummy_start *)
-  (*             |> Result.to_option *)
-  (*           in *)
-  (*           Some *)
-  (*             [ *)
-  (*               Replace (assert_node.id, stab_assert_node); *)
-  (*               Attach (unNNnode, SameLine, stab_assert_node.id); *)
-  (*               Attach (tac_node, LineAfter, unNNnode.id); *)
-  (*             ] *)
-  (*       | None -> *)
-  (*           Some *)
-  (*             [ *)
-  (*               Replace (assert_node.id, stab_assert_node); *)
-  (*               Attach (unNNnode, SameLine, stab_assert_node.id); *)
-  (*             ]) *)
-  (*     decomposed_asserts_cleaned *)
-  (*   |> List.concat *)
-  (* in *)
+        match assert_by_tac with
+        | Some tac ->
+            let+ tac_node =
+              Syntax_node.raw_tactic_expr_to_syntax_node tac dummy_start
+              |> Result.to_option
+            in
+            Some
+              [
+                Replace (assert_node.id, stab_assert_node);
+                Attach (unNNnode, SameLine, stab_assert_node.id);
+                Attach (tac_node, LineAfter, unNNnode.id);
+              ]
+        | None ->
+            Some
+              [
+                Replace (assert_node.id, stab_assert_node);
+                Attach (unNNnode, SameLine, stab_assert_node.id);
+              ])
+      decomposed_asserts_cleaned
+    |> List.concat
+  in
   let steps_stage_six = prolong_to_segment_cons_steps @ stab_assert_steps in
   Ok
-    (update_replaces steps_stage_zero
-    @ steps_stage_one @ steps_stage_two @ steps_stage_three @ steps_stage_four
-    @ steps_stage_five @ steps_stage_six)
+    (update_replaces
+       (List.concat
+          [
+            steps_stage_zero;
+            steps_stage_one;
+            steps_stage_two;
+            steps_stage_three;
+            steps_stage_four;
+            steps_stage_five;
+            steps_stage_six;
+          ]))
