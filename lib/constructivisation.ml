@@ -48,44 +48,41 @@ let replace_require (x : Syntax_node.t) : transformation_step option =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp synterp_expr -> (
-          match synterp_expr with
-          | VernacRequire
-              (option_libname, export_with_cats_opt, libnames_import_list) -> (
-              match List.nth_opt libnames_import_list 0 with
-              | Some (qualid, import_filter) -> (
-                  let qualid_str = Libnames.string_of_qualid qualid in
-                  match split_prefix "GeoCoq.Main.Tarski_dev" qualid_str with
-                  | Some (_, postfix) ->
-                      let new_qualid_str = "GeoCoq.Constructive." ^ postfix in
-                      let new_qualid =
-                        Libnames.qualid_of_string new_qualid_str
-                      in
-                      let new_head_tuple = (new_qualid, import_filter) in
-                      let new_libnames_import_list =
-                        new_head_tuple :: List_utils.drop 1 libnames_import_list
-                      in
-                      let new_expr =
-                        VernacSynterp
-                          (VernacRequire
-                             ( option_libname,
-                               export_with_cats_opt,
-                               new_libnames_import_list ))
-                      in
-                      let new_vernac_control =
-                        Syntax_node.mk_vernac_control new_expr
-                      in
+      | VernacSynterp
+          (VernacRequire
+             (option_libname, export_with_cats_opt, libnames_import_list)) -> (
+          match List.nth_opt libnames_import_list 0 with
+          | Some (qualid, import_filter) -> (
+              let qualid_str = Libnames.string_of_qualid qualid in
+              match split_prefix "GeoCoq.Main.Tarski_dev" qualid_str with
+              | Some (_, postfix) ->
+                  let new_qualid_str = "GeoCoq.Constructive" ^ postfix in
 
-                      let new_node =
-                        Syntax_node.syntax_node_of_coq_ast
-                          (Coq.Ast.of_coq new_vernac_control)
-                          x.range.start
-                      in
-                      Some (Replace (x.id, new_node))
-                  | None -> None)
+                  let new_qualid = Libnames.qualid_of_string new_qualid_str in
+                  let new_head_tuple = (new_qualid, import_filter) in
+                  let new_libnames_import_list =
+                    new_head_tuple :: List_utils.drop 1 libnames_import_list
+                  in
+                  let new_expr =
+                    VernacSynterp
+                      (VernacRequire
+                         ( option_libname,
+                           export_with_cats_opt,
+                           new_libnames_import_list ))
+                  in
+                  let new_vernac_control =
+                    Syntax_node.mk_vernac_control new_expr
+                  in
+
+                  let new_node =
+                    Syntax_node.syntax_node_of_coq_ast
+                      (Coq.Ast.of_coq new_vernac_control)
+                      x.range.start
+                  in
+                  Some (Replace (x.id, new_node))
               | None -> None)
-          | _ -> None)
-      | VernacSynPure _ -> None)
+          | None -> None)
+      | _ -> None)
   | None -> None
 
 let replace_context (x : Syntax_node.t) : transformation_step option =
@@ -115,16 +112,30 @@ let replace_notation_in_constrexpr (old_notation : string)
            (scope, (entry, new_notation), (l1, ll, pat, binders)))
   | _ -> term
 
-let replace_notation_in_proof_proposition (old_notation : string)
-    (new_notation : string) (x : Proof.t) : transformation_step option =
+let replace_fun_name_in_constrexpr (old_fun_name : string)
+    (new_fun_name : string) (term : Constrexpr.constr_expr) :
+    Constrexpr.constr_expr =
+  let old_q = Libnames.qualid_of_string old_fun_name in
+  let new_q = Libnames.qualid_of_string new_fun_name in
+
+  let matches_ref q =
+    (* more robust than string_of_qualid equality *)
+    Libnames.qualid_eq q old_q
+  in
+
+  match term.v with
+  | Constrexpr.CRef (q, instance_expr_opt) when matches_ref q ->
+      CAst.make (Constrexpr.CRef (new_q, instance_expr_opt))
+  | Constrexpr.CAppExpl ((q, instance_expr_opt), l) when matches_ref q ->
+      CAst.make (Constrexpr.CAppExpl ((new_q, instance_expr_opt), l))
+  | _ -> term
+
+let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (x : Proof.t) : transformation_step option =
   let x_start = x.proposition.range.start in
   let+ components = Proof.get_theorem_components x in
 
-  let new_expr =
-    Constrexpr_map.constr_expr_map
-      (replace_notation_in_constrexpr old_notation new_notation)
-      components.expr
-  in
+  let new_expr = Constrexpr_map.constr_expr_map f components.expr in
   if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
     let new_components = { components with expr = new_expr } in
 
@@ -134,6 +145,18 @@ let replace_notation_in_proof_proposition (old_notation : string)
 
     Some (Replace (x.proposition.id, new_node))
   else None
+
+let replace_notation_in_proof_proposition (old_notation : string)
+    (new_notation : string) (x : Proof.t) : transformation_step option =
+  map_proof_proposition
+    (replace_notation_in_constrexpr old_notation new_notation)
+    x
+
+let replace_fun_name_in_proof_proposition (old_fun_name : string)
+    (new_fun_name : string) (x : Proof.t) : transformation_step option =
+  map_proof_proposition
+    (replace_fun_name_in_constrexpr old_fun_name new_fun_name)
+    x
 
 let is_syntax_node_prolong (x : Syntax_node.t) : bool =
   let ( let@ ) opt f = match opt with Some x -> f x | None -> false in
@@ -196,72 +219,32 @@ let map_assert_constr_expr
       |> CAst.make
   | _ -> tacexpr
 
-let map_assert_in_node (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+let map_raw_tactic_expr_in_node
+    (f :
+      Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
     (node : Syntax_node.t) : transformation_step option =
   let+ raw_tac_expr = Syntax_node.get_node_raw_tactic_expr node in
-  let raw_expr_mapped =
-    Tacexpr_map.tacexpr_map (map_assert_constr_expr f) raw_tac_expr
-  in
-  if not (raw_tac_expr = raw_expr_mapped) then
-    let selector = Syntax_node.get_node_goal_selector_opt node in
-    let+ new_node =
-      Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
-        ~use_default:false node.range.start
-      |> Result.to_option
-    in
-    Some (Replace (node.id, new_node))
-  else None
-
-let replace_taccall_tacarg_in_node (old_tac_call_name : string)
-    (new_tac_call_name : string) (node : Syntax_node.t) :
-    transformation_step option =
-  let+ raw_tac_expr = Syntax_node.get_node_raw_tactic_expr node in
-  let f =
-    replace_taccall_tacarg_in_tacexpr old_tac_call_name new_tac_call_name
-  in
   let raw_expr_mapped = Tacexpr_map.tacexpr_map f raw_tac_expr in
   if not (raw_tac_expr = raw_expr_mapped) then
     let selector = Syntax_node.get_node_goal_selector_opt node in
     let+ new_node =
       Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
-        ~use_default:false node.range.start
+        node.range.start
       |> Result.to_option
     in
     Some (Replace (node.id, new_node))
   else None
 
-let replace_fun_name_in_constrexpr (old_fun_name : string)
-    (new_fun_name : string) (term : Constrexpr.constr_expr) :
-    Constrexpr.constr_expr =
-  let old_q = Libnames.qualid_of_string old_fun_name in
-  let new_q = Libnames.qualid_of_string new_fun_name in
+let map_assert_in_node (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (node : Syntax_node.t) : transformation_step option =
+  map_raw_tactic_expr_in_node (map_assert_constr_expr f) node
 
-  let matches_ref q =
-    (* more robust than string_of_qualid equality *)
-    Libnames.qualid_eq q old_q
-  in
-
-  match term.v with
-  | Constrexpr.CRef (q, instance_expr_opt) when matches_ref q ->
-      CAst.make (Constrexpr.CRef (new_q, instance_expr_opt))
-  | Constrexpr.CAppExpl ((q, instance_expr_opt), l) when matches_ref q ->
-      CAst.make (Constrexpr.CAppExpl ((new_q, instance_expr_opt), l))
-  | _ -> term
-
-let replace_fun_name_in_proof (old_fun_name : string) (new_fun_name : string)
-    (x : Proof.t) : transformation_step option =
-  let x_start = x.proposition.range.start in
-  let+ components = Proof.get_theorem_components x in
-
-  let replace_map = replace_fun_name_in_constrexpr old_fun_name new_fun_name in
-  let new_expr = Constrexpr_map.constr_expr_map replace_map components.expr in
-  if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
-    let new_components = { components with expr = new_expr } in
-    let new_node =
-      Proof.syntax_node_of_theorem_components new_components x_start
-    in
-    Some (Replace (x.proposition.id, new_node))
-  else None
+let replace_taccall_tacarg_in_node (old_tac_call_name : string)
+    (new_tac_call_name : string) (node : Syntax_node.t) :
+    transformation_step option =
+  map_raw_tactic_expr_in_node
+    (replace_taccall_tacarg_in_tacexpr old_tac_call_name new_tac_call_name)
+    node
 
 let get_cref_qualid (x : Constrexpr.constr_expr) : Libnames.qualid option =
   match x.v with Constrexpr.CRef (qualid, _) -> Some qualid | _ -> None
@@ -549,7 +532,9 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
 
   let replace_bet_by_betl_in_proofs_steps =
-    List.filter_map (replace_fun_name_in_proof "Bet" "BetL") proofs_stage_two
+    List.filter_map
+      (replace_fun_name_in_proof_proposition "Bet" "BetL")
+      proofs_stage_two
   in
 
   let replace_bet_by_betl_in_definitions_steps =
