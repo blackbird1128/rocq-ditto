@@ -145,6 +145,9 @@ val get_node_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 val get_node_raw_atomic_tactic_expr :
   t -> Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option
 
+val string_to_raw_tactic_expr :
+  string -> (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result
+
 val get_node_ltac_elements : t -> ltac_elements option
 val drop_goal_selector : t -> t
 val add_goal_selector : t -> Goal_select_view.t -> (t, Error.t) result
