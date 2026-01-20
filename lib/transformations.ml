@@ -354,21 +354,35 @@ let remove_random_step (_ : Rocq_document.t) (proof : Proof.t) :
 
 let admit_and_comment_proof_steps (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
+  let ( let* ) = Result.bind in
   let remove_all_steps =
     List.map (fun step -> Remove step.id) proof.proof_steps
   in
   let first_proof_node = List.hd proof.proof_steps in
 
-  let comment_content =
-    "(* "
-    ^ String.concat "\n"
-        (List_utils.take
-           (max 0 (List.length proof.proof_steps - 1))
-           proof.proof_steps
-        |> List.map repr)
-    ^ " *)"
+  let* comment_content =
+    match proof.proof_steps with
+    | first_step :: tail ->
+        let first_step_start_line = first_step.range.start.line in
+        let normalized_range_steps =
+          List.map
+            (fun x -> shift_node (-first_step_start_line) 0 x)
+            (first_step :: tail)
+        in
+        Rocq_document.dump_elements_to_string normalized_range_steps
+    | _ -> Ok ""
   in
+  let comment_content = "(* " ^ comment_content ^ "*)" in
 
+  (* let comment_content = *)
+  (*   "(\* " *)
+  (*   ^ String.concat "\n" *)
+  (*       (List_utils.take *)
+  (*          (max 0 (List.length proof.proof_steps - 1)) *)
+  (*          proof.proof_steps *)
+  (*       |> List.map repr) *)
+  (*   ^ " *\)" *)
+  (* in *)
   let comment_node =
     Result.get_ok
       (Syntax_node.comment_syntax_node_of_string comment_content

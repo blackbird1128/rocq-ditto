@@ -74,6 +74,10 @@ val get_proofs : t -> (Proof.t list, Error.t) result
     aggregating elements of the document that share the same proof identifier.
 *)
 
+val dump_elements_to_string : Syntax_node.t list -> (string, Error.t) result
+(** Convert a list of [Syntax_node.t] to a string representation as they would
+    be represented *)
+
 val dump_to_string : t -> (string, Error.t) result
 (** Convert an annotated document to a string representation.
     [dump_to_string doc] returns a string wrapped in [Ok] that represents the
