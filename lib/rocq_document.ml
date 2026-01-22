@@ -257,21 +257,20 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
               node.range.start.character - previous_node.range.end_.character
             in
             if char_diff < 0 then
-              Error
-                (Error.of_string
-                   ("Error: node start - previous end char negative"
-                  ^ "\nprevious node range: "
-                   ^ Code_range.to_string previous_node.range
-                   ^ "\ncurrent node range: "
-                   ^ Code_range.to_string node.range))
+              Error.format_to_or_error
+                "Error: node start - previous end char negative\n\
+                 previous node range: %s\n\
+                 current node range: %s"
+                (Code_range.to_string previous_node.range)
+                (Code_range.to_string node.range)
             else Ok (doc_repr ^ String.make char_diff ' ' ^ repr node)
           else if line_diff <= 0 then
-            Error
-              (Error.of_string
-                 ("line diff negative" ^ "\nprevious node range: "
-                 ^ Code_range.to_string previous_node.range
-                 ^ "\ncurrent node range: "
-                 ^ Code_range.to_string node.range))
+            Error.format_to_or_error
+              "line diff negative\n\
+               previous node range: %s\n\
+               current node range: %s"
+              (Code_range.to_string previous_node.range)
+              (Code_range.to_string node.range)
           else
             Ok
               (doc_repr ^ String.make line_diff '\n'
@@ -499,10 +498,9 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         - replacement_shifted.range.start.line + 1
       in
 
-      let removed_node_doc =
+      let* removed_node_doc =
         remove_node_with_id ~remove_method:LeaveBlank target.id doc
-        |> Result.get_ok
-        (* we already checked for the node existence *)
+        (* we already checked for the node existence but remove node can still fail when reconstructing the document if the doc is invalid *)
       in
 
       let has_same_lines_elements =
