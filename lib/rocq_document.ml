@@ -49,12 +49,7 @@ let get_proofs (doc : t) : (Proof.t list, Error.t) result =
   in
 
   let res = aux doc.elements [] [] NoProof in
-  let err_opt =
-    List.find_opt (fun proof_res -> Result.is_error proof_res) res
-  in
-  match err_opt with
-  | Some error -> Error (Result.get_error error)
-  | None -> Ok (List.rev (List.map Result.get_ok res))
+  List_utils.result_all res
 
 let node_representation (node : Doc.Node.t) (document : string) : string =
   String.sub document node.range.start.offset
@@ -590,6 +585,7 @@ let replace_proof (target_id : Uuidm.t) (new_proof : Proof.t) (doc : t) :
 
 let apply_transformation_step (step : transformation_step) (doc : t) :
     (t, Error.t) result =
+  let ( let* ) = Result.bind in
   match step with
   | Remove id -> remove_node_with_id id doc
   | Replace (id, new_node) -> replace_node id new_node doc
@@ -627,22 +623,20 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
                 }
           in
 
-          let new_node =
+          let* new_node =
             match attached_node.ast with
             | Some _ ->
-                let node =
+                let* node =
                   Syntax_node.syntax_node_of_string (repr attached_node)
                     new_node_range.start
-                  |> Result.get_ok
                 in
-                { node with id = attached_node.id }
+                Ok { node with id = attached_node.id }
             | None ->
-                let node =
+                let* node =
                   Syntax_node.comment_syntax_node_of_string (repr attached_node)
                     new_node_range.start
-                  |> Result.get_ok
                 in
-                { node with id = attached_node.id }
+                Ok { node with id = attached_node.id }
           in
 
           match attach_position with
