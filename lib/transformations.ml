@@ -374,27 +374,17 @@ let admit_and_comment_proof_steps (_ : Rocq_document.t) (proof : Proof.t) :
   in
   let comment_content = "(* " ^ comment_content ^ "*)" in
 
-  (* let comment_content = *)
-  (*   "(\* " *)
-  (*   ^ String.concat "\n" *)
-  (*       (List_utils.take *)
-  (*          (max 0 (List.length proof.proof_steps - 1)) *)
-  (*          proof.proof_steps *)
-  (*       |> List.map repr) *)
-  (*   ^ " *\)" *)
-  (* in *)
-  let comment_node =
-    Result.get_ok
-      (Syntax_node.comment_syntax_node_of_string comment_content
-         first_proof_node.range.start)
+  let* comment_node =
+    Syntax_node.comment_syntax_node_of_string comment_content
+      first_proof_node.range.start
   in
 
   let admitted_start =
     shift_point 1 (-comment_node.range.end_.character) comment_node.range.end_
   in
 
-  let admitted_node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Admitted." admitted_start)
+  let* admitted_node =
+    Syntax_node.syntax_node_of_string "Admitted." admitted_start
   in
   Ok
     (remove_all_steps
