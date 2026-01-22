@@ -44,6 +44,16 @@ let find_index f xs =
   in
   aux 0 xs
 
+let result_all (xs : ('a, 'e) result list) : ('a list, 'e) result =
+  List.fold_left
+    (fun acc x ->
+      match (acc, x) with
+      | Error e, _ -> Error e
+      | Ok _, Error e -> Error e
+      | Ok ys, Ok y -> Ok (y :: ys))
+    (Ok []) xs
+  |> Result.map List.rev
+
 let concat_result (l : ('a list, 'e) result list) : ('a list, 'e) result =
   let rec aux acc = function
     | [] -> Ok (List.rev acc)
