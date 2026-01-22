@@ -366,8 +366,28 @@ let add_node_after_require (doc : Rocq_document.t) (node : Syntax_node.t) :
   in
   Some (Attach (node, LineAfter, last_require.id))
 
-type definition_object_kind = [%import: Decls.definition_object_kind]
-[@@deriving show]
+let get_proof_conclusion (p : Proof.t) : Constrexpr.constr_expr option =
+  let ( let+ ) = Option.bind in
+  let+ components = Proof.get_theorem_components p in
+  let expr = components.expr in
+  let rec get_conclusion (expr : Constrexpr.constr_expr) =
+    match expr.v with
+    | Constrexpr.CProdN (_binders, body) -> get_conclusion body
+    | Constrexpr.CLetIn (_, _, _, body) -> get_conclusion body
+    | Constrexpr.CNotation
+        ( opt_scope,
+          (notation_entry, notation_key),
+          (args, _args_lists, _pats, _lbnds) ) ->
+        if notation_key = "_ -> _" then (
+          match args with
+          | [ left; right ] -> get_conclusion right
+          | _ ->
+              Logs.debug (fun m -> m "this is NOT supposed to happens");
+              None)
+        else Some expr
+    | _ -> Some expr
+  in
+  get_conclusion expr
 
 let is_proof_about_exists (p : Proof.t) : bool =
   let ( let@ ) o f = match o with None -> false | Some x -> f x in
@@ -552,6 +572,14 @@ let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let* proofs = Rocq_document.get_proofs doc in
+
+  let conclusions = List.filter_map get_proof_conclusion proofs in
+  List.iter
+    (fun x ->
+      let x_str = constrexpr_to_string x in
+      Logs.debug (fun m -> m "%s" x_str))
+    conclusions;
+
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
 
   let* require_stable_node =
@@ -713,16 +741,24 @@ let constructivize_doc (doc : Rocq_document.t) :
       stage_six_doc.elements
   in
 
+  (* let* assert_to_stab_assert_steps = *)
+  (*   List_utils.concat_map_result *)
+  (*     (replace_assert_by_stab_assert stage_six_doc) *)
+  (*     stage_six_doc.elements *)
+  (* in *)
   let steps_stage_six = prolong_to_segment_cons_steps in
-  Ok
-    (update_replaces
-       (List.concat
-          [
-            steps_stage_zero;
-            steps_stage_one;
-            steps_stage_two;
-            steps_stage_three;
-            steps_stage_four;
-            steps_stage_five;
-            steps_stage_six;
-          ]))
+  let res =
+    Ok
+      (update_replaces
+         (List.concat
+            [
+              steps_stage_zero;
+              steps_stage_one;
+              steps_stage_two;
+              steps_stage_three;
+              steps_stage_four;
+              steps_stage_five;
+              steps_stage_six;
+            ]))
+  in
+  res
