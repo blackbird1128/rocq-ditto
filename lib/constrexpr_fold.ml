@@ -89,9 +89,9 @@ let children_constr_expr (ce : constr_expr) : constr_expr list =
 
 (* Rec ok *)
 
-let rec fold_constr f acc ce =
+let rec fold (f : constr_expr -> 'a -> 'a) (acc : 'a) (ce : constr_expr) : 'a =
   let acc = f ce acc in
-  List.fold_left (fold_constr f) acc (children_constr_expr ce)
+  List.fold_left (fold f) acc (children_constr_expr ce)
 
 let exists (p : constr_expr -> bool) (ce : constr_expr) : bool =
-  fold_constr (fun ce acc -> acc || p ce) false ce
+  fold (fun ce acc -> acc || p ce) false ce
