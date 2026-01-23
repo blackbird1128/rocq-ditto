@@ -116,6 +116,22 @@ let replace_notation_in_constrexpr (old_notation : string)
            (scope, (entry, new_notation), (l1, ll, pat, binders)))
   | _ -> term
 
+let get_fun_name_in_constrexpr (term : Constrexpr.constr_expr) :
+    Libnames.qualid option =
+  match term.v with
+  | Constrexpr.CRef (q, _) -> Some q
+  | Constrexpr.CAppExpl ((q, _), _) -> Some q
+  | _ -> None
+
+let get_fun_names_in_constrexpr (term : Constrexpr.constr_expr) :
+    Libnames.qualid list =
+  Constrexpr_fold.fold
+    (fun x acc ->
+      match get_fun_name_in_constrexpr x with
+      | Some qualid -> qualid :: acc
+      | None -> acc)
+    [] term
+
 let replace_fun_name_in_constrexpr (old_fun_name : string)
     (new_fun_name : string) (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
@@ -366,6 +382,63 @@ let add_node_after_require (doc : Rocq_document.t) (node : Syntax_node.t) :
   in
   Some (Attach (node, LineAfter, last_require.id))
 
+let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
+  Constrexpr_fold.exists
+    (fun expr ->
+      match expr.v with
+      | Constrexpr.CNotation
+          (opt_scope, (notation_entry, notation_key), notation_substitution) ->
+          notation_key = "exists _ .. _ , _"
+      | _ -> false)
+    x
+
+let is_proof_about_exists (p : Proof.t) : bool =
+  let ( let@ ) o f = match o with None -> false | Some x -> f x in
+  let@ components = Proof.get_theorem_components p in
+
+  constrexpr_contains_exists components.expr
+
+let get_definition_name (x : Syntax_node.t) : string option =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynPure (Vernacexpr.VernacDefinition (_, (name, _), _)) ->
+          Some (Pp.string_of_ppcmds (Names.Name.print name.v))
+      | _ -> None)
+  | None -> None
+
+let get_definition_constrexpr (x : Syntax_node.t) :
+    Constrexpr.constr_expr option =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynPure (Vernacexpr.VernacDefinition (_, _, expr)) -> (
+          match expr with
+          | ProveBody _ -> None
+          | DefineBody (_, _, expr, _) -> Some expr)
+      | _ -> None)
+  | None -> None
+
+let collect_definitions_containing_exists (l : Syntax_node.t list) : string list
+    =
+  let rec aux (l : Syntax_node.t list) (acc : string list) =
+    match l with
+    | [] -> acc
+    | x :: tail -> (
+        match get_definition_constrexpr x with
+        | Some expr ->
+            (* let funcs = *)
+            (*   get_fun_names_in_constrexpr expr *)
+            (*   |> List.map Libnames.string_of_qualid *)
+            (* in *)
+            if constrexpr_contains_exists expr then
+              let name = Option.get (get_definition_name x) in
+              aux tail (name :: acc)
+            else aux tail acc
+        | None -> aux tail acc)
+  in
+  aux l []
+
 let get_proof_conclusion (p : Proof.t) : Constrexpr.constr_expr option =
   let ( let+ ) = Option.bind in
   let+ components = Proof.get_theorem_components p in
@@ -388,19 +461,6 @@ let get_proof_conclusion (p : Proof.t) : Constrexpr.constr_expr option =
     | _ -> Some expr
   in
   get_conclusion expr
-
-let is_proof_about_exists (p : Proof.t) : bool =
-  let ( let@ ) o f = match o with None -> false | Some x -> f x in
-  let@ components = Proof.get_theorem_components p in
-
-  Constrexpr_fold.exists
-    (fun expr ->
-      match expr.v with
-      | Constrexpr.CNotation
-          (opt_scope, (notation_entry, notation_key), notation_substitution) ->
-          notation_key = "exists _ .. _ , _"
-      | _ -> false)
-    components.expr
 
 let get_syntax_node_assert_expr (x : Syntax_node.t) =
   match Syntax_node.get_node_raw_atomic_tactic_expr x with
@@ -605,6 +665,17 @@ let constructivize_doc (doc : Rocq_document.t) :
   let definitions =
     List.filter Syntax_node.is_syntax_node_definition doc.elements
   in
+
+  let definition_names = List.filter_map get_definition_name definitions in
+  List.iter (fun x -> Logs.debug (fun m -> m "def name: %s" x)) definition_names;
+
+  Logs.debug (fun m -> m "definitions containing exists :");
+  let definitions_containing_exists =
+    collect_definitions_containing_exists definitions
+  in
+  List.iter
+    (fun x -> Logs.debug (fun m -> m "%s" x))
+    definitions_containing_exists;
 
   let replace_or_by_constructive_or_in_proofs_steps =
     List.filter_map

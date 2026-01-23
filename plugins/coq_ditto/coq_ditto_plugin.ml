@@ -332,9 +332,10 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 let* doc_repr = Rocq_document.dump_to_string res in
                 output_string out doc_repr;
                 Printf.printf "Saving vo: ";
-                let uri =
+                let* uri =
                   Lang.LUri.of_string filename
-                  |> Lang.LUri.File.of_uri |> Result.get_ok
+                  |> Lang.LUri.File.of_uri
+                  |> Result.map_error Error.of_string
                 in
 
                 let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc.uri in
