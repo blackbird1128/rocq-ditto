@@ -62,7 +62,7 @@ let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       get_basic_tactic_names tactic_repeated
   | Ltac_plugin.Tacexpr.TacProgress tac -> get_basic_tactic_names tac
   | Ltac_plugin.Tacexpr.TacAbstract (tac, _) -> get_basic_tactic_names tac
-  | Ltac_plugin.Tacexpr.TacId _ -> [ "idtac" ]
+  | Ltac_plugin.Tacexpr.TacId _ -> [ Pp.string_of_ppcmds pp ]
   | Ltac_plugin.Tacexpr.TacFail (_, _, _) -> [ Pp.string_of_ppcmds pp ]
   | Ltac_plugin.Tacexpr.TacLetIn (_, _, _) ->
       print_endline "tacLetIn not handled yet";
