@@ -34,7 +34,6 @@ let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
         |> Array.map Array.of_list |> Array.to_list |> Array.concat
         |> Array.to_list
       in
-      print_endline "tacThens3parts not handled yet";
       get_basic_tactic_names tac1
       @ tac_array1_names
       @ get_basic_tactic_names tac2

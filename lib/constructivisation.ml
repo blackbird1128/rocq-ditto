@@ -419,11 +419,19 @@ let get_definition_constrexpr (x : Syntax_node.t) :
       | _ -> None)
   | None -> None
 
+let show_list xs = "[" ^ String.concat "; " xs ^ "]"
+
+(* this is N^2 but we don't really care as the lists are quite small *)
+let intersect l1 l2 =
+  List.fold_left
+    (fun acc x -> if List.exists (fun y -> y = x) l1 then true else acc)
+    false l2
+
 let collect_definitions_containing_exists (l : Syntax_node.t list) : string list
     =
   let rec aux (l : Syntax_node.t list) (acc : string list) =
     match l with
-    | [] -> acc
+    | [] -> List.rev acc
     | x :: tail -> (
         match get_definition_constrexpr x with
         | Some expr ->
@@ -431,9 +439,13 @@ let collect_definitions_containing_exists (l : Syntax_node.t list) : string list
             (*   get_fun_names_in_constrexpr expr *)
             (*   |> List.map Libnames.string_of_qualid *)
             (* in *)
-            if constrexpr_contains_exists expr then
-              let name = Option.get (get_definition_name x) in
-              aux tail (name :: acc)
+            let name = Option.get (get_definition_name x) in
+            let fun_names_in_def =
+              get_fun_names_in_constrexpr expr
+              |> List.map Libnames.string_of_qualid
+            in
+            if constrexpr_contains_exists expr || intersect fun_names_in_def acc
+            then aux tail (name :: acc)
             else aux tail acc
         | None -> aux tail acc)
   in
@@ -580,6 +592,25 @@ let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
             ])
   | _ -> Ok []
 
+let check_definitions_containing_exists_are_correct (doc : Rocq_document.t)
+    (static_definitions : string list) : (unit, Error.t) result =
+  if Filename.basename doc.filename = "Definitions.v" then
+    let definitions =
+      List.filter Syntax_node.is_syntax_node_definition doc.elements
+    in
+
+    let definitions_containing_exists =
+      collect_definitions_containing_exists definitions
+    in
+
+    if List.equal String.equal definitions_containing_exists static_definitions
+    then Ok ()
+    else
+      Error.string_to_or_error
+        "Mismatch between the statically defined definitions containing exists \
+         and the dynamically collected ones"
+  else Ok ()
+
 let get_definition_file_steps (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
@@ -628,6 +659,112 @@ let get_definition_file_steps (doc : Rocq_document.t) :
       ]
   else Ok []
 
+let definitions_with_exists =
+  [
+    "Le";
+    "Ge";
+    "Lt";
+    "Gt";
+    "Inter";
+    "Per";
+    "Perp_at";
+    "Perp";
+    "TS";
+    "OS";
+    "Coplanar";
+    "TSP";
+    "OSP";
+    "ReflectL";
+    "Reflect";
+    "ReflectL_at";
+    "Reflect_at";
+    "CongA";
+    "InAngle";
+    "LeA";
+    "GeA";
+    "LtA";
+    "GtA";
+    "Acute";
+    "Obtuse";
+    "Orth_at";
+    "Orth";
+    "Par_strict";
+    "Par";
+    "Q_Cong";
+    "Len";
+    "Q_Cong_Null";
+    "Q_CongA";
+    "Ang";
+    "Ang_Flat";
+    "Perp2";
+    "Q_CongA_Acute";
+    "Ang_Acute";
+    "Q_CongA_nNull";
+    "Q_CongA_nFlat";
+    "Q_CongA_Null";
+    "Q_CongA_Null_Acute";
+    "is_null_anga'";
+    "Q_CongA_nNull_Acute";
+    "Lcos";
+    "Eq_Lcos";
+    "Lcos2";
+    "Eq_Lcos2";
+    "Lcos3";
+    "Eq_Lcos3";
+    "Pj";
+    "Sum";
+    "Proj";
+    "Sump";
+    "Prod";
+    "Prodp";
+    "Opp";
+    "Diff";
+    "sum3";
+    "Sum4";
+    "sum22";
+    "LtP";
+    "LeP";
+    "Length";
+    "Is_length";
+    "Sumg";
+    "Prodg";
+    "PythRel";
+    "LtPs";
+    "Cs";
+    "Projp";
+    "Cd";
+    "SumS";
+    "Perp_bisect";
+    "Perp_bisect_bis";
+    "SumA";
+    "SAMS";
+    "SuppA";
+    "TriSumA";
+    "Defect";
+    "InCircle";
+    "OutCircle";
+    "InCircleS";
+    "OutCircleS";
+    "InterCC";
+    "Concyclic";
+    "Concyclic_gen";
+    "Reach";
+    "Parallelogram_strict";
+    "Parallelogram";
+    "Plg";
+    "Rhombus";
+    "Rectangle";
+    "Square";
+    "Saccheri";
+    "Lambert";
+    "EqV";
+    "SumV";
+    "SumV_exists";
+    "Same_dir";
+    "Opp_dir";
+    "CongA_3";
+  ]
+
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
@@ -654,6 +791,10 @@ let constructivize_doc (doc : Rocq_document.t) :
   (* stage 0 *)
   let* definitions_file_specific_steps = get_definition_file_steps doc in
 
+  let* _ =
+    check_definitions_containing_exists_are_correct doc definitions_with_exists
+  in
+
   let* replace_require_steps =
     List_utils.concat_map_result replace_require doc.elements
   in
@@ -665,17 +806,6 @@ let constructivize_doc (doc : Rocq_document.t) :
   let definitions =
     List.filter Syntax_node.is_syntax_node_definition doc.elements
   in
-
-  let definition_names = List.filter_map get_definition_name definitions in
-  List.iter (fun x -> Logs.debug (fun m -> m "def name: %s" x)) definition_names;
-
-  Logs.debug (fun m -> m "definitions containing exists :");
-  let definitions_containing_exists =
-    collect_definitions_containing_exists definitions
-  in
-  List.iter
-    (fun x -> Logs.debug (fun m -> m "%s" x))
-    definitions_containing_exists;
 
   let replace_or_by_constructive_or_in_proofs_steps =
     List.filter_map
