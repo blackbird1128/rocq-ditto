@@ -4,6 +4,120 @@ open Vernacexpr
 let ( let* ) = Result.bind
 let ( let+ ) = Option.bind
 
+let definitions_with_exists =
+  [
+    "Le";
+    "Ge";
+    "Lt";
+    "Gt";
+    "Inter";
+    "Per";
+    "Perp_at";
+    "Perp";
+    "TS";
+    "OS";
+    "Coplanar";
+    "TSP";
+    "OSP";
+    "ReflectL";
+    "Reflect";
+    "ReflectL_at";
+    "Reflect_at";
+    "CongA";
+    "InAngle";
+    "LeA";
+    "GeA";
+    "LtA";
+    "GtA";
+    "Acute";
+    "Obtuse";
+    "Orth_at";
+    "Orth";
+    "Par_strict";
+    "Par";
+    "Q_Cong";
+    "Len";
+    "Q_Cong_Null";
+    "Q_CongA";
+    "Ang";
+    "Ang_Flat";
+    "Perp2";
+    "Q_CongA_Acute";
+    "Ang_Acute";
+    "Q_CongA_nNull";
+    "Q_CongA_nFlat";
+    "Q_CongA_Null";
+    "Q_CongA_Null_Acute";
+    "is_null_anga'";
+    "Q_CongA_nNull_Acute";
+    "Lcos";
+    "Eq_Lcos";
+    "Lcos2";
+    "Eq_Lcos2";
+    "Lcos3";
+    "Eq_Lcos3";
+    "Pj";
+    "Sum";
+    "Proj";
+    "Sump";
+    "Prod";
+    "Prodp";
+    "Opp";
+    "Diff";
+    "sum3";
+    "Sum4";
+    "sum22";
+    "LtP";
+    "LeP";
+    "Length";
+    "Is_length";
+    "Sumg";
+    "Prodg";
+    "PythRel";
+    "LtPs";
+    "Cs";
+    "Projp";
+    "Cd";
+    "SumS";
+    "Perp_bisect";
+    "Perp_bisect_bis";
+    "SumA";
+    "SAMS";
+    "SuppA";
+    "TriSumA";
+    "Defect";
+    "InCircle";
+    "OutCircle";
+    "InCircleS";
+    "OutCircleS";
+    "InterCC";
+    "Concyclic";
+    "Concyclic_gen";
+    "Reach";
+    "Parallelogram_strict";
+    "Parallelogram";
+    "Plg";
+    "Rhombus";
+    "Rectangle";
+    "Square";
+    "Saccheri";
+    "Lambert";
+    "EqV";
+    "SumV";
+    "SumV_exists";
+    "Same_dir";
+    "Opp_dir";
+    "CongA_3";
+  ]
+
+let show_list xs = "[" ^ String.concat "; " xs ^ "]"
+
+(* this is N^2 but we don't really care as the lists are quite small *)
+let intersect l1 l2 =
+  List.fold_left
+    (fun acc x -> if List.exists (fun y -> y = x) l1 then true else acc)
+    false l2
+
 let get_new_vars ?(keep : string list = [])
     (old_goals_vars : string list list option)
     (new_goals_vars : string list list option) : string list list option =
@@ -392,12 +506,6 @@ let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
       | _ -> false)
     x
 
-let is_proof_about_exists (p : Proof.t) : bool =
-  let ( let@ ) o f = match o with None -> false | Some x -> f x in
-  let@ components = Proof.get_theorem_components p in
-
-  constrexpr_contains_exists components.expr
-
 let get_definition_name (x : Syntax_node.t) : string option =
   match x.ast with
   | Some ast -> (
@@ -418,14 +526,6 @@ let get_definition_constrexpr (x : Syntax_node.t) :
           | DefineBody (_, _, expr, _) -> Some expr)
       | _ -> None)
   | None -> None
-
-let show_list xs = "[" ^ String.concat "; " xs ^ "]"
-
-(* this is N^2 but we don't really care as the lists are quite small *)
-let intersect l1 l2 =
-  List.fold_left
-    (fun acc x -> if List.exists (fun y -> y = x) l1 then true else acc)
-    false l2
 
 let collect_definitions_containing_exists (l : Syntax_node.t list) : string list
     =
@@ -478,6 +578,16 @@ let get_syntax_node_assert_expr (x : Syntax_node.t) =
   match Syntax_node.get_node_raw_atomic_tactic_expr x with
   | Some (TacAssert (false, true, _, _, expr)) -> Some expr
   | _ -> None
+
+let is_proof_about_exists (p : Proof.t) : bool =
+  let ( let@ ) o f = match o with None -> false | Some x -> f x in
+  let@ conclusion = get_proof_conclusion p in
+  let funcs_in_conclusion =
+    get_fun_names_in_constrexpr conclusion |> List.map Libnames.string_of_qualid
+  in
+
+  constrexpr_contains_exists conclusion
+  || intersect funcs_in_conclusion definitions_with_exists
 
 let rec update_replaces (l : transformation_step list) =
   match l with
@@ -659,123 +769,10 @@ let get_definition_file_steps (doc : Rocq_document.t) :
       ]
   else Ok []
 
-let definitions_with_exists =
-  [
-    "Le";
-    "Ge";
-    "Lt";
-    "Gt";
-    "Inter";
-    "Per";
-    "Perp_at";
-    "Perp";
-    "TS";
-    "OS";
-    "Coplanar";
-    "TSP";
-    "OSP";
-    "ReflectL";
-    "Reflect";
-    "ReflectL_at";
-    "Reflect_at";
-    "CongA";
-    "InAngle";
-    "LeA";
-    "GeA";
-    "LtA";
-    "GtA";
-    "Acute";
-    "Obtuse";
-    "Orth_at";
-    "Orth";
-    "Par_strict";
-    "Par";
-    "Q_Cong";
-    "Len";
-    "Q_Cong_Null";
-    "Q_CongA";
-    "Ang";
-    "Ang_Flat";
-    "Perp2";
-    "Q_CongA_Acute";
-    "Ang_Acute";
-    "Q_CongA_nNull";
-    "Q_CongA_nFlat";
-    "Q_CongA_Null";
-    "Q_CongA_Null_Acute";
-    "is_null_anga'";
-    "Q_CongA_nNull_Acute";
-    "Lcos";
-    "Eq_Lcos";
-    "Lcos2";
-    "Eq_Lcos2";
-    "Lcos3";
-    "Eq_Lcos3";
-    "Pj";
-    "Sum";
-    "Proj";
-    "Sump";
-    "Prod";
-    "Prodp";
-    "Opp";
-    "Diff";
-    "sum3";
-    "Sum4";
-    "sum22";
-    "LtP";
-    "LeP";
-    "Length";
-    "Is_length";
-    "Sumg";
-    "Prodg";
-    "PythRel";
-    "LtPs";
-    "Cs";
-    "Projp";
-    "Cd";
-    "SumS";
-    "Perp_bisect";
-    "Perp_bisect_bis";
-    "SumA";
-    "SAMS";
-    "SuppA";
-    "TriSumA";
-    "Defect";
-    "InCircle";
-    "OutCircle";
-    "InCircleS";
-    "OutCircleS";
-    "InterCC";
-    "Concyclic";
-    "Concyclic_gen";
-    "Reach";
-    "Parallelogram_strict";
-    "Parallelogram";
-    "Plg";
-    "Rhombus";
-    "Rectangle";
-    "Square";
-    "Saccheri";
-    "Lambert";
-    "EqV";
-    "SumV";
-    "SumV_exists";
-    "Same_dir";
-    "Opp_dir";
-    "CongA_3";
-  ]
-
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let* proofs = Rocq_document.get_proofs doc in
-
-  let conclusions = List.filter_map get_proof_conclusion proofs in
-  List.iter
-    (fun x ->
-      let x_str = constrexpr_to_string x in
-      Logs.debug (fun m -> m "%s" x_str))
-    conclusions;
 
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
 
