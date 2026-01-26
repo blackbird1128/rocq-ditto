@@ -29,11 +29,19 @@ constructivization-build: build
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch07_midpoint.v -o ../geocoq_bis/theories/Constructive/Ch07_midpoint.v -t constructivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch08_orthogonality.v -o ../geocoq_bis/theories/Constructive/Ch08_orthogonality.v -t constructivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch09_plane.v -o ../geocoq_bis/theories/Constructive/Ch09_plane.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch10_line_reflexivity.v -o ../geocoq_bis/theories/Constructive/Ch10_line_reflexivity.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch10_line_reflexivity_2.v -o ../geocoq_bis/theories/Constructive/Ch10_line_reflexivity_2.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch11_angles.v -o ../geocoq_bis/theories/Constructive/Ch11_angles.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch12_parallel.v -o ../geocoq_bis/theories/Constructive/Ch12_parallel.v -t constructivize_geocoq -v
 
 constructivization-compile:
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Constructive/Definitions.v -o ../geocoq_bis/theories/Constructive/Definitions.v -t id_doc_transformation -v --save-vo
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Constructive/Ch02_cong.v -o ../geocoq_bis/theories/Constructive/Ch02_cong.v -t id_doc_transformation -v --save-vo
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Constructive/Ch03_bet.v -o ../geocoq_bis/theories/Constructive/Ch03_bet.v -t id_doc_transformation -v --save-vo
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Constructive/Ch04_cong_bet.v -o ../geocoq_bis/theories/Constructive/Ch04_cong_bet.v -t id_doc_transformation -v --save-vo
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Constructive/Ch04_col.v -o ../geocoq_bis/theories/Constructive/Ch04_col.v -t id_doc_transformation -v --save-vo
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Constructive/Ch05_bet_le.v -o ../geocoq_bis/theories/Constructive/Ch05_bet_le.v -t id_doc_transformation -v --save-vo
+
 
 # Rule to generate a .v.target.json from its .v source
 %.v.target.json: %.v
