@@ -3,22 +3,40 @@ open Ditto
 open Ditto.Proof
 open Ditto.Diagnostic_utils
 
-let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+let rec get_tactic_names_from_atomic_raw_tactic
+    (raw_tac_with_atomic_tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    string list =
+  match raw_tac_with_atomic_tac.v with
+  | Ltac_plugin.Tacexpr.TacAtom atom -> (
+      let empty_env = Environ.empty_env in
+      let empty_evd = Evd.empty in
+      let pp_tac =
+        Ltac_plugin.Pptactic.pr_raw_tactic empty_env empty_evd
+          raw_tac_with_atomic_tac
+        |> Pp.string_of_ppcmds
+      in
+      match atom with
+      | Ltac_plugin.Tacexpr.TacAssert (true, false, Some (Some tacexpr), _, _)
+        ->
+          pp_tac :: get_basic_tactic_names tacexpr
+      | _ -> [ pp_tac ])
+  | _ -> []
+
+and get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     string list =
   let empty_env = Environ.empty_env in
   let empty_evd = Evd.empty in
   let pp = Ltac_plugin.Pptactic.pr_raw_tactic empty_env empty_evd tac in
   match tac.v with
-  | Ltac_plugin.Tacexpr.TacAtom _ -> [ Pp.string_of_ppcmds pp ]
+  | Ltac_plugin.Tacexpr.TacId _ -> [ Pp.string_of_ppcmds pp ]
+  | Ltac_plugin.Tacexpr.TacAtom _ -> get_tactic_names_from_atomic_raw_tactic tac
   | Ltac_plugin.Tacexpr.TacThen (tac1, tac2) ->
       (*x ; y can be nested*)
       get_basic_tactic_names tac1 @ get_basic_tactic_names tac2
   | Ltac_plugin.Tacexpr.TacDispatch tactics ->
       List.concat_map get_basic_tactic_names tactics
   (* [|>]*)
-  | Ltac_plugin.Tacexpr.TacExtendTac (_, _, _) ->
-      prerr_endline "extend tac, not handled yet";
-      []
+  | Ltac_plugin.Tacexpr.TacExtendTac (_, _, _) -> []
   | Ltac_plugin.Tacexpr.TacThens (tacDistributed, tac_list) ->
       (* x;[a;b;c] *)
       get_basic_tactic_names tacDistributed
@@ -48,9 +66,7 @@ let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
   | Ltac_plugin.Tacexpr.TacOnce tac ->
       get_basic_tactic_names tac (* once tactic*)
   | Ltac_plugin.Tacexpr.TacExactlyOnce tac -> get_basic_tactic_names tac
-  | Ltac_plugin.Tacexpr.TacIfThenCatch (_, _, _) ->
-      print_endline "tacIfThenCatch not handled yet";
-      []
+  | Ltac_plugin.Tacexpr.TacIfThenCatch (_, _, _) -> []
   | Ltac_plugin.Tacexpr.TacOrelse (tac, tac_or_else) ->
       get_basic_tactic_names tac @ get_basic_tactic_names tac_or_else
   | Ltac_plugin.Tacexpr.TacDo (_, tactic_to_do) ->
@@ -62,25 +78,14 @@ let rec get_basic_tactic_names (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       get_basic_tactic_names tactic_repeated
   | Ltac_plugin.Tacexpr.TacProgress tac -> get_basic_tactic_names tac
   | Ltac_plugin.Tacexpr.TacAbstract (tac, _) -> get_basic_tactic_names tac
-  | Ltac_plugin.Tacexpr.TacId _ -> [ Pp.string_of_ppcmds pp ]
   | Ltac_plugin.Tacexpr.TacFail (_, _, _) -> [ Pp.string_of_ppcmds pp ]
-  | Ltac_plugin.Tacexpr.TacLetIn (_, _, _) ->
-      print_endline "tacLetIn not handled yet";
-      []
-  | Ltac_plugin.Tacexpr.TacMatch (_, _, _) ->
-      print_endline "tac match not handled yet";
-      []
-  | Ltac_plugin.Tacexpr.TacMatchGoal (_, _, _) ->
-      print_endline "tac match goal not handled yet";
-      []
-  | Ltac_plugin.Tacexpr.TacFun _ ->
-      print_endline "fun call not handled yet";
-      []
+  | Ltac_plugin.Tacexpr.TacLetIn (_, _, _) -> []
+  | Ltac_plugin.Tacexpr.TacMatch (_, _, _) -> []
+  | Ltac_plugin.Tacexpr.TacMatchGoal (_, _, _) -> []
+  | Ltac_plugin.Tacexpr.TacFun _ -> []
   | Ltac_plugin.Tacexpr.TacArg _ -> [ Pp.string_of_ppcmds pp ]
   | Ltac_plugin.Tacexpr.TacSelect (_, tac) -> get_basic_tactic_names tac
-  | Ltac_plugin.Tacexpr.TacML (_, _) ->
-      print_endline "what is a tac Ml ? ";
-      []
+  | Ltac_plugin.Tacexpr.TacML (_, _) -> []
   | Ltac_plugin.Tacexpr.TacAlias (_, _) -> [ Pp.string_of_ppcmds pp ]
 
 let tactic_count ~io:_ ~token:_ ~(doc : Doc.t) =
