@@ -22,8 +22,7 @@ lens:
 	dune exec fcc -- --plugin=lens-query-plugin ./test/fixtures/ex_this_or_that.v
 
 constructivization-build: build
-	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Axioms/Definitions.v -o ../geocoq_bis/theories/Constructive/Definitions.v -t constructivize_geocoq -v
-	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -o ../geocoq_bis/theories/Constructive/Ch04_cong_bet.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -o ../geocoq_bis/theories/Constructive/Ch04_cong_bet.v -t constructxivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -o ../geocoq_bis/theories/Constructive/Ch05_bet_le.v -t constructivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch06_out_lines.v -o ../geocoq_bis/theories/Constructive/Ch06_out_lines.v -t constructivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch07_midpoint.v -o ../geocoq_bis/theories/Constructive/Ch07_midpoint.v -t constructivize_geocoq -v
@@ -33,6 +32,31 @@ constructivization-build: build
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch10_line_reflexivity_2.v -o ../geocoq_bis/theories/Constructive/Ch10_line_reflexivity_2.v -t constructivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch11_angles.v -o ../geocoq_bis/theories/Constructive/Ch11_angles.v -t constructivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch12_parallel.v -o ../geocoq_bis/theories/Constructive/Ch12_parallel.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch12_parallel_inter_dec.v -o ../geocoq_bis/theories/Constructive/Ch12_parallel_inter_dec.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_1.v -o ../geocoq_bis/theories/Constructive/Ch13_1.v constructivize_geooq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_2_length.v -o ../geocoq_bis/theories/Constructive/Ch13_2_length.v constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_3_angles.v -o ../geocoq_bis/theories/Constructive/Ch13_3_angles.v constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_4_cos.v -o ../geocoq_bis/theories/Constructive/Ch13_4_cos.v constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_5_Pappus_Pascal.v -o ../geocoq_bis/theories/Constructive/Ch13_5_Pappus_Pascal.v constructivize_geocoq -v
+
+constructivization-get-percentage: build
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Axioms/Definitions.v -o ../geocoq_bis/theories/Constructive/Definitions.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -o ../geocoq_bis/theories/Constructive/Ch04_cong_bet.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -o ../geocoq_bis/theories/Constructive/Ch05_bet_le.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch06_out_lines.v -o ../geocoq_bis/theories/Constructive/Ch06_out_lines.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch07_midpoint.v -o ../geocoq_bis/theories/Constructive/Ch07_midpoint.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch08_orthogonality.v -o ../geocoq_bis/theories/Constructive/Ch08_orthogonality.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch09_plane.v -o ../geocoq_bis/theories/Constructive/Ch09_plane.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch10_line_reflexivity.v -o ../geocoq_bis/theories/Constructive/Ch10_line_reflexivity.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch10_line_reflexivity_2.v -o ../geocoq_bis/theories/Constructive/Ch10_line_reflexivity_2.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch11_angles.v -o ../geocoq_bis/theories/Constructive/Ch11_angles.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch12_parallel.v -o ../geocoq_bis/theories/Constructive/Ch12_parallel.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch12_parallel_inter_dec.v -o ../geocoq_bis/theories/Constructive/Ch12_parallel_inter_dec.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_1.v -o ../geocoq_bis/theories/Constructive/Ch13_1.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_2_length.v -o ../geocoq_bis/theories/Constructive/Ch13_2_length.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_3_angles.v -o ../geocoq_bis/theories/Constructive/Ch13_3_angles.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_4_cos.v -o ../geocoq_bis/theories/Constructive/Ch13_4_cos.v -t constructivisation_get_percentage_admitted -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch13_5_Pappus_Pascal.v -o ../geocoq_bis/theories/Constructive/Ch13_5_Pappus_Pascal.v -t constructivisation_get_percentage_admitted -v
 
 constructivization-compile:
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Constructive/Definitions.v -o ../geocoq_bis/theories/Constructive/Definitions.v -t id_doc_transformation -v --save-vo

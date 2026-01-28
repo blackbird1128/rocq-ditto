@@ -769,6 +769,28 @@ let get_definition_file_steps (doc : Rocq_document.t) :
       ]
   else Ok []
 
+let get_percentage_admitted (doc : Rocq_document.t) :
+    (transformation_step list, Error.t) result =
+  let* proofs = Rocq_document.get_proofs doc in
+  let proofs_with_exists = List.filter is_proof_about_exists proofs in
+  let proofs_length = List.length proofs in
+  let proofs_with_exists_length = List.length proofs_with_exists in
+  let percentage =
+    if proofs_length = 0 then 0.0
+    else
+      Float.mul
+        (Float.div
+           (Float.of_int proofs_with_exists_length)
+           (Float.of_int proofs_length))
+        100.0
+  in
+  Printf.printf "%s\n%!" doc.filename;
+  Printf.printf "admitted proofs: %d\n%!" proofs_with_exists_length;
+  Printf.printf "total proofs: %d\n%!" proofs_length;
+  Printf.printf "percentage: %.2f\n%!" percentage;
+
+  Ok []
+
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in

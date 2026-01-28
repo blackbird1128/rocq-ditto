@@ -10,6 +10,7 @@ type transformation_kind =
   | IdProofTransformation
   | IdDocTransformation
   | ConstructivizeGeocoq
+  | ConstructivisationGetPercentageAdmitted
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
 
@@ -67,7 +68,11 @@ let transformations_help =
       "Experimental: Remove goal selectors by moving and possibly duplicating \
        tactics" );
     ( ConstructivizeGeocoq,
-      "Experimental: Transformation to use to constructivize Geocoq" );
+      "Experimental Constructivization: Transformation to use to \
+       constructivize Geocoq" );
+    ( ConstructivisationGetPercentageAdmitted,
+      "Experimental Constructivization: Get the percentage of admitted proofs \
+       containing exists in a file" );
     (RocqToLean, "Experimental: Turn Rocq code to lean");
     (IdProofTransformation, "Keep the file unchanged, run on each proof.");
     ( IdDocTransformation,
