@@ -1210,6 +1210,10 @@ let test_flattening_goal_select_simple (doc : Doc.t) () : unit =
 let test_flattening_goal_select_range (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.flatten_goal_selectors ()
 
+let test_replacing_induction_by_destruct_simple (doc : Doc.t) () : unit =
+  test_proof_transformation doc
+    Transformations.replace_induction_by_destruct_when_possible ()
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -1756,6 +1760,9 @@ let setup_test_table table (doc : Doc.t) =
        "test making explicit the fresh variables of an induction with two \
         induction hypotheses"
        explicit_fresh_variables_two_induction_hypotheses doc);
+  Hashtbl.add table "ex_induction_to_destruct_simple.v"
+    (create_fixed_test "test a simple replacement of induction by destruct"
+       test_replacing_induction_by_destruct_simple doc);
   Hashtbl.add table "ex_goal_select_flattening1.v"
     (create_fixed_test "test flattening a single goal selector"
        test_flattening_goal_select_simple doc);

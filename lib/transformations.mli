@@ -57,6 +57,9 @@ val turn_into_oneliner :
   Syntax_node.t nary_tree ->
   (transformation_step list, Error.t) result
 
+val replace_induction_by_destruct_when_possible :
+  Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
+
 val apply_proof_transformation :
   (Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result) ->
   Rocq_document.t ->

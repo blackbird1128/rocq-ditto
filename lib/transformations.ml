@@ -1283,6 +1283,45 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
       | None -> Ok (new_state, acc))
     [] proof
 
+type t = string list list [@@deriving show]
+
+let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
+    (proof : Proof.t) : (transformation_step list, Error.t) result =
+  let token = Coq.Limits.Token.create () in
+  Runner.fold_proof_with_state doc token
+    (fun state acc node ->
+      let* new_state = Runner.run_node token state node in
+      match get_node_raw_atomic_tactic_expr node with
+      | Some
+          (Ltac_plugin.Tacexpr.TacInductionDestruct
+             (true, false, (induction_clause_l, with_bindings))) ->
+          let old_goals_vars_ =
+            Runner.reified_goals_at_state token state
+            |> List.map Runner.get_hypothesis_names
+          in
+          Logs.debug (fun m -> m "old goal vars: %s" (show old_goals_vars_));
+
+          let new_goals_vars =
+            Runner.reified_goals_at_state token new_state
+            |> List.map Runner.get_hypothesis_names
+          in
+
+          (* let _ = *)
+          (*   List.map *)
+          (*     (fun ( destruction_arg, *)
+          (*            (intro_pattern_naming_expr_opt, _), *)
+          (*            clause_expr_opt ) -> *)
+          (*       let destruct_arg_str = *)
+          (*         destruction_arg_to_string destruction_arg *)
+          (*       in *)
+          (*       []) *)
+          (*     induction_clause_l *)
+          (* in *)
+          Logs.debug (fun m -> m "new goals vars: %s" (show new_goals_vars));
+          Ok (new_state, acc)
+      | _ -> Ok (new_state, acc))
+    [] proof
+
 let apply_proof_transformation
     (transformation :
       Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result)

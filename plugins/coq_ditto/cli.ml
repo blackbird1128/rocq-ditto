@@ -7,6 +7,7 @@ type transformation_kind =
   | ReplaceAutoWithSteps
   | FlattenGoalSelectors
   | CompressIntro
+  | ReplaceInductionWithDestruct
   | IdProofTransformation
   | IdDocTransformation
   | ConstructivizeGeocoq
@@ -67,6 +68,9 @@ let transformations_help =
     ( FlattenGoalSelectors,
       "Experimental: Remove goal selectors by moving and possibly duplicating \
        tactics" );
+    ( ReplaceInductionWithDestruct,
+      "Experimental: Replace induction with destruct when no induction \
+       hypothesis is generated" );
     ( ConstructivizeGeocoq,
       "Experimental Constructivization: Transformation to use to \
        constructivize Geocoq" );
