@@ -1283,8 +1283,6 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
       | None -> Ok (new_state, acc))
     [] proof
 
-type t = string list list [@@deriving show]
-
 let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
     (proof : Proof.t) : (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
@@ -1295,30 +1293,62 @@ let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
       | Some
           (Ltac_plugin.Tacexpr.TacInductionDestruct
              (true, false, (induction_clause_l, with_bindings))) ->
-          let old_goals_vars_ =
+          let old_goals_vars =
             Runner.reified_goals_at_state token state
             |> List.map Runner.get_hypothesis_names
           in
-          Logs.debug (fun m -> m "old goal vars: %s" (show old_goals_vars_));
 
           let new_goals_vars =
             Runner.reified_goals_at_state token new_state
             |> List.map Runner.get_hypothesis_names
           in
 
-          (* let _ = *)
-          (*   List.map *)
-          (*     (fun ( destruction_arg, *)
-          (*            (intro_pattern_naming_expr_opt, _), *)
-          (*            clause_expr_opt ) -> *)
-          (*       let destruct_arg_str = *)
-          (*         destruction_arg_to_string destruction_arg *)
-          (*       in *)
-          (*       []) *)
-          (*     induction_clause_l *)
-          (* in *)
-          Logs.debug (fun m -> m "new goals vars: %s" (show new_goals_vars));
-          Ok (new_state, acc)
+          (*destruct : false, false *)
+          let has_induction_vars =
+            List.exists
+              (fun ( destruction_arg,
+                     (intro_pattern_naming_expr_opt, _),
+                     clause_expr_opt ) ->
+                let destruct_arg_str =
+                  destruction_arg_to_string destruction_arg
+                in
+                let new_goals_vars =
+                  List_utils.take
+                    (List.length new_goals_vars - List.length old_goals_vars + 1)
+                    new_goals_vars
+                in
+                let new_vars =
+                  get_new_vars ~keep:[ destruct_arg_str ] (Some old_goals_vars)
+                    (Some new_goals_vars)
+                  |> Option.get
+                in
+                let has_induction_vars =
+                  List.exists
+                    (fun vars ->
+                      List.exists
+                        (fun x ->
+                          String.starts_with ~prefix:"IH" x
+                          && not (String.equal x destruct_arg_str))
+                        vars)
+                    new_vars
+                in
+                has_induction_vars)
+              induction_clause_l
+          in
+          if not has_induction_vars then
+            let destruct_node =
+              Ltac_plugin.Tacexpr.TacAtom
+                (Ltac_plugin.Tacexpr.TacInductionDestruct
+                   (false, false, (induction_clause_l, with_bindings)))
+              |> CAst.make
+            in
+            let selector = Syntax_node.get_node_goal_selector_opt node in
+            let* new_node =
+              Syntax_node.raw_tactic_expr_to_syntax_node destruct_node ?selector
+                node.range.start
+            in
+            Ok (new_state, Replace (node.id, new_node) :: acc)
+          else Ok (new_state, acc)
       | _ -> Ok (new_state, acc))
     [] proof
 
