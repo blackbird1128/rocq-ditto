@@ -1303,7 +1303,6 @@ let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
             |> List.map Runner.get_hypothesis_names
           in
 
-          (*destruct : false, false *)
           let has_induction_vars =
             List.exists
               (fun ( destruction_arg,
@@ -1347,7 +1346,24 @@ let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
               Syntax_node.raw_tactic_expr_to_syntax_node destruct_node ?selector
                 node.range.start
             in
-            Ok (new_state, Replace (node.id, new_node) :: acc)
+            let* new_state_after_new_node =
+              Runner.run_node token state new_node
+            in
+            let new_state_goals =
+              Runner.reified_goals_at_state token new_state_after_new_node
+            in
+            let old_state_goals =
+              Runner.reified_goals_at_state token new_state
+            in
+            let all_equal =
+              List.for_all2
+                (fun (a : string Coq.Goals.Reified_goal.t)
+                     (b : string Coq.Goals.Reified_goal.t) ->
+                  String.equal a.ty b.ty)
+                old_state_goals new_state_goals
+            in
+            if all_equal then Ok (new_state, Replace (node.id, new_node) :: acc)
+            else Ok (new_state, acc)
           else Ok (new_state, acc)
       | _ -> Ok (new_state, acc))
     [] proof
