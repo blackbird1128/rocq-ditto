@@ -27,7 +27,7 @@
  (description "Core libraries used by the rocq-ditto plugins.")
  (depends
   ocaml 
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   fpath
@@ -58,7 +58,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   coq-ditto))
@@ -70,7 +70,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   coq-ditto))
@@ -81,7 +81,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   coq-ditto))
@@ -92,7 +92,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   coq-ditto))
@@ -103,7 +103,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   coq-ditto))
@@ -114,7 +114,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   coq-ditto))
@@ -125,7 +125,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   coq-ditto))
@@ -137,7 +137,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   coq-ditto))
@@ -148,7 +148,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   uuidm
@@ -161,7 +161,7 @@
  (allow_empty)
  (depends
   ocaml
-  (coq-lsp (= 0.2.4))
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
   base-unix
   re
   coq-ditto))
