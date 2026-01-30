@@ -535,10 +535,6 @@ let collect_definitions_containing_exists (l : Syntax_node.t list) : string list
     | x :: tail -> (
         match get_definition_constrexpr x with
         | Some expr ->
-            (* let funcs = *)
-            (*   get_fun_names_in_constrexpr expr *)
-            (*   |> List.map Libnames.string_of_qualid *)
-            (* in *)
             let name = Option.get (get_definition_name x) in
             let fun_names_in_def =
               get_fun_names_in_constrexpr expr
