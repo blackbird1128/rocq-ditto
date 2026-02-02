@@ -441,6 +441,55 @@ let is_constrexpr_eq_dec_points_a_b (x : Constrexpr.constr_expr) : bool =
 let get_func_args (x : Constrexpr.constr_expr) : Constrexpr.constr_expr list =
   match x.v with Constrexpr.CApp (_, args) -> List.map fst args | _ -> []
 
+let replace_decompose_or_with_decompose_stab_or
+    (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  (* let decompose_or = *)
+  (*   Syntax_node.string_to_raw_tactic_expr "decompose [or] H." |> Result.get_ok *)
+  (* in *)
+
+  (* let decompose_or_sexp = *)
+  (*   Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr decompose_or *)
+  (* in *)
+  (* Logs.debug (fun m -> *)
+  (*     m "decompose_or_sexp: %s" *)
+  (*       (Sexplib.Sexp.to_string_hum (strip_loc decompose_or_sexp))); *)
+  match x.v with
+  | TacAlias (alias, args)
+    when String.equal
+           (Names.KerName.to_string alias)
+           "Corelib.Init.Ltac.decompose_[_#_]_#_7823CC8B" ->
+      let x_sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr x in
+      Logs.debug (fun m ->
+          m "decompose_or_sexp: %s"
+            (Sexplib.Sexp.to_string_hum (strip_loc x_sexp)));
+
+      x
+  | _ -> x
+
+let replace_elim_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  match x.v with
+  | TacAtom (TacElim (evars_flag, binding_args, bindings)) ->
+      let clear_flag, (elim_expr, elim_bindings) = binding_args in
+      if is_constrexpr_eq_dec_points_a_b elim_expr then
+        let fun_args = get_func_args elim_expr in
+        let fun_args_str =
+          List.map
+            (fun x ->
+              get_cref_qualid x |> Option.get |> Libnames.string_of_qualid)
+            fun_args
+        in
+        let stab_eq_str =
+          "stab_eq_point " ^ String.concat " " fun_args_str ^ "."
+        in
+        let raw_tac_expr_stab_eq =
+          Syntax_node.string_to_raw_tactic_expr stab_eq_str
+        in
+        match raw_tac_expr_stab_eq with Ok expr -> expr | Error _ -> x
+      else x
+  | _ -> x
+
 let replace_induction_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
   match x.v with
@@ -945,7 +994,18 @@ let constructivize_doc (doc : Rocq_document.t) :
               doc.elements
           in
 
-          Ok replace_induction_by_stab_eq_point_steps);
+          let replace_elim_by_stab_eq_point_steps =
+            List.filter_map
+              (map_raw_tactic_expr_in_node replace_elim_by_stab_eq_point)
+              doc.elements
+          in
+
+          Ok
+            (List.concat
+               [
+                 replace_induction_by_stab_eq_point_steps;
+                 replace_elim_by_stab_eq_point_steps;
+               ]));
     }
   in
 
@@ -968,8 +1028,25 @@ let constructivize_doc (doc : Rocq_document.t) :
           Ok prolong_to_segment_cons_steps);
     }
   in
+
+  let stage_7 : stage =
+    {
+      name = "stage7";
+      build_steps =
+        (fun doc ->
+          let decompose_or_to_stab_version_steps =
+            List.filter_map
+              (map_raw_tactic_expr_in_node
+                 replace_decompose_or_with_decompose_stab_or)
+              doc.elements
+          in
+
+          Ok decompose_or_to_stab_version_steps);
+    }
+  in
+
   let* doc_res, steps =
     run_pipeline doc
-      [ stage_0; stage_1; stage_2; stage_3; stage_4; stage_5; stage_6 ]
+      [ stage_0; stage_1; stage_2; stage_3; stage_4; stage_5; stage_6; stage_7 ]
   in
   Ok (update_replaces steps)
