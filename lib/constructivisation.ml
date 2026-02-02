@@ -233,6 +233,20 @@ let replace_context (x : Syntax_node.t) :
     Ok [ Replace (x.id, new_context_node) ]
   else Ok []
 
+let attach_prelude_to_chapter_two (doc : Rocq_document.t) :
+    (transformation_step list, Error.t) result =
+  let dummy_start : Code_point.t = { line = 0; character = 0 } in
+  if Filename.basename doc.filename = "Ch02_cong.v" then
+    let last_require =
+      List.find Syntax_node.is_syntax_node_require (List.rev doc.elements)
+    in
+    let* prelude_node =
+      Syntax_node.syntax_node_of_string
+        "Require Export GeoCoq.Constructive.Prelude." dummy_start
+    in
+    Ok [ Attach (prelude_node, LineAfter, last_require.id) ]
+  else Ok []
+
 let replace_notation_in_constrexpr (old_notation : string)
     (new_notation : string) (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
@@ -785,6 +799,10 @@ let constructivize_doc (doc : Rocq_document.t) :
       name = "stage0";
       build_steps =
         (fun doc ->
+          let* attach_prelude_to_chapter_two_steps =
+            attach_prelude_to_chapter_two doc
+          in
+
           let* replace_require_steps =
             List_utils.concat_map_result replace_require doc.elements
           in
@@ -810,6 +828,7 @@ let constructivize_doc (doc : Rocq_document.t) :
           Ok
             (List.concat
                [
+                 attach_prelude_to_chapter_two_steps;
                  replace_require_steps;
                  replace_context_steps;
                  replace_or_by_constructive_or_in_proofs_steps;
