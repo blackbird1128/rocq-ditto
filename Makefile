@@ -22,7 +22,8 @@ lens:
 	dune exec fcc -- --plugin=lens-query-plugin ./test/fixtures/ex_this_or_that.v
 
 constructivization-build: build
-	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -o ../geocoq_bis/theories/Constructive/Ch04_cong_bet.v -t constructxivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch02_cong.v -o ../geocoq_bis/theories/Constructive/Ch02_cong.v -t constructivize_geocoq -v
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -o ../geocoq_bis/theories/Constructive/Ch04_cong_bet.v -t constructivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -o ../geocoq_bis/theories/Constructive/Ch05_bet_le.v -t constructivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch06_out_lines.v -o ../geocoq_bis/theories/Constructive/Ch06_out_lines.v -t constructivize_geocoq -v
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch07_midpoint.v -o ../geocoq_bis/theories/Constructive/Ch07_midpoint.v -t constructivize_geocoq -v
