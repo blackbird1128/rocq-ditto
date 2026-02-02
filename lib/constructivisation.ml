@@ -167,35 +167,49 @@ let replace_require (x : Syntax_node.t) :
           (VernacRequire
              (option_libname, export_with_cats_opt, libnames_import_list)) -> (
           match List.nth_opt libnames_import_list 0 with
-          | Some (qualid, import_filter) -> (
+          | Some (qualid, import_filter) ->
               let qualid_str = Libnames.string_of_qualid qualid in
-              match split_prefix "GeoCoq.Main.Tarski_dev" qualid_str with
-              | Some (_, postfix) ->
-                  let new_qualid_str = "GeoCoq.Constructive" ^ postfix in
+              if String.starts_with ~prefix:"GeoCoq.Main.Tarski_dev" qualid_str
+              then
+                let _, postfix =
+                  split_prefix "GeoCoq.Main.Tarski_dev" qualid_str |> Option.get
+                in
 
-                  let new_qualid = Libnames.qualid_of_string new_qualid_str in
-                  let new_head_tuple = (new_qualid, import_filter) in
-                  let new_libnames_import_list =
-                    new_head_tuple :: List_utils.drop 1 libnames_import_list
-                  in
-                  let new_expr =
-                    VernacSynterp
-                      (VernacRequire
-                         ( option_libname,
-                           export_with_cats_opt,
-                           new_libnames_import_list ))
-                  in
-                  let new_vernac_control =
-                    Syntax_node.mk_vernac_control new_expr
-                  in
+                let new_qualid_str = "GeoCoq.Constructive" ^ postfix in
 
-                  let new_node =
-                    Syntax_node.syntax_node_of_coq_ast
-                      (Coq.Ast.of_coq new_vernac_control)
-                      x.range.start
-                  in
-                  Ok [ Replace (x.id, new_node) ]
-              | None -> Ok [])
+                let new_qualid = Libnames.qualid_of_string new_qualid_str in
+                let new_head_tuple = (new_qualid, import_filter) in
+                let new_libnames_import_list =
+                  new_head_tuple :: List_utils.drop 1 libnames_import_list
+                in
+                let new_expr =
+                  VernacSynterp
+                    (VernacRequire
+                       ( option_libname,
+                         export_with_cats_opt,
+                         new_libnames_import_list ))
+                in
+                let new_vernac_control =
+                  Syntax_node.mk_vernac_control new_expr
+                in
+
+                let new_node =
+                  Syntax_node.syntax_node_of_coq_ast
+                    (Coq.Ast.of_coq new_vernac_control)
+                    x.range.start
+                in
+                Ok [ Replace (x.id, new_node) ]
+              else if
+                String.starts_with ~prefix:"GeoCoq.Axioms.Definitions"
+                  qualid_str
+              then
+                let* new_node =
+                  Syntax_node.syntax_node_of_string
+                    "Require Export GeoCoq.Constructive.Definitions."
+                    x.range.start
+                in
+                Ok [ Replace (x.id, new_node) ]
+              else Ok []
           | None ->
               Error.format_to_or_error
                 "Error getting libnames_import_list in %s" (Syntax_node.repr x))
@@ -766,7 +780,7 @@ let constructivize_doc (doc : Rocq_document.t) :
     check_definitions_containing_exists_are_correct doc definitions_with_exists
   in
 
-  let stage_zero : stage =
+  let stage_0 : stage =
     {
       name = "stage0";
       build_steps =
@@ -805,7 +819,7 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
   (***** end of stage 1 **************)
 
-  let stage_one : stage =
+  let stage_1 : stage =
     {
       name = "stage1";
       build_steps =
@@ -824,7 +838,7 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
 
-  let stage_two : stage =
+  let stage_2 : stage =
     {
       name = "stage2";
       build_steps =
@@ -833,15 +847,21 @@ let constructivize_doc (doc : Rocq_document.t) :
 
           let definitions_stage_two = definitions_of doc in
 
-          let replace_bet_by_betc_in_proofs_steps =
+          let constructivise_bet_and_cong_f =
+            Fun.compose
+              (replace_fun_name_in_constrexpr "Bet" "BetC")
+              (replace_fun_name_in_constrexpr "Cong" "CongC")
+          in
+
+          let replace_bet_and_cong_by_cons_ver_in_proofs_steps =
             List.filter_map
-              (replace_fun_name_in_proof_proposition "Bet" "BetC")
+              (map_proof_proposition constructivise_bet_and_cong_f)
               proofs_stage_two
           in
 
-          let replace_bet_by_betc_in_definitions_steps =
+          let replace_bet_and_cong_by_cons_ver_definitions_steps =
             List.filter_map
-              (replace_fun_name_in_definition "Bet" "BetC")
+              (map_definition_body constructivise_bet_and_cong_f)
               definitions_stage_two
           in
 
@@ -854,14 +874,14 @@ let constructivize_doc (doc : Rocq_document.t) :
           Ok
             (List.concat
                [
-                 replace_bet_by_betc_in_proofs_steps;
-                 replace_bet_by_betc_in_definitions_steps;
+                 replace_bet_and_cong_by_cons_ver_in_proofs_steps;
+                 replace_bet_and_cong_by_cons_ver_definitions_steps;
                  replace_left_by_stab_left;
                ]));
     }
   in
 
-  let stage_three =
+  let stage_3 =
     {
       name = "stage3";
       build_steps =
@@ -875,7 +895,7 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
 
-  let stage_four =
+  let stage_4 =
     {
       name = "stage4";
       build_steps =
@@ -883,6 +903,7 @@ let constructivize_doc (doc : Rocq_document.t) :
           let f_assert =
            fun x ->
             replace_fun_name_in_constrexpr "Bet" "BetC" x
+            |> replace_fun_name_in_constrexpr "Cong" "CongC"
             |> replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _"
           in
 
@@ -894,7 +915,7 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
 
-  let stage_five =
+  let stage_5 =
     {
       name = "stage5";
       build_steps =
@@ -909,7 +930,7 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
 
-  let stage_fix : stage =
+  let stage_6 : stage =
     {
       name = "stage6";
       build_steps =
@@ -930,14 +951,6 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
   let* doc_res, steps =
     run_pipeline doc
-      [
-        stage_zero;
-        stage_one;
-        stage_two;
-        stage_three;
-        stage_four;
-        stage_five;
-        stage_fix;
-      ]
+      [ stage_0; stage_1; stage_2; stage_3; stage_4; stage_5; stage_6 ]
   in
   Ok (update_replaces steps)
