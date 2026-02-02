@@ -609,25 +609,6 @@ let rec update_replaces (l : transformation_step list) =
           x :: update_replaces new_tl
       | Add _ | Remove _ | Attach _ -> x :: update_replaces tl)
 
-(* remove all the steps referring to a removed node *)
-let rec update_removes (l : transformation_step list) =
-  match l with
-  | [] -> []
-  | x :: tl -> (
-      match x with
-      | Remove id_curr ->
-          let new_tl =
-            List.filter_map
-              (fun el_tl ->
-                match el_tl with
-                | Replace (id_el, _) | Remove id_el ->
-                    if Uuidm.equal id_el id_curr then None else Some el_tl
-                | Add _ | Attach _ -> Some el_tl)
-              tl
-          in
-          x :: update_removes new_tl
-      | Add _ | Replace _ | Attach _ -> x :: update_removes tl)
-
 let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
     (transformation_step list, Error.t) result =
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
@@ -717,54 +698,6 @@ let check_definitions_containing_exists_are_correct (doc : Rocq_document.t)
          and the dynamically collected ones"
   else Ok ()
 
-let get_definition_file_steps (doc : Rocq_document.t) :
-    (transformation_step list, Error.t) result =
-  let dummy_start : Code_point.t = { line = 0; character = 0 } in
-
-  if Filename.basename doc.filename = "Definitions.v" then
-    let first_require =
-      List.find Syntax_node.is_syntax_node_require doc.elements
-    in
-
-    let* new_first_require =
-      Syntax_node.syntax_node_of_string
-        "Require Export GeoCoq.Algebraic.Counter_models.nD.independent_version."
-        first_require.range.start
-    in
-    let* second_require =
-      Syntax_node.syntax_node_of_string
-        "Require Export GeoCoq.Constructive.Stable." dummy_start
-    in
-    (* the node is attached so we dont care where it start *)
-
-    let* third_require =
-      Syntax_node.syntax_node_of_string
-        "Require Import \
-         GeoCoq.Algebraic.Counter_models.nD.stability_properties."
-        dummy_start
-    in
-
-    let* betl_definition =
-      Syntax_node.syntax_node_of_string
-        "Definition BetL {Pred : predicates}\n\
-        \                {ITn : independent_Tarski_neutral_dimensionless Pred}\n\
-        \                {ES : Eq_stability Pred ITn}\n\
-        \                {Dim : dimension}\n\
-        \                {ITnD : @independent_Tarski_nD Pred ITn (incr (incr \
-         Dim))}\n\
-        \                A B C := A = B \\_/ B = C \\_/ BetS A B C."
-        dummy_start
-    in
-
-    Ok
-      [
-        Replace (first_require.id, new_first_require);
-        Attach (second_require, LineAfter, new_first_require.id);
-        Attach (third_require, LineAfter, second_require.id);
-        Attach (betl_definition, LineAfter, third_require.id);
-      ]
-  else Ok []
-
 let get_percentage_admitted (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let* proofs = Rocq_document.get_proofs doc in
@@ -787,6 +720,30 @@ let get_percentage_admitted (doc : Rocq_document.t) :
 
   Ok []
 
+let definitions_of (d : Rocq_document.t) : Syntax_node.t list =
+  List.filter Syntax_node.is_syntax_node_definition d.elements
+
+type stage = {
+  name : string;
+  build_steps : Rocq_document.t -> (transformation_step list, Error.t) result;
+}
+
+let apply_stage (doc : Rocq_document.t) (st : stage) =
+  let* steps = st.build_steps doc in
+  Rocq_document.apply_transformations_steps steps doc
+
+let run_pipeline doc stages :
+    (Rocq_document.t * transformation_step list, Error.t) result =
+  List.fold_left
+    (fun (acc : (Rocq_document.t * transformation_step list, Error.t) result) st
+       ->
+      let* doc_acc, steps_acc = acc in
+      let* steps = st.build_steps doc_acc in
+      let doc' = Rocq_document.apply_transformations_steps steps doc_acc in
+      Result.product doc' (Ok (steps_acc @ steps)))
+    (Ok (doc, []))
+    stages
+
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
@@ -798,183 +755,189 @@ let constructivize_doc (doc : Rocq_document.t) :
     Syntax_node.syntax_node_of_string
       "Require Import GeoCoq.Constructive.Stable." dummy_start
   in
-  let _ =
-    Runner.get_state_after doc.initial_state token [ require_stable_node ]
+  let _preload_stable =
+    ignore
+      (Runner.get_state_after doc.initial_state token [ require_stable_node ])
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
   (* stage 0 *)
-  let* definitions_file_specific_steps = get_definition_file_steps doc in
-
   let* _ =
     check_definitions_containing_exists_are_correct doc definitions_with_exists
   in
 
-  let* replace_require_steps =
-    List_utils.concat_map_result replace_require doc.elements
-  in
+  let stage_zero : stage =
+    {
+      name = "stage0";
+      build_steps =
+        (fun doc ->
+          let* replace_require_steps =
+            List_utils.concat_map_result replace_require doc.elements
+          in
 
-  let* replace_context_steps =
-    List_utils.concat_map_result replace_context doc.elements
-  in
+          let* replace_context_steps =
+            List_utils.concat_map_result replace_context doc.elements
+          in
 
-  let definitions =
-    List.filter Syntax_node.is_syntax_node_definition doc.elements
-  in
+          let definitions = definitions_of doc in
 
-  let replace_or_by_constructive_or_in_proofs_steps =
-    List.filter_map
-      (replace_notation_in_proof_proposition "_ \\/ _" "_ \\_/ _")
-      proofs
-  in
+          let replace_or_by_constructive_or_in_proofs_steps =
+            List.filter_map
+              (replace_notation_in_proof_proposition "_ \\/ _" "_ \\_/ _")
+              proofs
+          in
 
-  let replace_or_by_constructive_or_in_definitions_steps =
-    List.filter_map
-      (replace_notation_in_definition "_ \\/ _" "_ \\_/ _")
-      definitions
-  in
+          let replace_or_by_constructive_or_in_definitions_steps =
+            List.filter_map
+              (replace_notation_in_definition "_ \\/ _" "_ \\_/ _")
+              definitions
+          in
 
-  let steps_stage_zero =
-    replace_require_steps @ replace_context_steps
-    @ replace_or_by_constructive_or_in_proofs_steps
-    @ replace_or_by_constructive_or_in_definitions_steps
-    @ definitions_file_specific_steps
+          Ok
+            (List.concat
+               [
+                 replace_require_steps;
+                 replace_context_steps;
+                 replace_or_by_constructive_or_in_proofs_steps;
+                 replace_or_by_constructive_or_in_definitions_steps;
+               ]));
+    }
   in
   (***** end of stage 1 **************)
 
-  let* stage_one_doc =
-    Rocq_document.apply_transformations_steps steps_stage_zero doc
+  let stage_one : stage =
+    {
+      name = "stage1";
+      build_steps =
+        (fun doc ->
+          let* proofs_stage_one = Rocq_document.get_proofs doc in
+
+          let proofs_with_exists =
+            List.filter is_proof_about_exists proofs_stage_one
+          in
+          let* admit_exists_proofs_steps =
+            List_utils.concat_map_result
+              (Transformations.admit_and_comment_proof_steps doc)
+              proofs_with_exists
+          in
+          Ok admit_exists_proofs_steps);
+    }
   in
 
-  let* proofs_stage_one = Rocq_document.get_proofs stage_one_doc in
+  let stage_two : stage =
+    {
+      name = "stage2";
+      build_steps =
+        (fun doc ->
+          let* proofs_stage_two = Rocq_document.get_proofs doc in
 
-  let proofs_with_exists = List.filter is_proof_about_exists proofs_stage_one in
-  let* admit_exists_proofs_steps =
-    List.fold_left
-      (fun res_acc proof ->
-        match res_acc with
-        | Ok res_acc ->
-            let* steps =
-              Transformations.admit_and_comment_proof_steps doc proof
-            in
-            Ok (steps @ res_acc)
-        | Error err -> Error err)
-      (Ok []) proofs_with_exists
+          let definitions_stage_two = definitions_of doc in
+
+          let replace_bet_by_betc_in_proofs_steps =
+            List.filter_map
+              (replace_fun_name_in_proof_proposition "Bet" "BetC")
+              proofs_stage_two
+          in
+
+          let replace_bet_by_betc_in_definitions_steps =
+            List.filter_map
+              (replace_fun_name_in_definition "Bet" "BetC")
+              definitions_stage_two
+          in
+
+          let replace_left_by_stab_left =
+            List.filter_map
+              (replace_taccall_tacarg_in_node "left" "stab_left")
+              doc.elements
+          in
+
+          Ok
+            (List.concat
+               [
+                 replace_bet_by_betc_in_proofs_steps;
+                 replace_bet_by_betc_in_definitions_steps;
+                 replace_left_by_stab_left;
+               ]));
+    }
   in
 
-  let steps_stage_one = admit_exists_proofs_steps in
-
-  let* stage_two_doc =
-    Rocq_document.apply_transformations_steps steps_stage_one stage_one_doc
+  let stage_three =
+    {
+      name = "stage3";
+      build_steps =
+        (fun doc ->
+          let replace_right_by_stab_right =
+            List.filter_map
+              (replace_taccall_tacarg_in_node "right" "stab_right")
+              doc.elements
+          in
+          Ok replace_right_by_stab_right);
+    }
   in
 
-  let* proofs_stage_two = Rocq_document.get_proofs stage_two_doc in
+  let stage_four =
+    {
+      name = "stage4";
+      build_steps =
+        (fun doc ->
+          let f_assert =
+           fun x ->
+            replace_fun_name_in_constrexpr "Bet" "BetC" x
+            |> replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _"
+          in
 
-  let definitions_stage_two =
-    List.filter Syntax_node.is_syntax_node_definition stage_two_doc.elements
+          let replace_bet_by_betc_and_or_by_cons_or_in_assert_steps =
+            List.filter_map (map_assert_in_node f_assert) doc.elements
+          in
+
+          Ok replace_bet_by_betc_and_or_by_cons_or_in_assert_steps);
+    }
   in
 
-  let replace_bet_by_betl_in_proofs_steps =
-    List.filter_map
-      (replace_fun_name_in_proof_proposition "Bet" "BetL")
-      proofs_stage_two
+  let stage_five =
+    {
+      name = "stage5";
+      build_steps =
+        (fun doc ->
+          let replace_induction_by_stab_eq_point_steps =
+            List.filter_map
+              (map_raw_tactic_expr_in_node replace_induction_by_stab_eq_point)
+              doc.elements
+          in
+
+          Ok replace_induction_by_stab_eq_point_steps);
+    }
   in
 
-  let replace_bet_by_betl_in_definitions_steps =
-    List.filter_map
-      (replace_fun_name_in_definition "Bet" "BetL")
-      definitions_stage_two
-  in
+  let stage_fix : stage =
+    {
+      name = "stage6";
+      build_steps =
+        (fun doc ->
+          let prolong_to_segment_cons_steps =
+            List.filter_map
+              (map_raw_tactic_expr_in_node replace_prolong_by_segment_cons)
+              doc.elements
+          in
 
-  let replace_left_by_stab_left =
-    List.filter_map
-      (replace_taccall_tacarg_in_node "left" "stab_left")
-      stage_two_doc.elements
+          (* let* assert_to_stab_assert_steps = *)
+          (*   List_utils.concat_map_result *)
+          (*     (replace_assert_by_stab_assert stage_six_doc) *)
+          (*     stage_six_doc.elements *)
+          (* in *)
+          Ok prolong_to_segment_cons_steps);
+    }
   in
-
-  let steps_stage_two =
-    replace_bet_by_betl_in_proofs_steps
-    @ replace_bet_by_betl_in_definitions_steps @ replace_left_by_stab_left
+  let* doc_res, steps =
+    run_pipeline doc
+      [
+        stage_zero;
+        stage_one;
+        stage_two;
+        stage_three;
+        stage_four;
+        stage_five;
+        stage_fix;
+      ]
   in
-
-  let* stage_three_doc =
-    Rocq_document.apply_transformations_steps steps_stage_two stage_two_doc
-  in
-
-  let replace_right_by_stab_right =
-    List.filter_map
-      (replace_taccall_tacarg_in_node "right" "stab_right")
-      stage_three_doc.elements
-  in
-
-  let steps_stage_three = replace_right_by_stab_right in
-
-  let* stage_four_doc =
-    Rocq_document.apply_transformations_steps steps_stage_three stage_three_doc
-  in
-
-  let f_assert =
-   fun x ->
-    replace_fun_name_in_constrexpr "Bet" "BetL" x
-    |> replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _"
-  in
-
-  let replace_bet_by_betl_and_or_by_cons_or_in_assert_steps =
-    List.filter_map (map_assert_in_node f_assert) stage_four_doc.elements
-  in
-
-  let steps_stage_four =
-    replace_bet_by_betl_and_or_by_cons_or_in_assert_steps
-  in
-
-  let* stage_five_doc =
-    Rocq_document.apply_transformations_steps steps_stage_four stage_four_doc
-  in
-
-  let replace_cong_by_econg_steps =
-    List.filter_map
-      (replace_taccall_tacarg_in_node "Cong" "eCong")
-      stage_five_doc.elements
-  in
-
-  let replace_induction_by_stab_eq_point_steps =
-    List.filter_map
-      (map_raw_tactic_expr_in_node replace_induction_by_stab_eq_point)
-      stage_five_doc.elements
-  in
-
-  let steps_stage_five =
-    replace_cong_by_econg_steps @ replace_induction_by_stab_eq_point_steps
-  in
-
-  let* stage_six_doc =
-    Rocq_document.apply_transformations_steps steps_stage_five stage_five_doc
-  in
-
-  let prolong_to_segment_cons_steps =
-    List.filter_map
-      (map_raw_tactic_expr_in_node replace_prolong_by_segment_cons)
-      stage_six_doc.elements
-  in
-
-  (* let* assert_to_stab_assert_steps = *)
-  (*   List_utils.concat_map_result *)
-  (*     (replace_assert_by_stab_assert stage_six_doc) *)
-  (*     stage_six_doc.elements *)
-  (* in *)
-  let steps_stage_six = prolong_to_segment_cons_steps in
-  let res =
-    Ok
-      (update_replaces
-         (List.concat
-            [
-              steps_stage_zero;
-              steps_stage_one;
-              steps_stage_two;
-              steps_stage_three;
-              steps_stage_four;
-              steps_stage_five;
-              steps_stage_six;
-            ]))
-  in
-  res
+  Ok (update_replaces steps)
