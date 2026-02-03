@@ -33,21 +33,18 @@ let tacdef_body_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
 
 let constr_expr_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
     Constrexpr.constr_expr option =
-  match Serlib.Ser_genarg.sexp_of_raw_generic_argument arg with
-  | List
-      [
-        Atom "GenArg";
-        List [ Atom "Rawwit"; List [ Atom "ExtraArg"; Atom "constr" ] ];
-        rems;
-      ]
-  | List
-      [
-        Atom "GenArg";
-        List [ Atom "Rawwit"; List [ Atom "ExtraArg"; Atom "uconstr" ] ];
-        rems;
-      ] ->
-      Some (Serlib.Ser_constrexpr.constr_expr_of_sexp rems)
-  | _ -> None
+  let atype_constr = Genarg.Rawwit Stdarg.wit_constr in
+  let atype_uconstr = Genarg.Rawwit Stdarg.wit_uconstr in
+  if Genarg.has_type arg atype_constr then
+    Some (Genarg.out_gen atype_constr arg)
+  else if Genarg.has_type arg atype_uconstr then
+    Some (Genarg.out_gen atype_uconstr arg)
+  else None
+
+let constr_expr_list_of_raw_generic_argument (arg : Genarg.raw_generic_argument)
+    : Constrexpr.constr_expr list option =
+  let atype = Genarg.Rawwit (Genarg.ListArg Stdarg.wit_constr) in
+  if Genarg.has_type arg atype then Some (Genarg.out_gen atype arg) else None
 
 let intro_pattern_list_of_raw_generic_argument
     (arg : Genarg.raw_generic_argument) : Tacexpr.intro_pattern list option =

@@ -12,6 +12,9 @@ val tacdef_body_of_raw_generic_argument :
 val constr_expr_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Constrexpr.constr_expr option
 
+val constr_expr_list_of_raw_generic_argument :
+  Genarg.raw_generic_argument -> Constrexpr.constr_expr list option
+
 val intro_pattern_list_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Tacexpr.intro_pattern list option
 
