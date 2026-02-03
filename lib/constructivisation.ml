@@ -314,12 +314,6 @@ let replace_notation_in_proof_proposition (old_notation : string)
     (replace_notation_in_constrexpr old_notation new_notation)
     x
 
-let replace_fun_name_in_proof_proposition (old_fun_name : string)
-    (new_fun_name : string) (x : Proof.t) : transformation_step option =
-  map_proof_proposition
-    (replace_fun_name_in_constrexpr old_fun_name new_fun_name)
-    x
-
 let is_syntax_node_prolong (x : Syntax_node.t) : bool =
   let ( let@ ) opt f = match opt with Some x -> f x | None -> false in
 
@@ -441,30 +435,45 @@ let is_constrexpr_eq_dec_points_a_b (x : Constrexpr.constr_expr) : bool =
 let get_func_args (x : Constrexpr.constr_expr) : Constrexpr.constr_expr list =
   match x.v with Constrexpr.CApp (_, args) -> List.map fst args | _ -> []
 
+let get_tac_generic_genarg
+    (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) =
+  match x with
+  | Ltac_plugin.Tacexpr.TacGeneric (_, genarg) -> Some genarg
+  | _ -> None
+
 let replace_decompose_or_with_decompose_stab_or
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
-  (* let decompose_or = *)
-  (*   Syntax_node.string_to_raw_tactic_expr "decompose [or] H." |> Result.get_ok *)
-  (* in *)
-
-  (* let decompose_or_sexp = *)
-  (*   Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr decompose_or *)
-  (* in *)
-  (* Logs.debug (fun m -> *)
-  (*     m "decompose_or_sexp: %s" *)
-  (*       (Sexplib.Sexp.to_string_hum (strip_loc decompose_or_sexp))); *)
   match x.v with
-  | TacAlias (alias, args)
+  | TacAlias (alias, [ decomposed_args; hypothesis ])
     when String.equal
            (Names.KerName.to_string alias)
-           "Corelib.Init.Ltac.decompose_[_#_]_#_7823CC8B" ->
-      let x_sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr x in
-      Logs.debug (fun m ->
-          m "decompose_or_sexp: %s"
-            (Sexplib.Sexp.to_string_hum (strip_loc x_sexp)));
+           "Corelib.Init.Ltac.decompose_[_#_]_#_7823CC8B" -> (
+      let decomposed_args_genarg =
+        get_tac_generic_genarg decomposed_args |> Option.get
+      in
+      let args_str =
+        Raw_gen_args_converter.constr_expr_list_of_raw_generic_argument
+          decomposed_args_genarg
+        |> Option.get
+        |> List.map constrexpr_to_string
+      in
+      match args_str with
+      | [ "or" ] ->
+          let hypothesis_genarg =
+            get_tac_generic_genarg hypothesis |> Option.get
+          in
+          let hypothesis_constrexpr =
+            Raw_gen_args_converter.constr_expr_of_raw_generic_argument
+              hypothesis_genarg
+            |> Option.get
+          in
+          Logs.debug (fun m ->
+              m "hypothesis constrexpr: %s"
+                (constrexpr_to_string hypothesis_constrexpr));
 
-      x
+          x
+      | _ -> x)
   | _ -> x
 
 let replace_elim_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
@@ -553,12 +562,6 @@ let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
               else None)
       | _ -> None)
   | None -> None
-
-let replace_fun_name_in_definition (old_fun_name : string)
-    (new_fun_name : string) (x : Syntax_node.t) : transformation_step option =
-  map_definition_body
-    (replace_fun_name_in_constrexpr old_fun_name new_fun_name)
-    x
 
 let replace_notation_in_definition (old_notation : string)
     (new_notation : string) (x : Syntax_node.t) : transformation_step option =
