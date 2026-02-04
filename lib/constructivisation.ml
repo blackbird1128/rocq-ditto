@@ -653,6 +653,25 @@ let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
             ])
   | _ -> Ok []
 
+let remove_decidability_proofs (doc : Rocq_document.t) :
+    (transformation_step list, Error.t) result =
+  let* proofs = Rocq_document.get_proofs doc in
+  let decidability_proofs =
+    List.filter
+      (fun p ->
+        let name = Proof.get_proof_name p in
+        List.exists
+          (fun x -> Option.equal String.equal name (Some x))
+          decidability_lemmas)
+      proofs
+  in
+  Ok
+    (List.concat_map
+       (fun p ->
+         let nodes = Proof.proof_nodes p in
+         List.map (fun (node : Syntax_node.t) -> Remove node.id) nodes)
+       decidability_proofs)
+
 let check_definitions_containing_exists_are_correct (doc : Rocq_document.t)
     (static_definitions : string list) : (unit, Error.t) result =
   if Filename.basename doc.filename = "Definitions.v" then

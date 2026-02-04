@@ -11,6 +11,7 @@ type transformation_kind =
   | IdProofTransformation
   | IdDocTransformation
   | ConstructivizeGeocoq
+  | ConstructivisationRemoveDecidabilityProofs
   | ConstructivisationGetPercentageAdmitted
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
@@ -77,6 +78,8 @@ let transformations_help =
     ( ConstructivisationGetPercentageAdmitted,
       "Experimental Constructivization: Get the percentage of admitted proofs \
        containing exists in a file" );
+    ( ConstructivisationRemoveDecidabilityProofs,
+      "Experimental Constructivization: Remove proofs about decidability " );
     (RocqToLean, "Experimental: Turn Rocq code to lean");
     (IdProofTransformation, "Keep the file unchanged, run on each proof.");
     ( IdDocTransformation,
