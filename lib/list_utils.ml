@@ -44,6 +44,14 @@ let find_index f xs =
   in
   aux 0 xs
 
+let option_all (xs : 'a option list) : 'a list option =
+  let rec go acc = function
+    | [] -> Some (List.rev acc)
+    | None :: _ -> None
+    | Some x :: tl -> go (x :: acc) tl
+  in
+  go [] xs
+
 let result_all (xs : ('a, 'e) result list) : ('a list, 'e) result =
   List.fold_left
     (fun acc x ->
