@@ -174,10 +174,7 @@ let replace_fun_name_in_constrexpr (old_fun_name : string)
   let old_q = Libnames.qualid_of_string old_fun_name in
   let new_q = Libnames.qualid_of_string new_fun_name in
 
-  let matches_ref q =
-    (* more robust than string_of_qualid equality *)
-    Libnames.qualid_eq q old_q
-  in
+  let matches_ref q = Libnames.qualid_eq q old_q in
 
   match term.v with
   | Constrexpr.CRef (q, instance_expr_opt) when matches_ref q ->
@@ -258,22 +255,19 @@ let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       if call_qualid_str = "prolong" then
         let _, fun_args = call_arg.v in
         let args_str_opt = List.map prolong_arg_to_string fun_args in
-        let args_str = List.map Option.get args_str_opt in
-        match args_str with
-        | [ args0; args1; args2; args3; args4 ] ->
+        match List_utils.option_all args_str_opt with
+        | Some [ args0; args1; args2; args3; args4 ] ->
             let segment_construction_str =
               Printf.sprintf
                 "apply (by_segment_construction %s %s %s %s); [solve_stable | \
                  intros [%s [?H%s ?H%s]]]."
                 args0 args1 args3 args4 args2 args1 args3
             in
-            let segment_construction_raw_tactic_expr =
-              Syntax_node.string_to_raw_tactic_expr segment_construction_str
-            in
+
             Result.fold
               ~ok:(fun a -> a)
               ~error:(fun e -> x)
-              segment_construction_raw_tactic_expr
+              (Syntax_node.string_to_raw_tactic_expr segment_construction_str)
         | _ -> x
       else x
   | _ -> x
@@ -319,11 +313,11 @@ let replace_taccall_tacarg_in_node (old_tac_call_name : string)
 let get_cref_qualid (x : Constrexpr.constr_expr) : Libnames.qualid option =
   match x.v with Constrexpr.CRef (qualid, _) -> Some qualid | _ -> None
 
-let is_constrexpr_eq_dec_points_a_b (x : Constrexpr.constr_expr) : bool =
+let is_constrexpr_c_app_named (x : Constrexpr.constr_expr) (name : string) :
+    bool =
   match x.v with
   | Constrexpr.CApp (func, _) ->
-      Option.map Libnames.string_of_qualid (get_cref_qualid func)
-      = Some "eq_dec_points"
+      Option.map Libnames.string_of_qualid (get_cref_qualid func) = Some name
   | _ -> false
 
 let get_func_args (x : Constrexpr.constr_expr) : Constrexpr.constr_expr list =
@@ -340,9 +334,9 @@ let replace_decompose_or_with_decompose_stab_or
     Ltac_plugin.Tacexpr.raw_tactic_expr =
   match x.v with
   | TacAlias (alias, [ decomposed_args; hypothesis ])
-    when String.equal
+    when String.starts_with
            (Names.KerName.to_string alias)
-           "Corelib.Init.Ltac.decompose_[_#_]_#_7823CC8B" -> (
+           ~prefix:"Corelib.Init.Ltac.decompose_[_#_]_#_" -> (
       let decomposed_args_genarg =
         get_tac_generic_genarg decomposed_args |> Option.get
       in
@@ -357,40 +351,75 @@ let replace_decompose_or_with_decompose_stab_or
           let hypothesis_genarg =
             get_tac_generic_genarg hypothesis |> Option.get
           in
-          let hypothesis_constrexpr =
+          let hypothesis_str =
             Raw_gen_args_converter.constr_expr_of_raw_generic_argument
               hypothesis_genarg
-            |> Option.get
+            |> Option.get |> constrexpr_to_string
           in
-          Logs.debug (fun m ->
-              m "hypothesis constrexpr: %s"
-                (constrexpr_to_string hypothesis_constrexpr));
 
-          x
+          let decompose_stab_or_raw_tac_expr =
+            Syntax_node.string_to_raw_tactic_expr
+              ("decompose_stab_or " ^ hypothesis_str ^ ".")
+            |> Result.get_ok
+          in
+
+          decompose_stab_or_raw_tac_expr
       | _ -> x)
   | _ -> x
 
-let replace_elim_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+let replace_elim_with_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
   match x.v with
-  | TacAtom (TacElim (evars_flag, binding_args, bindings)) ->
+  | TacAtom (TacElim (_, binding_args, _)) ->
       let clear_flag, (elim_expr, elim_bindings) = binding_args in
-      if is_constrexpr_eq_dec_points_a_b elim_expr then
+      if is_constrexpr_c_app_named elim_expr "eq_dec_points" then
         let fun_args = get_func_args elim_expr in
-        let fun_args_str =
+        let fun_args_str_opt =
           List.map
-            (fun x ->
-              get_cref_qualid x |> Option.get |> Libnames.string_of_qualid)
+            (fun x -> get_cref_qualid x |> Option.map Libnames.string_of_qualid)
             fun_args
         in
-        let stab_eq_str =
-          "stab_eq_point " ^ String.concat " " fun_args_str ^ "."
-        in
-        let raw_tac_expr_stab_eq =
-          Syntax_node.string_to_raw_tactic_expr stab_eq_str
-        in
-        match raw_tac_expr_stab_eq with Ok expr -> expr | Error _ -> x
+        match List_utils.option_all fun_args_str_opt with
+        | Some fun_args_str -> (
+            let stab_eq_str =
+              "stab_eq_point " ^ String.concat " " fun_args_str ^ "."
+            in
+
+            match Syntax_node.string_to_raw_tactic_expr stab_eq_str with
+            | Ok expr -> expr
+            | Error _ -> x)
+        | _ -> x
       else x
+  | _ -> x
+
+let replace_destruct_inner_pasch_with_stab_destruct_ip
+    (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  match x.v with
+  | TacAtom (TacInductionDestruct (false, false, ([ destruct_target ], _))) -> (
+      let x_sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr x in
+      Logs.debug (fun m ->
+          m "x sexp: %s" (Sexplib.Sexp.to_string_hum (strip_loc x_sexp)));
+      let (_, core_destruction_arg), intro_pattern_naming_expr, _ =
+        destruct_target
+      in
+      match core_destruction_arg with
+      | ElimOnConstr (constrexpr, NoBindings)
+        when is_constrexpr_c_app_named constrexpr "inner_pasch" -> (
+          let fun_args = get_func_args constrexpr in
+          let fun_args_str =
+            List.map
+              (fun x ->
+                get_cref_qualid x |> Option.get |> Libnames.string_of_qualid)
+              fun_args
+          in
+          List.iter (fun x -> Logs.debug (fun m -> m "x: %s" x)) fun_args_str;
+          match intro_pattern_naming_expr with
+          | _, Some (ArgArg intro_or_pattern) ->
+              Logs.debug (fun m -> m "some pattern !");
+              x
+          | _ -> x)
+      | _ -> x)
   | _ -> x
 
 let replace_induction_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -398,10 +427,10 @@ let replace_induction_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr)
   match x.v with
   | TacAtom (TacInductionDestruct (true, false, ([ induction_clause_head ], _)))
     -> (
-      let (tac_flag, core_destruction_arg), _, _ = induction_clause_head in
+      let (_, core_destruction_arg), _, _ = induction_clause_head in
       match core_destruction_arg with
       | ElimOnConstr (constrexpr, NoBindings)
-        when is_constrexpr_eq_dec_points_a_b constrexpr -> (
+        when is_constrexpr_c_app_named constrexpr "eq_dec_points" -> (
           let fun_args = get_func_args constrexpr in
           let fun_args_str =
             List.map
@@ -412,10 +441,10 @@ let replace_induction_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr)
           let stab_eq_str =
             "stab_eq_point " ^ String.concat " " fun_args_str ^ "; intros ?H."
           in
-          let raw_tac_expr_stab_eq =
-            Syntax_node.string_to_raw_tactic_expr stab_eq_str
-          in
-          match raw_tac_expr_stab_eq with Ok expr -> expr | Error _ -> x)
+
+          match Syntax_node.string_to_raw_tactic_expr stab_eq_str with
+          | Ok expr -> expr
+          | Error _ -> x)
       | _ -> x)
   | _ -> x
 
@@ -426,9 +455,7 @@ let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
       match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynPure
           (Vernacexpr.VernacDefinition
-             ( (discharge, definition_object_kind),
-               (name_decl : Constrexpr.name_decl),
-               expr )) -> (
+             ((discharge, definition_object_kind), name_decl, expr)) -> (
           match expr with
           | ProveBody _ -> None
           | DefineBody (binders, raw_red_expr_opt, expr1, opt_expr) ->
@@ -474,8 +501,7 @@ let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
   Constrexpr_fold.exists
     (fun expr ->
       match expr.v with
-      | Constrexpr.CNotation
-          (opt_scope, (notation_entry, notation_key), notation_substitution) ->
+      | Constrexpr.CNotation (_, (_, notation_key), _) ->
           notation_key = "exists _ .. _ , _"
       | _ -> false)
     x
@@ -527,12 +553,9 @@ let get_proof_conclusion (p : Proof.t) : Constrexpr.constr_expr option =
   let expr = components.expr in
   let rec get_conclusion (expr : Constrexpr.constr_expr) =
     match expr.v with
-    | Constrexpr.CProdN (_binders, body) -> get_conclusion body
+    | Constrexpr.CProdN (_, body) -> get_conclusion body
     | Constrexpr.CLetIn (_, _, _, body) -> get_conclusion body
-    | Constrexpr.CNotation
-        ( opt_scope,
-          (notation_entry, notation_key),
-          (args, _args_lists, _pats, _lbnds) ) ->
+    | Constrexpr.CNotation (_, (_, notation_key), (args, _, _, _)) ->
         if notation_key = "_ -> _" then (
           match args with
           | [ left; right ] -> get_conclusion right
@@ -764,6 +787,24 @@ let constructivize_doc (doc : Rocq_document.t) :
       name = "stage0";
       build_steps =
         (fun doc ->
+          let* proofs = Rocq_document.get_proofs doc in
+
+          let decidability_proofs : Proof.t list =
+            List.filter
+              (fun p ->
+                let name = Proof.get_proof_name p in
+                List.exists
+                  (fun x -> Option.equal String.equal name (Some x))
+                  decidability_lemmas)
+              proofs
+          in
+
+          let* admit_decidability_proofs_steps =
+            List_utils.concat_map_result
+              (Transformations.admit_and_comment_proof_steps doc)
+              decidability_proofs
+          in
+
           let* attach_prelude_to_chapter_two_steps =
             attach_prelude_to_chapter_two doc
           in
@@ -793,6 +834,7 @@ let constructivize_doc (doc : Rocq_document.t) :
           Ok
             (List.concat
                [
+                 admit_decidability_proofs_steps;
                  attach_prelude_to_chapter_two_steps;
                  replace_require_steps;
                  replace_context_steps;
@@ -808,17 +850,17 @@ let constructivize_doc (doc : Rocq_document.t) :
       name = "stage1";
       build_steps =
         (fun doc ->
-          let* proofs_stage_one = Rocq_document.get_proofs doc in
+          let* proofs = Rocq_document.get_proofs doc in
 
-          let proofs_with_exists =
-            List.filter is_proof_about_exists proofs_stage_one
-          in
+          let proofs_with_exists = List.filter is_proof_about_exists proofs in
+
           let* admit_exists_proofs_steps =
             List_utils.concat_map_result
               (Transformations.admit_and_comment_proof_steps doc)
               proofs_with_exists
           in
-          Ok admit_exists_proofs_steps);
+
+          Ok admit_exists_proofs_steps (* @ admit_decidability_proofs *));
     }
   in
 
@@ -910,9 +952,9 @@ let constructivize_doc (doc : Rocq_document.t) :
               doc.elements
           in
 
-          let replace_elim_by_stab_eq_point_steps =
+          let replace_elim_with_stab_eq_point_steps =
             List.filter_map
-              (map_raw_tactic_expr_in_node replace_elim_by_stab_eq_point)
+              (map_raw_tactic_expr_in_node replace_elim_with_stab_eq_point)
               doc.elements
           in
 
@@ -920,7 +962,7 @@ let constructivize_doc (doc : Rocq_document.t) :
             (List.concat
                [
                  replace_induction_by_stab_eq_point_steps;
-                 replace_elim_by_stab_eq_point_steps;
+                 replace_elim_with_stab_eq_point_steps;
                ]));
     }
   in
@@ -936,11 +978,6 @@ let constructivize_doc (doc : Rocq_document.t) :
               doc.elements
           in
 
-          (* let* assert_to_stab_assert_steps = *)
-          (*   List_utils.concat_map_result *)
-          (*     (replace_assert_by_stab_assert stage_six_doc) *)
-          (*     stage_six_doc.elements *)
-          (* in *)
           Ok prolong_to_segment_cons_steps);
     }
   in
@@ -961,8 +998,43 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
 
+  let stage_8 : stage =
+    {
+      name = "stage8";
+      build_steps =
+        (fun doc ->
+          let steps =
+            List.filter_map
+              (map_raw_tactic_expr_in_node
+                 replace_destruct_inner_pasch_with_stab_destruct_ip)
+              doc.elements
+          in
+          Ok steps);
+    }
+  in
+
+  (* let stage_9 : stage = *)
+  (*   { *)
+  (*     name = "stage9"; *)
+  (*     build_steps = *)
+  (*       (fun doc -> *)
+  (*         List_utils.concat_map_result *)
+  (*           (replace_assert_by_stab_assert doc) *)
+  (*           doc.elements); *)
+  (*   } *)
+  (* in *)
   let* doc_res, steps =
     run_pipeline doc
-      [ stage_0; stage_1; stage_2; stage_3; stage_4; stage_5; stage_6; stage_7 ]
+      [
+        stage_0;
+        stage_1;
+        stage_2;
+        stage_3;
+        stage_4;
+        stage_5;
+        stage_6;
+        stage_7;
+        stage_8;
+      ]
   in
   Ok (update_replaces steps)

@@ -1305,9 +1305,7 @@ let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
 
           let has_induction_vars =
             List.exists
-              (fun ( destruction_arg,
-                     (intro_pattern_naming_expr_opt, _),
-                     clause_expr_opt ) ->
+              (fun (destruction_arg, (_, _), _) ->
                 let destruct_arg_str =
                   destruction_arg_to_string destruction_arg
                 in
