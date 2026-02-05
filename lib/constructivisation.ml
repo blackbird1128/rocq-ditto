@@ -4,6 +4,13 @@ open Constructivisation_data
 
 let ( let* ) = Result.bind
 let ( let+ ) = Option.bind
+
+module Syntax_nodeSet = Set.Make (struct
+  type t = Syntax_node.t
+
+  let compare = Syntax_node.compare
+end)
+
 let show_list xs = "[" ^ String.concat "; " xs ^ "]"
 
 (* this is N^2 but we don't really care as the lists are quite small *)
@@ -392,14 +399,65 @@ let replace_elim_with_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       else x
   | _ -> x
 
+let rec or_and_intro_pattern_expr_to_string_res
+    (x : Constrexpr.constr_expr Tactypes.or_and_intro_pattern_expr) :
+    (string list, Error.t) result =
+  match x with
+  | Tactypes.IntroOrPattern intro_or_pattern ->
+      intro_or_pattern_to_string intro_or_pattern
+  | Tactypes.IntroAndPattern intro_and_pattern ->
+      Error.string_to_or_error "Intro and pattern not handled yet"
+
+and intro_or_pattern_to_string
+    (x : Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t list list) =
+  List_utils.concat_map_result
+    (fun l ->
+      List_utils.concat_map_result
+        (fun (x : Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t) ->
+          intro_pattern_to_string x.v)
+        l)
+    x
+
+and intro_pattern_to_string
+    (pattern : Constrexpr.constr_expr Tactypes.intro_pattern_expr) :
+    (string list, Error.t) result =
+  match pattern with
+  | Tactypes.IntroForthcoming _ ->
+      Error.string_to_or_error "IntroForthcoming not treated yet"
+  | Tactypes.IntroNaming naming_expr ->
+      intro_pattern_naming_expr_to_string_res naming_expr
+  | Tactypes.IntroAction action_expr -> action_expr_to_string_res action_expr
+
+and intro_pattern_naming_expr_to_string_res
+    (x : Namegen.intro_pattern_naming_expr) : (string list, Error.t) result =
+  match x with
+  | Namegen.IntroIdentifier id ->
+      Ok [ Names.Id.print id |> Pp.string_of_ppcmds ]
+  | Namegen.IntroFresh id -> Ok [ Names.Id.print id |> Pp.string_of_ppcmds ]
+  | Namegen.IntroAnonymous ->
+      Error.string_to_or_error "IntroAnonymous not handled yet"
+
+and action_expr_to_string_res
+    (x : Constrexpr.constr_expr Tactypes.intro_pattern_action_expr) =
+  match x with
+  | Tactypes.IntroWildcard -> Ok [ "_" ]
+  | Tactypes.IntroOrAndPattern p -> or_and_intro_pattern_expr_to_string_res p
+  | Tactypes.IntroInjection _ ->
+      Error.string_to_or_error "IntroInjection not treated yet"
+  | Tactypes.IntroApplyOn (_, _) ->
+      Error.string_to_or_error "IntroApplyOn not treated yet"
+  | Tactypes.IntroRewrite _ ->
+      Error.string_to_or_error "IntroRewrite not treated yet"
+
+(* let get_or_pattern_vars (pattern: Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t list *)
+(*                            list) : string list = *)
+(*  let a =  List.map (fun l -> List.map (fun x -> x) l) pattern in  *)
+
 let replace_destruct_inner_pasch_with_stab_destruct_ip
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
   match x.v with
   | TacAtom (TacInductionDestruct (false, false, ([ destruct_target ], _))) -> (
-      let x_sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr x in
-      Logs.debug (fun m ->
-          m "x sexp: %s" (Sexplib.Sexp.to_string_hum (strip_loc x_sexp)));
       let (_, core_destruction_arg), intro_pattern_naming_expr, _ =
         destruct_target
       in
@@ -407,17 +465,44 @@ let replace_destruct_inner_pasch_with_stab_destruct_ip
       | ElimOnConstr (constrexpr, NoBindings)
         when is_constrexpr_c_app_named constrexpr "inner_pasch" -> (
           let fun_args = get_func_args constrexpr in
-          let fun_args_str =
+          let fun_args_str_opt =
             List.map
               (fun x ->
-                get_cref_qualid x |> Option.get |> Libnames.string_of_qualid)
+                get_cref_qualid x |> Option.map Libnames.string_of_qualid)
               fun_args
+            |> List_utils.option_all
           in
-          List.iter (fun x -> Logs.debug (fun m -> m "x: %s" x)) fun_args_str;
+
           match intro_pattern_naming_expr with
-          | _, Some (ArgArg intro_or_pattern) ->
-              Logs.debug (fun m -> m "some pattern !");
-              x
+          | _, Some (ArgArg intro_or_and_pattern) -> (
+              match intro_or_and_pattern.v with
+              | IntroAndPattern pattern ->
+                  Logs.err (fun m -> m "Not treated yet");
+                  assert false
+              | IntroOrPattern or_pattern -> (
+                  let intro_vars = intro_or_pattern_to_string or_pattern in
+                  match (fun_args_str_opt, intro_vars) with
+                  | Some [ a; b; c; d; e; hb1; hb2 ], Ok [ hb3; hb4; hb5 ] -> (
+                      let stab_destruct_ib_str =
+                        Printf.sprintf
+                          "stab_destruct (inner_pasch %s %s %s %s %s %s %s) as \
+                           [%s [%s %s]]."
+                          a b c d e hb1 hb2 hb3 hb4 hb5
+                      in
+                      Logs.debug (fun m ->
+                          m "stab destruct ib : %s" stab_destruct_ib_str);
+                      match
+                        Syntax_node.string_to_raw_tactic_expr
+                          stab_destruct_ib_str
+                      with
+                      | Ok expr ->
+                          Logs.debug (fun m -> m "ok expr");
+                          expr
+                      | Error err ->
+                          Logs.debug (fun m ->
+                              m "Err : %s" (Error.to_string_hum err));
+                          x)
+                  | _ -> x))
           | _ -> x)
       | _ -> x)
   | _ -> x
@@ -646,12 +731,11 @@ let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
       in
 
       let assert_expr_str = constrexpr_to_string assert_expr in
-      Logs.debug (fun m -> m "assert_expr_str: %s" assert_expr_str);
       let stab_assert_node_str =
         Printf.sprintf "stab_assert (%s: (%s))." assert_generated_name
           assert_expr_str
       in
-      Logs.debug (fun m -> m "stab_assert_node_str: %s" stab_assert_node_str);
+
       let* stab_assert_node =
         Syntax_node.syntax_node_of_string stab_assert_node_str x.range.start
       in
@@ -767,13 +851,14 @@ let constructivize_doc (doc : Rocq_document.t) :
 
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
 
-  let* require_stable_node =
+  let* require_prelude_node =
     Syntax_node.syntax_node_of_string
-      "Require Import GeoCoq.Constructive.Stable." dummy_start
+      "Require Import GeoCoq.Constructive.Prelude." dummy_start
   in
-  let _preload_stable =
+
+  let _preload_prelude =
     ignore
-      (Runner.get_state_after doc.initial_state token [ require_stable_node ])
+      (Runner.get_state_after doc.initial_state token [ require_prelude_node ])
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
@@ -1013,6 +1098,36 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
 
+  let stage_9 : stage =
+    {
+      name = "stage9";
+      build_steps =
+        (fun doc ->
+          let* proofs = Rocq_document.get_proofs doc in
+
+          let proof_steps_node =
+            List.concat_map (fun p -> p.proof_steps) proofs
+          in
+
+          let all_ltac_nodes_set =
+            Syntax_nodeSet.of_list
+              (List.filter Syntax_node.is_syntax_node_ltac doc.elements)
+          in
+
+          let proof_steps_set = Syntax_nodeSet.of_list proof_steps_node in
+
+          let ltac_nodes =
+            Syntax_nodeSet.diff all_ltac_nodes_set proof_steps_set
+            |> Syntax_nodeSet.to_list
+          in
+          List.iter
+            (fun x -> Logs.debug (fun m -> m "x: %s" (Syntax_node.repr x)))
+            ltac_nodes;
+
+          Ok []);
+    }
+  in
+
   (* let stage_9 : stage = *)
   (*   { *)
   (*     name = "stage9"; *)
@@ -1035,6 +1150,7 @@ let constructivize_doc (doc : Rocq_document.t) :
         stage_6;
         stage_7;
         stage_8;
+        stage_9;
       ]
   in
   Ok (update_replaces steps)
