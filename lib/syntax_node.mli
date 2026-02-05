@@ -11,7 +11,7 @@ type t = {
 }
 
 val repr : t -> string
-val compare_nodes : t -> t -> int
+val compare : t -> t -> int
 val are_colliding : t -> t -> bool
 
 val colliding_nodes : t -> t list -> t list
@@ -64,8 +64,8 @@ val is_syntax_node_proof_with : t -> bool
 val get_syntax_node_proof_with_tactic : t -> string option
 val is_syntax_node_ending_with_elipsis : t -> bool
 
-val is_syntax_node_tactic : t -> bool
-(** [is_syntax_node_tactic x] checks if [x] represents a tactic. *)
+val is_syntax_node_ltac : t -> bool
+(** [is_syntax_node_ltac x] checks if [x] represents a tactic. *)
 
 val is_syntax_node_bullet : t -> bool
 (** [is_syntax_node_bullet x] check if [x] is a Rocq bullet made of repeated -,

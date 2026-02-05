@@ -222,8 +222,7 @@ let parse_document (doc : Doc.t) : t =
   in
 
   let all_nodes =
-    merge_nodes
-      (List.sort Syntax_node.compare_nodes (ast_nodes @ comments_nodes))
+    merge_nodes (List.sort Syntax_node.compare (ast_nodes @ comments_nodes))
   in
   let all_nodes_with_growing_ids =
     List.map (fun node -> { node with id = Unique_id.uuid () }) all_nodes
@@ -284,7 +283,7 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
   match elements with
   | [] -> Ok "" (* or maybe Error "Empty document"? *)
   | first :: tail ->
-      let sorted_elements = List.sort compare_nodes (first :: tail) in
+      let sorted_elements = List.sort compare (first :: tail) in
       aux sorted_elements "" first
 
 let dump_to_string (doc : t) : (string, Error.t) result =
@@ -405,7 +404,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
   let ( let* ) = Result.bind in
 
   let element_before_new_node_start, element_after_new_node_start =
-    List.partition (fun node -> compare_nodes node new_node < 0) doc.elements
+    List.partition (fun node -> compare node new_node < 0) doc.elements
   in
 
   let element_after_range_opt =

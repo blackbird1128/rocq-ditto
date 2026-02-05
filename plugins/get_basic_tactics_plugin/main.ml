@@ -109,7 +109,7 @@ let tactic_count ~io:_ ~token:_ ~(doc : Doc.t) =
 
       let proof_steps = List.concat_map (fun x -> x.proof_steps) proofs in
       let proof_tactics =
-        List.filter Syntax_node.is_syntax_node_tactic proof_steps
+        List.filter Syntax_node.is_syntax_node_ltac proof_steps
       in
 
       let basic_tactics =

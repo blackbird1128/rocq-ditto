@@ -690,7 +690,7 @@ let test_sorting_nodes (_ : Doc.t) () : unit =
   let node3 = make_dummy_node 2 0 2 10 in
   (* does not overlap *)
 
-  let sorted = List.sort Syntax_node.compare_nodes [ node2; node3; node1 ] in
+  let sorted = List.sort Syntax_node.compare [ node2; node3; node1 ] in
   let ids = List.map (fun n -> n.id) sorted in
 
   (* node1 and node2 overlap; smallest common = 18 *)

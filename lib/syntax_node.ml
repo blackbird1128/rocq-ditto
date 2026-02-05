@@ -79,7 +79,7 @@ let are_colliding (a : t) (b : t) : bool =
 let colliding_nodes (target : t) (nodes_list : t list) : t list =
   List.filter (are_colliding target) nodes_list
 
-let compare_nodes (a : t) (b : t) : int =
+let compare (a : t) (b : t) : int =
   match
     Code_range.common_range
       (a.range.start.line, a.range.end_.line)
@@ -234,7 +234,7 @@ let is_syntax_node_command_allowed_in_proof (x : t) : bool =
           | _ -> false))
   | None -> false
 
-let is_syntax_node_tactic (x : t) : bool =
+let is_syntax_node_ltac (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
@@ -421,9 +421,8 @@ let is_syntax_node_focus_command (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with Vernacexpr.VernacFocus _ -> true | _ -> false))
+      | VernacSynPure (VernacFocus _) -> true
+      | _ -> false)
   | None -> false
 
 let is_syntax_node_focusing_goal (x : t) : bool =
@@ -469,11 +468,8 @@ let get_syntax_node_extend_name (x : t) : extend_name option =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp synterp_expr -> (
-          match synterp_expr with
-          | VernacExtend (ext, _) -> Some ext
-          | _ -> None)
-      | VernacSynPure _ -> None)
+      | VernacSynterp (VernacExtend (ext, _)) -> Some ext
+      | _ -> None)
   | None -> None
 
 let get_tactic_raw_generic_arguments (x : t) :
@@ -481,13 +477,10 @@ let get_tactic_raw_generic_arguments (x : t) :
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp synterp_expr -> (
-          match synterp_expr with
-          | VernacExtend (ext, args)
-            when ext.ext_plugin = Rocq_version.ltac_ext_plugin_name ->
-              Some args
-          | _ -> None)
-      | VernacSynPure _ -> None)
+      | VernacSynterp (VernacExtend (ext, args))
+        when ext.ext_plugin = Rocq_version.ltac_ext_plugin_name ->
+          Some args
+      | _ -> None)
   | None -> None
 
 open Raw_gen_args_converter
@@ -552,9 +545,10 @@ let raw_tactic_expr_to_syntax_node
     ]
   in
 
-  let ext = Ltac.default_extend_name in
-
-  match tactic_raw_generic_arguments_to_syntax_node ext args starting_point with
+  match
+    tactic_raw_generic_arguments_to_syntax_node Ltac.default_extend_name args
+      starting_point
+  with
   | Some tac -> Ok tac
   | None ->
       let empty_env = Environ.empty_env in
@@ -591,20 +585,12 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
             (repr x))
 
 let is_syntax_node_intros (x : t) : bool =
-  let raw_tactic_expr = get_node_raw_tactic_expr x in
-  let raw_atomic_expr =
-    Option.map Ltac.get_raw_atomic_tactic_expr raw_tactic_expr
-  in
-  match Option.flatten raw_atomic_expr with
+  match get_node_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacIntroPattern _) -> true
   | _ -> false
 
 let is_syntax_node_assert (x : t) : bool =
-  let raw_tactic_expr = get_node_raw_tactic_expr x in
-  let raw_atomic_expr =
-    Option.map Ltac.get_raw_atomic_tactic_expr raw_tactic_expr
-  in
-  match Option.flatten raw_atomic_expr with
+  match get_node_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacAssert _) -> true
   | _ -> false
 
@@ -696,7 +682,7 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
   let args = get_tactic_raw_generic_arguments a |> Option.get in
   let extend = Ltac.default_extend_name in
 
-  let a_then_b = CAst.make (Ltac_plugin.Tacexpr.TacThen (raw_a, raw_b)) in
+  let a_then_b = Ltac_plugin.Tacexpr.TacThen (raw_a, raw_b) |> CAst.make in
   let raw_arg =
     Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr a_then_b
   in

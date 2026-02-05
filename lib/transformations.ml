@@ -35,7 +35,7 @@ let simple_proof_repair (doc : Rocq_document.t)
   let module SyntaxNodeSet = Set.Make (struct
     type t = Syntax_node.t
 
-    let compare = Syntax_node.compare_nodes
+    let compare = Syntax_node.compare
   end) in
   let ignore_set = SyntaxNodeSet.empty in
 
@@ -1076,7 +1076,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
         let new_induction_clause_l =
           List.map
             (fun ( destruction_arg,
-                   (intro_pattern_naming_expr_opt, _),
+                   (intro_pattern_naming_expr, _),
                    clause_expr_opt ) ->
               let destruct_arg_str =
                 destruction_arg_to_string destruction_arg
@@ -1151,7 +1151,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
               in
 
               ( destruction_arg,
-                ( intro_pattern_naming_expr_opt,
+                ( intro_pattern_naming_expr,
                   Some new_locus_or_and_intro_pattern_l ),
                 clause_expr_opt ))
             induction_clause_l
