@@ -1121,7 +1121,20 @@ let constructivize_doc (doc : Rocq_document.t) :
             |> Syntax_nodeSet.to_list
           in
           List.iter
-            (fun x -> Logs.debug (fun m -> m "x: %s" (Syntax_node.repr x)))
+            (fun x ->
+              Logs.debug (fun m -> m "x: %s" (Syntax_node.repr x));
+
+              let x_ast = x.ast |> Option.get in
+
+              let x_vernac_expr = (Coq.Ast.to_coq x_ast.v).v.expr in
+
+              let x_sexp =
+                Serlib.Ser_vernacexpr.sexp_of_vernac_expr_gen
+                  Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr
+                  x_vernac_expr
+              in
+              Logs.debug (fun m ->
+                  m "x sexp: %s" (Sexplib.Sexp.to_string_hum (strip_loc x_sexp))))
             ltac_nodes;
 
           Ok []);
