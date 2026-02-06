@@ -44,9 +44,7 @@ let mk_vernac_control ?(loc : Loc.t option)
   let attrs = [] in
   let expr = ve in
   let payload = { control; attrs; expr } in
-  match loc with
-  | Some loc -> CAst.make ~loc payload
-  | None -> CAst.make payload
+  CAst.make ?loc payload
 
 let are_colliding (a : t) (b : t) : bool =
   let a_line_range = (a.range.start.line, a.range.end_.line) in
@@ -359,11 +357,10 @@ let is_syntax_node_program_instance_start (x : t) : bool =
           match expr with
           | Vernacexpr.VernacInstance _ ->
               let flags = (Coq.Ast.to_coq ast.v).v.attrs in
-
               List.exists
                 (fun (flag : Attributes.vernac_flag) ->
                   let str, _ = flag.v in
-                  str = "program")
+                  String.equal str "program")
                 flags
           | _ -> false))
   | None -> false
@@ -501,18 +498,24 @@ let get_node_raw_tactic_expr (x : t) :
   |> Option.map raw_arguments_to_raw_tactic_expr
   |> Option.flatten
 
+let get_node_tacdef_bodies (x : t) : Ltac_plugin.Tacexpr.tacdef_body list option
+    =
+  get_tactic_raw_generic_arguments x
+  |> Option.map raw_arguments_to_tacdef_bodies
+  |> Option.flatten
+
 let string_to_raw_tactic_expr (str : string) :
     (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
   let ( let* ) = Result.bind in
   let dummy_point : Code_point.t = { line = 0; character = 0 } in
-  let* syntax_node = syntax_node_of_string str dummy_point in
-  Option_utils.to_result
-    (get_node_raw_tactic_expr syntax_node)
-    ~none:
-      (Error.format_to_or_error
-         "%s isn't convertible to a raw_tactic_expr (It probably isn't valid \
-          Ltac"
-         str)
+  let* node = syntax_node_of_string str dummy_point in
+  match get_node_raw_tactic_expr node with
+  | Some e -> Ok e
+  | None ->
+      Error.format_to_or_error
+        "%s isn't convertible to a raw_tactic_expr (It probably isn't valid \
+         Ltac)"
+        str
 
 let get_node_raw_atomic_tactic_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option =
@@ -531,6 +534,32 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
       Some (syntax_node_of_coq_ast ast_node starting_point)
   | _ -> None
 
+let tacdef_body_raw_generic_argument_to_syntax_node
+    (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
+    t option =
+  match args with
+  | [ _ ] ->
+      let expr_syn =
+        Vernacexpr.VernacExtend (Ltac.ltac_definition_extend_name, args)
+      in
+      let synterpr_expr = Vernacexpr.VernacSynterp expr_syn in
+      let control = mk_vernac_control synterpr_expr in
+      let ast_node = Coq.Ast.of_coq control in
+      Some (syntax_node_of_coq_ast ast_node starting_point)
+  | _ -> None
+
+let tacdef_body_list_to_syntax_node
+    (td_list : Ltac_plugin.Tacexpr.tacdef_body list)
+    (starting_point : Code_point.t) : (t, Error.t) result =
+  let args =
+    [ Raw_gen_args_converter.raw_generic_argument_of_tacdef_bodies td_list ]
+  in
+  match tacdef_body_raw_generic_argument_to_syntax_node args starting_point with
+  | Some tac -> Ok tac
+  | None ->
+      Error.string_to_or_error
+        "Error creating a syntax node from the provided tacdef_body list"
+
 let raw_tactic_expr_to_syntax_node
     (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     ?(selector : Goal_select_view.t option) ?(use_default = false)
@@ -546,8 +575,8 @@ let raw_tactic_expr_to_syntax_node
   in
 
   match
-    tactic_raw_generic_arguments_to_syntax_node Ltac.default_extend_name args
-      starting_point
+    tactic_raw_generic_arguments_to_syntax_node Ltac.ltac_tactic_extend_name
+      args starting_point
   with
   | Some tac -> Ok tac
   | None ->
@@ -560,14 +589,13 @@ let raw_tactic_expr_to_syntax_node
       Error.format_to_or_error "Error creating a syntax node from %s" pp_str
 
 let drop_goal_selector (x : t) : t =
-  let args = get_tactic_raw_generic_arguments x in
-  match args with
-  | Some args ->
-      let args = raw_generic_argument_of_ltac_selector None :: List.tl args in
+  match get_tactic_raw_generic_arguments x with
+  | Some [ _sel; a1; a2; a3 ] ->
+      let args = raw_generic_argument_of_ltac_selector None :: [ a1; a2; a3 ] in
       Option.default x
-        (tactic_raw_generic_arguments_to_syntax_node Ltac.default_extend_name
-           args x.range.start)
-  | None -> x
+        (tactic_raw_generic_arguments_to_syntax_node
+           Ltac.ltac_tactic_extend_name args x.range.start)
+  | _ -> x
 
 let add_goal_selector (x : t) (selector : Goal_select_view.t) :
     (t, Error.t) result =
@@ -639,7 +667,7 @@ let apply_tac_thens (a : t) (l : t list)
   let* raw_tactics_l = l_to_raw_tactics l in
 
   let args = get_tactic_raw_generic_arguments a |> Option.get in
-  let extend = Ltac.default_extend_name in
+  let extend = Ltac.ltac_tactic_extend_name in
 
   let a_thens_l : Ltac_plugin.Tacexpr.raw_tactic_expr =
     CAst.make (Ltac_plugin.Tacexpr.TacThens (raw_a, raw_tactics_l))
@@ -680,7 +708,7 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
   in
 
   let args = get_tactic_raw_generic_arguments a |> Option.get in
-  let extend = Ltac.default_extend_name in
+  let extend = Ltac.ltac_tactic_extend_name in
 
   let a_then_b = Ltac_plugin.Tacexpr.TacThen (raw_a, raw_b) |> CAst.make in
   let raw_arg =

@@ -132,6 +132,9 @@ val get_tactic_raw_generic_arguments :
 val tactic_raw_generic_arguments_to_syntax_node :
   extend_name -> Genarg.raw_generic_argument list -> Code_point.t -> t option
 
+val tacdef_body_list_to_syntax_node :
+  Ltac_plugin.Tacexpr.tacdef_body list -> Code_point.t -> (t, Error.t) result
+
 val raw_tactic_expr_to_syntax_node :
   Ltac_plugin.Tacexpr.raw_tactic_expr ->
   ?selector:Goal_select_view.t ->
@@ -144,6 +147,8 @@ val get_node_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
 val get_node_raw_atomic_tactic_expr :
   t -> Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option
+
+val get_node_tacdef_bodies : t -> Ltac_plugin.Tacexpr.tacdef_body list option
 
 val string_to_raw_tactic_expr :
   string -> (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result
