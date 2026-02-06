@@ -6,8 +6,11 @@ val raw_tactic_expr_of_raw_generic_argument :
 val raw_generic_argument_of_raw_tactic_expr :
   Tacexpr.raw_tactic_expr -> Genarg.raw_generic_argument
 
-val tacdef_body_of_raw_generic_argument :
+val tacdef_bodies_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Tacexpr.tacdef_body list option
+
+val raw_generic_argument_of_tacdef_bodies :
+  Tacexpr.tacdef_body list -> Genarg.raw_generic_argument
 
 val constr_expr_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Constrexpr.constr_expr option
@@ -119,6 +122,10 @@ val raw_arguments_to_ltac_elements :
 
 val raw_arguments_to_raw_tactic_expr :
   Genarg.raw_generic_argument list -> Ltac_plugin.Tacexpr.raw_tactic_expr option
+
+val raw_arguments_to_tacdef_bodies :
+  Genarg.raw_generic_argument list ->
+  Ltac_plugin.Tacexpr.tacdef_body list option
 
 val raw_generic_argument_of_empty_ltac_info :
   unit -> Genarg.raw_generic_argument

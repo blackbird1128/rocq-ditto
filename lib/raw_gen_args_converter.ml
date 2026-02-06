@@ -11,7 +11,7 @@ let raw_generic_argument_of_raw_tactic_expr (arg : Tacexpr.raw_tactic_expr) :
   let atype = Genarg.Rawwit Tacarg.wit_tactic in
   Genarg.in_gen atype arg
 
-let tacdef_body_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
+let tacdef_bodies_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
     Tacexpr.tacdef_body list option =
   match Serlib.Ser_genarg.sexp_of_raw_generic_argument arg with
   | List
@@ -30,6 +30,24 @@ let tacdef_body_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
       ] ->
       Some (List.map Serlib_ltac.Ser_tacexpr.tacdef_body_of_sexp rems)
   | _ -> None
+
+let raw_generic_argument_of_tacdef_bodies (td_bodies : Tacexpr.tacdef_body list)
+    =
+  Serlib.Ser_genarg.raw_generic_argument_of_sexp
+    (List
+       [
+         Atom "GenArg";
+         List
+           [
+             Atom "Rawwit";
+             List
+               [
+                 Atom "ListArg";
+                 List [ Atom "ExtraArg"; Atom "ltac_tacdef_body" ];
+               ];
+           ];
+         List (List.map Serlib_ltac.Ser_tacexpr.sexp_of_tacdef_body td_bodies);
+       ])
 
 let constr_expr_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
     Constrexpr.constr_expr option =
@@ -519,6 +537,12 @@ let raw_arguments_to_raw_tactic_expr (args : Genarg.raw_generic_argument list) :
     Ltac_plugin.Tacexpr.raw_tactic_expr option =
   match args with
   | [ _; _; arg; _ ] -> raw_tactic_expr_of_raw_generic_argument arg
+  | _ -> None
+
+let raw_arguments_to_tacdef_bodies (args : Genarg.raw_generic_argument list) :
+    Ltac_plugin.Tacexpr.tacdef_body list option =
+  match args with
+  | [ arg ] -> tacdef_bodies_of_raw_generic_argument arg
   | _ -> None
 
 let raw_generic_argument_of_empty_ltac_info () : Genarg.raw_generic_argument =
