@@ -306,6 +306,35 @@ let map_raw_tactic_expr_in_node
     Some (Replace (node.id, new_node))
   else None
 
+let map_tacdef_bodies_in_node
+    (f :
+      Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
+    (g : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (node : Syntax_node.t) : transformation_step option =
+  let+ tacdef_bodies = Syntax_node.get_node_tacdef_bodies node in
+  let tacdef_bodies_mapped =
+    List.map
+      (fun (body : Ltac_plugin.Tacexpr.tacdef_body) ->
+        match body with
+        | Ltac_plugin.Tacexpr.TacticDefinition (name, tacexpr) ->
+            Ltac_plugin.Tacexpr.TacticDefinition
+              (name, Tacexpr_map.tacexpr_map_with_constr f g tacexpr)
+        | Ltac_plugin.Tacexpr.TacticRedefinition (name, tacexpr) ->
+            Ltac_plugin.Tacexpr.TacticRedefinition
+              (name, Tacexpr_map.tacexpr_map_with_constr f g tacexpr))
+      tacdef_bodies
+  in
+
+  if not (List.equal ( = ) tacdef_bodies tacdef_bodies_mapped) then
+    let+ new_node =
+      Syntax_node.tacdef_body_list_to_syntax_node tacdef_bodies_mapped
+        node.range.start
+      |> Result.to_option
+    in
+
+    Some (Replace (node.id, new_node))
+  else None
+
 let map_assert_in_node (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (node : Syntax_node.t) : transformation_step option =
   map_raw_tactic_expr_in_node (map_assert_constr_expr f) node
@@ -449,11 +478,7 @@ and action_expr_to_string_res
   | Tactypes.IntroRewrite _ ->
       Error.string_to_or_error "IntroRewrite not treated yet"
 
-(* let get_or_pattern_vars (pattern: Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t list *)
-(*                            list) : string list = *)
-(*  let a =  List.map (fun l -> List.map (fun x -> x) l) pattern in  *)
-
-let replace_destruct_inner_pasch_with_stab_destruct_ip
+let replace_destruct_fun_with_stab_destruct
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
   match x.v with
@@ -462,8 +487,7 @@ let replace_destruct_inner_pasch_with_stab_destruct_ip
         destruct_target
       in
       match core_destruction_arg with
-      | ElimOnConstr (constrexpr, NoBindings)
-        when is_constrexpr_c_app_named constrexpr "inner_pasch" -> (
+      | ElimOnConstr (constrexpr, NoBindings) -> (
           let fun_args = get_func_args constrexpr in
           let fun_args_str_opt =
             List.map
@@ -472,6 +496,19 @@ let replace_destruct_inner_pasch_with_stab_destruct_ip
               fun_args
             |> List_utils.option_all
           in
+
+          let stab_destruct_ip =
+            Syntax_node.string_to_raw_tactic_expr
+              "stab_destruct (segment_construction A B C D) as [I []]."
+            |> Result.get_ok
+          in
+          let stab_destruct_ip_sexp =
+            Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr stab_destruct_ip
+          in
+
+          Logs.debug (fun m ->
+              m "stab d ip: %s"
+                (Sexplib.Sexp.to_string_hum (strip_loc stab_destruct_ip_sexp)));
 
           match intro_pattern_naming_expr with
           | _, Some (ArgArg intro_or_and_pattern) -> (
@@ -489,15 +526,11 @@ let replace_destruct_inner_pasch_with_stab_destruct_ip
                            [%s [%s %s]]."
                           a b c d e hb1 hb2 hb3 hb4 hb5
                       in
-                      Logs.debug (fun m ->
-                          m "stab destruct ib : %s" stab_destruct_ib_str);
                       match
                         Syntax_node.string_to_raw_tactic_expr
                           stab_destruct_ib_str
                       with
-                      | Ok expr ->
-                          Logs.debug (fun m -> m "ok expr");
-                          expr
+                      | Ok expr -> expr
                       | Error err ->
                           Logs.debug (fun m ->
                               m "Err : %s" (Error.to_string_hum err));
@@ -1070,7 +1103,7 @@ let constructivize_doc (doc : Rocq_document.t) :
           let steps =
             List.filter_map
               (map_raw_tactic_expr_in_node
-                 replace_destruct_inner_pasch_with_stab_destruct_ip)
+                 replace_destruct_fun_with_stab_destruct)
               doc.elements
           in
           Ok steps);
@@ -1099,24 +1132,20 @@ let constructivize_doc (doc : Rocq_document.t) :
             Syntax_nodeSet.diff all_ltac_nodes_set proof_steps_set
             |> Syntax_nodeSet.to_list
           in
-          List.iter
-            (fun x ->
-              Logs.debug (fun m -> m "x: %s" (Syntax_node.repr x));
 
-              let x_ast = x.ast |> Option.get in
+          let f_tacdef_constr =
+            Fun.compose
+              (replace_fun_name_in_constrexpr "Bet" "BetC")
+              (replace_fun_name_in_constrexpr "Cong" "CongC")
+          in
 
-              let x_vernac_expr = (Coq.Ast.to_coq x_ast.v).v.expr in
-
-              let x_sexp =
-                Serlib.Ser_vernacexpr.sexp_of_vernac_expr_gen
-                  Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr
-                  x_vernac_expr
-              in
-              Logs.debug (fun m ->
-                  m "x sexp: %s" (Sexplib.Sexp.to_string_hum (strip_loc x_sexp))))
-            ltac_nodes;
-
-          Ok []);
+          Ok
+            (List.filter_map
+               (fun x ->
+                 map_tacdef_bodies_in_node Fun.id
+                   (Constrexpr_map.constr_expr_map f_tacdef_constr)
+                   x)
+               ltac_nodes));
     }
   in
 
