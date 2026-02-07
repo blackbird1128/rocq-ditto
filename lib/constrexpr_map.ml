@@ -45,7 +45,7 @@ and constr_expr_map (m : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (term : Constrexpr.constr_expr) : Constrexpr.constr_expr =
   let res =
     match term.v with
-    | CRef (_, _) -> term.v
+    | CRef (qualid, inst_expr_opt) -> CRef (qualid, inst_expr_opt)
     | CFix (k, defs) ->
         CFix
           ( k,
