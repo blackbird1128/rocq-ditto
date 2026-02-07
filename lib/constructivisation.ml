@@ -591,36 +591,15 @@ let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
       | _ -> false)
     x
 
-let get_definition_name (x : Syntax_node.t) : string option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynPure (Vernacexpr.VernacDefinition (_, (name, _), _)) ->
-          Some (Pp.string_of_ppcmds (Names.Name.print name.v))
-      | _ -> None)
-  | None -> None
-
-let get_definition_constrexpr (x : Syntax_node.t) :
-    Constrexpr.constr_expr option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynPure (Vernacexpr.VernacDefinition (_, _, expr)) -> (
-          match expr with
-          | ProveBody _ -> None
-          | DefineBody (_, _, expr, _) -> Some expr)
-      | _ -> None)
-  | None -> None
-
 let collect_definitions_containing_exists (l : Syntax_node.t list) : string list
     =
   let rec aux (l : Syntax_node.t list) (acc : string list) =
     match l with
     | [] -> List.rev acc
     | x :: tail -> (
-        match get_definition_constrexpr x with
+        match Syntax_node.get_definition_constrexpr x with
         | Some expr ->
-            let name = Option.get (get_definition_name x) in
+            let name = Option.get (Syntax_node.get_definition_name x) in
             let fun_names_in_def =
               get_fun_names_in_constrexpr expr
               |> List.map Libnames.string_of_qualid

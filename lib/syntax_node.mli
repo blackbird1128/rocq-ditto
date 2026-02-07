@@ -81,6 +81,9 @@ val is_syntax_node_focus_command : t -> bool
 val is_syntax_node_definition : t -> bool
 (** [is_syntax_node_definition] check if [x] is the command [Definition] *)
 
+val get_definition_name : t -> string option
+val get_definition_constrexpr : t -> Constrexpr.constr_expr option
+
 val is_syntax_node_proof_start : t -> bool
 (** [is_syntax_node_proof_start x] checks if [x] marks the start of a proof.
     meaning if it's a sentence starting with: Theorem | Lemma | Fact | Remark |

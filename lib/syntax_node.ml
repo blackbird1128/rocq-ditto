@@ -387,6 +387,26 @@ let is_syntax_node_definition_with_proof (x : t) : bool =
           | _ -> false))
   | None -> false
 
+let get_definition_name (x : t) : string option =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynPure (Vernacexpr.VernacDefinition (_, (name, _), _)) ->
+          Some (Pp.string_of_ppcmds (Names.Name.print name.v))
+      | _ -> None)
+  | None -> None
+
+let get_definition_constrexpr (x : t) : Constrexpr.constr_expr option =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynPure (Vernacexpr.VernacDefinition (_, _, expr)) -> (
+          match expr with
+          | ProveBody _ -> None
+          | DefineBody (_, _, expr, _) -> Some expr)
+      | _ -> None)
+  | None -> None
+
 let is_syntax_node_bullet (x : t) : bool =
   match x.ast with
   | Some ast -> (
