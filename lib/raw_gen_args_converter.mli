@@ -22,7 +22,12 @@ val intro_pattern_list_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Tacexpr.intro_pattern list option
 
 val intro_pattern_of_raw_generic_argument :
-  Genarg.raw_generic_argument -> Tacexpr.intro_pattern option
+  Genarg.raw_generic_argument ->
+  Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t option
+
+val raw_generic_argument_of_intro_pattern :
+  Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t ->
+  Genarg.raw_generic_argument
 
 val destruction_arg_of_raw_generic_argument :
   Genarg.raw_generic_argument ->
@@ -39,6 +44,8 @@ val bindings_list_of_raw_generic_argument :
 
 val id_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Tacexpr.t_nam option
+
+val raw_generic_argument_of_id : Tacexpr.t_nam -> Genarg.raw_generic_argument
 
 val hyp_list_of_raw_generic_argument :
   Genarg.raw_generic_argument -> Tacexpr.t_nam CAst.t list option

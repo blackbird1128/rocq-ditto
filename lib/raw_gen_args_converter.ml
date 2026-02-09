@@ -85,19 +85,15 @@ let intro_pattern_list_of_raw_generic_argument
   | _ -> None
 
 let intro_pattern_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
-    Tacexpr.intro_pattern option =
-  match Serlib.Ser_genarg.sexp_of_raw_generic_argument arg with
-  | List
-      [
-        Atom "GenArg";
-        List
-          [
-            Atom "Rawwit"; List [ Atom "ExtraArg"; Atom "simple_intropattern" ];
-          ];
-        rems;
-      ] ->
-      Some (Serlib_ltac.Ser_tacexpr.intro_pattern_of_sexp rems)
-  | _ -> None
+    Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t option =
+  let atype = Genarg.Rawwit Tacarg.wit_simple_intropattern in
+  if Genarg.has_type arg atype then Some (Genarg.out_gen atype arg) else None
+
+let raw_generic_argument_of_intro_pattern
+    (intro_pattern : Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t)
+    : Genarg.raw_generic_argument =
+  let atype = Genarg.Rawwit Tacarg.wit_simple_intropattern in
+  Genarg.in_gen atype intro_pattern
 
 let destruction_arg_of_raw_generic_argument (arg : Genarg.raw_generic_argument)
     :
@@ -158,15 +154,13 @@ let bindings_list_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
 
 let id_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
     Tacexpr.t_nam option =
-  match Serlib.Ser_genarg.sexp_of_raw_generic_argument arg with
-  | List
-      [
-        Atom "GenArg";
-        List [ Atom "Rawwit"; List [ Atom "ExtraArg"; Atom "ident" ] ];
-        rems;
-      ] ->
-      Some (Serlib.Ser_names.Id.t_of_sexp rems)
-  | _ -> None
+  let atype = Genarg.Rawwit Stdarg.wit_ident in
+  if Genarg.has_type arg atype then Some (Genarg.out_gen atype arg) else None
+
+let raw_generic_argument_of_id (arg : Tacexpr.t_nam) :
+    Genarg.raw_generic_argument =
+  let atype = Genarg.Rawwit Stdarg.wit_ident in
+  Genarg.in_gen atype arg
 
 let hyp_list_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
     Tacexpr.t_nam CAst.t list option =
