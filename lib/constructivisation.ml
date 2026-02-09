@@ -478,6 +478,12 @@ and action_expr_to_string_res
   | Tactypes.IntroRewrite _ ->
       Error.string_to_or_error "IntroRewrite not treated yet"
 
+let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) :
+    string option =
+  if is_constrexpr_c_app_named c "inner_pasch" then
+    Some "stab_destruct_(_inner_pasch_#_#_#_#_#_#_#_)_as_#_0A64625C"
+  else None
+
 let replace_destruct_fun_with_stab_destruct
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -488,55 +494,66 @@ let replace_destruct_fun_with_stab_destruct
       in
       match core_destruction_arg with
       | ElimOnConstr (constrexpr, NoBindings) -> (
-          let fun_args = get_func_args constrexpr in
-          let fun_args_str_opt =
-            List.map
-              (fun x ->
-                get_cref_qualid x |> Option.map Libnames.string_of_qualid)
-              fun_args
-            |> List_utils.option_all
-          in
-
-          let stab_destruct_ip =
-            Syntax_node.string_to_raw_tactic_expr
-              "stab_destruct (segment_construction A B C D) as [I []]."
-            |> Result.get_ok
-          in
-          let stab_destruct_ip_sexp =
-            Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr stab_destruct_ip
-          in
-
-          Logs.debug (fun m ->
-              m "stab d ip: %s"
-                (Sexplib.Sexp.to_string_hum (strip_loc stab_destruct_ip_sexp)));
-
-          match intro_pattern_naming_expr with
-          | _, Some (ArgArg intro_or_and_pattern) -> (
-              match intro_or_and_pattern.v with
-              | IntroAndPattern pattern ->
-                  Logs.err (fun m -> m "Not treated yet");
-                  assert false
-              | IntroOrPattern or_pattern -> (
-                  let intro_vars = intro_or_pattern_to_string or_pattern in
-                  match (fun_args_str_opt, intro_vars) with
-                  | Some [ a; b; c; d; e; hb1; hb2 ], Ok [ hb3; hb4; hb5 ] -> (
-                      let stab_destruct_ib_str =
-                        Printf.sprintf
-                          "stab_destruct (inner_pasch %s %s %s %s %s %s %s) as \
-                           [%s [%s %s]]."
-                          a b c d e hb1 hb2 hb3 hb4 hb5
-                      in
-                      match
-                        Syntax_node.string_to_raw_tactic_expr
-                          stab_destruct_ib_str
-                      with
-                      | Ok expr -> expr
-                      | Error err ->
-                          Logs.debug (fun m ->
-                              m "Err : %s" (Error.to_string_hum err));
-                          x)
-                  | _ -> x))
-          | _ -> x)
+          match constrexpr_to_stab_destruct_fun_name constrexpr with
+          | Some kername -> (
+              (* let fun_args = get_func_args constrexpr in *)
+              (* let fun_args_str_opt = *)
+              (*   List.map *)
+              (*     (fun x -> *)
+              (*       get_cref_qualid x |> Option.map Libnames.string_of_qualid) *)
+              (*     fun_args *)
+              (*   |> List_utils.option_all *)
+              (* in *)
+              (* let fun_args_name_id_arg = *)
+              (*   Option.map *)
+              (*     (List.map (fun x -> *)
+              (*          Names.Id.of_string x *)
+              (*          |> Raw_gen_args_converter.raw_generic_argument_of_id)) *)
+              (*     fun_args_str_opt *)
+              (* in *)
+              match intro_pattern_naming_expr with
+              | _, Some (ArgArg intro_or_and_pattern) ->
+                  (* let intro_action = *)
+                  (*   Tactypes.IntroOrAndPattern intro_or_and_pattern.v *)
+                  (* in *)
+                  (* let intro_pattern_expr = *)
+                  (*   Tactypes.IntroAction intro_action |> CAst.make *)
+                  (* in *)
+                  (* let intro_arg = *)
+                  (*   Raw_gen_args_converter.raw_generic_argument_of_intro_pattern *)
+                  (*     intro_pattern_expr *)
+                  (* in *)
+                  (* let intro_action = Tactypes.IntroNaming intro_pattern_naming_expr *)
+                  x
+              | _ -> x)
+          | None ->
+              (* match intro_pattern_naming_expr with *)
+              (* | _, Some (ArgArg intro_or_and_pattern) -> ( *)
+              (*     match intro_or_and_pattern.v with *)
+              (*     | IntroAndPattern pattern -> *)
+              (*         Logs.err (fun m -> m "Not treated yet"); *)
+              (*         assert false *)
+              (*     | IntroOrPattern or_pattern -> ( *)
+              (*         let intro_vars = intro_or_pattern_to_string or_pattern in *)
+              (*         match (fun_args_str_opt, intro_vars) with *)
+              (*         | Some [ a; b; c; d; e; hb1; hb2 ], Ok [ hb3; hb4; hb5 ] -> ( *)
+              (*             let stab_destruct_ib_str = *)
+              (*               Printf.sprintf *)
+              (*                 "stab_destruct (inner_pasch %s %s %s %s %s %s %s) as \ *)
+          (*                  [%s [%s %s]]." *)
+              (*                 a b c d e hb1 hb2 hb3 hb4 hb5 *)
+              (*             in *)
+              (*             match *)
+              (*               Syntax_node.string_to_raw_tactic_expr *)
+              (*                 stab_destruct_ib_str *)
+              (*             with *)
+              (*             | Ok expr -> expr *)
+              (*             | Error err -> *)
+              (*                 Logs.debug (fun m -> *)
+              (*                     m "Err : %s" (Error.to_string_hum err)); *)
+              (*                 x) *)
+              (*         | _ -> x)) *)
+              x)
       | _ -> x)
   | _ -> x
 
@@ -873,6 +890,19 @@ let constructivize_doc (doc : Rocq_document.t) :
       (Runner.get_state_after doc.initial_state token [ require_prelude_node ])
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
+
+  let stab_destruct_ip =
+    Syntax_node.string_to_raw_tactic_expr
+      "stab_destruct (inner_pasch A B C D X X X) as [I []]."
+    |> Result.get_ok
+  in
+  let stab_destruct_ip_sexp =
+    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr stab_destruct_ip
+  in
+
+  Logs.debug (fun m ->
+      m "stab d ip: %s"
+        (Sexplib.Sexp.to_string_hum (strip_loc stab_destruct_ip_sexp)));
 
   (* stage 0 *)
   let* _ =
