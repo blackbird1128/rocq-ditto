@@ -14,10 +14,7 @@ end)
 let show_list xs = "[" ^ String.concat "; " xs ^ "]"
 
 (* this is N^2 but we don't really care as the lists are quite small *)
-let intersect l1 l2 =
-  List.fold_left
-    (fun acc x -> if List.exists (fun y -> y = x) l1 then true else acc)
-    false l2
+let intersect l1 l2 = List.exists (fun x -> List.mem x l1) l2
 
 let get_new_vars ?(keep : string list = [])
     (old_goals_vars : string list list option)
@@ -257,24 +254,22 @@ let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
   match x.v with
   | TacArg (TacCall call_arg) ->
-      let call_qualid, _ = call_arg.v in
-      let call_qualid_str = Libnames.string_of_qualid call_qualid in
-      if call_qualid_str = "prolong" then
-        let _, fun_args = call_arg.v in
+      let call_qualid, fun_args = call_arg.v in
+      if String.equal (Libnames.string_of_qualid call_qualid) "prolong" then
         let args_str_opt = List.map prolong_arg_to_string fun_args in
         match List_utils.option_all args_str_opt with
-        | Some [ args0; args1; args2; args3; args4 ] ->
+        | Some [ args0; args1; args2; args3; args4 ] -> (
             let segment_construction_str =
               Printf.sprintf
                 "apply (by_segment_construction %s %s %s %s); [solve_stable | \
                  intros [%s [?H%s ?H%s]]]."
                 args0 args1 args3 args4 args2 args1 args3
             in
-
-            Result.fold
-              ~ok:(fun a -> a)
-              ~error:(fun _ -> x)
-              (Syntax_node.string_to_raw_tactic_expr segment_construction_str)
+            match
+              Syntax_node.string_to_raw_tactic_expr segment_construction_str
+            with
+            | Ok a -> a
+            | Error _ -> x)
         | _ -> x
       else x
   | _ -> x
@@ -296,7 +291,8 @@ let map_raw_tactic_expr_in_node
     (node : Syntax_node.t) : transformation_step option =
   let+ raw_tac_expr = Syntax_node.get_node_raw_tactic_expr node in
   let raw_expr_mapped = Tacexpr_map.tacexpr_map f raw_tac_expr in
-  if not (raw_tac_expr = raw_expr_mapped) then
+  if raw_tac_expr = raw_expr_mapped then None
+  else
     let selector = Syntax_node.get_node_goal_selector_opt node in
     let+ new_node =
       Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
@@ -304,7 +300,6 @@ let map_raw_tactic_expr_in_node
       |> Result.to_option
     in
     Some (Replace (node.id, new_node))
-  else None
 
 let map_tacdef_bodies_in_node
     (f :
@@ -424,7 +419,7 @@ let replace_elim_with_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
             match Syntax_node.string_to_raw_tactic_expr stab_eq_str with
             | Ok expr -> expr
             | Error _ -> x)
-        | _ -> x
+        | None -> x
       else x
   | _ -> x
 
@@ -581,10 +576,11 @@ let replace_notation_in_definition (old_notation : string)
 
 let add_node_after_require (doc : Rocq_document.t) (node : Syntax_node.t) :
     transformation_step option =
-  let+ last_require =
-    List.find_opt Syntax_node.is_syntax_node_require (List.rev doc.elements)
-  in
-  Some (Attach (node, LineAfter, last_require.id))
+  match
+    List_utils.find_last_opt Syntax_node.is_syntax_node_require doc.elements
+  with
+  | Some last_require -> Some (Attach (node, LineAfter, last_require.id))
+  | None -> None
 
 let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
   Constrexpr_fold.exists
@@ -595,25 +591,31 @@ let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
       | _ -> false)
     x
 
-let collect_definitions_containing_exists (l : Syntax_node.t list) : string list
-    =
-  let rec aux (l : Syntax_node.t list) (acc : string list) =
-    match l with
-    | [] -> List.rev acc
-    | x :: tail -> (
-        match Syntax_node.get_definition_constrexpr x with
-        | Some expr ->
-            let name = Option.get (Syntax_node.get_definition_name x) in
-            let fun_names_in_def =
+module StringSet = Set.Make (String)
+
+let collect_definitions_containing_exists (nodes : Syntax_node.t list) :
+    string list =
+  let rec aux nodes (acc_list : string list) (acc_set : StringSet.t) =
+    match nodes with
+    | [] -> List.rev acc_list
+    | x :: tail -> begin
+        match
+          ( Syntax_node.get_definition_constrexpr x,
+            Syntax_node.get_definition_name x )
+        with
+        | Some expr, Some name ->
+            let references_prev =
               get_fun_names_in_constrexpr expr
-              |> List.map Libnames.string_of_qualid
+              |> List.exists (fun q ->
+                  StringSet.mem (Libnames.string_of_qualid q) acc_set)
             in
-            if constrexpr_contains_exists expr || intersect fun_names_in_def acc
-            then aux tail (name :: acc)
-            else aux tail acc
-        | None -> aux tail acc)
+            if constrexpr_contains_exists expr || references_prev then
+              aux tail (name :: acc_list) (StringSet.add name acc_set)
+            else aux tail acc_list acc_set
+        | _ -> aux tail acc_list acc_set
+      end
   in
-  aux l []
+  aux nodes [] StringSet.empty
 
 let get_proof_conclusion (p : Proof.t) : Constrexpr.constr_expr option =
   let ( let+ ) = Option.bind in
@@ -635,20 +637,22 @@ let get_proof_conclusion (p : Proof.t) : Constrexpr.constr_expr option =
   in
   get_conclusion expr
 
-let get_syntax_node_assert_expr (x : Syntax_node.t) =
+let get_syntax_node_assert_expr (x : Syntax_node.t) :
+    Constrexpr.constr_expr option =
   match Syntax_node.get_node_raw_atomic_tactic_expr x with
   | Some (TacAssert (false, true, _, _, expr)) -> Some expr
   | _ -> None
 
 let is_proof_about_exists (p : Proof.t) : bool =
-  let ( let@ ) o f = match o with None -> false | Some x -> f x in
-  let@ conclusion = get_proof_conclusion p in
-  let funcs_in_conclusion =
-    get_fun_names_in_constrexpr conclusion |> List.map Libnames.string_of_qualid
-  in
-
-  constrexpr_contains_exists conclusion
-  || intersect funcs_in_conclusion definitions_with_exists
+  match get_proof_conclusion p with
+  | None -> false
+  | Some conclusion ->
+      if constrexpr_contains_exists conclusion then true
+      else
+        get_fun_names_in_constrexpr conclusion
+        |> List.exists (fun q ->
+            let s = Libnames.string_of_qualid q in
+            List.mem s definitions_with_exists)
 
 let rec update_replaces (l : transformation_step list) =
   match l with
@@ -1119,17 +1123,21 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
 
-  let stage_10 : stage =
-    {
-      name = "stage10";
-      build_steps =
-        (fun doc ->
-          List_utils.concat_map_result
-            (replace_assert_by_stab_assert doc)
-            doc.elements);
-    }
-  in
+  (* let stage_10 :  stage = { *)
+  (*     name = "stage10"; *)
+  (*     build_steps = (fun doc -> ) *)
 
+  (*   } *)
+  (* let stage_11 : stage = *)
+  (*   { *)
+  (*     name = "stage11"; *)
+  (*     build_steps = *)
+  (*       (fun doc -> *)
+  (*         List_utils.concat_map_result *)
+  (*           (replace_assert_by_stab_assert doc) *)
+  (*           doc.elements); *)
+  (*   } *)
+  (* in *)
   let* _, steps =
     run_pipeline doc
       [
@@ -1143,7 +1151,7 @@ let constructivize_doc (doc : Rocq_document.t) :
         stage_7;
         stage_8;
         stage_9;
-        stage_10;
+        (* stage_11; *)
       ]
   in
   Ok (update_replaces steps)
