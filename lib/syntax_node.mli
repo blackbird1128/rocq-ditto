@@ -44,14 +44,6 @@ val validate_syntax_node : t -> (t, Error.t) result
 val mk_vernac_control :
   ?loc:Loc.t -> synterp_vernac_expr vernac_expr_gen -> vernac_control
 
-val shift_point : int -> int -> Code_point.t -> Code_point.t
-(** [shift_point n_line n_char point] shift [point] by [n_line], and [n_char].
-*)
-
-val shift_range : int -> int -> Code_range.t -> Code_range.t
-(** [shift_range n_line n_char range] shift both points of [range] by [n_line],
-    [n_char] *)
-
 val shift_node : int -> int -> t -> t
 (** [shift_node n_line n_char node] shift the range of [node] by [n_line],
     [n_char] using [shift_range] *)

@@ -380,7 +380,9 @@ let admit_and_comment_proof_steps (_ : Rocq_document.t) (proof : Proof.t) :
   in
 
   let admitted_start =
-    shift_point 1 (-comment_node.range.end_.character) comment_node.range.end_
+    Code_point.shift 1
+      (-comment_node.range.end_.character)
+      comment_node.range.end_
   in
 
   let* admitted_node =
@@ -560,7 +562,7 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
           in
 
           let comment_start_point =
-            shift_point 0 5 furthest_char_node.range.end_
+            Code_point.shift 0 5 furthest_char_node.range.end_
           in
           match
             Syntax_node.comment_syntax_node_of_string comment_content
@@ -784,7 +786,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
                 (fun i repr ->
                   Result.get_ok
                     (Syntax_node.syntax_node_of_string repr
-                       (shift_point i 0 node.range.start)))
+                       (Code_point.shift i 0 node.range.start)))
                 filtered_tactics
             in
             let shifted_nodes =

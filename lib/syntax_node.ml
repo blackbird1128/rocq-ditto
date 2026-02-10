@@ -197,19 +197,8 @@ let reformat_node (x : t) : (t, Error.t) result =
   | None ->
       Error.string_to_or_error "The node need to have an AST to be reformatted"
 
-let shift_point (n_line : int) (n_char : int) (x : Code_point.t) : Code_point.t
-    =
-  { line = x.line + n_line; character = x.character + n_char }
-
-let shift_range (n_line : int) (n_char : int) (x : Code_range.t) : Code_range.t
-    =
-  {
-    start = shift_point n_line n_char x.start;
-    end_ = shift_point n_line n_char x.end_;
-  }
-
 let shift_node (n_line : int) (n_char : int) (x : t) : t =
-  { x with range = shift_range n_line n_char x.range }
+  { x with range = Code_range.shift n_line n_char x.range }
 
 let is_syntax_node_command_allowed_in_proof (x : t) : bool =
   match x.ast with

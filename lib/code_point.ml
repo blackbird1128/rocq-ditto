@@ -7,5 +7,8 @@ let pp (fmt : Format.formatter) (x : t) : unit =
 
 let to_string (x : t) : string = Format.asprintf "%a" pp x
 
+let shift (n_line : int) (n_char : int) (x : t) : t =
+  { line = x.line + n_line; character = x.character + n_char }
+
 let code_point_from_lang_point (x : Lang.Point.t) : t =
   { line = x.line; character = x.character }

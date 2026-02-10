@@ -8,6 +8,12 @@ let pp (fmt : Format.formatter) (x : t) : unit =
 
 let to_string (x : t) : string = Format.asprintf "%a" pp x
 
+let shift (n_line : int) (n_char : int) (x : t) : t =
+  {
+    start = Code_point.shift n_line n_char x.start;
+    end_ = Code_point.shift n_line n_char x.end_;
+  }
+
 let code_range_from_lang_range (x : Lang.Range.t) : t =
   {
     start = code_point_from_lang_point x.start;
