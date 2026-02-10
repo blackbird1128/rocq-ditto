@@ -100,7 +100,7 @@ let transform_files (root : string) (dep_files : string list) (prog : string)
       | err -> (err, curr_file_count + 1))
     (Ok (), 1) dep_files
 
-let compile_files (files : string list) (input : string) (root : string) =
+let compile_files (files : string list) (root : string) =
   let prog = "fcc" in
   List.fold_left
     (fun (err_acc, curr_file_count) curr_file ->
@@ -188,7 +188,7 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
                   in
                   Printf.printf "Compiling %d dependencies\n%!"
                     (List.length dependencies);
-                  let res, _ = compile_files dependencies input dir in
+                  let res, _ = compile_files dependencies dir in
                   res)
           | TransformDependencies -> (
               match coqproject_opt with
@@ -362,7 +362,7 @@ let main opts =
       exit 0
   | _ -> (
       match transform_project opts with
-      | Ok res -> exit 0
+      | Ok _ -> exit 0
       | Error err ->
           prerr_endline (Error.to_string_hum err);
           exit 1)

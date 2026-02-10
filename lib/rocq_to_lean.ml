@@ -20,7 +20,7 @@ let rocq_to_lean (doc : Rocq_document.t) :
             match (Coq.Ast.to_coq ast.v).v.expr with
             | VernacSynterp synterp_expr -> (
                 match synterp_expr with
-                | VernacRequire (libname_qualid, export_with_cats, l) ->
+                | VernacRequire (libname_qualid, _, l) ->
                     let _ =
                       Option.map
                         (fun x -> Libnames.string_of_qualid x)

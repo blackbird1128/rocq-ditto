@@ -36,12 +36,12 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
       DocScope Constructivisation.remove_decidability_proofs
   | RocqToLean -> DocScope Rocq_to_lean.rocq_to_lean
   | IdProofTransformation -> ProofScope Transformations.id_transform
-  | IdDocTransformation -> DocScope (fun x -> Ok [])
+  | IdDocTransformation -> DocScope (fun _ -> Ok [])
 
 let local_apply_doc_transformation (doc_acc : Rocq_document.t)
     (trans : Rocq_document.t -> (transformation_step list, Error.t) result)
-    (transformation_kind : transformation_kind) (verbose : bool) (quiet : bool)
-    : (Rocq_document.t, Error.t) result =
+    (_transformation_kind : transformation_kind) (_verbose : bool)
+    (_quiet : bool) : (Rocq_document.t, Error.t) result =
   let transformation_steps = trans doc_acc in
   match transformation_steps with
   | Ok steps ->
@@ -104,7 +104,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
   let proof_total = List.length proof_list in
   let first_proof = List.nth_opt proof_list 0 in
   let token = Coq.Limits.Token.create () in
-  let res, _, prev_doc, prev_proof =
+  let res, _, _, prev_proof =
     List.fold_left
       (fun (doc_acc_bis, proof_count, prev_doc, (prev_proof : Proof.t option))
            proof ->
