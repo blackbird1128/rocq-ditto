@@ -37,12 +37,15 @@ let last_and_len (lst : 'a list) : 'a option * int =
   in
   aux None 0 lst
 
-let find_index f xs =
+let find_index (f : 'a -> bool) (xs : 'a list) =
   let rec aux i = function
     | [] -> None
     | x :: rest -> if f x then Some i else aux (i + 1) rest
   in
   aux 0 xs
+
+let find_last_opt (p : 'a -> bool) (l : 'a list) : 'a option =
+  List.fold_left (fun acc x -> if p x then Some x else acc) None l
 
 let option_all (xs : 'a option list) : 'a list option =
   let rec go acc = function
