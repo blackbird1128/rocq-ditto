@@ -221,6 +221,11 @@ let is_syntax_node_command_allowed_in_proof (x : t) : bool =
           | _ -> false))
   | None -> false
 
+let get_vernac_expr_gen (x : t) : synterp_vernac_expr vernac_expr_gen option =
+  match x.ast with
+  | Some ast -> Some (Coq.Ast.to_coq ast.v).v.expr
+  | None -> None
+
 let is_syntax_node_ltac (x : t) : bool =
   match x.ast with
   | Some ast -> (

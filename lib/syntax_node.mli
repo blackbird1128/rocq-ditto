@@ -55,6 +55,7 @@ val is_syntax_node_command_allowed_in_proof : t -> bool
 val is_syntax_node_proof_with : t -> bool
 val get_syntax_node_proof_with_tactic : t -> string option
 val is_syntax_node_ending_with_elipsis : t -> bool
+val get_vernac_expr_gen : t -> synterp_vernac_expr vernac_expr_gen option
 
 val is_syntax_node_ltac : t -> bool
 (** [is_syntax_node_ltac x] checks if [x] represents a tactic. *)
