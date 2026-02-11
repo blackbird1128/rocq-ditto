@@ -395,6 +395,23 @@ let replace_decompose_or_with_decompose_stab_or
           in
 
           decompose_stab_or_raw_tac_expr
+      | [ "or"; "and" ] | [ "and"; "or" ] ->
+          let hypothesis_genarg =
+            get_tac_generic_genarg hypothesis |> Option.get
+          in
+          let hypothesis_str =
+            Raw_gen_args_converter.constr_expr_of_raw_generic_argument
+              hypothesis_genarg
+            |> Option.get |> constrexpr_to_string
+          in
+
+          let decompose_stab_or_raw_tac_expr =
+            Syntax_node.string_to_raw_tactic_expr
+              ("decompose_stab_or_and " ^ hypothesis_str ^ ".")
+            |> Result.get_ok
+          in
+
+          decompose_stab_or_raw_tac_expr
       | _ -> x)
   | _ -> x
 
@@ -915,6 +932,17 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
   (***** end of stage 1 **************)
+
+  let decompose_or_and_raw_expr =
+    Syntax_node.string_to_raw_tactic_expr "decompose [or and] H."
+    |> Result.get_ok
+  in
+  let decompose_or_and_sexp =
+    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr decompose_or_and_raw_expr
+  in
+  Logs.debug (fun m ->
+      m "decompose or and sexp: %s"
+        (Sexplib.Sexp.to_string_hum decompose_or_and_sexp));
 
   let stage_1 : stage =
     {
