@@ -262,8 +262,9 @@ let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
             let segment_construction_str =
               Printf.sprintf
                 "apply (by_segment_construction %s %s %s %s); [solve_stable | \
-                 intros [%s [?H%s ?H%s]]]."
-                args0 args1 args3 args4 args2 args1 args3
+                 intros [%s [?H ?H]]]."
+                args0 args1 args3 args4
+                args2 (* args1 args3 used in ? H before *)
             in
             match
               Syntax_node.string_to_raw_tactic_expr segment_construction_str
