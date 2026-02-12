@@ -11,6 +11,15 @@ module Syntax_nodeSet = Set.Make (struct
   let compare = Syntax_node.compare
 end)
 
+let kername_modules : Names.Id.t list =
+  [
+    Names.Id.of_string "Prelude";
+    Names.Id.of_string "Constructive";
+    Names.Id.of_string "GeoCoq";
+  ]
+
+let ker_name_dir_path : Names.DirPath.t = Names.DirPath.make kername_modules
+let ker_name_modpath : Names.ModPath.t = MPfile ker_name_dir_path
 let show_list xs = "[" ^ String.concat "; " xs ^ "]"
 
 (* this is N^2 but we don't really care as the lists are quite small *)
@@ -458,6 +467,50 @@ let replace_destruct_fun_with_stab_destruct
         destruct_target
       in
       match core_destruction_arg with
+      | ElimOnIdent h -> (
+          match intro_pattern_naming_expr with
+          | _, Some (ArgArg intro_or_and_pattern) -> (
+              match intro_or_and_pattern.v with
+              | IntroOrPattern [ [ left_pat ]; [ right_pat ] ] ->
+                  let h_constrexpr : Constrexpr.constr_expr =
+                    Constrexpr.CRef (Libnames.qualid_of_lident h, None)
+                    |> CAst.make
+                  in
+
+                  let open_constr_arg =
+                    Raw_gen_args_converter.raw_generic_argument_of_open_constr
+                      h_constrexpr
+                  in
+
+                  let left_pat_arg =
+                    Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
+                      left_pat
+                  in
+                  let right_pat_arg =
+                    Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
+                      right_pat
+                  in
+
+                  let stab_destruct_str_label =
+                    Names.Label.of_id
+                      (Names.Id.of_string_soft
+                         "stab_destruct_#_as_[_#_|_#_]_0A646258")
+                  in
+
+                  let ker_name =
+                    Names.KerName.make ker_name_modpath stab_destruct_str_label
+                  in
+
+                  let stab_destruct_args =
+                    List.map
+                      (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
+                      [ open_constr_arg; left_pat_arg; right_pat_arg ]
+                  in
+
+                  Ltac_plugin.Tacexpr.TacAlias (ker_name, stab_destruct_args)
+                  |> CAst.make
+              | _ -> x)
+          | _ -> x)
       | ElimOnConstr (constrexpr, NoBindings) -> (
           match constrexpr_to_stab_destruct_fun_name constrexpr with
           | Some kername_label -> (
@@ -490,19 +543,6 @@ let replace_destruct_fun_with_stab_destruct
                       intro_pattern_expr
                   in
 
-                  let kername_modules : Names.Id.t list =
-                    [
-                      Names.Id.of_string "Prelude";
-                      Names.Id.of_string "Constructive";
-                      Names.Id.of_string "GeoCoq";
-                    ]
-                  in
-                  let ker_name_dir_path : Names.DirPath.t =
-                    Names.DirPath.make kername_modules
-                  in
-                  let ker_name_modpath : Names.ModPath.t =
-                    MPfile ker_name_dir_path
-                  in
                   let stab_destruct_str_label =
                     Names.Label.of_id (Names.Id.of_string_soft kername_label)
                   in
@@ -866,6 +906,13 @@ let constructivize_doc (doc : Rocq_document.t) :
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
+  let tauto_node =
+    Syntax_node.string_to_raw_tactic_expr "firstoder." |> Result.get_ok
+  in
+  let tauto_sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr tauto_node in
+  Logs.debug (fun m ->
+      m "tauto sexp: %s" (Sexplib.Sexp.to_string_hum (strip_loc tauto_sexp)));
+
   (* stage 0 *)
   let* _ =
     check_definitions_containing_exists_are_correct doc definitions_with_exists
@@ -933,17 +980,6 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
   (***** end of stage 1 **************)
-
-  let decompose_or_and_raw_expr =
-    Syntax_node.string_to_raw_tactic_expr "decompose [or and] H."
-    |> Result.get_ok
-  in
-  let decompose_or_and_sexp =
-    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr decompose_or_and_raw_expr
-  in
-  Logs.debug (fun m ->
-      m "decompose or and sexp: %s"
-        (Sexplib.Sexp.to_string_hum decompose_or_and_sexp));
 
   let stage_1 : stage =
     {
@@ -1152,11 +1188,17 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
 
-  (* let stage_10 :  stage = { *)
-  (*     name = "stage10"; *)
-  (*     build_steps = (fun doc -> ) *)
-
-  (*   } *)
+  let stage_10 : stage =
+    {
+      name = "stage10";
+      build_steps =
+        (fun doc ->
+          Ok
+            (List.filter_map
+               (replace_taccall_tacarg_in_node "tauto" "firstorder")
+               doc.elements));
+    }
+  in
   (* let stage_11 : stage = *)
   (*   { *)
   (*     name = "stage11"; *)
@@ -1180,6 +1222,7 @@ let constructivize_doc (doc : Rocq_document.t) :
         stage_7;
         stage_8;
         stage_9;
+        stage_10;
         (* stage_11; *)
       ]
   in
