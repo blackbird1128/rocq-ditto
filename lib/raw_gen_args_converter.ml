@@ -95,6 +95,16 @@ let raw_generic_argument_of_intro_pattern
   let atype = Genarg.Rawwit Tacarg.wit_simple_intropattern in
   Genarg.in_gen atype intro_pattern
 
+let open_constr_of_raw_generic_argument (arg : Genarg.raw_generic_argument) :
+    Constrexpr.constr_expr option =
+  let atype = Genarg.Rawwit Stdarg.wit_open_constr in
+  if Genarg.has_type arg atype then Some (Genarg.out_gen atype arg) else None
+
+let raw_generic_argument_of_open_constr (open_constr : Constrexpr.constr_expr) :
+    Genarg.raw_generic_argument =
+  let atype = Genarg.Rawwit Stdarg.wit_open_constr in
+  Genarg.in_gen atype open_constr
+
 let destruction_arg_of_raw_generic_argument (arg : Genarg.raw_generic_argument)
     :
     (Constrexpr.constr_expr * 'a Tactypes.bindings)

@@ -25,6 +25,12 @@ val intro_pattern_of_raw_generic_argument :
   Genarg.raw_generic_argument ->
   Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t option
 
+val open_constr_of_raw_generic_argument :
+  Genarg.raw_generic_argument -> Constrexpr.constr_expr option
+
+val raw_generic_argument_of_open_constr :
+  Constrexpr.constr_expr -> Genarg.raw_generic_argument
+
 val raw_generic_argument_of_intro_pattern :
   Constrexpr.constr_expr Tactypes.intro_pattern_expr CAst.t ->
   Genarg.raw_generic_argument
