@@ -488,9 +488,12 @@ let get_alias_kn = function
   | Eq_Dec_Points -> Lazy.force eq_dec_points_alias_kn
 
 let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
+  Logs.debug (fun m -> m "constrexpr named: %s" (constrexpr_to_string c));
   if is_constrexpr_c_app_named c "inner_pasch" then get_alias_kn Inner_pasch
   else if is_constrexpr_c_app_named c "segment_construction" then
     get_alias_kn Segment_construction
+  else if is_constrexpr_c_app_named c "eq_dec_points" then
+    get_alias_kn Eq_Dec_Points
   else None
 
 let replace_destruct_fun_with_stab_destruct
@@ -549,6 +552,9 @@ let replace_destruct_fun_with_stab_destruct
       | ElimOnConstr (constrexpr, NoBindings) -> (
           match constrexpr_to_stab_destruct_fun_name constrexpr with
           | Some kername -> (
+              Logs.debug (fun m ->
+                  m "found kername : %s" (Names.KerName.to_string kername));
+
               let fun_args = get_func_args constrexpr in
               let fun_args_str_opt =
                 List.map
@@ -557,16 +563,18 @@ let replace_destruct_fun_with_stab_destruct
                   fun_args
                 |> List_utils.option_all
               in
-              let fun_args_name_id_arg =
-                Option.map
-                  (List.map (fun x ->
-                       Names.Id.of_string x
-                       |> Raw_gen_args_converter.raw_generic_argument_of_id))
-                  fun_args_str_opt
-                |> Option.get
-              in
+
               match intro_pattern_naming_expr with
               | _, Some (ArgArg intro_or_and_pattern) ->
+                  let fun_args_name_id_arg =
+                    Option.map
+                      (List.map (fun x ->
+                           Names.Id.of_string x
+                           |> Raw_gen_args_converter.raw_generic_argument_of_id))
+                      fun_args_str_opt
+                    |> Option.get
+                  in
+
                   let intro_action =
                     Tactypes.IntroOrAndPattern intro_or_and_pattern.v
                   in
@@ -584,6 +592,24 @@ let replace_destruct_fun_with_stab_destruct
                       (fun_args_name_id_arg @ [ intro_arg ])
                   in
 
+                  Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
+                  |> CAst.make
+              | _, None ->
+                  (* let fun_args_name_genarged = *)
+                  (*   (List.map (fun x -> *)
+                  (*        Raw_gen_args_converter *)
+                  (*        .raw_generic_argument_of_open_constr x)) *)
+                  (*     fun_args *)
+                  (* in *)
+                  let stab_destruct_args =
+                    List.map
+                      (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
+                      [
+                        constrexpr
+                        |> Raw_gen_args_converter
+                           .raw_generic_argument_of_open_constr;
+                      ]
+                  in
                   Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
                   |> CAst.make
               | _ -> x)
@@ -851,6 +877,39 @@ let remove_decidability_proofs (doc : Rocq_document.t) :
          List.map (fun (node : Syntax_node.t) -> Remove node.id) nodes)
        decidability_proofs)
 
+let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
+    (transformation_step list, Error.t) result =
+  let ( let* ) = Result.bind in
+  let dummy_start : Code_point.t = { line = 0; character = 0 } in
+  let remove_all_steps_except_qed =
+    List.filter_map
+      (fun (step : Syntax_node.t) ->
+        if Syntax_node.node_can_close_proof step then None
+        else Some (Remove step.id))
+      proof.proof_steps
+  in
+
+  let* comment_content =
+    match proof.proof_steps with
+    | first_step :: tail ->
+        let first_step_start_line = first_step.range.start.line in
+        let normalized_range_steps =
+          List.map
+            (fun x -> Syntax_node.shift_node (-first_step_start_line) 0 x)
+            (first_step :: tail)
+        in
+        Rocq_document.dump_elements_to_string normalized_range_steps
+    | _ -> Ok ""
+  in
+
+  let* solve_dec_node =
+    Syntax_node.syntax_node_of_string "solve_dec." dummy_start
+  in
+
+  Ok
+    (remove_all_steps_except_qed
+    @ [ Attach (solve_dec_node, LineAfter, proof.proposition.id) ])
+
 let check_definitions_containing_exists_are_correct (doc : Rocq_document.t)
     (static_definitions : string list) : (unit, Error.t) result =
   if Filename.basename doc.filename = "Definitions.v" then
@@ -955,9 +1014,9 @@ let constructivize_doc (doc : Rocq_document.t) :
               proofs
           in
 
-          let* admit_decidability_proofs_steps =
+          let* prove_decidability_proofs_steps =
             List_utils.concat_map_result
-              (Transformations.admit_and_comment_proof_steps doc)
+              (prove_dec_using_solve_dec doc)
               decidability_proofs
           in
 
@@ -990,7 +1049,7 @@ let constructivize_doc (doc : Rocq_document.t) :
           Ok
             (List.concat
                [
-                 admit_decidability_proofs_steps;
+                 prove_decidability_proofs_steps;
                  attach_prelude_to_chapter_two_steps;
                  replace_require_steps;
                  replace_context_steps;
@@ -1000,6 +1059,18 @@ let constructivize_doc (doc : Rocq_document.t) :
     }
   in
   (***** end of stage 1 **************)
+
+  let eq_dec_point_raw_expr =
+    Syntax_node.string_to_raw_tactic_expr "stab_destruct (eq_dec_points B C)."
+    |> Result.get_ok
+  in
+
+  let eq_dec_point_stab_sexp =
+    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr eq_dec_point_raw_expr
+  in
+  Logs.debug (fun m ->
+      m "eq dec point stab sexp :%s"
+        (Sexplib.Sexp.to_string_hum (strip_loc eq_dec_point_stab_sexp)));
 
   let stage_1 : stage =
     {

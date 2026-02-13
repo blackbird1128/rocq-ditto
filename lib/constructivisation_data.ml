@@ -104,4 +104,4 @@ let definitions_with_exists =
     "CongA_3";
   ]
 
-let decidability_lemmas = [ "eq_dec_points" ]
+let decidability_lemmas = [ "eq_dec_points"; "cong_dec"; "bet_dec"; "col_dec" ]
