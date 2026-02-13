@@ -258,9 +258,11 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
             if char_diff < 0 then
               Error.format_to_or_error
                 "Error: node start - previous end char negative\n\
-                 previous node range: %s\n\
-                 current node range: %s"
+                 previous node: (%s: range: %s)\n\
+                 current node:  (%s: range: %s)"
+                (Syntax_node.repr previous_node)
                 (Code_range.to_string previous_node.range)
+                (Syntax_node.repr node)
                 (Code_range.to_string node.range)
             else Ok (doc_repr ^ String.make char_diff ' ' ^ repr node)
           else if line_diff <= 0 then

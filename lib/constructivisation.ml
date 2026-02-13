@@ -77,10 +77,11 @@ let replace_require (x : Syntax_node.t) :
           | Some (qualid, import_filter) ->
               let qualid_str = Libnames.string_of_qualid qualid in
               if String.starts_with ~prefix:"GeoCoq.Main.Tarski_dev" qualid_str
-              then
+              then (
                 let _, postfix =
                   split_prefix "GeoCoq.Main.Tarski_dev" qualid_str |> Option.get
                 in
+                Logs.debug (fun m -> m "postfix: %s" postfix);
 
                 let new_qualid_str = "GeoCoq.Constructive" ^ postfix in
 
@@ -105,7 +106,7 @@ let replace_require (x : Syntax_node.t) :
                     (Coq.Ast.of_coq new_vernac_control)
                     x.range.start
                 in
-                Ok [ Replace (x.id, new_node) ]
+                Ok [ Replace (x.id, new_node) ])
               else if
                 String.starts_with ~prefix:"GeoCoq.Axioms.Definitions"
                   qualid_str
@@ -270,8 +271,8 @@ let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
         | Some [ args0; args1; args2; args3; args4 ] -> (
             let segment_construction_str =
               Printf.sprintf
-                "apply (by_segment_construction %s %s %s %s); [solve_stable | \
-                 intros [%s [?H ?H]]]."
+                "stab_destruct (segment_construction %s %s %s %s) as [%s [?H \
+                 ?H]]."
                 args0 args1 args3 args4
                 args2 (* args1 args3 used in ? H before *)
             in
@@ -440,7 +441,9 @@ let replace_elim_with_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
         match List_utils.option_all fun_args_str_opt with
         | Some fun_args_str -> (
             let stab_eq_str =
-              "stab_eq_point " ^ String.concat " " fun_args_str ^ "."
+              "stab_elim (eq_dec_points  "
+              ^ String.concat " " fun_args_str
+              ^ " )."
             in
 
             match Syntax_node.string_to_raw_tactic_expr stab_eq_str with
@@ -450,12 +453,44 @@ let replace_elim_with_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       else x
   | _ -> x
 
-let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) :
-    string option =
-  if is_constrexpr_c_app_named c "inner_pasch" then
-    Some "stab_destruct_(_inner_pasch_#_#_#_#_#_#_#_)_as_#_0A64625C"
+let find_alias_kername (t : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Names.KerName.t option =
+  match t.v with
+  | Ltac_plugin.Tacexpr.TacAlias (kn, _args) -> Some kn
+  | _ -> None
+
+type stab_kind = Inner_pasch | Segment_construction | Eq_Dec_Points
+
+let dummy_tactic_for_kind = function
+  | Inner_pasch -> "stab_destruct (inner_pasch A B C D X X X) as [I []]."
+  | Segment_construction ->
+      "stab_destruct (segment_construction A B C D) as [I []]."
+  | Eq_Dec_Points -> "stab_destruct (eq_dec_points B C)."
+
+let compute_alias_kername (k : stab_kind) : Names.KerName.t option =
+  let s = dummy_tactic_for_kind k in
+  match Syntax_node.string_to_raw_tactic_expr s with
+  | Error _ -> None
+  | Ok raw -> find_alias_kername raw
+
+let inner_pasch_alias_kn : Names.KerName.t option Lazy.t =
+  lazy (compute_alias_kername Inner_pasch)
+
+let segment_construction_alias_kn : Names.KerName.t option Lazy.t =
+  lazy (compute_alias_kername Segment_construction)
+
+let eq_dec_points_alias_kn : Names.KerName.t option Lazy.t =
+  lazy (compute_alias_kername Eq_Dec_Points)
+
+let get_alias_kn = function
+  | Inner_pasch -> Lazy.force inner_pasch_alias_kn
+  | Segment_construction -> Lazy.force segment_construction_alias_kn
+  | Eq_Dec_Points -> Lazy.force eq_dec_points_alias_kn
+
+let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
+  if is_constrexpr_c_app_named c "inner_pasch" then get_alias_kn Inner_pasch
   else if is_constrexpr_c_app_named c "segment_construction" then
-    Some "stab_destruct_(_segment_construction_#_#_#_#_)_as_#_0A64625D"
+    get_alias_kn Segment_construction
   else None
 
 let replace_destruct_fun_with_stab_destruct
@@ -513,7 +548,7 @@ let replace_destruct_fun_with_stab_destruct
           | _ -> x)
       | ElimOnConstr (constrexpr, NoBindings) -> (
           match constrexpr_to_stab_destruct_fun_name constrexpr with
-          | Some kername_label -> (
+          | Some kername -> (
               let fun_args = get_func_args constrexpr in
               let fun_args_str_opt =
                 List.map
@@ -543,21 +578,13 @@ let replace_destruct_fun_with_stab_destruct
                       intro_pattern_expr
                   in
 
-                  let stab_destruct_str_label =
-                    Names.Label.of_id (Names.Id.of_string_soft kername_label)
-                  in
-
-                  let ker_name =
-                    Names.KerName.make ker_name_modpath stab_destruct_str_label
-                  in
-
                   let stab_destruct_args =
                     List.map
                       (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
                       (fun_args_name_id_arg @ [ intro_arg ])
                   in
 
-                  Ltac_plugin.Tacexpr.TacAlias (ker_name, stab_destruct_args)
+                  Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
                   |> CAst.make
               | _ -> x)
           | None -> x)
@@ -905,13 +932,6 @@ let constructivize_doc (doc : Rocq_document.t) :
       (Runner.get_state_after doc.initial_state token [ require_prelude_node ])
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
-
-  let tauto_node =
-    Syntax_node.string_to_raw_tactic_expr "firstoder." |> Result.get_ok
-  in
-  let tauto_sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr tauto_node in
-  Logs.debug (fun m ->
-      m "tauto sexp: %s" (Sexplib.Sexp.to_string_hum (strip_loc tauto_sexp)));
 
   (* stage 0 *)
   let* _ =
