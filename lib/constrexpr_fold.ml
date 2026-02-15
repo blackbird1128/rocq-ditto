@@ -1,7 +1,5 @@
 open Constrexpr
 
-let option_to_list opt = match opt with Some x -> [ x ] | None -> []
-
 let rec children_cases_pattern_expr (cp : cases_pattern_expr) =
   match cp.v with
   | CPatAlias (p, _) -> children_cases_pattern_expr p
@@ -22,7 +20,7 @@ let rec children_cases_pattern_expr (cp : cases_pattern_expr) =
 
 let children_local_binder_expr = function
   | CLocalAssum (_, _, _, ty) -> [ ty ]
-  | CLocalDef (_, _, rhs, ty_opt) -> rhs :: option_to_list ty_opt
+  | CLocalDef (_, _, rhs, ty_opt) -> rhs :: Option_utils.to_list ty_opt
   | CLocalPattern _ -> []
 
 let children_kinded_cases_pattern_expr (p, _) = children_cases_pattern_expr p
@@ -44,7 +42,7 @@ let children_fixpoint_order_expr (fo : fixpoint_order_expr) =
   match fo.v with
   | CStructRec _ -> []
   | CWfRec (_, e) -> [ e ]
-  | CMeasureRec (_, measure, rel_opt) -> measure :: option_to_list rel_opt
+  | CMeasureRec (_, measure, rel_opt) -> measure :: Option_utils.to_list rel_opt
 
 let children_fix_expr (_, _, order_opt, binders, body, ty) =
   (ty :: body :: List.concat_map children_local_binder_expr binders)
@@ -69,13 +67,13 @@ let children_constr_expr (ce : constr_expr) : constr_expr list =
   | CRecord fields -> List.map snd fields (* rec ok *)
   | CCases (_, ret_ty_opt, cases, branches) ->
       (* rec ok *)
-      option_to_list ret_ty_opt
+      Option_utils.to_list ret_ty_opt
       @ List.concat_map children_case_expr cases
       @ List.concat_map children_branch_expr branches
   | CLetTuple (_, (_, ret_ty_opt), scrut, body) ->
-      scrut :: body :: option_to_list ret_ty_opt (* rec ok *)
+      scrut :: body :: Option_utils.to_list ret_ty_opt (* rec ok *)
   | CIf (cond, (_, ret_ty_opt), then_, else_) ->
-      cond :: then_ :: else_ :: option_to_list ret_ty_opt (* rec ok *)
+      cond :: then_ :: else_ :: Option_utils.to_list ret_ty_opt (* rec ok *)
   | CHole _ -> [] (* rec ok *)
   | CGenarg _ | CGenargGlob _ | CPatVar _ -> [] (* rec ok *)
   | CEvar (_, insts) -> List.map snd insts (* rec ok *)
