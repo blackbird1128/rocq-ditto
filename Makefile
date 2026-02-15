@@ -4,7 +4,7 @@ V_TARGET_SRC := $(shell find test/fixtures/unit_test_fixtures/ -name '*_target.v
 # Define their corresponding generated files
 V_TARGET_GEN := $(V_TARGET_SRC:%=%.target.json)
 
-.PHONY: all test install uninstall dump-json clean
+.PHONY: all test install uninstall dump-json clean constructivization-uniformize constructivization-build constructivization-compile build
 
 build:
 	dune build 
@@ -22,7 +22,11 @@ lens:
 	dune exec fcc -- --plugin=lens-query-plugin ./test/fixtures/ex_this_or_that.v
 
 constructivization-uniformize: build
-	dune exec --profile=release rocq-ditto -- -i ../private-geocoq/theories/Main/Tarski_dev/Ch05_bet_le.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -t replace_induction_with_destruct -v --save-vo
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch02_cong.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch02_cong.v -t replace_induction_with_destruct -v --save-vo
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch03_bet.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch03_bet.v -t replace_induction_with_destruct -v --save-vo
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -t replace_induction_with_destruct -v --save-vo
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_col.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch04_col.v -t replace_induction_with_destruct -v --save-vo
+	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -t replace_induction_with_destruct -v --save-vo
 
 
 constructivization-build: build

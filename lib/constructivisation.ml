@@ -693,6 +693,9 @@ let add_node_after_require (doc : Rocq_document.t) (node : Syntax_node.t) :
   | Some last_require -> Some (Attach (node, LineAfter, last_require.id))
   | None -> None
 
+(* let decompose_raw_tac_expr (x: Ltac_plugin.Tacexpr.raw_tactic_expr) : Ltac_plugin.Tacexpr.raw_tactic_expr list = *)
+(*   Constrexpr_fold. *)
+
 let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
   Constrexpr_fold.exists
     (fun expr ->
@@ -975,6 +978,26 @@ let run_pipeline doc stages :
     (Ok (doc, []))
     stages
 
+let string_of_raw_tactic tac =
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  tac |> Ltac_plugin.Pptactic.pr_raw_tactic env sigma |> Pp.string_of_ppcmds
+
+let map_nodes expr =
+  Tacexpr_map.tacexpr_map
+    (fun rexpr ->
+      (* let rexpr_sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr rexpr in *)
+      let prefix =
+        Tacexpr_map.prefix_before ~eq:( = ) ~target:rexpr expr
+        |> Option.map string_of_raw_tactic
+        |> Option.default "prefix not found!"
+      in
+      Logs.debug (fun m -> m "node: %s" (string_of_raw_tactic rexpr));
+      Logs.debug (fun m -> m "prefix: %s" prefix);
+
+      rexpr)
+    expr
+
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
@@ -996,6 +1019,21 @@ let constructivize_doc (doc : Rocq_document.t) :
   let* _ =
     check_definitions_containing_exists_are_correct doc definitions_with_exists
   in
+
+  let dummy_node =
+    Syntax_node.string_to_raw_tactic_expr
+      "2:intros; destruct H;  [tauto | firstorder; discriminate | intro]."
+    |> Result.get_ok
+  in
+
+  let _node_count_and_get_prefix = map_nodes dummy_node in
+  (* Logs.debug (fun m -> m "node count : %d" node_count_and_get_prefix); *)
+  let dummy_node_sexp =
+    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr dummy_node
+  in
+  Logs.debug (fun m ->
+      m "dummy node sexp: %s"
+        (Sexplib.Sexp.to_string_hum (strip_loc dummy_node_sexp)));
 
   let stage_0 : stage =
     {
