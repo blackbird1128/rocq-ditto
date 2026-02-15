@@ -322,8 +322,6 @@ let id_transform (_ : Rocq_document.t) (_ : Proof.t) :
     (transformation_step list, Error.t) result =
   Ok []
 
-(* let buggy_transformation (_ : Rocq_document.t) (_ Proof.t) : (transformation_step list, Error.t) result  *)
-
 let admit_proof (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
@@ -1264,6 +1262,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
         if predicate node then Some rewriter else None)
       rewriters
   in
+
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
       let* new_state = Runner.run_node token state node in
@@ -1285,87 +1284,122 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
       | None -> Ok (new_state, acc))
     [] proof
 
+let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
+    (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
+    : Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let open Ltac_plugin in
+  let token = Coq.Limits.Token.create () in
+
+  let goal_hyps_at_state st =
+    Runner.reified_goals_at_state token st
+    |> List.map Runner.get_hypothesis_names
+  in
+  let old_goals_vars = goal_hyps_at_state state_before in
+  let new_goals_vars = goal_hyps_at_state state_after in
+
+  let clamp_take n xs =
+    let n = max 0 (min n (List.length xs)) in
+    List_utils.take n xs
+  in
+
+  (* heuristic: focus on the "new" goals introduced by the tactic *)
+  let relevant_new_goals_vars =
+    let delta = List.length new_goals_vars - List.length old_goals_vars in
+    clamp_take (delta + 1) new_goals_vars
+  in
+
+  let has_ih_other_than ~destruct_arg_str vars =
+    String.starts_with ~prefix:"IH" vars
+    && not (String.equal vars destruct_arg_str)
+  in
+
+  let clause_introduces_induction_hyps (destruction_arg, (_, _), _) =
+    let destruct_arg_str = destruction_arg_to_string destruction_arg in
+    match
+      get_new_vars ~keep:[ destruct_arg_str ] (Some old_goals_vars)
+        (Some relevant_new_goals_vars)
+    with
+    | None -> false
+    | Some new_vars_per_goal ->
+        List.exists
+          (fun vars -> List.exists (has_ih_other_than ~destruct_arg_str) vars)
+          new_vars_per_goal
+  in
+
+  match tacexpr.v with
+  | Tacexpr.TacAtom
+      (Tacexpr.TacInductionDestruct
+         (true, false, (induction_clause_l, with_bindings))) ->
+      let has_induction_vars =
+        List.exists clause_introduces_induction_hyps induction_clause_l
+      in
+      if has_induction_vars then tacexpr
+      else
+        Tacexpr.TacAtom
+          (Tacexpr.TacInductionDestruct
+             (false, false, (induction_clause_l, with_bindings)))
+        |> CAst.make
+  | _ -> tacexpr
+
+let replace_induction_by_destruct_in_node (node : Syntax_node.t)
+    (state_before : Coq.State.t) (state_after : Coq.State.t) :
+    (Syntax_node.t, Error.t) result =
+  let token = Coq.Limits.Token.create () in
+  match Syntax_node.get_node_raw_tactic_expr node with
+  | None -> Ok node
+  | Some tacexpr ->
+      let selector = Syntax_node.get_node_goal_selector_opt node in
+
+      let run_subexpr_with_prefix ~prefix ~subexpr =
+        match
+          Syntax_node.raw_tactic_expr_to_syntax_node ?selector prefix
+            node.range.start
+        with
+        | Error _ -> subexpr
+        | Ok prefix_node -> (
+            match Runner.run_node token state_before prefix_node with
+            | Error _ -> subexpr
+            | Ok prefix_state -> (
+                match
+                  Syntax_node.raw_tactic_expr_to_syntax_node ?selector subexpr
+                    node.range.start
+                with
+                | Error _ -> subexpr
+                | Ok subexpr_node -> (
+                    match Runner.run_node token prefix_state subexpr_node with
+                    | Error _ -> subexpr
+                    | Ok subexpr_state ->
+                        map_induction_to_destruct_in_tacexpr state_before
+                          subexpr_state subexpr)))
+      in
+
+      let new_tacexpr =
+        Tacexpr_map.tacexpr_map
+          (fun subexpr ->
+            match
+              Tacexpr_map.prefix_before ~eq:( = ) ~target:subexpr tacexpr
+            with
+            | None -> subexpr
+            | Some prefix -> run_subexpr_with_prefix ~prefix ~subexpr)
+          tacexpr
+      in
+
+      if new_tacexpr <> tacexpr then
+        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector
+          node.range.start
+      else Ok node
+
 let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
     (proof : Proof.t) : (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
       let* new_state = Runner.run_node token state node in
-      match get_node_raw_atomic_tactic_expr node with
-      | Some
-          (Ltac_plugin.Tacexpr.TacInductionDestruct
-             (true, false, (induction_clause_l, with_bindings))) ->
-          let old_goals_vars =
-            Runner.reified_goals_at_state token state
-            |> List.map Runner.get_hypothesis_names
-          in
-
-          let new_goals_vars =
-            Runner.reified_goals_at_state token new_state
-            |> List.map Runner.get_hypothesis_names
-          in
-
-          let has_induction_vars =
-            List.exists
-              (fun (destruction_arg, (_, _), _) ->
-                let destruct_arg_str =
-                  destruction_arg_to_string destruction_arg
-                in
-                let new_goals_vars =
-                  List_utils.take
-                    (List.length new_goals_vars - List.length old_goals_vars + 1)
-                    new_goals_vars
-                in
-                let new_vars =
-                  get_new_vars ~keep:[ destruct_arg_str ] (Some old_goals_vars)
-                    (Some new_goals_vars)
-                  |> Option.get
-                in
-                let has_induction_vars =
-                  List.exists
-                    (fun vars ->
-                      List.exists
-                        (fun x ->
-                          String.starts_with ~prefix:"IH" x
-                          && not (String.equal x destruct_arg_str))
-                        vars)
-                    new_vars
-                in
-                has_induction_vars)
-              induction_clause_l
-          in
-          if not has_induction_vars then
-            let destruct_node =
-              Ltac_plugin.Tacexpr.TacAtom
-                (Ltac_plugin.Tacexpr.TacInductionDestruct
-                   (false, false, (induction_clause_l, with_bindings)))
-              |> CAst.make
-            in
-            let selector = Syntax_node.get_node_goal_selector_opt node in
-            let* new_node =
-              Syntax_node.raw_tactic_expr_to_syntax_node destruct_node ?selector
-                node.range.start
-            in
-            let* new_state_after_new_node =
-              Runner.run_node token state new_node
-            in
-            let new_state_goals =
-              Runner.reified_goals_at_state token new_state_after_new_node
-            in
-            let old_state_goals =
-              Runner.reified_goals_at_state token new_state
-            in
-            let all_equal =
-              List.for_all2
-                (fun (a : string Coq.Goals.Reified_goal.t)
-                     (b : string Coq.Goals.Reified_goal.t) ->
-                  String.equal a.ty b.ty)
-                old_state_goals new_state_goals
-            in
-            if all_equal then Ok (new_state, Replace (node.id, new_node) :: acc)
-            else Ok (new_state, acc)
-          else Ok (new_state, acc)
-      | _ -> Ok (new_state, acc))
+      let* new_node =
+        replace_induction_by_destruct_in_node node state new_state
+      in
+      if new_node <> node then Ok (new_state, Replace (node.id, new_node) :: acc)
+      else Ok (new_state, acc))
     [] proof
 
 let apply_proof_transformation
