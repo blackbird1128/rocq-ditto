@@ -197,6 +197,16 @@ let replace_fun_name_in_constrexpr (old_fun_name : string)
       CAst.make (Constrexpr.CAppExpl ((new_q, instance_expr_opt), l))
   | _ -> term
 
+let replace_bet_and_cong_in_constrexpr (term : Constrexpr.constr_expr) :
+    Constrexpr.constr_expr =
+  term
+  |> replace_fun_name_in_constrexpr "Bet" "BetC"
+  |> replace_fun_name_in_constrexpr "Cong" "CongC"
+
+let replace_classical_or_in_constrexpr (term : Constrexpr.constr_expr) :
+    Constrexpr.constr_expr =
+  replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _" term
+
 let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (x : Proof.t) : transformation_step option =
   let x_start = x.proposition.range.start in
@@ -459,13 +469,18 @@ let find_alias_kername (t : Ltac_plugin.Tacexpr.raw_tactic_expr) :
   | Ltac_plugin.Tacexpr.TacAlias (kn, _args) -> Some kn
   | _ -> None
 
-type stab_kind = Inner_pasch | Segment_construction | Eq_Dec_Points
+type stab_kind =
+  | Inner_pasch
+  | Segment_construction
+  | Eq_Dec_Points
+  | Stab_destruct_as_or
 
 let dummy_tactic_for_kind = function
   | Inner_pasch -> "stab_destruct (inner_pasch A B C D X X X) as [I []]."
   | Segment_construction ->
       "stab_destruct (segment_construction A B C D) as [I []]."
   | Eq_Dec_Points -> "stab_destruct (eq_dec_points B C)."
+  | Stab_destruct_as_or -> "stab_destruct H as [HL|HR]."
 
 let compute_alias_kername (k : stab_kind) : Names.KerName.t option =
   let s = dummy_tactic_for_kind k in
@@ -482,10 +497,14 @@ let segment_construction_alias_kn : Names.KerName.t option Lazy.t =
 let eq_dec_points_alias_kn : Names.KerName.t option Lazy.t =
   lazy (compute_alias_kername Eq_Dec_Points)
 
+let stab_destruct_as_or_alias_kn : Names.KerName.t option Lazy.t =
+  lazy (compute_alias_kername Stab_destruct_as_or)
+
 let get_alias_kn = function
   | Inner_pasch -> Lazy.force inner_pasch_alias_kn
   | Segment_construction -> Lazy.force segment_construction_alias_kn
   | Eq_Dec_Points -> Lazy.force eq_dec_points_alias_kn
+  | Stab_destruct_as_or -> Lazy.force stab_destruct_as_or_alias_kn
 
 let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
   Logs.debug (fun m -> m "constrexpr named: %s" (constrexpr_to_string c));
@@ -529,14 +548,8 @@ let replace_destruct_fun_with_stab_destruct
                       right_pat
                   in
 
-                  let stab_destruct_str_label =
-                    Names.Label.of_id
-                      (Names.Id.of_string_soft
-                         "stab_destruct_#_as_[_#_|_#_]_0A646258")
-                  in
-
                   let ker_name =
-                    Names.KerName.make ker_name_modpath stab_destruct_str_label
+                    get_alias_kn Stab_destruct_as_or |> Option.get
                   in
 
                   let stab_destruct_args =
@@ -552,9 +565,6 @@ let replace_destruct_fun_with_stab_destruct
       | ElimOnConstr (constrexpr, NoBindings) -> (
           match constrexpr_to_stab_destruct_fun_name constrexpr with
           | Some kername -> (
-              Logs.debug (fun m ->
-                  m "found kername : %s" (Names.KerName.to_string kername));
-
               let fun_args = get_func_args constrexpr in
               let fun_args_str_opt =
                 List.map
@@ -595,12 +605,6 @@ let replace_destruct_fun_with_stab_destruct
                   Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
                   |> CAst.make
               | _, None ->
-                  (* let fun_args_name_genarged = *)
-                  (*   (List.map (fun x -> *)
-                  (*        Raw_gen_args_converter *)
-                  (*        .raw_generic_argument_of_open_constr x)) *)
-                  (*     fun_args *)
-                  (* in *)
                   let stab_destruct_args =
                     List.map
                       (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
@@ -962,6 +966,32 @@ type stage = {
   build_steps : Rocq_document.t -> (transformation_step list, Error.t) result;
 }
 
+let make_stage name build_steps = { name; build_steps }
+
+let map_raw_tactic_expr_steps
+    (f :
+      Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
+    (doc : Rocq_document.t) : transformation_step list =
+  List.filter_map (map_raw_tactic_expr_in_node f) doc.elements
+
+let replace_taccall_steps (old_name : string) (new_name : string)
+    (doc : Rocq_document.t) : transformation_step list =
+  List.filter_map
+    (replace_taccall_tacarg_in_node old_name new_name)
+    doc.elements
+
+let replace_taccalls_in_tacexpr (renames : (string * string) list)
+    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  List.fold_left
+    (fun expr (old_name, new_name) ->
+      replace_taccall_tacarg_in_tacexpr old_name new_name expr)
+    tacexpr renames
+
+let replace_taccalls_steps (renames : (string * string) list)
+    (doc : Rocq_document.t) : transformation_step list =
+  map_raw_tactic_expr_steps (replace_taccalls_in_tacexpr renames) doc
+
 let apply_stage (doc : Rocq_document.t) (st : stage) =
   let* steps = st.build_steps doc in
   Rocq_document.apply_transformations_steps steps doc
@@ -982,21 +1012,6 @@ let string_of_raw_tactic tac =
   let env = Global.env () in
   let sigma = Evd.from_env env in
   tac |> Ltac_plugin.Pptactic.pr_raw_tactic env sigma |> Pp.string_of_ppcmds
-
-let map_nodes expr =
-  Tacexpr_map.tacexpr_map
-    (fun rexpr ->
-      (* let rexpr_sexp = Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr rexpr in *)
-      let prefix =
-        Tacexpr_map.prefix_before ~eq:( = ) ~target:rexpr expr
-        |> Option.map string_of_raw_tactic
-        |> Option.default "prefix not found!"
-      in
-      Logs.debug (fun m -> m "node: %s" (string_of_raw_tactic rexpr));
-      Logs.debug (fun m -> m "prefix: %s" prefix);
-
-      rexpr)
-    expr
 
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
@@ -1020,314 +1035,206 @@ let constructivize_doc (doc : Rocq_document.t) :
     check_definitions_containing_exists_are_correct doc definitions_with_exists
   in
 
-  let dummy_node =
-    Syntax_node.string_to_raw_tactic_expr
-      "2:intros; destruct H;  [tauto | firstorder; discriminate | intro]."
-    |> Result.get_ok
-  in
-
-  let _node_count_and_get_prefix = map_nodes dummy_node in
-  (* Logs.debug (fun m -> m "node count : %d" node_count_and_get_prefix); *)
-  let dummy_node_sexp =
-    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr dummy_node
-  in
-  Logs.debug (fun m ->
-      m "dummy node sexp: %s"
-        (Sexplib.Sexp.to_string_hum (strip_loc dummy_node_sexp)));
-
   let stage_0 : stage =
-    {
-      name = "stage0";
-      build_steps =
-        (fun doc ->
-          let* proofs = Rocq_document.get_proofs doc in
+    make_stage "stage0" (fun doc ->
+        let* proofs = Rocq_document.get_proofs doc in
 
-          let decidability_proofs : Proof.t list =
-            List.filter
-              (fun p ->
-                let name = Proof.get_proof_name p in
-                List.exists
-                  (fun x -> Option.equal String.equal name (Some x))
-                  decidability_lemmas)
-              proofs
-          in
+        let decidability_proofs : Proof.t list =
+          List.filter
+            (fun p ->
+              let name = Proof.get_proof_name p in
+              List.exists
+                (fun x -> Option.equal String.equal name (Some x))
+                decidability_lemmas)
+            proofs
+        in
 
-          let* prove_decidability_proofs_steps =
-            List_utils.concat_map_result
-              (prove_dec_using_solve_dec doc)
-              decidability_proofs
-          in
+        let* prove_decidability_proofs_steps =
+          List_utils.concat_map_result
+            (prove_dec_using_solve_dec doc)
+            decidability_proofs
+        in
 
-          let* attach_prelude_to_chapter_two_steps =
-            attach_prelude_to_chapter_two doc
-          in
+        let* attach_prelude_to_chapter_two_steps =
+          attach_prelude_to_chapter_two doc
+        in
 
-          let* replace_require_steps =
-            List_utils.concat_map_result replace_require doc.elements
-          in
+        let* replace_require_steps =
+          List_utils.concat_map_result replace_require doc.elements
+        in
 
-          let* replace_context_steps =
-            List_utils.concat_map_result replace_context doc.elements
-          in
+        let* replace_context_steps =
+          List_utils.concat_map_result replace_context doc.elements
+        in
 
-          let definitions = definitions_of doc in
+        let definitions = definitions_of doc in
 
-          let replace_or_by_constructive_or_in_proofs_steps =
-            List.filter_map
-              (replace_notation_in_proof_proposition "_ \\/ _" "_ \\_/ _")
-              proofs
-          in
+        let replace_or_by_constructive_or_in_proofs_steps =
+          List.filter_map
+            (replace_notation_in_proof_proposition "_ \\/ _" "_ \\_/ _")
+            proofs
+        in
 
-          let replace_or_by_constructive_or_in_definitions_steps =
-            List.filter_map
-              (replace_notation_in_definition "_ \\/ _" "_ \\_/ _")
-              definitions
-          in
+        let replace_or_by_constructive_or_in_definitions_steps =
+          List.filter_map
+            (replace_notation_in_definition "_ \\/ _" "_ \\_/ _")
+            definitions
+        in
 
-          Ok
-            (List.concat
-               [
-                 prove_decidability_proofs_steps;
-                 attach_prelude_to_chapter_two_steps;
-                 replace_require_steps;
-                 replace_context_steps;
-                 replace_or_by_constructive_or_in_proofs_steps;
-                 replace_or_by_constructive_or_in_definitions_steps;
-               ]));
-    }
+        Ok
+          (List.concat
+             [
+               prove_decidability_proofs_steps;
+               attach_prelude_to_chapter_two_steps;
+               replace_require_steps;
+               replace_context_steps;
+               replace_or_by_constructive_or_in_proofs_steps;
+               replace_or_by_constructive_or_in_definitions_steps;
+             ]))
   in
   (***** end of stage 1 **************)
 
-  let eq_dec_point_raw_expr =
-    Syntax_node.string_to_raw_tactic_expr "stab_destruct (eq_dec_points B C)."
-    |> Result.get_ok
-  in
-
-  let eq_dec_point_stab_sexp =
-    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr eq_dec_point_raw_expr
-  in
-  Logs.debug (fun m ->
-      m "eq dec point stab sexp :%s"
-        (Sexplib.Sexp.to_string_hum (strip_loc eq_dec_point_stab_sexp)));
-
   let stage_1 : stage =
-    {
-      name = "stage1";
-      build_steps =
-        (fun doc ->
-          let* proofs = Rocq_document.get_proofs doc in
+    make_stage "stage1" (fun doc ->
+        let* proofs = Rocq_document.get_proofs doc in
 
-          let proofs_with_exists = List.filter is_proof_about_exists proofs in
+        let proofs_with_exists = List.filter is_proof_about_exists proofs in
 
-          let* admit_exists_proofs_steps =
-            List_utils.concat_map_result
-              (Transformations.admit_and_comment_proof_steps doc)
-              proofs_with_exists
-          in
+        let* admit_exists_proofs_steps =
+          List_utils.concat_map_result
+            (Transformations.admit_and_comment_proof_steps doc)
+            proofs_with_exists
+        in
 
-          Ok admit_exists_proofs_steps);
-    }
+        Ok admit_exists_proofs_steps)
   in
 
   let stage_2 : stage =
-    {
-      name = "stage2";
-      build_steps =
-        (fun doc ->
-          let* proofs_stage_two = Rocq_document.get_proofs doc in
+    make_stage "stage2" (fun doc ->
+        let* proofs_stage_two = Rocq_document.get_proofs doc in
 
-          let definitions_stage_two = definitions_of doc in
+        let definitions_stage_two = definitions_of doc in
 
-          let constructivise_bet_and_cong_f =
-            Fun.compose
-              (replace_fun_name_in_constrexpr "Bet" "BetC")
-              (replace_fun_name_in_constrexpr "Cong" "CongC")
-          in
+        let replace_bet_and_cong_by_cons_ver_in_proofs_steps =
+          List.filter_map
+            (map_proof_proposition replace_bet_and_cong_in_constrexpr)
+            proofs_stage_two
+        in
 
-          let replace_bet_and_cong_by_cons_ver_in_proofs_steps =
-            List.filter_map
-              (map_proof_proposition constructivise_bet_and_cong_f)
-              proofs_stage_two
-          in
+        let replace_bet_and_cong_by_cons_ver_definitions_steps =
+          List.filter_map
+            (map_definition_body replace_bet_and_cong_in_constrexpr)
+            definitions_stage_two
+        in
 
-          let replace_bet_and_cong_by_cons_ver_definitions_steps =
-            List.filter_map
-              (map_definition_body constructivise_bet_and_cong_f)
-              definitions_stage_two
-          in
+        let replace_tactic_calls =
+          replace_taccalls_steps
+            [
+              ("left", "stab_left");
+              ("right", "stab_right");
+              ("tauto", "firstorder");
+            ]
+            doc
+        in
 
-          let replace_left_by_stab_left =
-            List.filter_map
-              (replace_taccall_tacarg_in_node "left" "stab_left")
-              doc.elements
-          in
-
-          Ok
-            (List.concat
-               [
-                 replace_bet_and_cong_by_cons_ver_in_proofs_steps;
-                 replace_bet_and_cong_by_cons_ver_definitions_steps;
-                 replace_left_by_stab_left;
-               ]));
-    }
+        Ok
+          (List.concat
+             [
+               replace_bet_and_cong_by_cons_ver_in_proofs_steps;
+               replace_bet_and_cong_by_cons_ver_definitions_steps;
+               replace_tactic_calls;
+             ]))
   in
 
   let stage_3 =
-    {
-      name = "stage3";
-      build_steps =
-        (fun doc ->
-          let replace_right_by_stab_right =
-            List.filter_map
-              (replace_taccall_tacarg_in_node "right" "stab_right")
-              doc.elements
-          in
-          Ok replace_right_by_stab_right);
-    }
+    make_stage "stage3" (fun doc ->
+        let f_assert =
+          Fun.compose replace_classical_or_in_constrexpr
+            replace_bet_and_cong_in_constrexpr
+        in
+
+        let replace_bet_by_betc_and_or_by_cons_or_in_assert_steps =
+          List.filter_map (map_assert_in_node f_assert) doc.elements
+        in
+
+        Ok replace_bet_by_betc_and_or_by_cons_or_in_assert_steps)
   in
 
   let stage_4 =
-    {
-      name = "stage4";
-      build_steps =
-        (fun doc ->
-          let f_assert =
-           fun x ->
-            replace_fun_name_in_constrexpr "Bet" "BetC" x
-            |> replace_fun_name_in_constrexpr "Cong" "CongC"
-            |> replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _"
-          in
+    make_stage "stage4" (fun doc ->
+        let replace_induction_by_stab_eq_point_steps =
+          map_raw_tactic_expr_steps replace_induction_by_stab_eq_point doc
+        in
 
-          let replace_bet_by_betc_and_or_by_cons_or_in_assert_steps =
-            List.filter_map (map_assert_in_node f_assert) doc.elements
-          in
+        let replace_elim_with_stab_eq_point_steps =
+          map_raw_tactic_expr_steps replace_elim_with_stab_eq_point doc
+        in
 
-          Ok replace_bet_by_betc_and_or_by_cons_or_in_assert_steps);
-    }
+        Ok
+          (List.concat
+             [
+               replace_induction_by_stab_eq_point_steps;
+               replace_elim_with_stab_eq_point_steps;
+             ]))
   in
 
-  let stage_5 =
-    {
-      name = "stage5";
-      build_steps =
-        (fun doc ->
-          let replace_induction_by_stab_eq_point_steps =
-            List.filter_map
-              (map_raw_tactic_expr_in_node replace_induction_by_stab_eq_point)
-              doc.elements
-          in
+  let stage_5 : stage =
+    make_stage "stage5" (fun doc ->
+        let prolong_to_segment_cons_steps =
+          map_raw_tactic_expr_steps replace_prolong_by_segment_cons doc
+        in
 
-          let replace_elim_with_stab_eq_point_steps =
-            List.filter_map
-              (map_raw_tactic_expr_in_node replace_elim_with_stab_eq_point)
-              doc.elements
-          in
-
-          Ok
-            (List.concat
-               [
-                 replace_induction_by_stab_eq_point_steps;
-                 replace_elim_with_stab_eq_point_steps;
-               ]));
-    }
+        Ok prolong_to_segment_cons_steps)
   in
 
   let stage_6 : stage =
-    {
-      name = "stage6";
-      build_steps =
-        (fun doc ->
-          let prolong_to_segment_cons_steps =
-            List.filter_map
-              (map_raw_tactic_expr_in_node replace_prolong_by_segment_cons)
-              doc.elements
-          in
+    make_stage "stage6" (fun doc ->
+        let decompose_or_to_stab_version_steps =
+          map_raw_tactic_expr_steps replace_decompose_or_with_decompose_stab_or
+            doc
+        in
 
-          Ok prolong_to_segment_cons_steps);
-    }
+        Ok decompose_or_to_stab_version_steps)
   in
 
   let stage_7 : stage =
-    {
-      name = "stage7";
-      build_steps =
-        (fun doc ->
-          let decompose_or_to_stab_version_steps =
-            List.filter_map
-              (map_raw_tactic_expr_in_node
-                 replace_decompose_or_with_decompose_stab_or)
-              doc.elements
-          in
-
-          Ok decompose_or_to_stab_version_steps);
-    }
+    make_stage "stage7" (fun doc ->
+        let steps =
+          map_raw_tactic_expr_steps replace_destruct_fun_with_stab_destruct doc
+        in
+        Ok steps)
   in
 
   let stage_8 : stage =
-    {
-      name = "stage8";
-      build_steps =
-        (fun doc ->
-          let steps =
-            List.filter_map
-              (map_raw_tactic_expr_in_node
-                 replace_destruct_fun_with_stab_destruct)
-              doc.elements
-          in
-          Ok steps);
-    }
+    make_stage "stage8" (fun doc ->
+        let* proofs = Rocq_document.get_proofs doc in
+
+        let proof_steps_node =
+          List.concat_map (fun p -> p.proof_steps) proofs
+        in
+
+        let all_ltac_nodes_set =
+          Syntax_nodeSet.of_list
+            (List.filter Syntax_node.is_syntax_node_ltac doc.elements)
+        in
+
+        let proof_steps_set = Syntax_nodeSet.of_list proof_steps_node in
+
+        let ltac_nodes =
+          Syntax_nodeSet.diff all_ltac_nodes_set proof_steps_set
+          |> Syntax_nodeSet.to_list
+        in
+
+        Ok
+          (List.filter_map
+             (fun x ->
+               map_tacdef_bodies_in_node Fun.id
+                 (Constrexpr_map.constr_expr_map
+                    replace_bet_and_cong_in_constrexpr)
+                 x)
+             ltac_nodes))
   in
 
-  let stage_9 : stage =
-    {
-      name = "stage9";
-      build_steps =
-        (fun doc ->
-          let* proofs = Rocq_document.get_proofs doc in
-
-          let proof_steps_node =
-            List.concat_map (fun p -> p.proof_steps) proofs
-          in
-
-          let all_ltac_nodes_set =
-            Syntax_nodeSet.of_list
-              (List.filter Syntax_node.is_syntax_node_ltac doc.elements)
-          in
-
-          let proof_steps_set = Syntax_nodeSet.of_list proof_steps_node in
-
-          let ltac_nodes =
-            Syntax_nodeSet.diff all_ltac_nodes_set proof_steps_set
-            |> Syntax_nodeSet.to_list
-          in
-
-          let f_tacdef_constr =
-            Fun.compose
-              (replace_fun_name_in_constrexpr "Bet" "BetC")
-              (replace_fun_name_in_constrexpr "Cong" "CongC")
-          in
-
-          Ok
-            (List.filter_map
-               (fun x ->
-                 map_tacdef_bodies_in_node Fun.id
-                   (Constrexpr_map.constr_expr_map f_tacdef_constr)
-                   x)
-               ltac_nodes));
-    }
-  in
-
-  let stage_10 : stage =
-    {
-      name = "stage10";
-      build_steps =
-        (fun doc ->
-          Ok
-            (List.filter_map
-               (replace_taccall_tacarg_in_node "tauto" "firstorder")
-               doc.elements));
-    }
-  in
   (* let stage_11 : stage = *)
   (*   { *)
   (*     name = "stage11"; *)
@@ -1350,8 +1257,6 @@ let constructivize_doc (doc : Rocq_document.t) :
         stage_6;
         stage_7;
         stage_8;
-        stage_9;
-        stage_10;
         (* stage_11; *)
       ]
   in
