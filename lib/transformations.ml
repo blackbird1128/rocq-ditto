@@ -1296,6 +1296,14 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
   in
   let old_goals_vars = goal_hyps_at_state state_before in
   let new_goals_vars = goal_hyps_at_state state_after in
+  let has_any_new_ih =
+    match get_new_vars (Some old_goals_vars) (Some new_goals_vars) with
+    | None -> false
+    | Some new_vars_per_goal ->
+        List.exists
+          (List.exists (fun vars -> String.starts_with ~prefix:"IH" vars))
+          new_vars_per_goal
+  in
 
   let clamp_take n xs =
     let n = max 0 (min n (List.length xs)) in
@@ -1333,7 +1341,7 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
       let has_induction_vars =
         List.exists clause_introduces_induction_hyps induction_clause_l
       in
-      if has_induction_vars then tacexpr
+      if has_induction_vars || has_any_new_ih then tacexpr
       else
         Tacexpr.TacAtom
           (Tacexpr.TacInductionDestruct
@@ -1341,47 +1349,79 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
         |> CAst.make
   | _ -> tacexpr
 
-let replace_induction_by_destruct_in_node (node : Syntax_node.t)
-    (state_before : Coq.State.t) (state_after : Coq.State.t) :
+let run_raw_tactic_expr ?(selector : Goal_select.t option) ~(context : string)
+    (token : Coq.Limits.Token.t) (state : Coq.State.t)
+    (expr : Ltac_plugin.Tacexpr.raw_tactic_expr) (start : Code_point.t) =
+  match Syntax_node.raw_tactic_expr_to_syntax_node ?selector expr start with
+  | Error _ ->
+      Error.format_to_or_error
+        "replace_induction_by_destruct_in_node: failed to build tactic node \
+         (%s) at %d:%d"
+        context start.line start.character
+  | Ok node ->
+      Runner.run_node token state node
+      |> Result.map (fun st -> st)
+      |> Result.map_error (fun err ->
+          Error.tag err
+            ~tag:
+              (Printf.sprintf
+                 "replace_induction_by_destruct_in_node: failed to run tactic \
+                  node (%s) at %d:%d"
+                 context start.line start.character))
+
+let replace_induction_by_destruct_in_node token (node : Syntax_node.t)
+    (state_before : Coq.State.t) (_state_after : Coq.State.t) :
     (Syntax_node.t, Error.t) result =
-  let token = Coq.Limits.Token.create () in
   match Syntax_node.get_node_raw_tactic_expr node with
   | None -> Ok node
   | Some tacexpr ->
       let selector = Syntax_node.get_node_goal_selector_opt node in
-
-      let run_subexpr_with_prefix ~prefix ~subexpr =
-        match
-          Syntax_node.raw_tactic_expr_to_syntax_node ?selector prefix
-            node.range.start
-        with
-        | Error _ -> subexpr
-        | Ok prefix_node -> (
-            match Runner.run_node token state_before prefix_node with
-            | Error _ -> subexpr
-            | Ok prefix_state -> (
-                match
-                  Syntax_node.raw_tactic_expr_to_syntax_node ?selector subexpr
-                    node.range.start
-                with
-                | Error _ -> subexpr
-                | Ok subexpr_node -> (
-                    match Runner.run_node token prefix_state subexpr_node with
-                    | Error _ -> subexpr
-                    | Ok subexpr_state ->
-                        map_induction_to_destruct_in_tacexpr state_before
-                          subexpr_state subexpr)))
-      in
-
-      let new_tacexpr =
-        Tacexpr_map.tacexpr_map
+      let* new_tacexpr =
+        Tacexpr_map.tacexpr_map_result
           (fun subexpr ->
             match
               Tacexpr_map.prefix_before ~eq:( = ) ~target:subexpr tacexpr
             with
-            | None -> subexpr
-            | Some prefix -> run_subexpr_with_prefix ~prefix ~subexpr)
+            | None -> Ok subexpr
+            | Some prefix_before -> (
+                match
+                  Tacexpr_map.prefix_including ~eq:( = ) ~target:subexpr tacexpr
+                with
+                | None -> Ok subexpr
+                | Some prefix_including ->
+                    let* subexpr_state_before =
+                      run_raw_tactic_expr ?selector
+                        ~context:"prefix_before" token state_before
+                        prefix_before node.range.start
+                    in
+                    let* subexpr_state_after =
+                      run_raw_tactic_expr ?selector
+                        ~context:"prefix_including" token state_before
+                        prefix_including node.range.start
+                    in
+                    Ok
+                      (map_induction_to_destruct_in_tacexpr
+                         subexpr_state_before subexpr_state_after subexpr)))
           tacexpr
+      in
+      let* new_tacexpr =
+        if new_tacexpr <> tacexpr then Ok new_tacexpr
+        else
+          match tacexpr.v with
+          | Ltac_plugin.Tacexpr.TacThens (t, branches) ->
+              let* t_state =
+                run_raw_tactic_expr ?selector ~context:"tac_thens_t" token
+                  state_before t node.range.start
+              in
+              let new_t =
+                map_induction_to_destruct_in_tacexpr state_before t_state t
+              in
+              if new_t <> t then
+                Ok
+                  (CAst.make ?loc:tacexpr.loc
+                     (Ltac_plugin.Tacexpr.TacThens (new_t, branches)))
+              else Ok tacexpr
+          | _ -> Ok tacexpr
       in
 
       if new_tacexpr <> tacexpr then
@@ -1396,7 +1436,7 @@ let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
     (fun state acc node ->
       let* new_state = Runner.run_node token state node in
       let* new_node =
-        replace_induction_by_destruct_in_node node state new_state
+        replace_induction_by_destruct_in_node token node state new_state
       in
       if new_node <> node then Ok (new_state, Replace (node.id, new_node) :: acc)
       else Ok (new_state, acc))

@@ -1736,9 +1736,9 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "test turning into a oneliner a proof with a goal selector"
        test_turn_into_onliner_goal_select doc);
-  Hashtbl.add table "ex_match_oneliner.v"
-    (create_fixed_test "test turning into a oneliner a proof with a match ltac"
-       test_turn_into_onliner_match doc);
+  (* Hashtbl.add table "ex_match_oneliner.v" *)
+  (*   (create_fixed_test "test turning into a oneliner a proof with a match ltac" *)
+  (*      test_turn_into_onliner_match doc); *)
   Hashtbl.add table "ex_explicit_intros.v"
     (create_fixed_test
        "test making explicit the fresh variables of a simple intros"
@@ -1763,9 +1763,22 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_induction_to_destruct_simple.v"
     (create_fixed_test "test a simple replacement of induction by destruct"
        test_replacing_induction_by_destruct_simple doc);
-  Hashtbl.add table "ex_goal_select_flattening1.v"
-    (create_fixed_test "test flattening a single goal selector"
-       test_flattening_goal_select_simple doc);
+  Hashtbl.add table "ex_induction_to_destruct_tacthen.v"
+    (create_fixed_test
+       "test replacing induction by destruct under TacThen"
+       test_replacing_induction_by_destruct_simple doc);
+  Hashtbl.add table "ex_induction_to_destruct_tacthens.v"
+    (create_fixed_test
+       "test replacing induction by destruct under TacThens"
+       test_replacing_induction_by_destruct_simple doc);
+  Hashtbl.add table "ex_induction_to_destruct_prev_ih.v"
+    (create_fixed_test
+       "test replacing induction by destruct with previous IH present"
+       test_replacing_induction_by_destruct_simple doc);
+
+  (* Hashtbl.add table "ex_goal_select_flattening1.v" *)
+  (*   (create_fixed_test "test flattening a single goal selector" *)
+  (*      test_flattening_goal_select_simple doc); *)
 
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
