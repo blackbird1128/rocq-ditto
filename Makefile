@@ -5,6 +5,7 @@ V_TARGET_SRC := $(shell find test/fixtures/unit_test_fixtures/ -name '*_target.v
 V_TARGET_GEN := $(V_TARGET_SRC:%=%.target.json)
 
 .PHONY: all test install uninstall dump-json clean constructivization-uniformize constructivization-build constructivization-compile build
+.PHONY: constructivisation-data
 
 build:
 	dune build 
@@ -27,7 +28,6 @@ constructivization-uniformize: build
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -t replace_induction_with_destruct -v --save-vo
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_col.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch04_col.v -t replace_induction_with_destruct -v --save-vo
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -t replace_induction_with_destruct -v --save-vo
-
 
 constructivization-build: build
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch02_cong.v -o ../geocoq_bis/theories/Constructive/Ch02_cong.v -t constructivize_geocoq -v
@@ -69,15 +69,22 @@ constructivization-get-percentage: build
 	dune exec fcc -- --plugin=target-generator-plugin $< 2>/dev/null
 
 test: $(V_TARGET_GEN)
-	dune build --profile=release
+	dune build
 	find test/fixtures/unit_test_fixtures/ -not -name "*_target.v"  -not -path '*/ignore/*'  -name '*.v' -exec  dune exec fcc -- --plugin=ditto-test-plugin {} 2>/dev/null \;
-	dune runtest --profile=release	
+	dune runtest
 
 PREFIX := $(HOME)/.local
 
 dump-json:
 	dune build ./test/json_dump_plugin/ --profile=release
 	dune exec fcc -- --plugin=json-dump-plugin ../geocoq_bis/theories/Constructive/Ch03_bet.v
+
+constructivisation-data:
+	@if [ -z "$(DEFINITIONS_V)" ]; then \
+		echo "Set DEFINITIONS_V=path/to/Definitions.v"; \
+		exit 1; \
+	fi
+	dune exec fcc -- --plugin=constructivisation-data-generator-plugin $(DEFINITIONS_V)
 
 clean:
 	dune clean

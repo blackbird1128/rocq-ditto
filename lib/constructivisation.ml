@@ -697,9 +697,6 @@ let add_node_after_require (doc : Rocq_document.t) (node : Syntax_node.t) :
   | Some last_require -> Some (Attach (node, LineAfter, last_require.id))
   | None -> None
 
-(* let decompose_raw_tac_expr (x: Ltac_plugin.Tacexpr.raw_tactic_expr) : Ltac_plugin.Tacexpr.raw_tactic_expr list = *)
-(*   Constrexpr_fold. *)
-
 let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
   Constrexpr_fold.exists
     (fun expr ->
@@ -917,25 +914,6 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     (remove_all_steps_except_qed
     @ [ Attach (solve_dec_node, LineAfter, proof.proposition.id) ])
 
-let check_definitions_containing_exists_are_correct (doc : Rocq_document.t)
-    (static_definitions : string list) : (unit, Error.t) result =
-  if Filename.basename doc.filename = "Definitions.v" then
-    let definitions =
-      List.filter Syntax_node.is_syntax_node_definition doc.elements
-    in
-
-    let definitions_containing_exists =
-      collect_definitions_containing_exists definitions
-    in
-
-    if List.equal String.equal definitions_containing_exists static_definitions
-    then Ok ()
-    else
-      Error.string_to_or_error
-        "Mismatch between the statically defined definitions containing exists \
-         and the dynamically collected ones"
-  else Ok ()
-
 let get_percentage_admitted (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let* proofs = Rocq_document.get_proofs doc in
@@ -1031,10 +1009,6 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
 
   (* stage 0 *)
-  let* _ =
-    check_definitions_containing_exists_are_correct doc definitions_with_exists
-  in
-
   let stage_0 : stage =
     make_stage "stage0" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in

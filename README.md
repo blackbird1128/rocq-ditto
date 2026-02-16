@@ -71,6 +71,13 @@ Then, you can run the following command
 dune exec --profile=release rocq-ditto -- -i PROJECT_FOLDER -o OUTPUT_FOLDER -t TRANSFORMATION
 ```
 
+## Constructivisation
+
+First, generate a list of all the predicates containing an existential predicate using the following command:
+```shell
+make constructivisation-data DEFINITIONS_V=../geocoq_bis/theories/Axioms/Definitions.v
+```
+
 ## upgrading 
 
 When upgrading rocq-ditto using git, you might encounter these kinds of errors:

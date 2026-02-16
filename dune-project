@@ -64,6 +64,19 @@
   coq-ditto))
 
 (package
+ (name constructivisation-data-generator-plugin)
+ (synopsis "Plugin to generate the predicates containing exists during constructivisation ")
+ (description "Plugin to generate the predicates containing exists during constructivisation")
+ (allow_empty)
+ (depends
+  ocaml
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
+  base-unix
+  re
+  coq-ditto))
+
+
+(package
  (name shelley-plugin)
  (synopsis "Plugin to test proof-repair methods")
  (description "Plugin experimenting with several proof-repair approaches.")
@@ -129,7 +142,6 @@
   base-unix
   re
   coq-ditto))
-
 
 (package
  (name target-generator-plugin)
