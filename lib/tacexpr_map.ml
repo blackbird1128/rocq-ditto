@@ -259,9 +259,251 @@ let tacexpr_map_with_constr
     (expr : Tacexpr.raw_tactic_expr) : Tacexpr.raw_tactic_expr =
   snd (tacexpr_fold_map_with_constr (fun acc _ -> acc) f g () expr)
 
+let tacexpr_map_with_constr_result
+    (f : Tacexpr.raw_tactic_expr -> (Tacexpr.raw_tactic_expr, 'e) result)
+    (g : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (expr : Tacexpr.raw_tactic_expr) : (Tacexpr.raw_tactic_expr, 'e) result =
+  let ( let* ) = Result.bind in
+
+  let rec map1 (expr : Tacexpr.raw_tactic_expr) =
+    let mk v = CAst.make ?loc:expr.loc v in
+    let map_list xs =
+      let rec loop acc = function
+        | [] -> Ok (List.rev acc)
+        | x :: tl ->
+            let* x' = map1 x in
+            loop (x' :: acc) tl
+      in
+      loop [] xs
+    in
+
+    let map_array a =
+      let* l' = map_list (Array.to_list a) in
+      Ok (Array.of_list l')
+    in
+
+    let map_opt = function
+      | None -> Ok None
+      | Some x ->
+          let* x' = map1 x in
+          Ok (Some x')
+    in
+
+    let rec map_arg (arg : 'a Tacexpr.gen_tactic_arg) :
+        ('a Tacexpr.gen_tactic_arg, 'e) result =
+      match arg with
+      | Tacexpr.TacGeneric _ -> Ok arg
+      | Tacexpr.ConstrMayEval _ -> Ok arg
+      | Tacexpr.Reference _ -> Ok arg
+      | Tacexpr.TacFreshId _ -> Ok arg
+      | Tacexpr.TacPretype _ -> Ok arg
+      | Tacexpr.TacNumgoals -> Ok arg
+      | Tacexpr.Tacexp t ->
+          let* t' = map1 t in
+          Ok (Tacexpr.Tacexp t')
+      | Tacexpr.TacCall call ->
+          let r, args = call.v in
+          let* args' = map_arg_list args in
+          let call' = CAst.make ?loc:call.loc (r, args') in
+          Ok (Tacexpr.TacCall call')
+    and map_arg_list args =
+      let rec loop acc = function
+        | [] -> Ok (List.rev acc)
+        | a :: tl ->
+            let* a' = map_arg a in
+            loop (a' :: acc) tl
+      in
+      loop [] args
+    in
+
+    let map_atomic (a : 'a Tacexpr.gen_atomic_tactic_expr) :
+        ('a Tacexpr.gen_atomic_tactic_expr, 'e) result =
+      match a with
+      | Tacexpr.TacIntroPattern _ -> Ok a
+      | Tacexpr.TacApply _ -> Ok a
+      | Tacexpr.TacElim _ -> Ok a
+      | Tacexpr.TacCase _ -> Ok a
+      | Tacexpr.TacMutualFix _ -> Ok a
+      | Tacexpr.TacMutualCofix _ -> Ok a
+      | Tacexpr.TacGeneralize _ -> Ok a
+      | Tacexpr.TacLetTac _ -> Ok a
+      | Tacexpr.TacInductionDestruct _ -> Ok a
+      | Tacexpr.TacReduce _ -> Ok a
+      | Tacexpr.TacChange _ -> Ok a
+      | Tacexpr.TacInversion _ -> Ok a
+      | Tacexpr.TacAssert (ev, b, tacoptopt, ipatopt, trm) ->
+          let* tacoptopt' =
+            match tacoptopt with
+            | None -> Ok None
+            | Some None -> Ok (Some None)
+            | Some (Some t) ->
+                let* t' = map1 t in
+                Ok (Some (Some t'))
+          in
+          Ok (Tacexpr.TacAssert (ev, b, tacoptopt', ipatopt, trm))
+      | Tacexpr.TacRewrite (ev, l, clause, tacopt) ->
+          let* tacopt' = map_opt tacopt in
+          Ok (Tacexpr.TacRewrite (ev, l, clause, tacopt'))
+    in
+
+    let* expr_mapped =
+      match expr.v with
+      | Tacexpr.TacAtom a ->
+          let* a' = map_atomic a in
+          Ok (mk (Tacexpr.TacAtom a'))
+      | Tacexpr.TacThen (a, b) ->
+          let* a' = map1 a in
+          let* b' = map1 b in
+          Ok (mk (Tacexpr.TacThen (a', b')))
+      | Tacexpr.TacDispatch l ->
+          let* l' = map_list l in
+          Ok (mk (Tacexpr.TacDispatch l'))
+      | Tacexpr.TacExtendTac (a1, t, a2) ->
+          let* a1' = map_array a1 in
+          let* t' = map1 t in
+          let* a2' = map_array a2 in
+          Ok (mk (Tacexpr.TacExtendTac (a1', t', a2')))
+      | Tacexpr.TacThens (t, l) ->
+          let* t' = map1 t in
+          let* l' = map_list l in
+          Ok (mk (Tacexpr.TacThens (t', l')))
+      | Tacexpr.TacThens3parts (t1, a1, t2, a2) ->
+          let* t1' = map1 t1 in
+          let* a1' = map_array a1 in
+          let* t2' = map1 t2 in
+          let* a2' = map_array a2 in
+          Ok (mk (Tacexpr.TacThens3parts (t1', a1', t2', a2')))
+      | Tacexpr.TacFirst l ->
+          let* l' = map_list l in
+          Ok (mk (Tacexpr.TacFirst l'))
+      | Tacexpr.TacSolve l ->
+          let* l' = map_list l in
+          Ok (mk (Tacexpr.TacSolve l'))
+      | Tacexpr.TacTry t ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacTry t'))
+      | Tacexpr.TacOr (a, b) ->
+          let* a' = map1 a in
+          let* b' = map1 b in
+          Ok (mk (Tacexpr.TacOr (a', b')))
+      | Tacexpr.TacOnce t ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacOnce t'))
+      | Tacexpr.TacExactlyOnce t ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacExactlyOnce t'))
+      | Tacexpr.TacIfThenCatch (a, b, c) ->
+          let* a' = map1 a in
+          let* b' = map1 b in
+          let* c' = map1 c in
+          Ok (mk (Tacexpr.TacIfThenCatch (a', b', c')))
+      | Tacexpr.TacOrelse (a, b) ->
+          let* a' = map1 a in
+          let* b' = map1 b in
+          Ok (mk (Tacexpr.TacOrelse (a', b')))
+      | Tacexpr.TacDo (n, t) ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacDo (n, t')))
+      | Tacexpr.TacTimeout (n, t) ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacTimeout (n, t')))
+      | Tacexpr.TacTime (s, t) ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacTime (s, t')))
+      | Tacexpr.TacRepeat t ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacRepeat (t')))
+      | Tacexpr.TacProgress t ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacProgress (t')))
+      | Tacexpr.TacAbstract (t, nameopt) ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacAbstract (t', nameopt)))
+      | Tacexpr.TacId _ | Tacexpr.TacFail _ -> Ok expr
+      | Tacexpr.TacLetIn (rf, binds, body) ->
+          let rec map_binds = function
+            | [] -> Ok []
+            | (ln, a) :: tl ->
+                let* a' = map_arg a in
+                let* tl' = map_binds tl in
+                Ok ((ln, a') :: tl')
+          in
+          let* binds' = map_binds binds in
+          let* body' = map1 body in
+          Ok (mk (Tacexpr.TacLetIn (rf, binds', body')))
+      | Tacexpr.TacMatch (lf, scrut, rules) ->
+          let* scrut' = map1 scrut in
+          let rec map_rules rs =
+            match rs with
+            | [] -> Ok []
+            | rule :: tl -> (
+                let* rule' =
+                  match rule with
+                  | Tacexpr.All t ->
+                      let* t' = map1 t in
+                      Ok (Tacexpr.All t')
+                  | Tacexpr.Pat (hyps, pat, t) ->
+                      let* t' = map1 t in
+                      let hyps' = List.map (map_match_context_hyps g) hyps in
+                      let pat' = map_match_pattern g pat in
+                      Ok (Tacexpr.Pat (hyps', pat', t'))
+                in
+                let* tl' = map_rules tl in
+                Ok (rule' :: tl'))
+          in
+          let* rules' = map_rules rules in
+          Ok (mk (Tacexpr.TacMatch (lf, scrut', rules')))
+      | Tacexpr.TacMatchGoal (lf, dir, rules) ->
+          let rec map_rules rs =
+            match rs with
+            | [] -> Ok []
+            | rule :: tl -> (
+                let* rule' =
+                  match rule with
+                  | Tacexpr.All t ->
+                      let* t' = map1 t in
+                      Ok (Tacexpr.All t')
+                  | Tacexpr.Pat (hyps, pat, t) ->
+                      let* t' = map1 t in
+                      let hyps' = List.map (map_match_context_hyps g) hyps in
+                      let pat' = map_match_pattern g pat in
+                      Ok (Tacexpr.Pat (hyps', pat', t'))
+                in
+                let* tl' = map_rules tl in
+                Ok (rule' :: tl'))
+          in
+          let* rules' = map_rules rules in
+          Ok (mk (Tacexpr.TacMatchGoal (lf, dir, rules')))
+      | Tacexpr.TacFun (names, body) ->
+          let* body' = map1 body in
+          Ok (mk (Tacexpr.TacFun (names, body')))
+      | Tacexpr.TacArg a ->
+          let* a' = map_arg a in
+          Ok (mk (Tacexpr.TacArg a'))
+      | Tacexpr.TacSelect (gs, t) ->
+          let* t' = map1 t in
+          Ok (mk (Tacexpr.TacSelect (gs, t')))
+      | Tacexpr.TacML (entry, args) ->
+          let* args' = map_arg_list args in
+          Ok (mk (Tacexpr.TacML (entry, args')))
+      | Tacexpr.TacAlias (kn, args) ->
+          let* args' = map_arg_list args in
+          Ok (mk (Tacexpr.TacAlias (kn, args')))
+    in
+
+    f expr_mapped
+  in
+
+  map1 expr
+
 let tacexpr_map (f : Tacexpr.raw_tactic_expr -> Tacexpr.raw_tactic_expr)
     (expr : Tacexpr.raw_tactic_expr) : Tacexpr.raw_tactic_expr =
   tacexpr_map_with_constr f Fun.id expr
+
+let tacexpr_map_result
+    (f : Tacexpr.raw_tactic_expr -> (Tacexpr.raw_tactic_expr, 'e) result)
+    (expr : Tacexpr.raw_tactic_expr) : (Tacexpr.raw_tactic_expr, 'e) result =
+  tacexpr_map_with_constr_result f Fun.id expr
 
 let tacexpr_fold (step : 'acc -> Tacexpr.raw_tactic_expr -> 'acc) (acc : 'acc)
     (expr : Tacexpr.raw_tactic_expr) : 'acc =
@@ -331,8 +573,9 @@ let rec prefix_until ~(hit : hit)
     | Tacexpr.TacThens (t, branches) -> (
         match prefix_until ~hit ~eq ~target t with
         | Some pre_t ->
-            let holes = List.map (fun _ -> mk_idtac ?loc:e.loc ()) branches in
-            Some (mk ?loc:e.loc (Tacexpr.TacThens (pre_t, holes)) |> simplify)
+            (* If the target is in [t], the correct prefix is just [pre_t].
+               Building TacThens(pre_t, holes) may be ill-typed (goal mismatch). *)
+            Some pre_t
         | None -> (
             let rec find i = function
               | [] -> None

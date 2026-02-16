@@ -6,10 +6,21 @@ val tacexpr_map_with_constr :
   Tacexpr.raw_tactic_expr ->
   Tacexpr.raw_tactic_expr
 
+val tacexpr_map_with_constr_result :
+  (Tacexpr.raw_tactic_expr -> (Tacexpr.raw_tactic_expr, 'e) result) ->
+  (Constrexpr.constr_expr -> Constrexpr.constr_expr) ->
+  Tacexpr.raw_tactic_expr ->
+  (Tacexpr.raw_tactic_expr, 'e) result
+
 val tacexpr_map :
   (Tacexpr.raw_tactic_expr -> Tacexpr.raw_tactic_expr) ->
   Tacexpr.raw_tactic_expr ->
   Tacexpr.raw_tactic_expr
+
+val tacexpr_map_result :
+  (Tacexpr.raw_tactic_expr -> (Tacexpr.raw_tactic_expr, 'e) result) ->
+  Tacexpr.raw_tactic_expr ->
+  (Tacexpr.raw_tactic_expr, 'e) result
 
 val tacexpr_fold :
   ('acc -> Tacexpr.raw_tactic_expr -> 'acc) ->
