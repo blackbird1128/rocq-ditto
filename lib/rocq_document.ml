@@ -49,7 +49,7 @@ let get_proofs (doc : t) : (Proof.t list, Error.t) result =
   in
 
   let res = aux doc.elements [] [] NoProof in
-  List_utils.result_all res
+  List.rev res |> List_utils.result_all
 
 let node_representation (node : Doc.Node.t) (document : string) : string =
   String.sub document node.range.start.offset

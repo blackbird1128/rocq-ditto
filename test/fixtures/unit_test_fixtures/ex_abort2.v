@@ -12,6 +12,4 @@ Proof.
   induction n.
   lia.  
   lia.
-Qed.
-
-  
+Qed.  
