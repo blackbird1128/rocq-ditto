@@ -10,14 +10,6 @@ let map_match_context_hyps map_p = function
   | Tacexpr.Def (ln, p1, p2) ->
       Tacexpr.Def (ln, map_match_pattern map_p p1, map_match_pattern map_p p2)
 
-let map_match_rule map_p map_t = function
-  | Tacexpr.All t -> Tacexpr.All (map_t t)
-  | Tacexpr.Pat (hyps, pat, t) ->
-      Tacexpr.Pat
-        ( List.map (map_match_context_hyps map_p) hyps,
-          map_match_pattern map_p pat,
-          map_t t )
-
 let rec tacexpr_fold_map_with_constr
     (step : 'acc -> Tacexpr.raw_tactic_expr -> 'acc)
     (f : Tacexpr.raw_tactic_expr -> Tacexpr.raw_tactic_expr)
@@ -304,53 +296,55 @@ let is_transparent_for_schedule (e : Tacexpr.raw_tactic_expr) : bool =
   | Tacexpr.TacThens _ -> true
   | _ -> false
 
-(* Return an expression that, when executed, leaves the context in the same state as the original would *just before executing [target] in [e]*.
-   Returns None if [target] is not found (or is inside an opaque tactic). *)
-let rec prefix_before
+type hit =
+  | Before (* stop right before target: idtac *)
+  | Include (* include the target itself *)
+
+(** Return an expression that, when executed, leaves the context in the same
+    state as the original would *just before executing [target] in [e] if [hit]
+    is [Before] and after executing [target] if [hit] is [Include]*. Returns
+    None if [target] is not found (or is inside an opaque tactic). *)
+let rec prefix_until ~(hit : hit)
     ~(eq : Tacexpr.raw_tactic_expr -> Tacexpr.raw_tactic_expr -> bool)
     ~(target : Tacexpr.raw_tactic_expr) (e : Tacexpr.raw_tactic_expr) :
     Tacexpr.raw_tactic_expr option =
   if eq e target then
-    (* "before executing target": do nothing*)
-    Some (mk_idtac ?loc:e.loc ())
-  else if not (is_transparent_for_schedule e) then
-    (* opaque: don't look inside *)
-    None
+    Some (match hit with Before -> mk_idtac ?loc:e.loc () | Include -> e)
+  else if not (is_transparent_for_schedule e) then None
   else
     match e.v with
-    | Tacexpr.TacThen (a, b) ->
-        (* Case 1: target in a *)
-        begin match prefix_before ~eq ~target a with
+    | Tacexpr.TacThen (a, b) -> begin
+        match prefix_until ~hit ~eq ~target a with
         | Some pre_a ->
+            (* We’re still “in a”: b hasn’t started yet *)
             Some
               (mk ?loc:e.loc (Tacexpr.TacThen (pre_a, mk_idtac ?loc:e.loc ()))
               |> simplify)
         | None ->
-            (* Case 2: target in b (only possible if b transparent or b==target handled above) *)
-            begin match prefix_before ~eq ~target b with
+            (* Not in a => must be in b *)
+            begin match prefix_until ~hit ~eq ~target b with
             | Some pre_b ->
-                (* a fully executed before entering b *)
                 Some (mk ?loc:e.loc (Tacexpr.TacThen (a, pre_b)) |> simplify)
             | None -> None
             end
-        end
+      end
     | Tacexpr.TacThens (t, branches) -> (
-        (* First, try inside t *)
-        match prefix_before ~eq ~target t with
+        match prefix_until ~hit ~eq ~target t with
         | Some pre_t ->
-            (* branches not started yet: all holes *)
             let holes = List.map (fun _ -> mk_idtac ?loc:e.loc ()) branches in
             Some (mk ?loc:e.loc (Tacexpr.TacThens (pre_t, holes)) |> simplify)
         | None -> (
-            (* Branch-local semantics:
-           find the (first) branch containing the target, and keep ONLY its prefix;
-           all other branches become idtac, even if they'd run earlier in a scheduler. *)
             let rec find i = function
               | [] -> None
               | bi :: bs -> (
-                  if eq bi target then Some (i, mk_idtac ?loc:e.loc ())
+                  if eq bi target then
+                    Some
+                      ( i,
+                        match hit with
+                        | Before -> mk_idtac ?loc:e.loc ()
+                        | Include -> bi )
                   else
-                    match prefix_before ~eq ~target bi with
+                    match prefix_until ~hit ~eq ~target bi with
                     | Some pre_bi -> Some (i, pre_bi)
                     | None -> find (i + 1) bs)
             in
@@ -366,3 +360,6 @@ let rec prefix_before
                   (mk ?loc:e.loc (Tacexpr.TacThens (t, branches')) |> simplify))
         )
     | _ -> None
+
+let prefix_before ~eq ~target e = prefix_until ~hit:Before ~eq ~target e
+let prefix_including ~eq ~target e = prefix_until ~hit:Include ~eq ~target e

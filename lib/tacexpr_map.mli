@@ -26,3 +26,9 @@ val prefix_before :
   target:Tacexpr.raw_tactic_expr ->
   Tacexpr.raw_tactic_expr ->
   Tacexpr.raw_tactic_expr option
+
+val prefix_including :
+  eq:(Tacexpr.raw_tactic_expr -> Tacexpr.raw_tactic_expr -> bool) ->
+  target:Tacexpr.raw_tactic_expr ->
+  Tacexpr.raw_tactic_expr ->
+  Tacexpr.raw_tactic_expr option
