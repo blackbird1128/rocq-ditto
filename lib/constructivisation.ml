@@ -881,6 +881,51 @@ let remove_decidability_proofs (doc : Rocq_document.t) :
          List.map (fun (node : Syntax_node.t) -> Remove node.id) nodes)
        decidability_proofs)
 
+let collect_named_section_ids (section_names : string list)
+    (doc : Rocq_document.t) : (Uuidm.t list, Error.t) result =
+  let section_marker (node : Syntax_node.t) :
+      [ `Begin of string | `End of string ] option =
+    match Syntax_node.get_vernac_expr_gen node with
+    | Some (Vernacexpr.VernacSynterp expr) -> (
+        match expr with
+        | Vernacexpr.VernacBeginSection ident ->
+            Some (`Begin (Names.Id.to_string ident.v))
+        | Vernacexpr.VernacEndSegment ident ->
+            Some (`End (Names.Id.to_string ident.v))
+        | _ -> None)
+    | _ -> None
+  in
+  let is_target name = List.exists (String.equal name) section_names in
+  let rec aux nodes (current : string option) acc =
+    match nodes with
+    | [] -> Ok (current, List.rev acc)
+    | node :: tail -> begin
+        match current with
+        | None -> (
+            match section_marker node with
+            | Some (`Begin name) when is_target name ->
+                aux tail (Some name) (node.id :: acc)
+            | _ -> aux tail None acc)
+        | Some name ->
+            let acc' = node.id :: acc in
+            begin match section_marker node with
+            | Some (`End end_name) when String.equal end_name name ->
+                aux tail None acc'
+            | _ -> aux tail (Some name) acc'
+            end
+      end
+  in
+  let* open_section, ids = aux doc.elements None [] in
+  match open_section with
+  | None -> Ok ids
+  | Some name ->
+      Error.format_to_or_error "Unclosed section while removing: %s" name
+
+let remove_named_sections (section_names : string list) (doc : Rocq_document.t)
+    : (transformation_step list, Error.t) result =
+  let* ids = collect_named_section_ids section_names doc in
+  Ok (List.map (fun id -> Remove id) ids)
+
 let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
@@ -1068,6 +1113,40 @@ let constructivize_doc (doc : Rocq_document.t) :
   in
   (***** end of stage 1 **************)
 
+  let stage_beeson_ch03 : stage =
+    make_stage "stage_beeson_ch03" (fun doc ->
+        if String.ends_with ~suffix:"/Ch03_bet.v" doc.filename then
+          remove_named_sections [ "Beeson_1"; "Beeson_2" ] doc
+        else Ok [])
+  in
+
+  let stage_ch03_append_solve_nnexists : stage =
+    make_stage "stage_ch03_append_solve_nnexists" (fun doc ->
+        if String.ends_with ~suffix:"/Ch03_bet.v" doc.filename then
+          match List_utils.find_last_opt (fun _ -> true) doc.elements with
+          | None -> Ok []
+          | Some last_node ->
+              let* solve_nnexists_node =
+                Syntax_node.syntax_node_of_string
+                  {|
+Ltac solve_nnexists_by_inner_pasch A B C P Q :=
+  intro;
+  let HB1 := fresh "HB1" in
+  let HB2 := fresh "HB2" in
+  assert (HB1 : BetC A P C) by Between;
+  assert (HB2 : BetC B Q C) by Between;
+  apply (by_inner_pasch A B C P Q False);
+  [ solve_stable
+  | exact HB1; clear HB1
+  | exact HB2; clear HB2
+  | assumption ].
+|}
+                  dummy_start
+              in
+              Ok [ Attach (solve_nnexists_node, LineAfter, last_node.id) ]
+        else Ok [])
+  in
+
   let stage_1 : stage =
     make_stage "stage1" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in
@@ -1223,6 +1302,8 @@ let constructivize_doc (doc : Rocq_document.t) :
     run_pipeline doc
       [
         stage_0;
+        stage_beeson_ch03;
+        stage_ch03_append_solve_nnexists;
         stage_1;
         stage_2;
         stage_3;
