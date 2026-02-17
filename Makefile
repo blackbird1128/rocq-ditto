@@ -23,11 +23,8 @@ lens:
 	dune exec fcc -- --plugin=lens-query-plugin ./test/fixtures/ex_this_or_that.v
 
 constructivization-uniformize: build
-	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch02_cong.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch02_cong.v -t replace_induction_with_destruct -v --save-vo
-	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch03_bet.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch03_bet.v -t replace_induction_with_destruct -v --save-vo
-	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch04_cong_bet.v -t replace_induction_with_destruct -v --save-vo
-	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch04_col.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch04_col.v -t replace_induction_with_destruct -v --save-vo
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -o ../geocoq_bis/theories/Main/Tarski_dev/Ch05_bet_le.v -t replace_induction_with_destruct -v --save-vo
+	cd ../geocoq_bis && make -j 4 -f CoqMakefile
 
 constructivization-build: build
 	dune exec --profile=release rocq-ditto -- -i ../geocoq_bis/theories/Main/Tarski_dev/Ch02_cong.v -o ../geocoq_bis/theories/Constructive/Ch02_cong.v -t constructivize_geocoq -v
