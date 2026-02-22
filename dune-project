@@ -75,22 +75,10 @@
   re
   coq-ditto))
 
-
 (package
  (name shelley-plugin)
  (synopsis "Plugin to test proof-repair methods")
  (description "Plugin experimenting with several proof-repair approaches.")
- (allow_empty)
- (depends
-  ocaml
-  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
-  base-unix
-  re
-  coq-ditto))
-
-(package
- (name lens-query-plugin)
- (synopsis "Plugin using a lens datastructure for theorem queries")
  (allow_empty)
  (depends
   ocaml

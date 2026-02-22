@@ -5,7 +5,7 @@
     (run %{bin:print-rocq-version}))))
 
 (rule
- (targets rocq_version_optcomp.mlh)
+ (targets rocq_version_optcomp.mlh)  
  (action
   (with-stdout-to %{targets}
     (run %{bin:print-rocq-version} --optcomp)))
