@@ -133,14 +133,20 @@ let attach_prelude_to_chapter_two (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
   if Filename.basename doc.filename = "Ch02_cong.v" then
-    let last_require =
-      List.find Syntax_node.is_syntax_node_require (List.rev doc.elements)
+    let last_require_opt =
+      List_utils.find_last_opt Syntax_node.is_syntax_node_require doc.elements
     in
-    let* prelude_node =
-      Syntax_node.syntax_node_of_string
-        "Require Export GeoCoq.Constructive.Prelude." dummy_start
-    in
-    Ok [ Attach (prelude_node, LineAfter, last_require.id) ]
+    match last_require_opt with
+    | Some last_require ->
+        let* prelude_node =
+          Syntax_node.syntax_node_of_string
+            "Require Export GeoCoq.Constructive.Prelude." dummy_start
+        in
+        Ok [ Attach (prelude_node, LineAfter, last_require.id) ]
+    | None ->
+        Error.string_to_or_error
+          "Attach prelude: No Require node was found in chapter 2, check \
+           assumptions !"
   else Ok []
 
 let replace_notation_in_constrexpr (old_notation : string)
@@ -169,6 +175,19 @@ let get_fun_names_in_constrexpr (term : Constrexpr.constr_expr) :
       | Some qualid -> qualid :: acc
       | None -> acc)
     [] term
+
+let count_lemma_args (qid : Libnames.qualid) : int =
+  let env = Global.env () in
+  let cst = Nametab.locate_constant qid in
+  let cb = Environ.lookup_constant cst env in
+  let ty = cb.Declarations.const_type in
+  let rec count n t =
+    match Constr.kind t with
+    | Constr.Prod (_, _, body) -> count (n + 1) body
+    | Constr.LetIn (_, _, _, body) -> count (n + 1) body
+    | _ -> n
+  in
+  count 0 ty
 
 let replace_fun_name_in_constrexpr (old_fun_name : string)
     (new_fun_name : string) (term : Constrexpr.constr_expr) :
@@ -321,10 +340,6 @@ let map_tacdef_bodies_in_node
 
     Some (Replace (node.id, new_node))
   else None
-
-let map_assert_in_node (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (node : Syntax_node.t) : transformation_step option =
-  map_raw_tactic_expr_in_node (map_assert_constr_expr f) node
 
 let replace_taccall_tacarg_in_node (old_tac_call_name : string)
     (new_tac_call_name : string) (node : Syntax_node.t) :
@@ -653,12 +668,6 @@ let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
       | _ -> None)
   | None -> None
 
-let replace_notation_in_definition (old_notation : string)
-    (new_notation : string) (x : Syntax_node.t) : transformation_step option =
-  map_definition_body
-    (replace_notation_in_constrexpr old_notation new_notation)
-    x
-
 let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
   Constrexpr_fold.exists
     (fun expr ->
@@ -950,7 +959,6 @@ let constructivize_doc (doc : Rocq_document.t) :
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
-  (* stage 0 *)
   let stage_0 : stage =
     make_stage "stage0" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in
@@ -993,7 +1001,16 @@ let constructivize_doc (doc : Rocq_document.t) :
 
         let replace_or_by_constructive_or_in_definitions_steps =
           List.filter_map
-            (replace_notation_in_definition "_ \\/ _" "_ \\_/ _")
+            ((fun (old_notation : string)
+               (new_notation : string)
+               (x : Syntax_node.t)
+               :
+               transformation_step option
+             ->
+               map_definition_body
+                 (replace_notation_in_constrexpr old_notation new_notation)
+                 x)
+               "_ \\/ _" "_ \\_/ _")
             definitions
         in
 
@@ -1008,7 +1025,6 @@ let constructivize_doc (doc : Rocq_document.t) :
                replace_or_by_constructive_or_in_definitions_steps;
              ]))
   in
-  (***** end of stage 1 **************)
 
   let stage_beeson_ch03 : stage =
     make_stage "stage_beeson_ch03" (fun doc ->
@@ -1100,12 +1116,14 @@ Ltac solve_nnexists_by_inner_pasch A B C P Q :=
     make_stage "stage3" (fun doc ->
         let f_assert =
           Fun.compose
-            (fun x -> replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _" x)
+            (replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _")
             replace_bet_and_cong_in_constrexpr
         in
 
         let replace_bet_by_betc_and_or_by_cons_or_in_assert_steps =
-          List.filter_map (map_assert_in_node f_assert) doc.elements
+          List.filter_map
+            (map_raw_tactic_expr_in_node (map_assert_constr_expr f_assert))
+            doc.elements
         in
 
         Ok replace_bet_by_betc_and_or_by_cons_or_in_assert_steps)
