@@ -1,5 +1,3 @@
-open Nary_tree
-
 type proof_status = Admitted | Proved | Aborted
 [@@deriving show { with_path = false }]
 
@@ -63,17 +61,14 @@ val get_proof_status : t -> proof_status option
     function. returns [Aborted] for both [Abort] and [Abort All]. Returns [None]
     if there isn't a last node or it doesn't match a type in [proof_status]. *)
 
+val get_proof_conclusion : t -> Constrexpr.constr_expr option
+
 val proof_status_from_last_node :
   Syntax_node.t -> (proof_status, Error.t) result
 (** Get the proof status of the last node of a proof or an error if the node
     isn't a closing node. If the proof was proved, return [Proved], if the proof
     is admitted, return [Admitted], and if the proof was aborted with Abort or
     Abort All, return [Aborted] otherwise, return an error. *)
-
-val print_tree : Syntax_node.t nary_tree -> string -> unit
-(** Print a tree structure with indentation. [print_tree tree indent] prints a
-    tree, where [tree] is an [Syntax_node.t nary_tree] and [indent] is a string
-    used for indentation to represent the tree structure visually. *)
 
 val proof_nodes : t -> Syntax_node.t list
 (** Extracts the nodes from a proof. [proof_nodes p] returns a list containing

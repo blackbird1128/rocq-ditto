@@ -11,19 +11,7 @@ module Syntax_nodeSet = Set.Make (struct
   let compare = Syntax_node.compare
 end)
 
-let kername_modules : Names.Id.t list =
-  [
-    Names.Id.of_string "Prelude";
-    Names.Id.of_string "Constructive";
-    Names.Id.of_string "GeoCoq";
-  ]
-
-let ker_name_dir_path : Names.DirPath.t = Names.DirPath.make kername_modules
-let ker_name_modpath : Names.ModPath.t = MPfile ker_name_dir_path
-let show_list xs = "[" ^ String.concat "; " xs ^ "]"
-
-(* this is N^2 but we don't really care as the lists are quite small *)
-let intersect l1 l2 = List.exists (fun x -> List.mem x l1) l2
+module StringSet = Set.Make (String)
 
 let get_new_vars ?(keep : string list = [])
     (old_goals_vars : string list list option)
@@ -203,10 +191,6 @@ let replace_bet_and_cong_in_constrexpr (term : Constrexpr.constr_expr) :
   |> replace_fun_name_in_constrexpr "Bet" "BetC"
   |> replace_fun_name_in_constrexpr "Cong" "CongC"
 
-let replace_classical_or_in_constrexpr (term : Constrexpr.constr_expr) :
-    Constrexpr.constr_expr =
-  replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _" term
-
 let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (x : Proof.t) : transformation_step option =
   let x_start = x.proposition.range.start in
@@ -228,19 +212,6 @@ let replace_notation_in_proof_proposition (old_notation : string)
   map_proof_proposition
     (replace_notation_in_constrexpr old_notation new_notation)
     x
-
-let is_syntax_node_prolong (x : Syntax_node.t) : bool =
-  let ( let@ ) opt f = match opt with Some x -> f x | None -> false in
-
-  let open Ltac_plugin.Tacexpr in
-  let@ raw_tactic_expr = Syntax_node.get_node_raw_tactic_expr x in
-
-  match raw_tactic_expr.v with
-  | TacArg (TacCall call_arg) ->
-      let call_qualid, _ = call_arg.v in
-      let call_qualid_str = Libnames.string_of_qualid call_qualid in
-      call_qualid_str = "prolong"
-  | _ -> false
 
 let prolong_arg_to_string
     (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
@@ -395,11 +366,10 @@ let replace_decompose_or_with_decompose_stab_or
       let args_str =
         Raw_gen_args_converter.constr_expr_list_of_raw_generic_argument
           decomposed_args_genarg
-        |> Option.get
-        |> List.map constrexpr_to_string
+        |> Option.map (List.map constrexpr_to_string)
       in
       match args_str with
-      | [ "or" ] ->
+      | Some [ "or" ] ->
           let hypothesis_genarg =
             get_tac_generic_genarg hypothesis |> Option.get
           in
@@ -416,7 +386,7 @@ let replace_decompose_or_with_decompose_stab_or
           in
 
           decompose_stab_or_raw_tac_expr
-      | [ "or"; "and" ] | [ "and"; "or" ] ->
+      | Some [ "or"; "and" ] | Some [ "and"; "or" ] ->
           let hypothesis_genarg =
             get_tac_generic_genarg hypothesis |> Option.get
           in
@@ -689,14 +659,6 @@ let replace_notation_in_definition (old_notation : string)
     (replace_notation_in_constrexpr old_notation new_notation)
     x
 
-let add_node_after_require (doc : Rocq_document.t) (node : Syntax_node.t) :
-    transformation_step option =
-  match
-    List_utils.find_last_opt Syntax_node.is_syntax_node_require doc.elements
-  with
-  | Some last_require -> Some (Attach (node, LineAfter, last_require.id))
-  | None -> None
-
 let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
   Constrexpr_fold.exists
     (fun expr ->
@@ -705,8 +667,6 @@ let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
           notation_key = "exists _ .. _ , _"
       | _ -> false)
     x
-
-module StringSet = Set.Make (String)
 
 let collect_definitions_containing_exists (nodes : Syntax_node.t list) :
     string list =
@@ -732,26 +692,6 @@ let collect_definitions_containing_exists (nodes : Syntax_node.t list) :
   in
   aux nodes [] StringSet.empty
 
-let get_proof_conclusion (p : Proof.t) : Constrexpr.constr_expr option =
-  let ( let+ ) = Option.bind in
-  let+ components = Proof.get_theorem_components p in
-  let expr = components.expr in
-  let rec get_conclusion (expr : Constrexpr.constr_expr) =
-    match expr.v with
-    | Constrexpr.CProdN (_, body) -> get_conclusion body
-    | Constrexpr.CLetIn (_, _, _, body) -> get_conclusion body
-    | Constrexpr.CNotation (_, (_, notation_key), (args, _, _, _)) ->
-        if notation_key = "_ -> _" then (
-          match args with
-          | [ _; right ] -> get_conclusion right
-          | _ ->
-              Logs.debug (fun m -> m "this is NOT supposed to happens");
-              None)
-        else Some expr
-    | _ -> Some expr
-  in
-  get_conclusion expr
-
 let get_syntax_node_assert_expr (x : Syntax_node.t) :
     Constrexpr.constr_expr option =
   match Syntax_node.get_node_raw_atomic_tactic_expr x with
@@ -759,7 +699,7 @@ let get_syntax_node_assert_expr (x : Syntax_node.t) :
   | _ -> None
 
 let is_proof_about_exists (p : Proof.t) : bool =
-  match get_proof_conclusion p with
+  match Proof.get_proof_conclusion p with
   | None -> false
   | Some conclusion ->
       if constrexpr_contains_exists conclusion then true
@@ -862,25 +802,6 @@ let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
             ])
   | _ -> Ok []
 
-let remove_decidability_proofs (doc : Rocq_document.t) :
-    (transformation_step list, Error.t) result =
-  let* proofs = Rocq_document.get_proofs doc in
-  let decidability_proofs =
-    List.filter
-      (fun p ->
-        let name = Proof.get_proof_name p in
-        List.exists
-          (fun x -> Option.equal String.equal name (Some x))
-          decidability_lemmas)
-      proofs
-  in
-  Ok
-    (List.concat_map
-       (fun p ->
-         let nodes = Proof.proof_nodes p in
-         List.map (fun (node : Syntax_node.t) -> Remove node.id) nodes)
-       decidability_proofs)
-
 let collect_named_section_ids (section_names : string list)
     (doc : Rocq_document.t) : (Uuidm.t list, Error.t) result =
   let section_marker (node : Syntax_node.t) :
@@ -938,19 +859,6 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
       proof.proof_steps
   in
 
-  let* comment_content =
-    match proof.proof_steps with
-    | first_step :: tail ->
-        let first_step_start_line = first_step.range.start.line in
-        let normalized_range_steps =
-          List.map
-            (fun x -> Syntax_node.shift_node (-first_step_start_line) 0 x)
-            (first_step :: tail)
-        in
-        Rocq_document.dump_elements_to_string normalized_range_steps
-    | _ -> Ok ""
-  in
-
   let* solve_dec_node =
     Syntax_node.syntax_node_of_string "solve_dec." dummy_start
   in
@@ -997,12 +905,6 @@ let map_raw_tactic_expr_steps
     (doc : Rocq_document.t) : transformation_step list =
   List.filter_map (map_raw_tactic_expr_in_node f) doc.elements
 
-let replace_taccall_steps (old_name : string) (new_name : string)
-    (doc : Rocq_document.t) : transformation_step list =
-  List.filter_map
-    (replace_taccall_tacarg_in_node old_name new_name)
-    doc.elements
-
 let replace_taccalls_in_tacexpr (renames : (string * string) list)
     (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -1030,11 +932,6 @@ let run_pipeline doc stages :
       Result.product doc' (Ok (steps_acc @ steps)))
     (Ok (doc, []))
     stages
-
-let string_of_raw_tactic tac =
-  let env = Global.env () in
-  let sigma = Evd.from_env env in
-  tac |> Ltac_plugin.Pptactic.pr_raw_tactic env sigma |> Pp.string_of_ppcmds
 
 let constructivize_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
@@ -1202,7 +1099,8 @@ Ltac solve_nnexists_by_inner_pasch A B C P Q :=
   let stage_3 =
     make_stage "stage3" (fun doc ->
         let f_assert =
-          Fun.compose replace_classical_or_in_constrexpr
+          Fun.compose
+            (fun x -> replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _" x)
             replace_bet_and_cong_in_constrexpr
         in
 

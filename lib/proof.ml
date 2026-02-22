@@ -1,7 +1,6 @@
 open Fleche
 open Syntax_node
 open Vernacexpr
-open Nary_tree
 
 type proof_status = Admitted | Proved | Aborted
 [@@deriving show { with_path = false }]
@@ -161,11 +160,29 @@ let get_proof_status (p : t) : proof_status option =
       in
       proof_status_from_last_node (last steps) |> Result.to_option
 
-let rec print_tree (tree : Syntax_node.t nary_tree) (indent : string) : unit =
-  match tree with
-  | Node (value, children) ->
-      Printf.printf "%sNode(%s)\n" indent (repr value);
-      List.iter (fun child -> print_tree child (indent ^ "  ")) children
+let get_proof_conclusion (p : t) : Constrexpr.constr_expr option =
+  let rec get_conclusion (expr : Constrexpr.constr_expr) =
+    match expr.v with
+    | Constrexpr.CProdN (_, body) -> get_conclusion body
+    | Constrexpr.CLetIn (_, _, _, body) -> get_conclusion body
+    | Constrexpr.CNotation (_, (_, notation_key), (args, _, _, _)) ->
+        if notation_key = "_ -> _" then (
+          match args with
+          | [ _; right ] -> get_conclusion right
+          | _ ->
+              Logs.debug (fun m ->
+                  m
+                    "fun: get_proof_conclusion\n\
+                     You should never see this message\n\
+                     Please fill an issue");
+              None)
+        else Some expr
+    | _ -> Some expr
+  in
+
+  match get_theorem_components p with
+  | Some components -> get_conclusion components.expr
+  | None -> None
 
 let proof_nodes (p : t) : Syntax_node.t list = p.proposition :: p.proof_steps
 

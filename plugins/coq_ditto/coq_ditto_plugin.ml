@@ -32,8 +32,6 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   | ConstructivizeGeocoq -> DocScope Constructivisation.constructivize_doc
   | ConstructivisationGetPercentageAdmitted ->
       DocScope Constructivisation.get_percentage_admitted
-  | ConstructivisationRemoveDecidabilityProofs ->
-      DocScope Constructivisation.remove_decidability_proofs
   | RocqToLean -> DocScope Rocq_to_lean.rocq_to_lean
   | IdProofTransformation -> ProofScope Transformations.id_transform
   | IdDocTransformation -> DocScope (fun _ -> Ok [])
