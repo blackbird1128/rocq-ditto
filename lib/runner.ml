@@ -140,6 +140,18 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
       let err, messages = err in
       Error (err, List.map (message_to_diagnostic node.range) messages)
 
+let run_raw_tactic_expr (token : Coq.Limits.Token.t)
+    ?(selector : Goal_select.t option) (state : Coq.State.t)
+    (expr : Ltac_plugin.Tacexpr.raw_tactic_expr) =
+  let dummy_start : Code_point.t = { line = 0; character = 0 } in
+  match
+    Syntax_node.raw_tactic_expr_to_syntax_node ?selector expr dummy_start
+  with
+  | Error _ ->
+      Error.format_to_or_error
+        "run_raw_tactic_expr: failed to build tactic node from expr"
+  | Ok node -> run_node token state node
+
 let get_state_after (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
     (nodes : Syntax_node.t list) : (Coq.State.t, Error.t) result =
   let open Sexplib.Std in
@@ -248,7 +260,7 @@ let can_reduce_to_zero_goals (init_state : Coq.State.t)
         let state_node_res = run_node token state x in
         match state_node_res with
         | Ok state_node -> aux state_node state_node tail
-        | Error _ -> Error "")
+        | Error _ -> Error ())
   in
   match aux init_state init_state nodes with
   | Ok state -> count_goals token state = 0
@@ -358,7 +370,7 @@ let tree_to_proof (tree : Syntax_node.t nary_tree) : (Proof.t, Error.t) result =
   let ( let* ) = Result.bind in
   let nodes = proof_tree_to_node_list tree in
   let* nodes_head =
-    List.nth_opt (List.rev nodes) 0
+    List_utils.last nodes
     |> Option.cata Result.ok
          (Error.format_to_or_error
             "proof_tree_to_node_list returned an empty list")

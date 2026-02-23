@@ -1353,26 +1353,6 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
         |> CAst.make
   | _ -> tacexpr
 
-let run_raw_tactic_expr ?(selector : Goal_select.t option) ~(context : string)
-    (token : Coq.Limits.Token.t) (state : Coq.State.t)
-    (expr : Ltac_plugin.Tacexpr.raw_tactic_expr) (start : Code_point.t) =
-  match Syntax_node.raw_tactic_expr_to_syntax_node ?selector expr start with
-  | Error _ ->
-      Error.format_to_or_error
-        "replace_induction_by_destruct_in_node: failed to build tactic node \
-         (%s) at %d:%d"
-        context start.line start.character
-  | Ok node ->
-      Runner.run_node token state node
-      |> Result.map (fun st -> st)
-      |> Result.map_error (fun err ->
-          Error.tag err
-            ~tag:
-              (Printf.sprintf
-                 "replace_induction_by_destruct_in_node: failed to run tactic \
-                  node (%s) at %d:%d"
-                 context start.line start.character))
-
 let replace_induction_by_destruct_in_node token (node : Syntax_node.t)
     (state_before : Coq.State.t) (_state_after : Coq.State.t) :
     (Syntax_node.t, Error.t) result =
@@ -1394,36 +1374,18 @@ let replace_induction_by_destruct_in_node token (node : Syntax_node.t)
                 | None -> Ok subexpr
                 | Some prefix_including ->
                     let* subexpr_state_before =
-                      run_raw_tactic_expr ?selector ~context:"prefix_before"
-                        token state_before prefix_before node.range.start
+                      Runner.run_raw_tactic_expr token ?selector state_before
+                        prefix_before
                     in
+
                     let* subexpr_state_after =
-                      run_raw_tactic_expr ?selector ~context:"prefix_including"
-                        token state_before prefix_including node.range.start
+                      Runner.run_raw_tactic_expr token ?selector state_before
+                        prefix_including
                     in
                     Ok
                       (map_induction_to_destruct_in_tacexpr subexpr_state_before
                          subexpr_state_after subexpr)))
           tacexpr
-      in
-      let* new_tacexpr =
-        if new_tacexpr <> tacexpr then Ok new_tacexpr
-        else
-          match tacexpr.v with
-          | Ltac_plugin.Tacexpr.TacThens (t, branches) ->
-              let* t_state =
-                run_raw_tactic_expr ?selector ~context:"tac_thens_t" token
-                  state_before t node.range.start
-              in
-              let new_t =
-                map_induction_to_destruct_in_tacexpr state_before t_state t
-              in
-              if new_t <> t then
-                Ok
-                  (CAst.make ?loc:tacexpr.loc
-                     (Ltac_plugin.Tacexpr.TacThens (new_t, branches)))
-              else Ok tacexpr
-          | _ -> Ok tacexpr
       in
 
       if new_tacexpr <> tacexpr then
