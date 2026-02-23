@@ -62,23 +62,7 @@ let pp fmt t =
   aux 0 fmt t
 
 let to_string_hum t = Format.asprintf "%a" pp t
-
-(* let to_string_hum (t : t) : string = *)
-(*   let rec render = function *)
-(*     | String s -> s *)
-(*     | Tag_sexp (tag, sexp, t) -> *)
-(*         tag ^ ": " ^ Sexp.to_string_hum sexp ^ "\n" ^ render t *)
-(*     | Tag_t (tag, t) -> tag ^ "\n" ^ render t *)
-(*     | Of_sexp sexp -> Sexp.to_string_hum ~indent:2 sexp *)
-(*     | Of_exn exn -> Printexc.to_string exn *)
-(*     | Of_list l -> String.concat "\n---\n" (List.map render l) *)
-(*   in *)
-(*   render t *)
-
 let to_string_mach (t : t) : string = Sexp.to_string (sexp_of_t t)
-
-let pp (fmt : Format.formatter) (t : t) =
-  Format.fprintf fmt "%s" (to_string_hum t)
 
 type 'a or_error = ('a, t) result
 
@@ -88,5 +72,5 @@ let to_string_result (t : t) = Error (to_string_hum t)
 let or_error_to_string_result (x : 'a or_error) =
   match x with Ok a -> Ok a | Error t -> to_string_result t
 
-let string_to_or_error (x : string) : ('a, 't) result = Error (of_string x)
+let string_to_or_error (x : string) : ('a, t) result = Error (of_string x)
 let format_to_or_error fmt = Printf.ksprintf (fun s -> Error (of_string s)) fmt

@@ -127,12 +127,12 @@ let syntax_node_of_theorem_components (c : theorem_components)
   Syntax_node.syntax_node_of_coq_ast coq_ast start_point
 
 let proof_status_of_vernacexpr (expr : Vernacexpr.synpure_vernac_expr) :
-    proof_status option =
+    (proof_status, Error.t) result =
   match expr with
-  | Vernacexpr.VernacEndProof Admitted -> Some Admitted
-  | Vernacexpr.VernacEndProof (Proved _) -> Some Proved
-  | Vernacexpr.VernacAbort | Vernacexpr.VernacAbortAll -> Some Aborted
-  | _ -> None
+  | Vernacexpr.VernacEndProof Admitted -> Ok Admitted
+  | Vernacexpr.VernacEndProof (Proved _) -> Ok Proved
+  | Vernacexpr.VernacAbort | Vernacexpr.VernacAbortAll -> Ok Aborted
+  | _ -> Error.string_to_or_error "not a valid closing node"
 
 let proof_status_from_last_node (node : Syntax_node.t) :
     (proof_status, Error.t) result =
@@ -140,10 +140,7 @@ let proof_status_from_last_node (node : Syntax_node.t) :
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp _ -> Error.string_to_or_error "not a valid closing node"
-      | VernacSynPure expr ->
-          proof_status_of_vernacexpr expr
-          |> Option_utils.to_result
-               ~none:(Error.string_to_or_error "not a valid closing node"))
+      | VernacSynPure expr -> proof_status_of_vernacexpr expr)
   | None -> Error.string_to_or_error "not a valid closing node (no ast)"
 
 let get_proof_name (p : t) : string option =
@@ -175,7 +172,7 @@ let get_proof_conclusion (p : t) : Constrexpr.constr_expr option =
                     "fun: get_proof_conclusion\n\
                      You should never see this message\n\
                      Please fill an issue");
-              None)
+              assert false)
         else Some expr
     | _ -> Some expr
   in

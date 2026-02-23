@@ -42,8 +42,7 @@ let mk_vernac_control ?(loc : Loc.t option)
     (ve : synterp_vernac_expr vernac_expr_gen) : vernac_control =
   let control = [] in
   let attrs = [] in
-  let expr = ve in
-  let payload = { control; attrs; expr } in
+  let payload = { control; attrs; expr = ve } in
   CAst.make ?loc payload
 
 let are_colliding (a : t) (b : t) : bool =
