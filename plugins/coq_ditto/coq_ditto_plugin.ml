@@ -29,7 +29,7 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   | FlattenGoalSelectors -> ProofScope Transformations.flatten_goal_selectors
   | ReplaceInductionWithDestruct ->
       ProofScope Transformations.replace_induction_by_destruct_when_possible
-  | ConstructivizeGeocoq -> DocScope Constructivisation.constructivize_doc
+  | ConstructiviseGeocoq -> DocScope Constructivisation.constructivise_doc
   | ConstructivisationGetPercentageAdmitted ->
       DocScope Constructivisation.get_percentage_admitted
   | RocqToLean -> DocScope Rocq_to_lean.rocq_to_lean

@@ -942,7 +942,7 @@ let run_pipeline doc stages :
     (Ok (doc, []))
     stages
 
-let constructivize_doc (doc : Rocq_document.t) :
+let constructivise_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
 

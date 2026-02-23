@@ -50,7 +50,7 @@ constructivisation-uniformise: build
 
 constructivisation-build: build
 	$(foreach chapter,$(CONSTRUCTIVISATION_CHAPTERS),\
-		$(DITTO) -i $(GEOCQ_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCQ_DIR)/theories/Constructive/$(chapter) -t constructivize_geocoq -v;)
+		$(DITTO) -i $(GEOCQ_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCQ_DIR)/theories/Constructive/$(chapter) -t constructivise_geocoq -v;)
 
 constructivisation-compile:
 	$(DITTO) -i $(GEOCQ_DIR)/theories/Constructive/Definitions.v -o $(GEOCQ_DIR)/theories/Constructive/Definitions.v -t id_doc_transformation -v --save-vo
