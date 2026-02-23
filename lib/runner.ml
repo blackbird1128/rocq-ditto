@@ -277,6 +277,22 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
   | Ok None -> Error.string_to_or_error "zero goal at this state"
   | Error err -> Error err
 
+(* TODO: relocate somewhere better ? *)
+let get_new_vars ?(keep : string list = [])
+    (old_goals_vars : string list list option)
+    (new_goals_vars : string list list option) : string list list option =
+  match (old_goals_vars, new_goals_vars) with
+  | Some old_goals_vars, Some new_goals_vars ->
+      Some
+        (List_utils.map2_pad
+           ~pad1:(List.nth_opt old_goals_vars 0)
+           (fun old_vars new_vars ->
+             List.filter
+               (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
+               new_vars)
+           old_goals_vars new_goals_vars)
+  | _ -> None
+
 type parent_category = Fork | Linear
 
 let rec pop_until_free_fork

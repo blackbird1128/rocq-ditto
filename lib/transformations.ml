@@ -1039,21 +1039,6 @@ let string_to_intro_pattern_expr (x : string) :
     (fun a -> Tactypes.IntroNaming a)
     (string_to_intro_pattern_naming_expr x)
 
-let get_new_vars ?(keep : string list = [])
-    (old_goals_vars : string list list option)
-    (new_goals_vars : string list list option) : string list list option =
-  match (old_goals_vars, new_goals_vars) with
-  | Some old_goals_vars, Some new_goals_vars ->
-      Some
-        (List_utils.map2_pad
-           ~pad1:(List.nth_opt old_goals_vars 0)
-           (fun old_vars new_vars ->
-             List.filter
-               (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
-               new_vars)
-           old_goals_vars new_goals_vars)
-  | _ -> None
-
 let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
@@ -1097,7 +1082,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
                       new_goals_vars
                   in
                   let new_vars =
-                    get_new_vars ~keep:[ destruct_arg_str ]
+                    Runner.get_new_vars ~keep:[ destruct_arg_str ]
                       (Some old_goals_vars) (Some new_goals_vars)
                     |> Option.get
                   in
@@ -1177,7 +1162,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
       (old_goals_vars : string list list option)
       (new_goals_vars : string list list option) : Syntax_node.t option =
     let open Ltac_plugin.Tacexpr in
-    let new_vars = get_new_vars old_goals_vars new_goals_vars in
+    let new_vars = Runner.get_new_vars old_goals_vars new_goals_vars in
     match new_vars with
     | Some new_vars ->
         let raw_atomic_expr =
@@ -1215,7 +1200,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
       (old_goals_vars : string list list option)
       (new_goals_vars : string list list option) : Syntax_node.t option =
     let open Ltac_plugin.Tacexpr in
-    let new_vars = get_new_vars old_goals_vars new_goals_vars in
+    let new_vars = Runner.get_new_vars old_goals_vars new_goals_vars in
     match new_vars with
     | Some new_vars ->
         let raw_atomic_expr =
@@ -1301,7 +1286,7 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
   let old_goals_vars = goal_hyps_at_state state_before in
   let new_goals_vars = goal_hyps_at_state state_after in
   let has_any_new_ih =
-    match get_new_vars (Some old_goals_vars) (Some new_goals_vars) with
+    match Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars) with
     | None -> false
     | Some new_vars_per_goal ->
         List.exists
@@ -1328,7 +1313,7 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
   let clause_introduces_induction_hyps (destruction_arg, (_, _), _) =
     let destruct_arg_str = destruction_arg_to_string destruction_arg in
     match
-      get_new_vars ~keep:[ destruct_arg_str ] (Some old_goals_vars)
+      Runner.get_new_vars ~keep:[ destruct_arg_str ] (Some old_goals_vars)
         (Some relevant_new_goals_vars)
     with
     | None -> false

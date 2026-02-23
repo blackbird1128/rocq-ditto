@@ -13,21 +13,6 @@ end)
 
 module StringSet = Set.Make (String)
 
-let get_new_vars ?(keep : string list = [])
-    (old_goals_vars : string list list option)
-    (new_goals_vars : string list list option) : string list list option =
-  match (old_goals_vars, new_goals_vars) with
-  | Some old_goals_vars, Some new_goals_vars ->
-      Some
-        (List_utils.map2_pad
-           ~pad1:(List.nth_opt old_goals_vars 0)
-           (fun old_vars new_vars ->
-             List.filter
-               (fun x -> (not (List.mem x old_vars)) || List.mem x keep)
-               new_vars)
-           old_goals_vars new_goals_vars)
-  | _ -> None
-
 let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
   let env = Global.env () in
   let sigma = Evd.from_env env in
@@ -780,7 +765,7 @@ let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
         |> Option.make
       in
       let* new_vars =
-        get_new_vars old_goals_vars new_goals_vars
+        Runner.get_new_vars old_goals_vars new_goals_vars
         |> Option_utils.to_result
              ~none:
                (Error.format_to_or_error "Error getting new vars for node %s"
