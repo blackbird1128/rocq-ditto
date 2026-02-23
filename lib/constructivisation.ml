@@ -189,6 +189,18 @@ let count_lemma_args (qid : Libnames.qualid) : int =
   in
   count 0 ty
 
+let count_explicit_lemma_args (qid : Libnames.qualid) : int =
+  let cst = Nametab.locate_constant qid in
+  let implicit_args =
+    Impargs.implicits_of_global (Names.GlobRef.ConstRef cst)
+  in
+  let implicit_args_count =
+    List.fold_left
+      (fun acc (_, status) -> acc + List.length status)
+      0 implicit_args
+  in
+  count_lemma_args qid - implicit_args_count
+
 let replace_fun_name_in_constrexpr (old_fun_name : string)
     (new_fun_name : string) (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
@@ -958,6 +970,10 @@ let constructivise_doc (doc : Rocq_document.t) :
       (Runner.get_state_after doc.initial_state token [ require_prelude_node ])
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
+
+  let qualid_to_count = Libnames.qualid_of_string "NNBet_AAA" in
+  let explicit_arg_count = count_explicit_lemma_args qualid_to_count in
+  Logs.debug (fun m -> m "Explicit arg count : %d" explicit_arg_count);
 
   let stage_0 : stage =
     make_stage "stage0" (fun doc ->
