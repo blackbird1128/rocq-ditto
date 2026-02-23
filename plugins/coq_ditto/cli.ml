@@ -54,35 +54,42 @@ let transformations_list =
   all_transformation_kinds
   |> List.map (fun c -> show_transformation_kind c |> camel_to_snake)
 
-let transformations_help =
-  [
-    ( ExplicitFreshVariables,
-      "Replace calls to tactics creating fresh variables such as `intros` with \
-       explicit variable names (`intros V1 V2 ... Vn`)." );
-    ( TurnIntoOneliner,
-      "Turn all proof steps into a single tactic call using ';' and '[]' \
-       tacticals." );
-    ( ReplaceAutoWithSteps,
-      "Replace 'auto' with the expanded steps obtained from 'info_auo'." );
-    (CompressIntro, "Compress consecutive 'intro' calls into one 'intros'.");
-    ( FlattenGoalSelectors,
-      "Experimental: Remove goal selectors by moving and possibly duplicating \
-       tactics" );
-    ( ReplaceInductionWithDestruct,
-      "Experimental: Replace induction with destruct when no induction \
-       hypothesis is generated" );
-    ( ConstructiviseGeocoq,
-      "Experimental Constructivisation: Transformation to use to \
-       constructivise Geocoq" );
-    ( ConstructivisationGetPercentageAdmitted,
-      "Experimental Constructivisation: Get the percentage of admitted proofs \
-       containing exists in a file" );
-    (RocqToLean, "Experimental: Turn Rocq code to lean");
-    (IdProofTransformation, "Keep the file unchanged, run on each proof.");
-    ( IdDocTransformation,
-      "Keep the file unchanged, don't run any transformation except initial \
-       parsing" );
-  ]
+let transformation_help_fun (kind : transformation_kind) :
+    transformation_kind * string =
+  let help_text =
+    match kind with
+    | Help -> "Display what all the transformations do"
+    | ExplicitFreshVariables ->
+        "Replace calls to tactics creating fresh variables such as `intros` \
+         with explicit variable names (`intros V1 V2 ... Vn`)."
+    | TurnIntoOneliner ->
+        "Turn all proof steps into a single tactic call using ';' and '[]' \
+         tacticals."
+    | ReplaceAutoWithSteps ->
+        "Replace 'auto' with the expanded steps obtained from 'info_auto'."
+    | FlattenGoalSelectors ->
+        "Experimental: Remove goal selectors by moving and possibly \
+         duplicating tactics"
+    | CompressIntro -> "Compress consecutive 'intro' calls into one 'intros'."
+    | ReplaceInductionWithDestruct ->
+        "Experimental: Replace induction with destruct when no induction \
+         hypothesis is generated"
+    | IdProofTransformation -> "Keep the file unchanged, run on each proof."
+    | IdDocTransformation ->
+        "Keep the file unchanged, don't run any transformation except initial \
+         parsing"
+    | ConstructiviseGeocoq ->
+        "Experimental Constructivisation: Transformation to use to \
+         constructivise Geocoq"
+    | ConstructivisationGetPercentageAdmitted ->
+        "Experimental Constructivisation: Get the percentage of admitted \
+         proofs containing exists in a file"
+    | RocqToLean -> "Experimental: Turn Rocq code to lean"
+  in
+  (kind, help_text)
+
+let transformation_help =
+  List.map transformation_help_fun all_transformation_kinds
 
 let help_to_string (transformation_help : (transformation_kind * string) list) :
     string =
