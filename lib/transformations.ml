@@ -325,13 +325,17 @@ let id_transform (_ : Rocq_document.t) (_ : Proof.t) :
 let admit_proof (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
-  let proof_close_node =
-    List.find Syntax_node.is_syntax_node_proof_end proof.proof_steps
+  let proof_close_node_opt =
+    List.find_opt Syntax_node.is_syntax_node_proof_end proof.proof_steps
   in
-  let* admitted_node =
-    syntax_node_of_string "Admitted." proof_close_node.range.start
-  in
-  Ok [ Replace (proof_close_node.id, admitted_node) ]
+  match proof_close_node_opt with
+  | Some proof_close_node ->
+      let* admitted_node =
+        syntax_node_of_string "Admitted." proof_close_node.range.start
+      in
+      Ok [ Replace (proof_close_node.id, admitted_node) ]
+  | None ->
+      Error.string_to_or_error "Malformed proof: No closing node is present"
 
 let int_in_range ~min ~max =
   if min > max then invalid_arg "int_in_range";
@@ -1390,18 +1394,16 @@ let replace_induction_by_destruct_in_node token (node : Syntax_node.t)
                 | None -> Ok subexpr
                 | Some prefix_including ->
                     let* subexpr_state_before =
-                      run_raw_tactic_expr ?selector
-                        ~context:"prefix_before" token state_before
-                        prefix_before node.range.start
+                      run_raw_tactic_expr ?selector ~context:"prefix_before"
+                        token state_before prefix_before node.range.start
                     in
                     let* subexpr_state_after =
-                      run_raw_tactic_expr ?selector
-                        ~context:"prefix_including" token state_before
-                        prefix_including node.range.start
+                      run_raw_tactic_expr ?selector ~context:"prefix_including"
+                        token state_before prefix_including node.range.start
                     in
                     Ok
-                      (map_induction_to_destruct_in_tacexpr
-                         subexpr_state_before subexpr_state_after subexpr)))
+                      (map_induction_to_destruct_in_tacexpr subexpr_state_before
+                         subexpr_state_after subexpr)))
           tacexpr
       in
       let* new_tacexpr =
