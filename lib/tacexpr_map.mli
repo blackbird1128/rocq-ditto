@@ -43,3 +43,16 @@ val prefix_including :
   target:Tacexpr.raw_tactic_expr ->
   Tacexpr.raw_tactic_expr ->
   Tacexpr.raw_tactic_expr option
+
+val tacexpr_map_with_states :
+  Coq.Limits.Token.t ->
+  ?selector:Goal_select.t ->
+  Coq.State.t ->
+  Tacexpr.raw_tactic_expr ->
+  (Coq.State.t ->
+  Coq.State.t ->
+  Tacexpr.raw_tactic_expr ->
+  Tacexpr.raw_tactic_expr) ->
+  (Tacexpr.raw_tactic_expr, Error.t) result
+(** Map a [raw_tactic_expr] while automatically computing the state before and
+    after the current subexpr when calling [f], *)

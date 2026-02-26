@@ -60,6 +60,12 @@ val turn_into_oneliner :
 val replace_induction_by_destruct_when_possible :
   Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
 
+val name_identifier_in_intro :
+  Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
+
+val explicit_apply :
+  Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
+
 val apply_proof_transformation :
   (Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result) ->
   Rocq_document.t ->

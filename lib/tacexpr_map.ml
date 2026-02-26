@@ -412,10 +412,10 @@ let tacexpr_map_with_constr_result
           Ok (mk (Tacexpr.TacTime (s, t')))
       | Tacexpr.TacRepeat t ->
           let* t' = map1 t in
-          Ok (mk (Tacexpr.TacRepeat (t')))
+          Ok (mk (Tacexpr.TacRepeat t'))
       | Tacexpr.TacProgress t ->
           let* t' = map1 t in
-          Ok (mk (Tacexpr.TacProgress (t')))
+          Ok (mk (Tacexpr.TacProgress t'))
       | Tacexpr.TacAbstract (t, nameopt) ->
           let* t' = map1 t in
           Ok (mk (Tacexpr.TacAbstract (t', nameopt)))
@@ -436,7 +436,7 @@ let tacexpr_map_with_constr_result
           let rec map_rules rs =
             match rs with
             | [] -> Ok []
-            | rule :: tl -> (
+            | rule :: tl ->
                 let* rule' =
                   match rule with
                   | Tacexpr.All t ->
@@ -449,7 +449,7 @@ let tacexpr_map_with_constr_result
                       Ok (Tacexpr.Pat (hyps', pat', t'))
                 in
                 let* tl' = map_rules tl in
-                Ok (rule' :: tl'))
+                Ok (rule' :: tl')
           in
           let* rules' = map_rules rules in
           Ok (mk (Tacexpr.TacMatch (lf, scrut', rules')))
@@ -457,7 +457,7 @@ let tacexpr_map_with_constr_result
           let rec map_rules rs =
             match rs with
             | [] -> Ok []
-            | rule :: tl -> (
+            | rule :: tl ->
                 let* rule' =
                   match rule with
                   | Tacexpr.All t ->
@@ -470,7 +470,7 @@ let tacexpr_map_with_constr_result
                       Ok (Tacexpr.Pat (hyps', pat', t'))
                 in
                 let* tl' = map_rules tl in
-                Ok (rule' :: tl'))
+                Ok (rule' :: tl')
           in
           let* rules' = map_rules rules in
           Ok (mk (Tacexpr.TacMatchGoal (lf, dir, rules')))
@@ -606,3 +606,31 @@ let rec prefix_until ~(hit : hit)
 
 let prefix_before ~eq ~target e = prefix_until ~hit:Before ~eq ~target e
 let prefix_including ~eq ~target e = prefix_until ~hit:Include ~eq ~target e
+
+let tacexpr_map_with_states (token : Coq.Limits.Token.t)
+    ?(selector : Goal_select.t option) (state_before : Coq.State.t)
+    (tacexpr : Tacexpr.raw_tactic_expr)
+    (f :
+      Coq.State.t ->
+      Coq.State.t ->
+      Tacexpr.raw_tactic_expr ->
+      Tacexpr.raw_tactic_expr) =
+  let ( let* ) = Result.bind in
+  tacexpr_map_result
+    (fun subexpr ->
+      match prefix_before ~eq:( = ) ~target:subexpr tacexpr with
+      | None -> Ok subexpr
+      | Some prefix_before -> (
+          match prefix_including ~eq:( = ) ~target:subexpr tacexpr with
+          | None -> Ok subexpr
+          | Some prefix_including ->
+              let* sub_before =
+                Runner.run_raw_tactic_expr token ?selector state_before
+                  prefix_before
+              in
+              let* sub_after =
+                Runner.run_raw_tactic_expr token ?selector state_before
+                  prefix_including
+              in
+              Ok (f sub_before sub_after subexpr)))
+    tacexpr

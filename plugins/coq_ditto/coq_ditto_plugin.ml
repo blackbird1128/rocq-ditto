@@ -27,6 +27,8 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   | ReplaceAutoWithSteps -> ProofScope Transformations.replace_auto_with_steps
   | CompressIntro -> ProofScope Transformations.compress_intro
   | FlattenGoalSelectors -> ProofScope Transformations.flatten_goal_selectors
+  | ExplicitIdentInIntro -> ProofScope Transformations.name_identifier_in_intro
+  | ExplicitApply -> ProofScope Transformations.explicit_apply
   | ReplaceInductionWithDestruct ->
       ProofScope Transformations.replace_induction_by_destruct_when_possible
   | ConstructiviseGeocoq -> DocScope Constructivisation.constructivise_doc

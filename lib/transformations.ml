@@ -4,6 +4,8 @@ open Syntax_node
 open Runner
 open Sexplib.Conv
 open Re
+open Constrexpr_utils
+module Tacexpr = Ltac_plugin.Tacexpr
 
 (* let add_bullets (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree) : *)
 (*     (transformation_step list, Error.t) result = *)
@@ -488,11 +490,6 @@ let flatten_goal_selectors (doc : Rocq_document.t) (proof : Proof.t) :
       [] proof
   in
 
-  List.iter
-    (fun step ->
-      pp_transformation_step Format.std_formatter step;
-      Format.pp_print_newline Format.std_formatter ())
-    steps;
   Ok (List.rev steps)
 
 let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
@@ -1276,57 +1273,59 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
 let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
     (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
-  let open Ltac_plugin in
   let token = Coq.Limits.Token.create () in
-
-  let goal_hyps_at_state st =
-    Runner.reified_goals_at_state token st
-    |> List.map Runner.get_hypothesis_names
-  in
-  let old_goals_vars = goal_hyps_at_state state_before in
-  let new_goals_vars = goal_hyps_at_state state_after in
-  let has_any_new_ih =
-    match Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars) with
-    | None -> false
-    | Some new_vars_per_goal ->
-        List.exists
-          (List.exists (fun vars -> String.starts_with ~prefix:"IH" vars))
-          new_vars_per_goal
-  in
-
-  let clamp_take n xs =
-    let n = max 0 (min n (List.length xs)) in
-    List_utils.take n xs
-  in
-
-  (* heuristic: focus on the "new" goals introduced by the tactic *)
-  let relevant_new_goals_vars =
-    let delta = List.length new_goals_vars - List.length old_goals_vars in
-    clamp_take (delta + 1) new_goals_vars
-  in
-
-  let has_ih_other_than ~destruct_arg_str vars =
-    String.starts_with ~prefix:"IH" vars
-    && not (String.equal vars destruct_arg_str)
-  in
-
-  let clause_introduces_induction_hyps (destruction_arg, (_, _), _) =
-    let destruct_arg_str = destruction_arg_to_string destruction_arg in
-    match
-      Runner.get_new_vars ~keep:[ destruct_arg_str ] (Some old_goals_vars)
-        (Some relevant_new_goals_vars)
-    with
-    | None -> false
-    | Some new_vars_per_goal ->
-        List.exists
-          (fun vars -> List.exists (has_ih_other_than ~destruct_arg_str) vars)
-          new_vars_per_goal
-  in
 
   match tacexpr.v with
   | Tacexpr.TacAtom
       (Tacexpr.TacInductionDestruct
          (true, false, (induction_clause_l, with_bindings))) ->
+      let goal_hyps_at_state st =
+        Runner.reified_goals_at_state token st
+        |> List.map Runner.get_hypothesis_names
+      in
+      let old_goals_vars = goal_hyps_at_state state_before in
+      let new_goals_vars = goal_hyps_at_state state_after in
+      let has_any_new_ih =
+        match
+          Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars)
+        with
+        | None -> false
+        | Some new_vars_per_goal ->
+            List.exists
+              (List.exists (fun vars -> String.starts_with ~prefix:"IH" vars))
+              new_vars_per_goal
+      in
+
+      let clamp_take n xs =
+        let n = max 0 (min n (List.length xs)) in
+        List_utils.take n xs
+      in
+
+      (* heuristic: focus on the "new" goals introduced by the tactic *)
+      let relevant_new_goals_vars =
+        let delta = List.length new_goals_vars - List.length old_goals_vars in
+        clamp_take (delta + 1) new_goals_vars
+      in
+
+      let has_ih_other_than ~destruct_arg_str vars =
+        String.starts_with ~prefix:"IH" vars
+        && not (String.equal vars destruct_arg_str)
+      in
+
+      let clause_introduces_induction_hyps (destruction_arg, (_, _), _) =
+        let destruct_arg_str = destruction_arg_to_string destruction_arg in
+        match
+          Runner.get_new_vars ~keep:[ destruct_arg_str ] (Some old_goals_vars)
+            (Some relevant_new_goals_vars)
+        with
+        | None -> false
+        | Some new_vars_per_goal ->
+            List.exists
+              (fun vars ->
+                List.exists (has_ih_other_than ~destruct_arg_str) vars)
+              new_vars_per_goal
+      in
+
       let has_induction_vars =
         List.exists clause_introduces_induction_hyps induction_clause_l
       in
@@ -1338,39 +1337,16 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
         |> CAst.make
   | _ -> tacexpr
 
-let replace_induction_by_destruct_in_node token (node : Syntax_node.t)
-    (state_before : Coq.State.t) (_state_after : Coq.State.t) :
+let replace_induction_by_destruct_in_node (token : Coq.Limits.Token.t)
+    (node : Syntax_node.t) (state_before : Coq.State.t) :
     (Syntax_node.t, Error.t) result =
   match Syntax_node.get_node_raw_tactic_expr node with
   | None -> Ok node
   | Some tacexpr ->
       let selector = Syntax_node.get_node_goal_selector_opt node in
       let* new_tacexpr =
-        Tacexpr_map.tacexpr_map_result
-          (fun subexpr ->
-            match
-              Tacexpr_map.prefix_before ~eq:( = ) ~target:subexpr tacexpr
-            with
-            | None -> Ok subexpr
-            | Some prefix_before -> (
-                match
-                  Tacexpr_map.prefix_including ~eq:( = ) ~target:subexpr tacexpr
-                with
-                | None -> Ok subexpr
-                | Some prefix_including ->
-                    let* subexpr_state_before =
-                      Runner.run_raw_tactic_expr token ?selector state_before
-                        prefix_before
-                    in
-
-                    let* subexpr_state_after =
-                      Runner.run_raw_tactic_expr token ?selector state_before
-                        prefix_including
-                    in
-                    Ok
-                      (map_induction_to_destruct_in_tacexpr subexpr_state_before
-                         subexpr_state_after subexpr)))
-          tacexpr
+        Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
+          map_induction_to_destruct_in_tacexpr
       in
 
       if new_tacexpr <> tacexpr then
@@ -1378,15 +1354,252 @@ let replace_induction_by_destruct_in_node token (node : Syntax_node.t)
           node.range.start
       else Ok node
 
+let find_alias_kername (t : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Names.KerName.t option =
+  match t.v with
+  | Ltac_plugin.Tacexpr.TacAlias (kn, _args) -> Some kn
+  | _ -> None
+
 let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
     (proof : Proof.t) : (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
       let* new_state = Runner.run_node token state node in
-      let* new_node =
-        replace_induction_by_destruct_in_node token node state new_state
+      let* new_node = replace_induction_by_destruct_in_node token node state in
+      if new_node <> node then Ok (new_state, Replace (node.id, new_node) :: acc)
+      else Ok (new_state, acc))
+    [] proof
+
+let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
+    (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
+    : Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let token = Coq.Limits.Token.create () in
+
+  match tacexpr.v with
+  | Ltac_plugin.Tacexpr.TacAlias (kername, []) -> (
+      let label = Names.Label.to_string (Names.KerName.label kername) in
+      let is_intro =
+        String.equal label "intro"
+        || String.starts_with ~prefix:"intro_"
+             label (* this isn't very precise for now *)
       in
+      if not is_intro then tacexpr
+      else
+        let goal_hyps_at_state st =
+          Runner.reified_goals_at_state token st
+          |> List.map Runner.get_hypothesis_names
+        in
+        let old_goals_vars = goal_hyps_at_state state_before in
+        let new_goals_vars = goal_hyps_at_state state_after in
+
+        match
+          Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars)
+        with
+        | Some new_vars when List.length new_vars > 0 ->
+            let first_vars = List.hd new_vars in
+            let all_same =
+              List.for_all
+                (fun x -> List.equal String.equal x first_vars)
+                new_vars
+            in
+            if all_same then
+              let first_var = List.hd first_vars in
+              let first_var_id = Names.Id.of_string first_var in
+              let first_var_id_genarg =
+                Raw_gen_args_converter.raw_generic_argument_of_id first_var_id
+              in
+              let gen_tac_arg =
+                Ltac_plugin.Tacexpr.TacGeneric (None, first_var_id_genarg)
+              in
+
+              let intro_n_kername =
+                Syntax_node.string_to_raw_tactic_expr "intro n."
+                |> Result.get_ok |> find_alias_kername |> Option.get
+              in
+
+              let explicit_intro_raw_tac =
+                Ltac_plugin.Tacexpr.TacAlias (intro_n_kername, [ gen_tac_arg ])
+                |> CAst.make
+              in
+              explicit_intro_raw_tac
+            else tacexpr
+        | _ -> tacexpr
+      (* No variables introduced by intro, something has gone wrong, the proof is probably malformed *)
+      )
+  | _ -> tacexpr
+
+let name_indentifier_in_intro_in_node (token : Coq.Limits.Token.t)
+    (node : Syntax_node.t) (state_before : Coq.State.t) :
+    (Syntax_node.t, Error.t) result =
+  match Syntax_node.get_node_raw_tactic_expr node with
+  | None -> Ok node
+  | Some tacexpr ->
+      let selector = Syntax_node.get_node_goal_selector_opt node in
+      let* new_tacexpr =
+        Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
+          map_intro_to_explicit_intro_in_tacexpr
+      in
+
+      if new_tacexpr <> tacexpr then
+        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector
+          node.range.start
+      else Ok node
+
+let name_identifier_in_intro (doc : Rocq_document.t) (proof : Proof.t) :
+    (transformation_step list, Error.t) result =
+  let token = Coq.Limits.Token.create () in
+  Runner.fold_proof_with_state doc token
+    (fun state acc node ->
+      let* new_state = Runner.run_node token state node in
+      let* new_node = name_indentifier_in_intro_in_node token node state in
+      if new_node <> node then Ok (new_state, Replace (node.id, new_node) :: acc)
+      else Ok (new_state, acc))
+    [] proof
+
+let count_lemma_args (qid : Libnames.qualid) : int =
+  let env = Global.env () in
+  let cst = Nametab.locate_constant qid in
+  let cb = Environ.lookup_constant cst env in
+  let ty = cb.Declarations.const_type in
+  let rec count n t =
+    match Constr.kind t with
+    | Constr.Prod (_, _, body) -> count (n + 1) body
+    | Constr.LetIn (_, _, _, body) -> count (n + 1) body
+    | _ -> n
+  in
+  count 0 ty
+
+let count_explicit_lemma_args (qid : Libnames.qualid) : int =
+  let cst = Nametab.locate_constant qid in
+  let implicit_args =
+    Impargs.implicits_of_global (Names.GlobRef.ConstRef cst)
+  in
+  let implicit_args_count =
+    List.fold_left
+      (fun acc (_, status) -> acc + List.length status)
+      0 implicit_args
+  in
+
+  count_lemma_args qid - implicit_args_count
+
+let split_prefix (prefix : string) (s : string) =
+  let plen = String.length prefix in
+  if String.length s >= plen && String.sub s 0 plen = prefix then
+    Some (prefix, String.sub s plen (String.length s - plen))
+  else None
+
+let parse_diagnotic_into_apply_args (lemma_name : string)
+    (diags : Lang.Diagnostic.t list) : string list option =
+  match diags with
+  | [ diag ] -> (
+      let tactic_diagnostic_repr = Pp.string_of_ppcmds diag.message in
+      let args = split_prefix ("(" ^ lemma_name) tactic_diagnostic_repr in
+      match args with
+      | Some (_prefix, args) ->
+          Logs.debug (fun m -> m "args:%s" args);
+          if String.ends_with ~suffix:")" args then (
+            let args_str =
+              String.sub args 0 (String.length args - 1) |> String.trim
+            in
+            let args_split = String.split_on_char ' ' args_str in
+            Logs.debug (fun m -> m "args split: ");
+            Logs.debug (fun m -> m "args:%s" args);
+            None)
+          else None
+      | None -> None)
+  | _ -> None
+
+let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
+    (_state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
+    : Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let open Ltac_plugin in
+  let dummy_point : Code_point.t = { line = 0; character = 0 } in
+  let token = Coq.Limits.Token.create () in
+  match tacexpr.v with
+  | Tacexpr.TacAtom (TacApply (_, _, [ binding ], _params)) -> (
+      let _, bindings = binding in
+      let lemma, lemma_bindings = bindings in
+      match lemma_bindings with
+      | ImplicitBindings _ -> tacexpr
+      | ExplicitBindings _ -> tacexpr
+      | NoBindings ->
+          let arg_count = Constrexpr_utils.get_func_args lemma |> List.length in
+          if arg_count = 0 then (
+            let lemma_qualid = get_cref_qualid lemma |> Option.get in
+            let lemma_name_str = Libnames.string_of_qualid lemma_qualid in
+
+            let lemma_explicit_arg_count =
+              count_explicit_lemma_args lemma_qualid
+            in
+            Logs.debug (fun m ->
+                m "explicit lemma count: %d" lemma_explicit_arg_count);
+
+            let ltac =
+              Printf.sprintf
+                "lazymatch goal with\n\
+                \ | |- ?G =>\n\
+                \     let rec go t :=\n\
+                \       first  [ let _ := constr:(t : G) in idtac t\n\
+                \              | let t' := open_constr:(t _) in go t'] in\n\
+                \     go %s\n\
+                 end."
+                lemma_name_str
+            in
+
+            let ltac_node =
+              Syntax_node.syntax_node_of_string ltac dummy_point
+              |> Result.get_ok
+            in
+
+            let ltac_state =
+              Runner.run_node_with_diagnostics token state_before ltac_node
+            in
+            match ltac_state with
+            | Ok (_state, diags) -> (
+                let tactic_diagnostic_repr =
+                  Pp.string_of_ppcmds (List.nth diags 0).message
+                in
+                let _ = parse_diagnotic_into_apply_args lemma_name_str diags in
+
+                Logs.debug (fun m ->
+                    m "tactic_diagnostic_repr: %s" tactic_diagnostic_repr);
+                let new_apply_str =
+                  Printf.sprintf "apply %s." tactic_diagnostic_repr
+                in
+                let new_tacexpr_res =
+                  Syntax_node.string_to_raw_tactic_expr new_apply_str
+                in
+                match new_tacexpr_res with
+                | Ok new_tacexpr -> new_tacexpr
+                | Error _ -> tacexpr)
+            | Error _ -> tacexpr)
+          else tacexpr)
+  | _ -> tacexpr
+
+let explicit_apply_in_node (token : Coq.Limits.Token.t) (node : Syntax_node.t)
+    (state_before : Coq.State.t) : (Syntax_node.t, Error.t) result =
+  match Syntax_node.get_node_raw_tactic_expr node with
+  | None -> Ok node
+  | Some tacexpr ->
+      let selector = Syntax_node.get_node_goal_selector_opt node in
+      let* new_tacexpr =
+        Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
+          map_apply_to_explicit_apply_in_tacexpr
+      in
+
+      if new_tacexpr <> tacexpr then
+        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector
+          node.range.start
+      else Ok node
+
+let explicit_apply (doc : Rocq_document.t) (proof : Proof.t) :
+    (transformation_step list, Error.t) result =
+  let token = Coq.Limits.Token.create () in
+  Runner.fold_proof_with_state doc token
+    (fun state acc node ->
+      let* new_state = Runner.run_node token state node in
+      let* new_node = explicit_apply_in_node token node state in
       if new_node <> node then Ok (new_state, Replace (node.id, new_node) :: acc)
       else Ok (new_state, acc))
     [] proof

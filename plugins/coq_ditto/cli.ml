@@ -8,6 +8,8 @@ type transformation_kind =
   | FlattenGoalSelectors
   | CompressIntro
   | ReplaceInductionWithDestruct
+  | ExplicitIdentInIntro
+  | ExplicitApply
   | IdProofTransformation
   | IdDocTransformation
   | ConstructiviseGeocoq
@@ -71,6 +73,10 @@ let transformation_help_fun (kind : transformation_kind) :
         "Experimental: Remove goal selectors by moving and possibly \
          duplicating tactics"
     | CompressIntro -> "Compress consecutive 'intro' calls into one 'intros'."
+    | ExplicitIdentInIntro ->
+        "Replace calls to `intro` with `intro X` where X is the identifier \
+         introduced"
+    | ExplicitApply -> "Experimental: Explicit the parameters of an apply call"
     | ReplaceInductionWithDestruct ->
         "Experimental: Replace induction with destruct when no induction \
          hypothesis is generated"
@@ -88,7 +94,7 @@ let transformation_help_fun (kind : transformation_kind) :
   in
   (kind, help_text)
 
-let transformation_help =
+let transformations_help =
   List.map transformation_help_fun all_transformation_kinds
 
 let help_to_string (transformation_help : (transformation_kind * string) list) :
