@@ -1204,6 +1204,15 @@ let explicit_fresh_variables_list_induction (doc : Doc.t) () : unit =
 let explicit_fresh_variables_two_induction_hypotheses (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.explicit_fresh_variables ()
 
+let explicit_apply_simple (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_apply ()
+
+let explicit_apply_already_explicit (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_apply ()
+
+let explicit_apply_in_tac_then (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_apply ()
+
 let test_flattening_goal_select_simple (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.flatten_goal_selectors ()
 
@@ -1760,16 +1769,24 @@ let setup_test_table table (doc : Doc.t) =
        "test making explicit the fresh variables of an induction with two \
         induction hypotheses"
        explicit_fresh_variables_two_induction_hypotheses doc);
+  Hashtbl.add table "ex_explicit_apply.v"
+    (create_fixed_test "test making apply arguments explicit"
+       explicit_apply_simple doc);
+  Hashtbl.add table "ex_explicit_apply_already_explicit.v"
+    (create_fixed_test "test explicit apply leaves explicit args unchanged"
+       explicit_apply_already_explicit doc);
+  Hashtbl.add table "ex_explicit_apply_in_then.v"
+    (create_fixed_test "test explicit apply inside a TacThen"
+       explicit_apply_in_tac_then doc);
+
   Hashtbl.add table "ex_induction_to_destruct_simple.v"
     (create_fixed_test "test a simple replacement of induction by destruct"
        test_replacing_induction_by_destruct_simple doc);
   Hashtbl.add table "ex_induction_to_destruct_tacthen.v"
-    (create_fixed_test
-       "test replacing induction by destruct under TacThen"
+    (create_fixed_test "test replacing induction by destruct under TacThen"
        test_replacing_induction_by_destruct_simple doc);
   Hashtbl.add table "ex_induction_to_destruct_tacthens.v"
-    (create_fixed_test
-       "test replacing induction by destruct under TacThens"
+    (create_fixed_test "test replacing induction by destruct under TacThens"
        test_replacing_induction_by_destruct_simple doc);
   Hashtbl.add table "ex_induction_to_destruct_prev_ih.v"
     (create_fixed_test
