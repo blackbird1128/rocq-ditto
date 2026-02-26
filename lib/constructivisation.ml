@@ -1,6 +1,7 @@
 open Proof
 open Vernacexpr
 open Constructivisation_data
+open Constrexpr_utils
 
 let ( let* ) = Result.bind
 let ( let+ ) = Option.bind
@@ -12,25 +13,6 @@ module Syntax_nodeSet = Set.Make (struct
 end)
 
 module StringSet = Set.Make (String)
-
-let constrexpr_to_string (x : Constrexpr.constr_expr) : string =
-  let env = Global.env () in
-  let sigma = Evd.from_env env in
-  let pp = Ppconstr.pr_constr_expr env sigma x in
-  Pp.string_of_ppcmds pp
-
-let rec remove_loc (s : Sexplib.Sexp.t) : Sexplib.Sexp.t option =
-  match s with
-  | Atom _ as a -> Some a
-  | List (Atom "loc" :: _) -> None (* drop the whole (loc ...) *)
-  | List xs ->
-      let xs' = xs |> List.filter_map remove_loc in
-      Some (List xs')
-
-let strip_loc sexp =
-  match remove_loc sexp with
-  | Some s -> s
-  | None -> List [] (* should basically never happen at the top *)
 
 let replace_require (x : Syntax_node.t) :
     (transformation_step list, Error.t) result =
@@ -160,31 +142,6 @@ let get_fun_names_in_constrexpr (term : Constrexpr.constr_expr) :
       | Some qualid -> qualid :: acc
       | None -> acc)
     [] term
-
-let count_lemma_args (qid : Libnames.qualid) : int =
-  let env = Global.env () in
-  let cst = Nametab.locate_constant qid in
-  let cb = Environ.lookup_constant cst env in
-  let ty = cb.Declarations.const_type in
-  let rec count n t =
-    match Constr.kind t with
-    | Constr.Prod (_, _, body) -> count (n + 1) body
-    | Constr.LetIn (_, _, _, body) -> count (n + 1) body
-    | _ -> n
-  in
-  count 0 ty
-
-let count_explicit_lemma_args (qid : Libnames.qualid) : int =
-  let cst = Nametab.locate_constant qid in
-  let implicit_args =
-    Impargs.implicits_of_global (Names.GlobRef.ConstRef cst)
-  in
-  let implicit_args_count =
-    List.fold_left
-      (fun acc (_, status) -> acc + List.length status)
-      0 implicit_args
-  in
-  count_lemma_args qid - implicit_args_count
 
 let replace_fun_name_in_constrexpr (old_fun_name : string)
     (new_fun_name : string) (term : Constrexpr.constr_expr) :
@@ -345,18 +302,12 @@ let replace_taccall_tacarg_in_node (old_tac_call_name : string)
     (replace_taccall_tacarg_in_tacexpr old_tac_call_name new_tac_call_name)
     node
 
-let get_cref_qualid (x : Constrexpr.constr_expr) : Libnames.qualid option =
-  match x.v with Constrexpr.CRef (qualid, _) -> Some qualid | _ -> None
-
 let is_constrexpr_c_app_named (x : Constrexpr.constr_expr) (name : string) :
     bool =
   match x.v with
   | Constrexpr.CApp (func, _) ->
       Option.map Libnames.string_of_qualid (get_cref_qualid func) = Some name
   | _ -> false
-
-let get_func_args (x : Constrexpr.constr_expr) : Constrexpr.constr_expr list =
-  match x.v with Constrexpr.CApp (_, args) -> List.map fst args | _ -> []
 
 let get_tac_generic_genarg
     (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) =
@@ -955,10 +906,6 @@ let constructivise_doc (doc : Rocq_document.t) :
       (Runner.get_state_after doc.initial_state token [ require_prelude_node ])
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
-
-  let qualid_to_count = Libnames.qualid_of_string "NNBet_AAA" in
-  let explicit_arg_count = count_explicit_lemma_args qualid_to_count in
-  Logs.debug (fun m -> m "Explicit arg count : %d" explicit_arg_count);
 
   let stage_0 : stage =
     make_stage "stage0" (fun doc ->
