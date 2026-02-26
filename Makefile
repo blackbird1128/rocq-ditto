@@ -1,5 +1,6 @@
 
-V_TARGET_SRC := $(shell find test/fixtures/unit_test_fixtures/ -name '*_target.v')
+PATTERN ?= *
+V_TARGET_SRC := $(shell find test/fixtures/unit_test_fixtures/ -name "$(PATTERN)" -name '*_target.v')
 
 # Define their corresponding generated files
 V_TARGET_GEN := $(V_TARGET_SRC:%=%.target.json)
@@ -69,7 +70,7 @@ constructivisation-get-percentage: build
 
 test: $(V_TARGET_GEN)
 	dune build
-	find test/fixtures/unit_test_fixtures/ -not -name "*_target.v"  -not -path '*/ignore/*'  -name '*.v' -exec  dune exec fcc -- --plugin=ditto-test-plugin {} 2>/dev/null \;
+	find test/fixtures/unit_test_fixtures/ -not -name "*_target.v"  -not -path '*/ignore/*'  -name "$(PATTERN)" -name '*.v' -exec  dune exec fcc -- --plugin=ditto-test-plugin {} 2>/dev/null \;
 	dune runtest
 
 PREFIX := $(HOME)/.local
