@@ -5,6 +5,10 @@ _ignore/
 vendor/
 **.diags
 **.vo
+**.glob
+**.vok
+**.vos
+**.aux
 **.target.json
 **.lia.cache
 **.jsondump.json
