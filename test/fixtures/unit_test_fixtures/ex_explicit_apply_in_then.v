@@ -6,5 +6,5 @@ Qed.
 
 Lemma foo : forall A : Prop, A -> A.
 Proof.
-  intros. apply thm; assumption. 
+  intros; apply thm; assumption. 
 Qed.

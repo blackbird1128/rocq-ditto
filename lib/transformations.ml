@@ -4,7 +4,6 @@ open Syntax_node
 open Runner
 open Sexplib.Conv
 open Re
-open Constrexpr_utils
 module Tacexpr = Ltac_plugin.Tacexpr
 
 (* let add_bullets (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree) : *)
@@ -1457,40 +1456,17 @@ let name_identifier_in_intro (doc : Rocq_document.t) (proof : Proof.t) :
       else Ok (new_state, acc))
     [] proof
 
-let count_lemma_args (qid : Libnames.qualid) : int =
-  let env = Global.env () in
-  let cst = Nametab.locate_constant qid in
-  let cb = Environ.lookup_constant cst env in
-  let ty = cb.Declarations.const_type in
-  let rec count n t =
-    match Constr.kind t with
-    | Constr.Prod (_, _, body) -> count (n + 1) body
-    | Constr.LetIn (_, _, _, body) -> count (n + 1) body
-    | _ -> n
-  in
-  count 0 ty
-
-let count_explicit_lemma_args (qid : Libnames.qualid) : int =
-  let cst = Nametab.locate_constant qid in
-  let implicit_args =
-    Impargs.implicits_of_global (Names.GlobRef.ConstRef cst)
-  in
-  let implicit_args_count =
-    List.fold_left
-      (fun acc (_, status) -> acc + List.length status)
-      0 implicit_args
-  in
-
-  count_lemma_args qid - implicit_args_count
-
 let split_prefix (prefix : string) (s : string) =
   let plen = String.length prefix in
   if String.length s >= plen && String.sub s 0 plen = prefix then
     Some (prefix, String.sub s plen (String.length s - plen))
   else None
 
+(** filled args contains the value, hole contains the name of the variable*)
+type args = Filled of string | Hole of string [@@deriving show]
+
 let parse_diagnotic_into_apply_args (lemma_name : string)
-    (diags : Lang.Diagnostic.t list) : string list option =
+    (diags : Lang.Diagnostic.t list) : args list option =
   match diags with
   | [ diag ] -> (
       let tactic_diagnostic_repr = Pp.string_of_ppcmds diag.message in
@@ -1503,77 +1479,113 @@ let parse_diagnotic_into_apply_args (lemma_name : string)
               String.sub args 0 (String.length args - 1) |> String.trim
             in
             let args_split = String.split_on_char ' ' args_str in
-            Logs.debug (fun m -> m "args split: ");
-            Logs.debug (fun m -> m "args:%s" args);
-            None)
+            let args =
+              List.map
+                (fun x ->
+                  match split_prefix "?" x with
+                  | Some (_, var_name) -> Hole var_name
+                  | None -> Filled x)
+                args_split
+            in
+            Logs.debug (fun m -> m "args : %s" ([%derive.show: args list] args));
+            Some args)
           else None
       | None -> None)
   | _ -> None
+
+let build_ltac_node (lemma_name : string) : Syntax_node.t =
+  let dummy_point : Code_point.t = { line = 0; character = 0 } in
+  let ltac =
+    Printf.sprintf
+      "lazymatch goal with\n\
+      \ | |- ?G =>\n\
+      \     let rec go t :=\n\
+      \       first  [ let _ := constr:(t : G) in idtac t\n\
+      \              | let t' := open_constr:(t _) in go t'] in\n\
+      \     go %s\n\
+       end."
+      lemma_name
+  in
+  Syntax_node.syntax_node_of_string ltac dummy_point |> Result.get_ok
+
+let rec get_head_qualid (x : Constrexpr.constr_expr) =
+  match x.v with
+  | Constrexpr.CRef (qualid, _) -> Some qualid
+  | Constrexpr.CApp (func, _) -> get_head_qualid func
+  | _ -> None
+
+let string_of_raw_tactic tac =
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  tac |> Ltac_plugin.Pptactic.pr_raw_tactic env sigma |> Pp.string_of_ppcmds
 
 let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
     (_state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
   let open Ltac_plugin in
-  let dummy_point : Code_point.t = { line = 0; character = 0 } in
   let token = Coq.Limits.Token.create () in
   match tacexpr.v with
   | Tacexpr.TacAtom (TacApply (_, _, [ binding ], _params)) -> (
+      let tacexpr_sexp =
+        Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr tacexpr
+        |> Sexp_utils.strip_loc
+      in
+      Logs.debug (fun m ->
+          m "tacexpr sexp: %s" (Sexplib.Sexp.to_string_hum tacexpr_sexp));
       let _, bindings = binding in
       let lemma, lemma_bindings = bindings in
       match lemma_bindings with
-      | ImplicitBindings _ -> tacexpr
       | ExplicitBindings _ -> tacexpr
+      | ImplicitBindings _ -> tacexpr
       | NoBindings ->
+          let args = Constrexpr_utils.get_func_args lemma in
           let arg_count = Constrexpr_utils.get_func_args lemma |> List.length in
-          if arg_count = 0 then (
-            let lemma_qualid = get_cref_qualid lemma |> Option.get in
-            let lemma_name_str = Libnames.string_of_qualid lemma_qualid in
+          let lemma_qualid = get_head_qualid lemma |> Option.get in
+          let lemma_name_str = Libnames.string_of_qualid lemma_qualid in
+          let lemma_repr = string_of_raw_tactic tacexpr in
 
-            let lemma_explicit_arg_count =
-              count_explicit_lemma_args lemma_qualid
-            in
-            Logs.debug (fun m ->
-                m "explicit lemma count: %d" lemma_explicit_arg_count);
-
-            let ltac =
-              Printf.sprintf
-                "lazymatch goal with\n\
-                \ | |- ?G =>\n\
-                \     let rec go t :=\n\
-                \       first  [ let _ := constr:(t : G) in idtac t\n\
-                \              | let t' := open_constr:(t _) in go t'] in\n\
-                \     go %s\n\
-                 end."
-                lemma_name_str
-            in
-
-            let ltac_node =
-              Syntax_node.syntax_node_of_string ltac dummy_point
-              |> Result.get_ok
-            in
-
+          Logs.debug (fun m -> m "lemma name: %s" lemma_name_str);
+          Logs.debug (fun m -> m "lemma repr: %s" lemma_repr);
+          if arg_count < 2 then
+            let ltac_node = build_ltac_node lemma_name_str in
             let ltac_state =
               Runner.run_node_with_diagnostics token state_before ltac_node
             in
             match ltac_state with
             | Ok (_state, diags) -> (
-                let tactic_diagnostic_repr =
-                  Pp.string_of_ppcmds (List.nth diags 0).message
+                let args_opt =
+                  parse_diagnotic_into_apply_args lemma_name_str diags
                 in
-                let _ = parse_diagnotic_into_apply_args lemma_name_str diags in
+                match args_opt with
+                | Some args -> (
+                    let filled_args =
+                      List_utils.take_while
+                        (fun x ->
+                          match x with Filled _ -> true | Hole _ -> false)
+                        args
+                    in
+                    let filled_args_str =
+                      List.map
+                        (fun (x : args) ->
+                          match x with
+                          | Filled value -> value
+                          | Hole _ -> assert false)
+                        filled_args
+                    in
 
-                Logs.debug (fun m ->
-                    m "tactic_diagnostic_repr: %s" tactic_diagnostic_repr);
-                let new_apply_str =
-                  Printf.sprintf "apply %s." tactic_diagnostic_repr
-                in
-                let new_tacexpr_res =
-                  Syntax_node.string_to_raw_tactic_expr new_apply_str
-                in
-                match new_tacexpr_res with
-                | Ok new_tacexpr -> new_tacexpr
-                | Error _ -> tacexpr)
-            | Error _ -> tacexpr)
+                    let new_apply_str =
+                      Printf.sprintf "apply (%s %s)." lemma_name_str
+                        (String.concat " " filled_args_str)
+                    in
+                    Logs.debug (fun m -> m "new apply str: %s" new_apply_str);
+                    let new_tacexpr_res =
+                      Syntax_node.string_to_raw_tactic_expr new_apply_str
+                    in
+                    match new_tacexpr_res with
+                    | Ok new_tacexpr -> new_tacexpr
+                    | Error _ -> tacexpr)
+                | None -> tacexpr)
+            | Error _ -> tacexpr
           else tacexpr)
   | _ -> tacexpr
 
