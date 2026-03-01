@@ -19,7 +19,6 @@ let rec tacexpr_fold_map_with_constr
 
   (* recursive worker *)
   let fm = tacexpr_fold_map_with_constr step f g in
-
   let map1 acc x = fm acc x in
 
   let map_list acc xs =
@@ -171,7 +170,7 @@ let rec tacexpr_fold_map_with_constr
     | Tacexpr.TacAbstract (t, nameopt) ->
         let acc, t' = map1 acc t in
         (acc, mk (Tacexpr.TacAbstract (t', nameopt)))
-    | Tacexpr.TacId _ | TacFail _ -> (acc, expr)
+    | Tacexpr.TacId _ | Tacexpr.TacFail _ -> (acc, expr)
     | Tacexpr.TacLetIn (rf, binds, body) ->
         let acc, binds' =
           List.fold_right
@@ -267,6 +266,7 @@ let tacexpr_map_with_constr_result
 
   let rec map1 (expr : Tacexpr.raw_tactic_expr) =
     let mk v = CAst.make ?loc:expr.loc v in
+
     let map_list xs =
       let rec loop acc = function
         | [] -> Ok (List.rev acc)
@@ -509,7 +509,6 @@ let tacexpr_fold (step : 'acc -> Tacexpr.raw_tactic_expr -> 'acc) (acc : 'acc)
     (expr : Tacexpr.raw_tactic_expr) : 'acc =
   fst (tacexpr_fold_map_with_constr step Fun.id Fun.id acc expr)
 
-(* let eq_node (x : Tacexpr.raw_tactic_expr) (y : Tacexpr.raw_tactic_expr) = x == y *)
 let mk ?loc v : Tacexpr.raw_tactic_expr = CAst.make ?loc v
 let mk_idtac ?loc () : Tacexpr.raw_tactic_expr = mk ?loc (Tacexpr.TacId [])
 
@@ -536,6 +535,7 @@ let is_transparent_for_schedule (e : Tacexpr.raw_tactic_expr) : bool =
   match e.v with
   | Tacexpr.TacThen _ -> true
   | Tacexpr.TacThens _ -> true
+  | Tacexpr.TacAtom (TacAssert _) -> true
   | _ -> false
 
 type hit =
@@ -555,21 +555,49 @@ let rec prefix_until ~(hit : hit)
   else if not (is_transparent_for_schedule e) then None
   else
     match e.v with
-    | Tacexpr.TacThen (a, b) -> begin
+    | Tacexpr.TacAtom
+        (Tacexpr.TacAssert (e_flag, b_flag, by_expr, intro_pattern, assert_term))
+      -> (
+        match by_expr with
+        | Some (Some expr) -> (
+            match prefix_until ~hit ~eq ~target expr with
+            | Some prefix -> (
+                let assert_without_by =
+                  mk ?loc:e.loc
+                    (Tacexpr.TacAtom
+                       (Tacexpr.TacAssert
+                          (e_flag, b_flag, Some None, intro_pattern, assert_term)))
+                in
+                (* the Some None is actually important for it to be treated as an assert *)
+                match hit with
+                | Before ->
+                    Some
+                      (mk ?loc:e.loc
+                         (Tacexpr.TacThens3parts
+                            (assert_without_by, [||], mk_idtac (), [||])))
+                | Include ->
+                    Some
+                      (mk ?loc:e.loc
+                         (Tacexpr.TacThens3parts
+                            (assert_without_by, [| prefix |], mk_idtac (), [||])))
+                )
+            | None -> None)
+        | _ ->
+            (* there is no by _ expr to explore *)
+            None)
+    | Tacexpr.TacThen (a, b) -> (
         match prefix_until ~hit ~eq ~target a with
         | Some pre_a ->
             (* We’re still “in a”: b hasn’t started yet *)
             Some
               (mk ?loc:e.loc (Tacexpr.TacThen (pre_a, mk_idtac ?loc:e.loc ()))
               |> simplify)
-        | None ->
+        | None -> (
             (* Not in a => must be in b *)
-            begin match prefix_until ~hit ~eq ~target b with
+            match prefix_until ~hit ~eq ~target b with
             | Some pre_b ->
                 Some (mk ?loc:e.loc (Tacexpr.TacThen (a, pre_b)) |> simplify)
-            | None -> None
-            end
-      end
+            | None -> None))
     | Tacexpr.TacThens (t, branches) -> (
         match prefix_until ~hit ~eq ~target t with
         | Some pre_t ->
@@ -628,6 +656,7 @@ let tacexpr_map_with_states (token : Coq.Limits.Token.t)
                 Runner.run_raw_tactic_expr token ?selector state_before
                   prefix_before
               in
+
               let* sub_after =
                 Runner.run_raw_tactic_expr token ?selector state_before
                   prefix_including
