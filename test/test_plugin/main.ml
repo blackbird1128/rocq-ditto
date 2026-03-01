@@ -1213,6 +1213,18 @@ let explicit_apply_already_explicit (doc : Doc.t) () : unit =
 let explicit_apply_in_tac_then (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.explicit_apply ()
 
+let explicit_apply_nothing_deducible (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_apply ()
+
+let explicit_apply_in_assert (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_apply ()
+
+let explicit_apply_with_simple (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_apply ()
+
+let explicit_apply_partial_args (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.explicit_apply ()
+
 let test_flattening_goal_select_simple (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.flatten_goal_selectors ()
 
@@ -1778,7 +1790,18 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_explicit_apply_in_then.v"
     (create_fixed_test "test explicit apply inside a TacThen"
        explicit_apply_in_tac_then doc);
-
+  Hashtbl.add table "ex_explicit_apply_nothing_deducible.v"
+    (create_fixed_test "text explicit apply nothing deducible"
+       explicit_apply_nothing_deducible doc);
+  Hashtbl.add table "ex_explicit_apply_in_assert.v"
+    (create_fixed_test "test explicit apply inside an assert by"
+       explicit_apply_in_assert doc);
+  Hashtbl.add table "ex_explicit_apply_with_simple.v"
+    (create_fixed_test "test explicit simple apply with "
+       explicit_apply_with_simple doc);
+  Hashtbl.add table "ex_explicit_apply_partial.v"
+    (create_fixed_test "test explicit apply with partial args"
+       explicit_apply_partial_args doc);
   Hashtbl.add table "ex_induction_to_destruct_simple.v"
     (create_fixed_test "test a simple replacement of induction by destruct"
        test_replacing_induction_by_destruct_simple doc);
