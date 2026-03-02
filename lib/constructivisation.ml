@@ -16,12 +16,6 @@ module StringSet = Set.Make (String)
 
 let replace_require (x : Syntax_node.t) :
     (transformation_step list, Error.t) result =
-  let split_prefix (prefix : string) (s : string) =
-    let plen = String.length prefix in
-    if String.length s >= plen && String.sub s 0 plen = prefix then
-      Some (prefix, String.sub s plen (String.length s - plen))
-    else None
-  in
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
@@ -32,11 +26,11 @@ let replace_require (x : Syntax_node.t) :
           | Some (qualid, import_filter) ->
               let qualid_str = Libnames.string_of_qualid qualid in
               if String.starts_with ~prefix:"GeoCoq.Main.Tarski_dev" qualid_str
-              then (
+              then
                 let _, postfix =
-                  split_prefix "GeoCoq.Main.Tarski_dev" qualid_str |> Option.get
+                  String_utils.split_prefix "GeoCoq.Main.Tarski_dev" qualid_str
+                  |> Option.get
                 in
-                Logs.debug (fun m -> m "postfix: %s" postfix);
 
                 let new_qualid_str = "GeoCoq.Constructive" ^ postfix in
 
@@ -61,7 +55,7 @@ let replace_require (x : Syntax_node.t) :
                     (Coq.Ast.of_coq new_vernac_control)
                     x.range.start
                 in
-                Ok [ Replace (x.id, new_node) ])
+                Ok [ Replace (x.id, new_node) ]
               else if
                 String.starts_with ~prefix:"GeoCoq.Axioms.Definitions"
                   qualid_str
@@ -127,22 +121,6 @@ let replace_notation_in_constrexpr (old_notation : string)
            (scope, (entry, new_notation), (l1, ll, pat, binders)))
   | _ -> term
 
-let get_fun_name_in_constrexpr (term : Constrexpr.constr_expr) :
-    Libnames.qualid option =
-  match term.v with
-  | Constrexpr.CRef (q, _) -> Some q
-  | Constrexpr.CAppExpl ((q, _), _) -> Some q
-  | _ -> None
-
-let get_fun_names_in_constrexpr (term : Constrexpr.constr_expr) :
-    Libnames.qualid list =
-  Constrexpr_fold.fold
-    (fun x acc ->
-      match get_fun_name_in_constrexpr x with
-      | Some qualid -> qualid :: acc
-      | None -> acc)
-    [] term
-
 let replace_fun_name_in_constrexpr (old_fun_name : string)
     (new_fun_name : string) (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
@@ -163,22 +141,6 @@ let replace_bet_and_cong_in_constrexpr (term : Constrexpr.constr_expr) :
   term
   |> replace_fun_name_in_constrexpr "Bet" "BetC"
   |> replace_fun_name_in_constrexpr "Cong" "CongC"
-
-let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (x : Proof.t) : transformation_step option =
-  let x_start = x.proposition.range.start in
-  let+ components = Proof.get_theorem_components x in
-
-  let new_expr = Constrexpr_map.constr_expr_map f components.expr in
-  if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
-    let new_components = { components with expr = new_expr } in
-
-    let new_node =
-      Proof.syntax_node_of_theorem_components new_components x_start
-    in
-
-    Some (Replace (x.proposition.id, new_node))
-  else None
 
 let replace_notation_in_proof_proposition (old_notation : string)
     (new_notation : string) (x : Proof.t) : transformation_step option =
@@ -302,15 +264,9 @@ let replace_taccall_tacarg_in_node (old_tac_call_name : string)
     (replace_taccall_tacarg_in_tacexpr old_tac_call_name new_tac_call_name)
     node
 
-let is_constrexpr_c_app_named (x : Constrexpr.constr_expr) (name : string) :
-    bool =
-  match x.v with
-  | Constrexpr.CApp (func, _) ->
-      Option.map Libnames.string_of_qualid (get_cref_qualid func) = Some name
-  | _ -> false
-
 let get_tac_generic_genarg
-    (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) =
+    (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
+    Genarg.rlevel Genarg.generic_argument option =
   match x with
   | Ltac_plugin.Tacexpr.TacGeneric (_, genarg) -> Some genarg
   | _ -> None
@@ -384,9 +340,7 @@ let replace_elim_with_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
         match List_utils.option_all fun_args_str_opt with
         | Some fun_args_str -> (
             let stab_eq_str =
-              "stab_elim (eq_dec_points  "
-              ^ String.concat " " fun_args_str
-              ^ " )."
+              "stab_eq_point  " ^ String.concat " " fun_args_str ^ "."
             in
 
             match Syntax_node.string_to_raw_tactic_expr stab_eq_str with
@@ -456,44 +410,6 @@ let replace_destruct_fun_with_stab_destruct
         destruct_target
       in
       match core_destruction_arg with
-      | ElimOnIdent h -> (
-          match intro_pattern_naming_expr with
-          | _, Some (ArgArg intro_or_and_pattern) -> (
-              match intro_or_and_pattern.v with
-              | IntroOrPattern [ [ left_pat ]; [ right_pat ] ] ->
-                  let h_constrexpr : Constrexpr.constr_expr =
-                    Constrexpr.CRef (Libnames.qualid_of_lident h, None)
-                    |> CAst.make
-                  in
-
-                  let open_constr_arg =
-                    Raw_gen_args_converter.raw_generic_argument_of_open_constr
-                      h_constrexpr
-                  in
-
-                  let left_pat_arg =
-                    Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
-                      left_pat
-                  in
-                  let right_pat_arg =
-                    Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
-                      right_pat
-                  in
-
-                  let ker_name =
-                    get_alias_kn Stab_destruct_as_or |> Option.get
-                  in
-
-                  let stab_destruct_args =
-                    List.map
-                      (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
-                      [ open_constr_arg; left_pat_arg; right_pat_arg ]
-                  in
-
-                  Ltac_plugin.Tacexpr.TacAlias (ker_name, stab_destruct_args)
-                  |> CAst.make
-              | _ -> x)
-          | _ -> x)
       | ElimOnConstr (constrexpr, NoBindings) -> (
           match constrexpr_to_stab_destruct_fun_name constrexpr with
           | Some kername -> (
@@ -647,12 +563,6 @@ let collect_definitions_containing_exists (nodes : Syntax_node.t list) :
       end
   in
   aux nodes [] StringSet.empty
-
-let get_syntax_node_assert_expr (x : Syntax_node.t) :
-    Constrexpr.constr_expr option =
-  match Syntax_node.get_node_raw_atomic_tactic_expr x with
-  | Some (TacAssert (false, true, _, _, expr)) -> Some expr
-  | _ -> None
 
 let is_proof_about_exists (p : Proof.t) : bool =
   match Proof.get_proof_conclusion p with

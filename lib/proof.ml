@@ -181,6 +181,21 @@ let get_proof_conclusion (p : t) : Constrexpr.constr_expr option =
   | Some components -> get_conclusion components.expr
   | None -> None
 
+let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (x : t) : transformation_step option =
+  let ( let+ ) = Option.bind in
+  let x_start = x.proposition.range.start in
+  let+ components = get_theorem_components x in
+
+  let new_expr = Constrexpr_map.constr_expr_map f components.expr in
+  if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
+    let new_components = { components with expr = new_expr } in
+
+    let new_node = syntax_node_of_theorem_components new_components x_start in
+
+    Some (Replace (x.proposition.id, new_node))
+  else None
+
 let proof_nodes (p : t) : Syntax_node.t list = p.proposition :: p.proof_steps
 
 let proof_from_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =

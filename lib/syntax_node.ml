@@ -641,6 +641,11 @@ let is_syntax_node_assert_by (x : t) : bool =
       true
   | _ -> false
 
+let get_syntax_node_assert_expr (x : t) : Constrexpr.constr_expr option =
+  match get_node_raw_atomic_tactic_expr x with
+  | Some (TacAssert (false, true, _, _, expr)) -> Some expr
+  | _ -> None
+
 let get_syntax_node_assert_by_raw_tac_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_tactic_expr option =
   match get_node_raw_atomic_tactic_expr x with

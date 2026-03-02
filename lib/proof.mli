@@ -63,6 +63,11 @@ val get_proof_status : t -> proof_status option
 
 val get_proof_conclusion : t -> Constrexpr.constr_expr option
 
+val map_proof_proposition :
+  (Constrexpr.constr_expr -> Constrexpr.constr_expr) ->
+  t ->
+  transformation_step option
+
 val proof_status_from_last_node :
   Syntax_node.t -> (proof_status, Error.t) result
 (** Get the proof status of the last node of a proof or an error if the node
