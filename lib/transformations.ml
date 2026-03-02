@@ -6,25 +6,6 @@ open Sexplib.Conv
 open Re
 module Tacexpr = Ltac_plugin.Tacexpr
 
-(* let add_bullets (doc : Rocq_document.t) (proof_tree : Syntax_node.t nary_tree) : *)
-(*     (transformation_step list, Error.t) result = *)
-(*   let token = Coq.Limits.Token.create () in *)
-(*   let rec aux state acc depth tree = *)
-(*     match tree with *)
-(*     | Node (x, children) -> *)
-(*        let new_state = Result.get_ok (Runner.run_node token state x) in *)
-(*        let new_acc = if  List.length children > 0 then *)
-
-(*         List.fold_left *)
-(*           (fun (state_acc, res_acc) child -> aux state_acc res_acc 0 child) *)
-(*           (new_state, acc) children *)
-(*   in *)
-(*   match get_init_state doc (root proof_tree) token with *)
-(*   | Ok state -> *)
-(*       let a = aux state [] 0 proof_tree in *)
-(*       Ok [] *)
-(*   | Error _ -> Error.string_to_or_error "Unable to retrieve initial state" *)
-
 let simple_proof_repair (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
@@ -1269,6 +1250,43 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
       | None -> Ok (new_state, acc))
     [] proof
 
+let rewrite_node_tacexpr (token : Coq.Limits.Token.t)
+    (state_before : Coq.State.t)
+    ~(f :
+       Coq.State.t ->
+       Coq.State.t ->
+       Ltac_plugin.Tacexpr.raw_tactic_expr ->
+       Ltac_plugin.Tacexpr.raw_tactic_expr) (node : Syntax_node.t) :
+    (Syntax_node.t, Error.t) result =
+  match Syntax_node.get_node_raw_tactic_expr node with
+  | None -> Ok node
+  | Some tacexpr ->
+      let selector = Syntax_node.get_node_goal_selector_opt node in
+      let* new_tacexpr =
+        Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
+          f
+      in
+      if new_tacexpr = tacexpr then Ok node
+      else
+        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector
+          node.range.start
+
+let rewrite_proof_nodes (doc : Rocq_document.t) (proof : Proof.t)
+    ~(rewrite :
+       Coq.Limits.Token.t ->
+       Coq.State.t ->
+       Syntax_node.t ->
+       (Syntax_node.t, Error.t) result) :
+    (transformation_step list, Error.t) result =
+  let token = Coq.Limits.Token.create () in
+  Runner.fold_proof_with_state doc token
+    (fun state acc node ->
+      let* new_state = Runner.run_node token state node in
+      let* new_node = rewrite token state node in
+      if new_node = node then Ok (new_state, acc)
+      else Ok (new_state, Replace (node.id, new_node) :: acc))
+    [] proof
+
 let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
     (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -1278,12 +1296,8 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
   | Tacexpr.TacAtom
       (Tacexpr.TacInductionDestruct
          (true, false, (induction_clause_l, with_bindings))) ->
-      let goal_hyps_at_state st =
-        Runner.reified_goals_at_state token st
-        |> List.map Runner.get_hypothesis_names
-      in
-      let old_goals_vars = goal_hyps_at_state state_before in
-      let new_goals_vars = goal_hyps_at_state state_after in
+      let old_goals_vars = Runner.goal_hyps_at_state state_before token in
+      let new_goals_vars = Runner.goal_hyps_at_state state_after token in
       let has_any_new_ih =
         match
           Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars)
@@ -1337,21 +1351,10 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
   | _ -> tacexpr
 
 let replace_induction_by_destruct_in_node (token : Coq.Limits.Token.t)
-    (node : Syntax_node.t) (state_before : Coq.State.t) :
+    (state_before : Coq.State.t) (node : Syntax_node.t) :
     (Syntax_node.t, Error.t) result =
-  match Syntax_node.get_node_raw_tactic_expr node with
-  | None -> Ok node
-  | Some tacexpr ->
-      let selector = Syntax_node.get_node_goal_selector_opt node in
-      let* new_tacexpr =
-        Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
-          map_induction_to_destruct_in_tacexpr
-      in
-
-      if new_tacexpr <> tacexpr then
-        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector
-          node.range.start
-      else Ok node
+  rewrite_node_tacexpr token state_before node
+    ~f:map_induction_to_destruct_in_tacexpr
 
 let find_alias_kername (t : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Names.KerName.t option =
@@ -1361,14 +1364,7 @@ let find_alias_kername (t : Ltac_plugin.Tacexpr.raw_tactic_expr) :
 
 let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
     (proof : Proof.t) : (transformation_step list, Error.t) result =
-  let token = Coq.Limits.Token.create () in
-  Runner.fold_proof_with_state doc token
-    (fun state acc node ->
-      let* new_state = Runner.run_node token state node in
-      let* new_node = replace_induction_by_destruct_in_node token node state in
-      if new_node <> node then Ok (new_state, Replace (node.id, new_node) :: acc)
-      else Ok (new_state, acc))
-    [] proof
+  rewrite_proof_nodes doc proof ~rewrite:replace_induction_by_destruct_in_node
 
 let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
     (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -1385,12 +1381,8 @@ let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
       in
       if not is_intro then tacexpr
       else
-        let goal_hyps_at_state st =
-          Runner.reified_goals_at_state token st
-          |> List.map Runner.get_hypothesis_names
-        in
-        let old_goals_vars = goal_hyps_at_state state_before in
-        let new_goals_vars = goal_hyps_at_state state_after in
+        let old_goals_vars = Runner.goal_hyps_at_state state_before token in
+        let new_goals_vars = Runner.goal_hyps_at_state state_after token in
 
         match
           Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars)
@@ -1429,32 +1421,14 @@ let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
   | _ -> tacexpr
 
 let name_indentifier_in_intro_in_node (token : Coq.Limits.Token.t)
-    (node : Syntax_node.t) (state_before : Coq.State.t) :
+    (state_before : Coq.State.t) (node : Syntax_node.t) :
     (Syntax_node.t, Error.t) result =
-  match Syntax_node.get_node_raw_tactic_expr node with
-  | None -> Ok node
-  | Some tacexpr ->
-      let selector = Syntax_node.get_node_goal_selector_opt node in
-      let* new_tacexpr =
-        Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
-          map_intro_to_explicit_intro_in_tacexpr
-      in
-
-      if new_tacexpr <> tacexpr then
-        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector
-          node.range.start
-      else Ok node
+  rewrite_node_tacexpr token state_before node
+    ~f:map_intro_to_explicit_intro_in_tacexpr
 
 let name_identifier_in_intro (doc : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
-  let token = Coq.Limits.Token.create () in
-  Runner.fold_proof_with_state doc token
-    (fun state acc node ->
-      let* new_state = Runner.run_node token state node in
-      let* new_node = name_indentifier_in_intro_in_node token node state in
-      if new_node <> node then Ok (new_state, Replace (node.id, new_node) :: acc)
-      else Ok (new_state, acc))
-    [] proof
+  rewrite_proof_nodes doc proof ~rewrite:name_indentifier_in_intro_in_node
 
 let split_prefix (prefix : string) (s : string) =
   let plen = String.length prefix in
@@ -1465,7 +1439,7 @@ let split_prefix (prefix : string) (s : string) =
 (** filled args contains the value, hole contains the name of the variable*)
 type args = Filled of string | Hole of string [@@deriving show]
 
-let parse_diagnotic_into_apply_args (lemma_name : string)
+let parse_diagnostic_into_apply_args (lemma_name : string)
     (diags : Lang.Diagnostic.t list) : args list option =
   match diags with
   | [ diag ] -> (
@@ -1561,7 +1535,9 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
       in
       match ltac_state with
       | Ok (_state, diags) -> (
-          let args_opt = parse_diagnotic_into_apply_args lemma_name_str diags in
+          let args_opt =
+            parse_diagnostic_into_apply_args lemma_name_str diags
+          in
           match args_opt with
           | Some args -> (
               let filled_args = fill_args args lemma_bindings in
@@ -1596,58 +1572,30 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
       | Error _ -> tacexpr)
   | _ -> tacexpr
 
-let explicit_apply_in_node (token : Coq.Limits.Token.t) (node : Syntax_node.t)
-    (state_before : Coq.State.t) : (Syntax_node.t, Error.t) result =
-  match Syntax_node.get_node_raw_tactic_expr node with
-  | None -> Ok node
-  | Some tacexpr ->
-      let selector = Syntax_node.get_node_goal_selector_opt node in
-      let* new_tacexpr =
-        Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
-          map_apply_to_explicit_apply_in_tacexpr
-      in
-
-      if new_tacexpr <> tacexpr then
-        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector
-          node.range.start
-      else Ok node
+let explicit_apply_in_node (token : Coq.Limits.Token.t)
+    (state_before : Coq.State.t) (node : Syntax_node.t) :
+    (Syntax_node.t, Error.t) result =
+  rewrite_node_tacexpr token state_before node
+    ~f:map_apply_to_explicit_apply_in_tacexpr
 
 let explicit_apply (doc : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
-  let token = Coq.Limits.Token.create () in
-  Runner.fold_proof_with_state doc token
-    (fun state acc node ->
-      let* new_state = Runner.run_node token state node in
-      let* new_node = explicit_apply_in_node token node state in
-      if new_node <> node then Ok (new_state, Replace (node.id, new_node) :: acc)
-      else Ok (new_state, acc))
-    [] proof
+  rewrite_proof_nodes doc proof ~rewrite:explicit_apply_in_node
 
 let apply_proof_transformation
     (transformation :
       Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result)
     (doc : Rocq_document.t) : (Rocq_document.t, Error.t) result =
-  let proofs_rec = Rocq_document.get_proofs doc in
-  match proofs_rec with
-  | Ok proofs ->
-      List.fold_left
-        (fun (doc_acc : (Rocq_document.t, Error.t) result) (proof : Proof.t) ->
-          match doc_acc with
-          | Ok acc -> (
-              let transformation_steps = transformation acc proof in
-              match transformation_steps with
-              | Ok steps ->
-                  List.fold_left
-                    (fun doc_acc_err step ->
-                      match doc_acc_err with
-                      | Ok doc ->
-                          Rocq_document.apply_transformation_step step doc
-                      | Error err -> Error err)
-                    doc_acc steps
-              | Error err -> Error err)
-          | Error err -> Error err)
-        (Ok doc) proofs
-  | Error err -> Error err
+  let* proofs = Rocq_document.get_proofs doc in
+
+  List.fold_left
+    (fun (doc_acc : (Rocq_document.t, Error.t) result) (proof : Proof.t) ->
+      match doc_acc with
+      | Ok acc ->
+          let* steps = transformation acc proof in
+          Rocq_document.apply_transformations_steps steps acc
+      | Error err -> Error err)
+    (Ok doc) proofs
 
 let apply_proof_tree_transformation
     (transformation :
@@ -1655,30 +1603,18 @@ let apply_proof_tree_transformation
       Syntax_node.t nary_tree ->
       (transformation_step list, Error.t) result) (doc : Rocq_document.t) :
     (Rocq_document.t, Error.t) result =
-  let proofs_rec = Rocq_document.get_proofs doc in
-  match proofs_rec with
-  | Ok proofs ->
-      let proof_trees =
-        List.filter_map
-          (fun proof -> Result.to_option (Runner.treeify_proof doc proof))
-          proofs
-      in
-      List.fold_left
-        (fun (doc_acc : (Rocq_document.t, Error.t) result)
-             (proof_tree : Syntax_node.t nary_tree) ->
-          match doc_acc with
-          | Ok acc -> (
-              let transformation_steps = transformation acc proof_tree in
-              match transformation_steps with
-              | Ok steps ->
-                  List.fold_left
-                    (fun doc_acc_err step ->
-                      match doc_acc_err with
-                      | Ok doc ->
-                          Rocq_document.apply_transformation_step step doc
-                      | err -> err)
-                    doc_acc steps
-              | Error err -> Error err)
-          | err -> err)
-        (Ok doc) proof_trees
-  | Error err -> Error err
+  let* proofs = Rocq_document.get_proofs doc in
+  let proof_trees =
+    List.filter_map
+      (fun proof -> Result.to_option (Runner.treeify_proof doc proof))
+      proofs
+  in
+  List.fold_left
+    (fun (doc_acc : (Rocq_document.t, Error.t) result)
+         (proof_tree : Syntax_node.t nary_tree) ->
+      match doc_acc with
+      | Ok acc ->
+          let* steps = transformation acc proof_tree in
+          Rocq_document.apply_transformations_steps steps acc
+      | err -> err)
+    (Ok doc) proof_trees

@@ -277,6 +277,10 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
   | Ok None -> Error.string_to_or_error "zero goal at this state"
   | Error err -> Error err
 
+let goal_hyps_at_state (state : Coq.State.t) (token : Coq.Limits.Token.t) :
+    string list list =
+  reified_goals_at_state token state |> List.map get_hypothesis_names
+
 (* TODO: relocate somewhere better ? *)
 let get_new_vars ?(keep : string list = [])
     (old_goals_vars : string list list option)
