@@ -225,8 +225,8 @@ let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
         | Some [ args0; args1; args2; args3; args4 ] -> (
             let segment_construction_str =
               Printf.sprintf
-                "stab_destruct (segment_construction %s %s %s %s) as [%s [?H \
-                 ?H]]."
+                "stab_destruct (by_segment_construction %s %s %s %s) as [%s \
+                 [?H ?H]]."
                 args0 args1 args3 args4
                 args2 (* args1 args3 used in ? H before *)
             in
@@ -409,10 +409,10 @@ type stab_kind =
   | Stab_destruct_as_or
 
 let dummy_tactic_for_kind = function
-  | Inner_pasch -> "stab_destruct (inner_pasch A B C D X X X) as [I []]."
+  | Inner_pasch -> "stab_destruct (by_inner_pasch A B C D X X X) as [I []]."
   | Segment_construction ->
-      "stab_destruct (segment_construction A B C D) as [I []]."
-  | Eq_Dec_Points -> "stab_destruct (eq_dec_points B C)."
+      "stab_destruct (by_segment_construction A B C D) as [I []]."
+  | Eq_Dec_Points -> "stab_destruct (by_eq_dec_points B C)."
   | Stab_destruct_as_or -> "stab_destruct H as [HL|HR]."
 
 let compute_alias_kername (k : stab_kind) : Names.KerName.t option =
@@ -440,7 +440,6 @@ let get_alias_kn = function
   | Stab_destruct_as_or -> Lazy.force stab_destruct_as_or_alias_kn
 
 let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
-  Logs.debug (fun m -> m "constrexpr named: %s" (constrexpr_to_string c));
   if is_constrexpr_c_app_named c "inner_pasch" then get_alias_kn Inner_pasch
   else if is_constrexpr_c_app_named c "segment_construction" then
     get_alias_kn Segment_construction
