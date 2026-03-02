@@ -5,7 +5,9 @@ V_TARGET_SRC := $(shell find test/fixtures/unit_test_fixtures/ -name "$(PATTERN)
 # Define their corresponding generated files
 V_TARGET_GEN := $(V_TARGET_SRC:%=%.target.json)
 
-GEOCQ_DIR ?= ../geocoq_bis
+GEOCOQ_INPUT_DIR ?= ../private-geocoq/
+GEOCOQ_OUTPUT_DIR ?= ../geocoq_bis
+NORMALISED_DIR ?= ../normalised_geocoq
 DITTO ?= dune exec --profile=release rocq-ditto --
 
 CONSTRUCTIVISATION_CHAPTERS ?= \
@@ -14,6 +16,12 @@ CONSTRUCTIVISATION_CHAPTERS ?= \
 	Ch04_cong_bet.v \
 	Ch04_col.v \
 	Ch05_bet_le.v
+
+CHAPTER_PATHS := $(addprefix $(NORMALISED_DIR)/theories/Main/Tarski_dev/, \
+                  $(CONSTRUCTIVISATION_CHAPTERS))
+
+count-induction:
+	@grep -riow "induction" $(CHAPTER_PATHS) | wc -l
 
 PERCENTAGE_CHAPTERS ?= \
 	Ch04_cong_bet.v \
@@ -33,7 +41,7 @@ PERCENTAGE_CHAPTERS ?= \
 	Ch13_4_cos.v \
 	Ch13_5_Pappus_Pascal.v
 
-.PHONY: all test install uninstall dump-json clean constructivisation-uniformise constructivisation-build constructivisation-compile build constructivisation-data constructivisation-get-percentage
+.PHONY: all test install uninstall dump-json clean constructivisation-uniformise constructivisation-build constructivisation-compile build constructivisation-data constructivisation-get-percentage count-induction
 
 build:
 	dune build 
@@ -46,23 +54,25 @@ proof_repair:
 	dune exec fcc -- --plugin=shelley-plugin ./test/fixtures/ex_this_or_that.v
 
 constructivisation-uniformise: build
-	$(DITTO) -i $(GEOCQ_DIR)/theories/Main/Tarski_dev/Ch05_bet_le.v -o $(GEOCQ_DIR)/theories/Main/Tarski_dev/Ch05_bet_le.v -t replace_induction_with_destruct -v --save-vo
-	cd $(GEOCQ_DIR) && make -j 4 -f CoqMakefile
+	$(foreach chapter,$(CONSTRUCTIVISATION_CHAPTERS),\
+		$(DITTO) -i $(GEOCOQ_INPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(NORMALISED_DIR)/theories/Main/Tarski_dev/$(chapter) -t explicit_apply -v;)
+	$(foreach chapter,$(CONSTRUCTIVISATION_CHAPTERS),\
+		$(DITTO) -i $(GEOCOQ_INPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(NORMALISED_DIR)/theories/Main/Tarski_dev/$(chapter) -t replace_induction_with_destruct;)
 
 constructivisation-build: build
 	$(foreach chapter,$(CONSTRUCTIVISATION_CHAPTERS),\
-		$(DITTO) -i $(GEOCQ_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCQ_DIR)/theories/Constructive/$(chapter) -t constructivise_geocoq -v;)
+		$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -t constructivise_geocoq -v;)
 
 constructivisation-compile:
-	$(DITTO) -i $(GEOCQ_DIR)/theories/Constructive/Definitions.v -o $(GEOCQ_DIR)/theories/Constructive/Definitions.v -t id_doc_transformation -v --save-vo
-	$(DITTO) -i $(GEOCQ_DIR)/theories/Constructive/Prelude.v -o $(GEOCQ_DIR)/theories/Constructive/Prelude.v -t id_doc_transformation -v --save-vo
+	$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Definitions.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Definitions.v -t id_doc_transformation -v --save-vo
+	$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -t id_doc_transformation -v --save-vo
 	$(foreach chapter,$(CONSTRUCTIVISATION_CHAPTERS),\
-		$(DITTO) -i $(GEOCQ_DIR)/theories/Constructive/$(chapter) -o $(GEOCQ_DIR)/theories/Constructive/$(chapter) -t id_doc_transformation -v --save-vo;)
+		$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -t id_doc_transformation -v --save-vo;)
 
 constructivisation-get-percentage: build
-	$(DITTO) -i $(GEOCQ_DIR)/theories/Axioms/Definitions.v -o $(GEOCQ_DIR)/theories/Constructive/Definitions.v -t constructivisation_get_percentage_admitted -v
+	$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Axioms/Definitions.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Definitions.v -t constructivisation_get_percentage_admitted -v
 	$(foreach chapter,$(PERCENTAGE_CHAPTERS),\
-		$(DITTO) -i $(GEOCQ_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCQ_DIR)/theories/Constructive/$(chapter) -t constructivisation_get_percentage_admitted -v;)
+		$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -t constructivisation_get_percentage_admitted -v;)
 
 # Rule to generate a .v.target.json from its .v source
 %.v.target.json: %.v
