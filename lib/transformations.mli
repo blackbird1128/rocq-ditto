@@ -35,17 +35,6 @@ val simple_proof_repair :
   Syntax_node.t nary_tree ->
   (transformation_step list, Error.t) result
 
-val admit_branch_at_error :
-  Rocq_document.t ->
-  Syntax_node.t nary_tree ->
-  (transformation_step list, Error.t) result
-
-val cut_replace_branch :
-  string ->
-  Rocq_document.t ->
-  Syntax_node.t nary_tree ->
-  (transformation_step list, Error.t) result
-
 val explicit_fresh_variables :
   Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
 
