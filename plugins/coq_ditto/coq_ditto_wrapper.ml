@@ -247,6 +247,7 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
                 out_path)
               dep_files
           in
+          let makefile_path = Filename.concat coqproject_dir "Makefile" in
 
           let* new_dir_state = Filesystem.make_dir output in
           warn_if_exists new_dir_state;
@@ -254,6 +255,13 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
           let* _ =
             Filesystem.copy_file coqproject_path
               (Filename.concat output coqproject_file)
+          in
+
+          let* _ =
+            if Sys.file_exists makefile_path then
+              Filesystem.copy_file makefile_path
+                (Filename.concat output "Makefile")
+            else Ok ()
           in
 
           let total_file_count = List.length dep_files in
