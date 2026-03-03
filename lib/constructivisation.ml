@@ -890,33 +890,6 @@ let constructivise_doc (doc : Rocq_document.t) :
         else Ok [])
   in
 
-  let stage_ch03_append_solve_nnexists : stage =
-    make_stage "stage_ch03_append_solve_nnexists" (fun doc ->
-        if String.ends_with ~suffix:"/Ch03_bet.v" doc.filename then
-          match List_utils.find_last_opt (fun _ -> true) doc.elements with
-          | None -> Ok []
-          | Some last_node ->
-              let* solve_nnexists_node =
-                Syntax_node.syntax_node_of_string
-                  {|
-Ltac solve_nnexists_by_inner_pasch A B C P Q :=
-  intro;
-  let HB1 := fresh "HB1" in
-  let HB2 := fresh "HB2" in
-  assert (HB1 : BetC A P C) by Between;
-  assert (HB2 : BetC B Q C) by Between;
-  apply (by_inner_pasch A B C P Q False);
-  [ solve_stable
-  | exact HB1; clear HB1
-  | exact HB2; clear HB2
-  | assumption ].
-|}
-                  dummy_start
-              in
-              Ok [ Attach (solve_nnexists_node, LineAfter, last_node.id) ]
-        else Ok [])
-  in
-
   let stage_1 : stage =
     make_stage "stage1" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in
@@ -1076,7 +1049,6 @@ Ltac solve_nnexists_by_inner_pasch A B C P Q :=
       [
         stage_0;
         stage_beeson_ch03;
-        stage_ch03_append_solve_nnexists;
         stage_1;
         stage_2;
         stage_3;
