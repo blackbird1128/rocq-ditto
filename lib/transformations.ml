@@ -1265,7 +1265,8 @@ let name_identifier_in_intro (doc : Rocq_document.t) (proof : Proof.t) :
   rewrite_proof_nodes doc proof ~rewrite:name_indentifier_in_intro_in_node
 
 (** filled args contains the value, hole contains the name of the variable*)
-type args = Filled of string | Hole of string [@@deriving show]
+type args = Filled of string | Hole of string
+[@@deriving show { with_path = false }]
 
 let parse_diagnostic_into_apply_args (lemma_name : string)
     (diags : Lang.Diagnostic.t list) : args list option =
@@ -1277,7 +1278,7 @@ let parse_diagnostic_into_apply_args (lemma_name : string)
       in
       match args with
       | Some (_prefix, args) ->
-          if String.ends_with ~suffix:")" args then (
+          if String.ends_with ~suffix:")" args then
             let args_str =
               String.sub args 0 (String.length args - 1) |> String.trim
             in
@@ -1290,25 +1291,27 @@ let parse_diagnostic_into_apply_args (lemma_name : string)
                   | None -> Filled x)
                 args_split
             in
-            Logs.debug (fun m -> m "args : %s" ([%derive.show: args list] args));
-            Some args)
+            (* Logs.debug (fun m -> m "args : %s" ([%derive.show: args list] args)); *)
+            Some args
           else None
       | None -> None)
   | _ -> None
 
-let build_ltac_node (lemma_name : string) : Syntax_node.t =
+let build_ltac_node (apply_prefix : string) (lemma_name : string) :
+    Syntax_node.t =
   let dummy_point : Code_point.t = { line = 0; character = 0 } in
   let ltac =
     Printf.sprintf
-      "lazymatch goal with\n\
+      "%s;[..| lazymatch goal with\n\
       \ | |- ?G =>\n\
       \     let rec go t :=\n\
       \       first  [ let _ := constr:(t : G) in idtac t\n\
       \              | let t' := open_constr:(t _) in go t'] in\n\
       \     go %s\n\
-       end."
-      lemma_name
+       end]."
+      apply_prefix lemma_name
   in
+  Logs.debug (fun m -> m "ltac: %s" ltac);
   Syntax_node.syntax_node_of_string ltac dummy_point |> Result.get_ok
 
 let rec fill_implicit_holes (args : args list)
@@ -1332,71 +1335,104 @@ let fill_args (args : args list)
   | ImplicitBindings implicit_binds -> fill_implicit_holes args implicit_binds
   | ExplicitBindings _ -> args
 
+let string_of_raw_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : string =
+  let env = Global.env () in
+  let evd = Evd.from_env env in
+  Ltac_plugin.Pptactic.pr_raw_tactic env evd tac |> Pp.string_of_ppcmds
+
 let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
     (_state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
   let open Ltac_plugin in
   let token = Coq.Limits.Token.create () in
   match tacexpr.v with
-  | Tacexpr.TacAtom (TacApply (_, eflag, [ binding ], _params)) -> (
-      let _, bindings = binding in
-      let lemma, lemma_bindings = bindings in
+  | Tacexpr.TacAtom (TacApply (flag, eflag, bindings, params)) ->
+      let new_bindings =
+        List.mapi
+          (fun i binding ->
+            let bindings_before = List_utils.take i bindings in
+            let apply_before_tacexpr =
+              if List.length bindings_before > 0 then
+                Tacexpr.TacAtom
+                  (TacApply (flag, eflag, bindings_before, params))
+                |> CAst.make
+              else Tacexpr.TacId [] |> CAst.make
+            in
+            let apply_before_str = string_of_raw_tactic apply_before_tacexpr in
 
-      let args = Constrexpr_utils.get_func_args lemma in
-      let args_str = List.map Constrexpr_utils.constrexpr_to_string args in
-
-      let lemma_qualid =
-        Constrexpr_utils.get_fun_name_in_constrexpr lemma |> Option.get
+            let clear_flag, with_bindings = binding in
+            let lemma, lemma_bindings = with_bindings in
+            let args = Constrexpr_utils.get_func_args lemma in
+            let args_str =
+              List.map Constrexpr_utils.constrexpr_to_string args
+            in
+            let lemma_qualid =
+              Constrexpr_utils.get_fun_name_in_constrexpr lemma |> Option.get
+            in
+            let lemma_name_str = Libnames.string_of_qualid lemma_qualid in
+            let lemma_with_args_str =
+              "(" ^ lemma_name_str ^ " " ^ String.concat " " args_str ^ ")"
+            in
+            Logs.debug (fun m ->
+                m "lemma with args str: %s" lemma_with_args_str);
+            let ltac_node =
+              build_ltac_node apply_before_str lemma_with_args_str
+            in
+            let ltac_state =
+              Runner.run_node_with_diagnostics token state_before ltac_node
+            in
+            match ltac_state with
+            | Ok (_state, diags) -> (
+                let args_opt =
+                  parse_diagnostic_into_apply_args lemma_name_str diags
+                in
+                match args_opt with
+                | Some args ->
+                    let filled_args = fill_args args lemma_bindings in
+                    let args_without_holes =
+                      List_utils.take_while
+                        (function Filled _ -> true | Hole _ -> false)
+                        filled_args
+                    in
+                    let filled_args_str =
+                      List.map
+                        (fun (x : args) ->
+                          match x with
+                          | Filled value -> value
+                          | Hole _ -> assert false)
+                        args_without_holes
+                    in
+                    Logs.debug (fun m ->
+                        m "filled args: %s"
+                          ([%derive.show: string list] filled_args_str));
+                    let new_apply_cref =
+                      Constrexpr.CRef (lemma_qualid, None) |> CAst.make
+                    in
+                    let new_apply_args =
+                      List.map
+                        (fun x ->
+                          let x_qualid = Libnames.qualid_of_string x in
+                          (Constrexpr.CRef (x_qualid, None) |> CAst.make, None))
+                        filled_args_str
+                    in
+                    let new_apply_constrexpr =
+                      if List.length new_apply_args > 0 then
+                        Constrexpr.CApp (new_apply_cref, new_apply_args)
+                        |> CAst.make
+                      else new_apply_cref
+                    in
+                    let new_with_binding :
+                        Constrexpr.constr_expr Tactypes.with_bindings =
+                      (new_apply_constrexpr, Tactypes.NoBindings)
+                    in
+                    (clear_flag, new_with_binding)
+                | None -> binding)
+            | Error _ -> binding)
+          bindings
       in
-      let lemma_name_str = Libnames.string_of_qualid lemma_qualid in
-      let lemma_with_args_str =
-        "(" ^ lemma_name_str ^ " " ^ String.concat " " args_str ^ ")"
-      in
-      let ltac_node = build_ltac_node lemma_with_args_str in
-      let ltac_state =
-        Runner.run_node_with_diagnostics token state_before ltac_node
-      in
-      match ltac_state with
-      | Ok (_state, diags) -> (
-          let args_opt =
-            parse_diagnostic_into_apply_args lemma_name_str diags
-          in
-          match args_opt with
-          | Some args -> (
-              let filled_args = fill_args args lemma_bindings in
-
-              let args_without_holes =
-                List_utils.take_while
-                  (fun x -> match x with Filled _ -> true | Hole _ -> false)
-                  filled_args
-              in
-
-              let filled_args_str =
-                List.map
-                  (fun (x : args) ->
-                    match x with
-                    | Filled value -> value
-                    | Hole _ -> assert false)
-                  args_without_holes
-              in
-
-              let new_apply_str =
-                if eflag then
-                  Printf.sprintf "eapply (%s %s)." lemma_name_str
-                    (String.concat " " filled_args_str)
-                else
-                  Printf.sprintf "apply (%s %s)." lemma_name_str
-                    (String.concat " " filled_args_str)
-              in
-              Logs.debug (fun m -> m "new apply str: %s" new_apply_str);
-              let new_tacexpr_res =
-                Syntax_node.string_to_raw_tactic_expr new_apply_str
-              in
-              match new_tacexpr_res with
-              | Ok new_tacexpr -> new_tacexpr
-              | Error _ -> tacexpr)
-          | None -> tacexpr)
-      | Error _ -> tacexpr)
+      Logs.debug (fun m -> m "Here !");
+      Tacexpr.TacAtom (TacApply (flag, eflag, new_bindings, params))
+      |> CAst.make ?loc:tacexpr.loc
   | _ -> tacexpr
 
 let explicit_apply_in_node (token : Coq.Limits.Token.t)
