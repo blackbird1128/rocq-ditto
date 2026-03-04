@@ -1430,7 +1430,6 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
             | Error _ -> binding)
           bindings
       in
-      Logs.debug (fun m -> m "Here !");
       Tacexpr.TacAtom (TacApply (flag, eflag, new_bindings, params))
       |> CAst.make ?loc:tacexpr.loc
   | _ -> tacexpr

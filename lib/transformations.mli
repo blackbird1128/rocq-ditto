@@ -46,6 +46,27 @@ val turn_into_oneliner :
   Syntax_node.t nary_tree ->
   (transformation_step list, Error.t) result
 
+val rewrite_node_tacexpr :
+  Coq.Limits.Token.t ->
+  Coq.State.t ->
+  f:
+    (Coq.State.t ->
+    Coq.State.t ->
+    Ltac_plugin.Tacexpr.raw_tactic_expr ->
+    Ltac_plugin.Tacexpr.raw_tactic_expr) ->
+  Syntax_node.t ->
+  (Syntax_node.t, Error.t) result
+
+val rewrite_proof_nodes :
+  Rocq_document.t ->
+  Proof.t ->
+  rewrite:
+    (Coq.Limits.Token.t ->
+    Coq.State.t ->
+    Syntax_node.t ->
+    (Syntax_node.t, Error.t) result) ->
+  (transformation_step list, Error.t) result
+
 val replace_induction_by_destruct_when_possible :
   Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
 
