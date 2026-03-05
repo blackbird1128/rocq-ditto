@@ -750,19 +750,16 @@ let map_destruct_to_print_destruct (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       let print_tac_str =
         Printf.sprintf
           "let E := uconstr:(%s) in first [ generalize E; match goal with |- \
-           ?T -> _ => idtac E \":\" T end; intros _ | idtac E; fail 1 \"does \
-           not typecheck\"]."
+           ?T -> _ => idtac \"destructPat:\" E \":\" T end; intros _ | idtac  \
+           \"destructPat:\" E; fail 1 \"does not typecheck\"]."
           destruction_arg_str
       in
 
       let print_tac_res = Syntax_node.string_to_raw_tactic_expr print_tac_str in
       match print_tac_res with
       | Ok print_tac ->
-          let tac_then_str =
-            string_of_raw_tactic (Tacexpr.TacThen (print_tac, x) |> CAst.make)
-          in
-          Logs.debug (fun m -> m "tac then str: %s" tac_then_str);
-          Tacexpr.TacThen (print_tac, x) |> CAst.make
+          let raw_tac = Tacexpr.TacThen (print_tac, x) |> CAst.make in
+          raw_tac
       | Error _ -> x)
   | _ -> x
 

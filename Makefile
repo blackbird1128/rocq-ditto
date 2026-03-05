@@ -105,7 +105,7 @@ constructivisation-get-percentage: build
 
 constructivisation-print-destruct-target: build
 	$(foreach chapter,$(ALL_CHAPTERS),\
-		$(DITTO) -i ../compiled_geocoq/theories/Main/Tarski_dev/$(chapter) -o ../compiled_geocoq/theories/Main/Tarski_dev/$(chapter) -t constructivisation_print_destruct_target -v;)
+		$(DITTO) -i ../private-geocoq/theories/Main/Tarski_dev/$(chapter) -o ../geocoq_out/theories/Main/Tarski_dev/$(chapter) -t constructivisation_print_destruct_target -v;)
 
 # Rule to generate a .v.target.json from its .v source
 %.v.target.json: %.v
@@ -120,7 +120,7 @@ PREFIX := $(HOME)/.local
 
 dump-json:
 	dune build ./test/json_dump_plugin/ --profile=release
-	dune exec fcc -- --plugin=json-dump-plugin ../geocoq_bis/theories/Constructive/Ch03_bet.v
+	dune exec fcc -- --plugin=json-dump-plugin ./test/fixtures/unit_test_fixtures/ex_reconstructing_stuck_together.v
 
 constructivisation-data:
 	@if [ -z "$(DEFINITIONS_V)" ]; then \
