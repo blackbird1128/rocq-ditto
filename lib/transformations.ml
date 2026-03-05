@@ -369,49 +369,45 @@ let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
 let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   let token = Coq.Limits.Token.create () in
-  match
-    Runner.fold_proof_with_state doc token
-      (fun state acc node ->
-        let t1 = Unix.gettimeofday () in
-        let new_state_run = Runner.run_node token state node in
-        let t2 = Unix.gettimeofday () in
-        let time_to_run = t2 -. t1 in
-        let new_state = Result.get_ok new_state_run in
-        if time_to_run > 0.0 then
-          let comment_content =
-            "Time spent on this step: " ^ string_of_float time_to_run
-          in
 
-          let nodes_on_same_line =
-            List.filter
-              (fun x -> x != node && x.range.start.line = node.range.start.line)
-              (proof_nodes proof)
-          in
-          let furthest_char_node =
-            List.fold_left
-              (fun max_char_node elem ->
-                if
-                  elem.range.start.character
-                  > max_char_node.range.start.character
-                then elem
-                else max_char_node)
-              node nodes_on_same_line
-          in
+  Runner.fold_proof_with_state doc token
+    (fun state acc node ->
+      let t1 = Unix.gettimeofday () in
+      let new_state_run = Runner.run_node token state node in
+      let t2 = Unix.gettimeofday () in
+      let time_to_run = t2 -. t1 in
+      let new_state = Result.get_ok new_state_run in
+      if time_to_run > 0.0 then
+        let comment_content =
+          "Time spent on this step: " ^ string_of_float time_to_run
+        in
 
-          let comment_start_point =
-            Code_point.shift 0 5 furthest_char_node.range.end_
-          in
-          match
-            Syntax_node.comment_syntax_node_of_string comment_content
-              comment_start_point
-          with
-          | Ok comment_node -> Ok (new_state, Add comment_node :: acc)
-          | Error err -> Error err
-        else Ok (new_state, acc))
-      [] proof
-  with
-  | Ok acc -> Ok acc
-  | Error err -> Error err
+        let nodes_on_same_line =
+          List.filter
+            (fun x -> x != node && x.range.start.line = node.range.start.line)
+            (proof_nodes proof)
+        in
+        let furthest_char_node =
+          List.fold_left
+            (fun max_char_node elem ->
+              if
+                elem.range.start.character > max_char_node.range.start.character
+              then elem
+              else max_char_node)
+            node nodes_on_same_line
+        in
+
+        let comment_start_point =
+          Code_point.shift 0 5 furthest_char_node.range.end_
+        in
+        match
+          Syntax_node.comment_syntax_node_of_string comment_content
+            comment_start_point
+        with
+        | Ok comment_node -> Ok (new_state, Add comment_node :: acc)
+        | Error err -> Error err
+      else Ok (new_state, acc))
+    [] proof
 
 let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
@@ -1001,7 +997,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
         let eflag, b, tacexpr_opt_opt, _, term =
           match raw_atomic_expr with
           | TacAssert (eflag, b, tacexpr_opt_opt, _, term) ->
-              (eflag, b, tacexpr_opt_opt, None, term)
+              (eflag, b, tacexpr_opt_opt, Some None, term)
           | _ -> assert false
         in
 
@@ -1036,9 +1032,9 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
           Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
         in
 
-        let eflag, _ =
+        let eflag =
           match raw_atomic_expr with
-          | TacIntroPattern (e, p) -> (e, p)
+          | TacIntroPattern (e, _) -> e
           | _ -> assert false
         in
 
