@@ -14,6 +14,7 @@ type transformation_kind =
   | IdDocTransformation
   | ConstructiviseGeocoq
   | ConstructivisationGetPercentageAdmitted
+  | ConstructivisationPrintDestructTarget
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
 
@@ -90,6 +91,8 @@ let transformation_help_fun (kind : transformation_kind) :
     | ConstructivisationGetPercentageAdmitted ->
         "Experimental Constructivisation: Get the percentage of admitted \
          proofs containing exists in a file"
+    | ConstructivisationPrintDestructTarget ->
+        "Experimental Constructivisation: Print the destruct target"
     | RocqToLean -> "Experimental: Turn Rocq code to lean"
   in
   (kind, help_text)

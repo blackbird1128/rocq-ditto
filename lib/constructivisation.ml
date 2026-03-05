@@ -717,16 +717,68 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     (remove_all_steps_except_qed
     @ [ Attach (solve_dec_node, LineAfter, proof.proposition.id) ])
 
-let get_destruct_target_node (x : Syntax_node.t) : string option =
+let destruction_arg_to_string
+    (x : Constrexpr.constr_expr Tactypes.with_bindings Tactics.destruction_arg)
+    : string =
+  let _, with_bindings = x in
+  match with_bindings with
+  | Tactics.ElimOnConstr constr ->
+      let constr_expr, _ = constr in
+      Constrexpr_utils.constrexpr_to_string constr_expr
+  | Tactics.ElimOnIdent ident ->
+      let id = ident.v in
+      Names.Id.to_string id
+  | Tactics.ElimOnAnonHyp _ -> "anonymous"
+
+let string_of_raw_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : string =
+  let env = Global.env () in
+  let evd = Evd.from_env env in
+  Ltac_plugin.Pptactic.pr_raw_tactic env evd tac |> Pp.string_of_ppcmds
+
+let map_destruct_to_print_destruct (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
   let open Ltac_plugin in
-  match Syntax_node.get_node_raw_atomic_tactic_expr x with
-  | Some atomic_tac_expr -> (
-      match atomic_tac_expr with
-      | Tacexpr.TacInductionDestruct
-          (false, false, (inductin_clause_l, with_bindings)) ->
-          None
-      | _ -> None)
-  | None -> None
+  (* only treat destruct A. not destruct A, B for now *)
+  match x.v with
+  | Tacexpr.TacAtom
+      (Tacexpr.TacInductionDestruct
+         (false, false, ([ induction_clause_l ], _with_bindings))) -> (
+      let destruction_arg, (_intro_pattern_naming_expr, _), _clause_expr_opt =
+        induction_clause_l
+      in
+      let destruction_arg_str = destruction_arg_to_string destruction_arg in
+      let print_tac_str =
+        Printf.sprintf
+          "let E := uconstr:(%s) in first [ generalize E; match goal with |- \
+           ?T -> _ => idtac E \":\" T end; intros _ | idtac E; fail 1 \"does \
+           not typecheck\"]."
+          destruction_arg_str
+      in
+
+      let print_tac_res = Syntax_node.string_to_raw_tactic_expr print_tac_str in
+      match print_tac_res with
+      | Ok print_tac ->
+          let tac_then_str =
+            string_of_raw_tactic (Tacexpr.TacThen (print_tac, x) |> CAst.make)
+          in
+          Logs.debug (fun m -> m "tac then str: %s" tac_then_str);
+          Tacexpr.TacThen (print_tac, x) |> CAst.make
+      | Error _ -> x)
+  | _ -> x
+
+let transform_to_print_destruct (doc : Rocq_document.t) (proof : Proof.t) :
+    (transformation_step list, Error.t) result =
+  let token = Coq.Limits.Token.create () in
+  Runner.fold_proof_with_state doc token
+    (fun state acc node ->
+      let* new_state = Runner.run_node token state node in
+      match
+        Transformations.map_raw_tactic_expr_in_node
+          map_destruct_to_print_destruct node
+      with
+      | Some step -> Ok (new_state, step :: acc)
+      | None -> Ok (new_state, acc))
+    [] proof
 
 let get_percentage_admitted (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
