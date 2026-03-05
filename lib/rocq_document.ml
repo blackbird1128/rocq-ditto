@@ -336,11 +336,6 @@ let shift_block_checked (n_line : int) (n_char : int)
         min_char n_char
     else Ok (List.map (shift_node n_line n_char) nodes)
 
-let height_lines_half_open (r : Code_range.t) : int =
-  if r.end_.line = r.start.line then 1
-  else if r.end_.character = 0 then r.end_.line - r.start.line
-  else r.end_.line - r.start.line + 1
-
 let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
     (doc : t) : (t, Error.t) result =
   let ( let* ) = Result.bind in
@@ -358,14 +353,39 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
             match after with
             | [] -> Ok []
             | first_after :: _ ->
-                let dl =
-                  removed_node.range.start.line - first_after.range.start.line
-                in
-                let dc =
-                  removed_node.range.start.character
-                  - first_after.range.start.character
-                in
-                shift_block_checked dl dc after)
+                let removed_start = removed_node.range.start in
+                if first_after.range.start.line = removed_start.line then
+                  (* Same line: close the removed node, but preserve the original separator
+                     width that was between removed and first_after. *)
+                  let sep =
+                    first_after.range.start.character
+                    - removed_node.range.end_.character
+                  in
+                  if sep < 0 then
+                    Error.format_to_or_error
+                      "remove_node_with_id(ShiftNode): overlap: after starts \
+                       before removed ends\n\
+                       removed=%s (%s)\n\
+                       after=%s (%s)"
+                      (Syntax_node.repr removed_node)
+                      (Code_range.to_string removed_node.range)
+                      (Syntax_node.repr first_after)
+                      (Code_range.to_string first_after.range)
+                  else
+                    let desired_start_char = removed_start.character + sep in
+                    let dc =
+                      desired_start_char - first_after.range.start.character
+                    in
+                    Ok
+                      (List.map
+                         (fun x ->
+                           if x.range.start.line = removed_start.line then
+                             shift_node 0 dc x
+                           else x)
+                         after)
+                else
+                  let dl = removed_start.line - first_after.range.start.line in
+                  Ok (List.map (shift_node dl 0) after))
       in
       let elements = before @ shifted_after in
       let* document_repr = dump_elements_to_string elements in
@@ -378,7 +398,16 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
 
   let sorted = List.sort Syntax_node.compare doc.elements in
   let before, after =
-    List.partition (fun node -> Syntax_node.compare node new_node < 0) sorted
+    match shift_method with
+    | ShiftVertically ->
+        List.partition
+          (fun node -> node.range.start.line < new_node.range.start.line)
+          sorted
+    | ShiftHorizontally ->
+        List.partition
+          (fun node ->
+            Code_point.compare node.range.start new_node.range.start < 0)
+          sorted
   in
 
   (* Ensure new node doesn't start before previous ends. If it does, it's an overlap. *)
@@ -401,38 +430,61 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
   else
     match shift_method with
     | ShiftHorizontally ->
-        let line = new_node.range.start.line in
-        let boundary = new_node.range.end_.character in
-        let new_after =
-          List.map
-            (fun x ->
-              if x.range.start.line = line then
-                if x.range.start.character < boundary then
-                  Syntax_node.shift_node 0
-                    (boundary - x.range.start.character)
-                    x
-                else x
-              else x)
-            after
-        in
-        let elements = before @ (new_node :: new_after) in
-        let* document_repr = dump_elements_to_string elements in
-        Ok { doc with elements; document_repr }
+        (* Horizontal insert must be single-line *)
+        if new_node.range.start.line <> new_node.range.end_.line then
+          Error.format_to_or_error
+            "insert_node: ShiftHorizontally requires a single-line node, got %s"
+            (Code_range.to_string new_node.range)
+        else
+          let line = new_node.range.start.line in
+          let insert_at = new_node.range.start.character in
+          let inserted_width =
+            new_node.range.end_.character - new_node.range.start.character
+          in
+          let extra_sep =
+            match after with
+            | first_after :: _ ->
+                if
+                  first_after.range.start.line = line
+                  && first_after.range.start.character = insert_at
+                then 1
+                else 0
+            | [] -> 0
+          in
+          let total_shift = inserted_width + extra_sep in
+          let new_after =
+            List.map
+              (fun x ->
+                if
+                  x.range.start.line = line
+                  && x.range.start.character >= insert_at
+                then Syntax_node.shift_node 0 total_shift x
+                else x)
+              after
+          in
+          let elements = before @ (new_node :: new_after) in
+          let* document_repr = dump_elements_to_string elements in
+          Ok { doc with elements; document_repr }
     | ShiftVertically ->
-        (* If the first node after would start before end_, we make space. *)
+        (* Push down only if we overlap the next node; and push by number of
+           newlines inserted, not "height in lines". *)
         let needs_push =
           match after with
           | [] -> false
           | first_after :: _ ->
               not (Code_point.leq new_node.range.end_ first_after.range.start)
         in
-        let* after' =
+        let* new_after =
           if not needs_push then Ok after
           else
-            let h = height_lines_half_open new_node.range in
-            shift_block_checked h 0 after
+            let delta_lines =
+              new_node.range.end_.line - new_node.range.start.line
+            in
+            (* For vertical inserts, treat the node as occupying full lines. *)
+            let push_lines = delta_lines + 1 in
+            shift_block_checked push_lines 0 after
         in
-        let elements = before @ (new_node :: after') in
+        let elements = before @ (new_node :: new_after) in
         let* document_repr = dump_elements_to_string elements in
         Ok { doc with elements; document_repr }
 
@@ -459,13 +511,59 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         remove_node_with_id ~remove_method:LeaveBlank target.id doc
       in
 
-      let shift_method =
-        if replacement.range.start.line = replacement.range.end_.line then
-          ShiftHorizontally
-        else ShiftVertically
+      let is_single_line =
+        replacement.range.start.line = replacement.range.end_.line
       in
 
-      insert_node replacement ~shift_method doc_removed
+      let target_is_multiline =
+        target.range.start.line <> target.range.end_.line
+      in
+      if target_is_multiline || not is_single_line then (
+        let* doc_removed =
+          remove_node_with_id ~remove_method:ShiftNode target.id doc
+        in
+        insert_node replacement ~shift_method:ShiftVertically doc_removed)
+      else
+        let old_width =
+          target.range.end_.character - target.range.start.character
+        in
+        let new_width =
+          replacement.range.end_.character - replacement.range.start.character
+        in
+        let delta = new_width - old_width in
+        let sorted = List.sort Syntax_node.compare doc_removed.elements in
+        let before, after =
+          List.partition
+            (fun node ->
+              Code_point.compare node.range.start replacement.range.start < 0)
+            sorted
+        in
+        let line = replacement.range.start.line in
+        let insert_at = replacement.range.start.character in
+        let predicate x =
+          x.range.start.line = line && x.range.start.character >= insert_at
+        in
+        let* shifted_after =
+          if delta = 0 then Ok after
+          else
+            let to_shift = List.filter predicate after in
+            if to_shift = [] then Ok after
+            else
+              let* shifted_to_shift = shift_block_checked 0 delta to_shift in
+              let shifted_queue = ref shifted_to_shift in
+              Ok
+                (List.map
+                   (fun x ->
+                     if predicate x then
+                       let y = List.hd !shifted_queue in
+                       shifted_queue := List.tl !shifted_queue;
+                       y
+                     else x)
+                   after)
+        in
+        let elements = before @ (replacement :: shifted_after) in
+        let* document_repr = dump_elements_to_string elements in
+        Ok { doc with elements; document_repr }
 
 let replace_proof (target_id : Uuidm.t) (new_proof : Proof.t) (doc : t) :
     transformation_step list option =

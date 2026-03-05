@@ -203,9 +203,7 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
     Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds
     |> remove_outer_parentheses
   in
-  Logs.debug (fun m -> m "repr: %s" repr);
   let range = Code_range.range_from_starting_point_and_repr start_point repr in
-  Logs.debug (fun m -> m "new range: %s" (Code_range.to_string range));
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
   {
     ast = Some node_ast;

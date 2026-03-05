@@ -635,7 +635,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
 
             let add_steps = List.map (fun node -> Add node) shifted_nodes in
 
-            Ok (new_state, add_steps @ (Remove node.id :: acc)))
+            Ok (new_state, Remove node.id :: add_steps @ acc))
           else Ok (new_state, acc))
       [] proof
   in
