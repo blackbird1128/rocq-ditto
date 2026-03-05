@@ -20,8 +20,35 @@ CONSTRUCTIVISATION_CHAPTERS ?= \
 CHAPTER_PATHS := $(addprefix $(NORMALISED_DIR)/theories/Main/Tarski_dev/, \
                   $(CONSTRUCTIVISATION_CHAPTERS))
 
-count-induction:
-	@grep -riow "induction" $(CHAPTER_PATHS) | wc -l
+ALL_CHAPTERS ?= \
+	Ch02_cong.v \
+	Ch03_bet.v \
+	Ch04_col.v \
+	Ch04_cong_bet.v \
+	Ch05_bet_le.v \
+	Ch06_out_lines.v \
+	Ch07_midpoint.v \
+	Ch08_orthogonality.v \
+	Ch09_plane.v \
+	Ch10_line_reflexivity.v
+	Ch10_line_reflexivity_2.v
+	Ch11_angles.v
+	Ch12_parallel.v
+	Ch12_parallel_inter_dec.v
+	Ch13_1.v
+	Ch13_2_length.v
+	Ch13_3_angles.v
+	Ch13_4_cos.v
+	Ch13_5_Pappus_Pascal.v
+	Ch13_6_Desargues_Hessenberg.v
+	Ch14_order.v
+	Ch14_prod.v
+	Ch14_sum.v
+	Ch15_lengths.v
+	Ch15_pyth_rel.v
+	Ch16_coordinates.v
+	Ch16_coordinates_with_functions.v
+
 
 PERCENTAGE_CHAPTERS ?= \
 	Ch04_cong_bet.v \
@@ -49,6 +76,9 @@ build:
 all:
 	dune build --profile=release
 
+count-induction:
+	@grep -riow "induction" $(CHAPTER_PATHS) | wc -l
+
 proof_repair:
 	dune build --profile=release
 	dune exec fcc -- --plugin=shelley-plugin ./test/fixtures/ex_this_or_that.v
@@ -70,9 +100,8 @@ constructivisation-compile:
 		$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -t id_doc_transformation -v --save-vo;)
 
 constructivisation-get-percentage: build
-	$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Axioms/Definitions.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Definitions.v -t constructivisation_get_percentage_admitted -v
-	$(foreach chapter,$(PERCENTAGE_CHAPTERS),\
-		$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -t constructivisation_get_percentage_admitted -v;)
+	$(foreach chapter,$(ALL_CHAPTERS),\
+		$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCOQ_OUTPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -t constructivisation_get_percentage_admitted -v;)
 
 # Rule to generate a .v.target.json from its .v source
 %.v.target.json: %.v
