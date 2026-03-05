@@ -30,24 +30,24 @@ ALL_CHAPTERS ?= \
 	Ch07_midpoint.v \
 	Ch08_orthogonality.v \
 	Ch09_plane.v \
-	Ch10_line_reflexivity.v
-	Ch10_line_reflexivity_2.v
-	Ch11_angles.v
-	Ch12_parallel.v
-	Ch12_parallel_inter_dec.v
-	Ch13_1.v
-	Ch13_2_length.v
-	Ch13_3_angles.v
-	Ch13_4_cos.v
-	Ch13_5_Pappus_Pascal.v
-	Ch13_6_Desargues_Hessenberg.v
-	Ch14_order.v
-	Ch14_prod.v
-	Ch14_sum.v
-	Ch15_lengths.v
-	Ch15_pyth_rel.v
-	Ch16_coordinates.v
-	Ch16_coordinates_with_functions.v
+	Ch10_line_reflexivity.v \
+	Ch10_line_reflexivity_2.v \
+	Ch11_angles.v \
+	Ch12_parallel.v \
+	Ch12_parallel_inter_dec.v \
+	Ch13_1.v \
+	Ch13_2_length.v \
+	Ch13_3_angles.v \
+	Ch13_4_cos.v \
+	Ch13_5_Pappus_Pascal.v \
+	Ch13_6_Desargues_Hessenberg.v \
+	Ch14_order.v \
+	Ch14_prod.v \
+	Ch14_sum.v \
+	Ch15_lengths.v \
+	Ch15_pyth_rel.v \
+	Ch16_coordinates.v \
+	Ch16_coordinates_with_functions.v \
 
 
 PERCENTAGE_CHAPTERS ?= \
@@ -70,11 +70,11 @@ PERCENTAGE_CHAPTERS ?= \
 
 .PHONY: all test install uninstall dump-json clean constructivisation-uniformise constructivisation-build constructivisation-compile build constructivisation-data constructivisation-get-percentage count-induction
 
+all:
+	dune build
+
 build:
 	dune build 
-
-all:
-	dune build --profile=release
 
 count-induction:
 	@grep -riow "induction" $(CHAPTER_PATHS) | wc -l
@@ -102,6 +102,10 @@ constructivisation-compile:
 constructivisation-get-percentage: build
 	$(foreach chapter,$(ALL_CHAPTERS),\
 		$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCOQ_OUTPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -t constructivisation_get_percentage_admitted -v;)
+
+constructivisation-print-destruct-target: build
+	$(foreach chapter,$(ALL_CHAPTERS),\
+		$(DITTO) -i ../compiled_geocoq/theories/Main/Tarski_dev/$(chapter) -o ../compiled_geocoq/theories/Main/Tarski_dev/$(chapter) -t constructivisation_print_destruct_target -v;)
 
 # Rule to generate a .v.target.json from its .v source
 %.v.target.json: %.v
