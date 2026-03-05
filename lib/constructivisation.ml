@@ -212,22 +212,6 @@ let map_assert_constr_expr
       |> CAst.make
   | _ -> tacexpr
 
-let map_raw_tactic_expr_in_node
-    (f :
-      Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
-    (node : Syntax_node.t) : transformation_step option =
-  let+ raw_tac_expr = Syntax_node.get_node_raw_tactic_expr node in
-  let raw_expr_mapped = Tacexpr_map.tacexpr_map f raw_tac_expr in
-  if raw_tac_expr = raw_expr_mapped then None
-  else
-    let selector = Syntax_node.get_node_goal_selector_opt node in
-    let+ new_node =
-      Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
-        node.range.start
-      |> Result.to_option
-    in
-    Some (Replace (node.id, new_node))
-
 let map_tacdef_bodies_in_node
     (f :
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -260,7 +244,7 @@ let map_tacdef_bodies_in_node
 let replace_taccall_tacarg_in_node (old_tac_call_name : string)
     (new_tac_call_name : string) (node : Syntax_node.t) :
     transformation_step option =
-  map_raw_tactic_expr_in_node
+  Transformations.map_raw_tactic_expr_in_node
     (replace_taccall_tacarg_in_tacexpr old_tac_call_name new_tac_call_name)
     node
 
@@ -769,7 +753,7 @@ let map_raw_tactic_expr_steps
     (f :
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
     (doc : Rocq_document.t) : transformation_step list =
-  List.filter_map (map_raw_tactic_expr_in_node f) doc.elements
+  List.filter_map (Transformations.map_raw_tactic_expr_in_node f) doc.elements
 
 let replace_taccalls_in_tacexpr (renames : (string * string) list)
     (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
@@ -952,7 +936,8 @@ let constructivise_doc (doc : Rocq_document.t) :
 
         let replace_bet_by_betc_and_or_by_cons_or_in_assert_steps =
           List.filter_map
-            (map_raw_tactic_expr_in_node (map_assert_constr_expr f_assert))
+            (Transformations.map_raw_tactic_expr_in_node
+               (map_assert_constr_expr f_assert))
             doc.elements
         in
 
