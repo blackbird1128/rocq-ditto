@@ -44,7 +44,8 @@ let range_from_starting_point_and_repr (starting_point : Code_point.t)
 let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
   let a_start, a_end = a in
   let b_start, b_end = b in
-  not (a_end < b_start || b_end < a_start)
+  not (a_end <= b_start || b_end <= a_start)
+(* half open intervals *)
 
 let common_range (a : int * int) (b : int * int) : (int * int) option =
   let a_start, a_end = a in
