@@ -237,56 +237,62 @@ let parse_document (doc : Doc.t) : t =
 
 let dump_elements_to_string (elements : Syntax_node.t list) :
     (string, Error.t) result =
-  let rec aux (repr_nodes : Syntax_node.t list) (doc_repr : string)
-      (previous_node : Syntax_node.t) : (string, Error.t) result =
-    match repr_nodes with
+  let sorted = List.sort Syntax_node.compare elements in
+
+  let append_first (node : Syntax_node.t) : string =
+    String.make node.range.start.line '\n'
+    ^ String.make node.range.start.character ' '
+    ^ Syntax_node.repr node
+  in
+
+  let rec aux (nodes : Syntax_node.t list) (doc_repr : string)
+      (prev : Syntax_node.t) : (string, Error.t) result =
+    match nodes with
     | [] -> Ok doc_repr
-    | node :: tail -> (
-        let line_diff = node.range.start.line - previous_node.range.end_.line in
-        let result =
-          if previous_node.range = node.range then
-            (* first node: potentially empty lines before *)
-            Ok
-              (doc_repr
-              ^ String.make node.range.start.line '\n'
-              ^ String.make node.range.start.character ' '
-              ^ repr node)
-          else if node.range.start.line = previous_node.range.end_.line then
-            let char_diff =
-              node.range.start.character - previous_node.range.end_.character
-            in
-            if char_diff < 0 then
-              Error.format_to_or_error
-                "Error: node start - previous end char negative\n\
-                 previous node: (%s: range: %s)\n\
-                 current node:  (%s: range: %s)"
-                (Syntax_node.repr previous_node)
-                (Code_range.to_string previous_node.range)
-                (Syntax_node.repr node)
-                (Code_range.to_string node.range)
-            else Ok (doc_repr ^ String.make char_diff ' ' ^ repr node)
-          else if line_diff <= 0 then
+    | node :: tail ->
+        let line_diff = node.range.start.line - prev.range.end_.line in
+        if line_diff < 0 then
+          Error.format_to_or_error
+            "dump_elements_to_string: node starts before previous ends (line)\n\
+             prev: %s range=%s\n\
+             node: %s range=%s"
+            (Syntax_node.repr prev)
+            (Code_range.to_string prev.range)
+            (Syntax_node.repr node)
+            (Code_range.to_string node.range)
+        else if line_diff = 0 then
+          let char_diff =
+            node.range.start.character - prev.range.end_.character
+          in
+          if char_diff < 0 then
             Error.format_to_or_error
-              "line diff negative\n\
-               previous node range: %s\n\
-               current node range: %s"
-              (Code_range.to_string previous_node.range)
+              "dump_elements_to_string: node starts before previous ends (char)\n\
+               prev: %s range=%s\n\
+               node: %s range=%s"
+              (Syntax_node.repr prev)
+              (Code_range.to_string prev.range)
+              (Syntax_node.repr node)
               (Code_range.to_string node.range)
           else
-            Ok
-              (doc_repr ^ String.make line_diff '\n'
-              ^ String.make node.range.start.character ' '
-              ^ repr node)
-        in
-        match result with
-        | Error _ as e -> e
-        | Ok updated_doc -> aux tail updated_doc node)
+            let updated =
+              doc_repr ^ String.make char_diff ' ' ^ Syntax_node.repr node
+            in
+            aux tail updated node
+        else
+          (* moved to later line(s): newline(s) then indentation spaces *)
+          let updated =
+            doc_repr ^ String.make line_diff '\n'
+            ^ String.make node.range.start.character ' '
+            ^ Syntax_node.repr node
+          in
+          aux tail updated node
   in
-  match elements with
-  | [] -> Ok "" (* or maybe Error "Empty document"? *)
+
+  match sorted with
+  | [] -> Ok ""
   | first :: tail ->
-      let sorted_elements = List.sort compare (first :: tail) in
-      aux sorted_elements "" first
+      let doc0 = append_first first in
+      aux tail doc0 first
 
 let dump_to_string (doc : t) : (string, Error.t) result =
   dump_elements_to_string doc.elements
@@ -406,7 +412,9 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
   let ( let* ) = Result.bind in
 
   let element_before_new_node_start, element_after_new_node_start =
-    List.partition (fun node -> compare node new_node < 0) doc.elements
+    List.partition
+      (fun node -> Syntax_node.compare node new_node < 0)
+      doc.elements
   in
 
   let element_after_range_opt =
