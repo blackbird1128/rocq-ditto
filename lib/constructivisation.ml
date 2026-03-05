@@ -717,6 +717,17 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     (remove_all_steps_except_qed
     @ [ Attach (solve_dec_node, LineAfter, proof.proposition.id) ])
 
+let get_destruct_target_node (x : Syntax_node.t) : string option =
+  let open Ltac_plugin in
+  match Syntax_node.get_node_raw_atomic_tactic_expr x with
+  | Some atomic_tac_expr -> (
+      match atomic_tac_expr with
+      | Tacexpr.TacInductionDestruct
+          (false, false, (inductin_clause_l, with_bindings)) ->
+          None
+      | _ -> None)
+  | None -> None
+
 let get_percentage_admitted (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let* proofs = Rocq_document.get_proofs doc in
