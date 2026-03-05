@@ -507,7 +507,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
       let has_same_lines_elements =
         List.exists
           (fun node ->
-            node.id != target.id
+            (not (Uuidm.equal node.id target.id))
             && node.range.start.line = target.range.end_.line)
           removed_node_doc.elements
       in
@@ -528,7 +528,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         if
           not
             (Option.equal
-               (fun x y -> x.id = y.id)
+               (fun x y -> Uuidm.equal x.id y.id)
                node_after_opt new_node_after_opt)
         then
           Error.string_to_or_error
