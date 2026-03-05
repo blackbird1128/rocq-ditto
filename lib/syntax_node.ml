@@ -45,63 +45,91 @@ let mk_vernac_control ?(loc : Loc.t option)
   let payload = { control; attrs; expr = ve } in
   CAst.make ?loc payload
 
+(* as a code range is half_open (the end is open [a,b] and [b,c] are not colliding, this also mean that a node finishing on the character 0 of a line isn't included in this line  *)
+let line_span (r : Code_range.t) : int * int =
+  let end_excl =
+    if r.end_.character = 0 then r.end_.line else r.end_.line + 1
+  in
+  (r.start.line, end_excl)
+
+let char_span_on_line (r : Code_range.t) (line : int) : int * int =
+  (* half-open char span [start_char, end_char) of r on a particular line that r touches *)
+  let start_char = if r.start.line < line then 0 else r.start.character in
+  let _, end_line_excl = line_span r in
+  let end_char =
+    if end_line_excl > line + 1 then max_int else r.end_.character
+  in
+  (start_char, end_char)
+
 let are_colliding (a : t) (b : t) : bool =
-  let a_line_range = (a.range.start.line, a.range.end_.line) in
-  let b_line_range = (b.range.start.line, b.range.end_.line) in
-  match Code_range.common_range a_line_range b_line_range with
-  | Some range ->
-      let len_range = snd range - fst range + 1 in
-      if len_range > 1 then true
-      else
-        let common_line = fst range in
-        let a_line_start_char =
-          if fst a_line_range < common_line then 0 else a.range.start.character
-        in
-        let b_line_start_char =
-          if fst b_line_range < common_line then 0 else b.range.start.character
-        in
-        let a_line_end_char =
-          if snd a_line_range > common_line then max_int
-          else a.range.end_.character
-        in
-        let b_line_end_char =
-          if snd b_line_range > common_line then max_int
-          else b.range.end_.character
-        in
-        let a_char_range = (a_line_start_char, a_line_end_char) in
-        let b_char_range = (b_line_start_char, b_line_end_char) in
-        Option.has_some (Code_range.common_range a_char_range b_char_range)
-  | None -> false
+  let a_ls, a_le = line_span a.range in
+  let b_ls, b_le = line_span b.range in
+  (* common line span [cs, ce) *)
+  let cs = max a_ls b_ls in
+  let ce = min a_le b_le in
+  if ce <= cs then false
+  else if ce - cs >= 2 then true
+  else
+    let line = cs in
+    let a_cs = char_span_on_line a.range line in
+    let b_cs = char_span_on_line b.range line in
+    Code_range.are_flat_ranges_colliding a_cs b_cs
 
 let colliding_nodes (target : t) (nodes_list : t list) : t list =
   List.filter (are_colliding target) nodes_list
 
 let compare (a : t) (b : t) : int =
-  match
-    Code_range.common_range
-      (a.range.start.line, a.range.end_.line)
-      (b.range.start.line, b.range.end_.line)
-  with
-  | Some common_line_range ->
-      let smallest_common = fst common_line_range in
-      if a.range.start.line < smallest_common then -1
-      else if b.range.start.line < smallest_common then 1
-      else compare a.range.start.character b.range.start.character
-  | None -> compare a.range.start.line b.range.start.line
+  let c = Code_point.compare a.range.start b.range.start in
+  if c <> 0 then c
+  else
+    let c = Code_point.compare a.range.end_ b.range.end_ in
+    if c <> 0 then c
+    else Uuidm.compare a.id b.id (* deterministic tie-breaker *)
+
+let count_newlines_and_last_line_len (s : string) : int * int =
+  (* returns (number_of_newlines, length_of_last_line_after_last_newline) *)
+  let n = String.length s in
+  let rec loop (i : int) (newlines : int) (last_len : int) =
+    if i >= n then (newlines, last_len)
+    else
+      match s.[i] with
+      | '\n' -> loop (i + 1) (newlines + 1) 0
+      | _ -> loop (i + 1) newlines (last_len + 1)
+  in
+  loop 0 0 0
 
 let validate_syntax_node (x : t) : (t, Error.t) result =
-  if x.range.end_.line < x.range.start.line then
+  let r = x.range in
+  if r.end_.line < r.start.line then
     Error.string_to_or_error
-      "Incorrect range: range end line is smaller than the range start line"
-  else if
-    x.range.start.line = x.range.end_.line
-    && String.length (repr x) > x.range.end_.character - x.range.start.character
+      "Incorrect range: range end line is smaller than start line"
+  else if r.end_.line = r.start.line && r.end_.character < r.start.character
   then
     Error.string_to_or_error
-      "Incorrect range: the height of the node is one and the range end \
-       character minus range start character is smaller than the node \
-       character size"
-  else Ok x
+      "Incorrect range: same line but end character < start character"
+  else
+    let s = repr x in
+    let nl, last_len = count_newlines_and_last_line_len s in
+    let expected_end_line = r.start.line + nl in
+    if r.end_.line <> expected_end_line then
+      Error.format_to_or_error
+        "Incorrect range: repr has %d newlines, expected end_.line = %d but \
+         got %d"
+        nl expected_end_line r.end_.line
+    else if nl = 0 then
+      let expected_end_char = r.start.character + String.length s in
+      if r.end_.character <> expected_end_char then
+        Error.format_to_or_error
+          "Incorrect range: single-line repr length: %d; expect \
+           end_.character=%d but got %d"
+          (String.length s) expected_end_char r.end_.character
+      else Ok x
+    else if r.end_.character <> last_len then (* multi line repr *)
+      Error.format_to_or_error
+        "Incorrect range: multi-line repr last-line length=%d, expected \
+         end_.character=%d but got %d"
+        last_len last_len r.end_.character
+    else Ok x
 
 (* TODO, is this even necessary ? *)
 let comment_syntax_node_of_string (content : string)
@@ -175,7 +203,9 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
     Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds
     |> remove_outer_parentheses
   in
+  Logs.debug (fun m -> m "repr: %s" repr);
   let range = Code_range.range_from_starting_point_and_repr start_point repr in
+  Logs.debug (fun m -> m "new range: %s" (Code_range.to_string range));
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
   {
     ast = Some node_ast;
