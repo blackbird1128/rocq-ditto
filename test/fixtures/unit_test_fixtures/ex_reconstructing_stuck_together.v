@@ -3,3 +3,4 @@ Proof.
 split.
 -auto.
 -auto.
+Qed.

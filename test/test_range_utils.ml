@@ -18,6 +18,10 @@ let test_a_contains_b_collision () =
 let test_b_contains_a_collision () =
   check bool "b contains a" true (are_flat_ranges_colliding (4, 5) (2, 10))
 
+let test_no_overlapping_half_open () =
+  check bool "No overlap half open" false
+    (are_flat_ranges_colliding (4, 5) (5, 10))
+
 let test_get_simple_common_range () =
   check
     (option (pair int int))
@@ -62,6 +66,8 @@ let () =
             test_a_contains_b_collision;
           test_case "test two ranges where b contains a" `Quick
             test_b_contains_a_collision;
+          test_case "test two contiguous half open range not touching" `Quick
+            test_no_overlapping_half_open;
         ] );
       ( "Common range",
         [

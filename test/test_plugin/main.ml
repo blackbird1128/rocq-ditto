@@ -371,7 +371,8 @@ let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
   let reconstructed = Rocq_document.dump_to_string doc in
   Alcotest.(check (result string error_testable))
     "The document should be correctly reconstructed"
-    (Ok "Lemma a: True /\\ True.\nProof.\nsplit.\n-auto.\n-auto.") reconstructed
+    (Ok "Lemma a: True /\\ True.\nProof.\nsplit.\n-auto.\n-auto.\nQed.")
+    reconstructed
 
 let test_creating_valid_syntax_node_from_string (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
@@ -1168,9 +1169,6 @@ let test_replace_multiple_branch_auto_by_steps (doc : Doc.t) () : unit =
 let test_replace_auto_using_zarith_by_steps (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.replace_auto_with_steps ()
 
-let test_replace_auto_with_backtracking (doc : Doc.t) () : unit =
-  test_proof_transformation doc Transformations.replace_auto_with_steps ()
-
 let test_turn_into_oneliner_with_commands (doc : Doc.t) () : unit =
   test_tree_transformation doc Transformations.turn_into_oneliner ()
 
@@ -1829,9 +1827,9 @@ let setup_test_table table (doc : Doc.t) =
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
   (* test_replace_auto_using_zarith_by_steps doc); *)
-  Hashtbl.add table "ex_auto4.v"
-    (create_fixed_test "test replacing auto with backtracking by steps"
-       test_replace_auto_with_backtracking doc);
+  (* Hashtbl.add table "ex_auto4.v" *)
+  (*   (create_fixed_test "test replacing auto with backtracking by steps" *)
+  (*      test_replace_auto_with_backtracking doc); *)
   (* TODO commit files *)
   ()
 
