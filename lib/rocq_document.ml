@@ -67,16 +67,6 @@ let get_line_col_positions text pos : Code_point.t =
   (* Start from line 0, column 0, character 0 *)
   { line; character }
 
-let offset_of_code_point (doc : t) (p : Code_point.t) =
-  let lines = String.split_on_char '\n' doc.document_repr in
-  let rec sum_lengths acc idx =
-    if idx = 0 then acc
-    else
-      sum_lengths (acc + String.length (List.nth lines (idx - 1)) + 1) (idx - 1)
-  in
-  let before_lines_len = sum_lengths 0 p.line in
-  before_lines_len + p.character
-
 let mark_string_regions (s : string) : bool array =
   let n = String.length s in
   let rec loop i in_string escape acc =
@@ -330,26 +320,26 @@ let split_at_id (target_id : Uuidm.t) (doc : t) :
   in
   aux doc.elements []
 
-let elements_starting_at_line (line_number : int) (nodes : Syntax_node.t list) :
-    Syntax_node.t list =
-  List.filter (fun elem -> elem.range.start.line = line_number) nodes
-
-let shift_node_first_line (n_char : int) (x : Syntax_node.t) : Syntax_node.t =
-  if x.range.start.line = x.range.end_.line then shift_node 0 n_char x
+let shift_block_checked (n_line : int) (n_char : int)
+    (nodes : Syntax_node.t list) : (Syntax_node.t list, Error.t) result =
+  if n_char = 0 then Ok (List.map (shift_node n_line n_char) nodes)
   else
-    {
-      x with
-      range =
-        {
-          start = Code_point.shift 0 n_char x.range.start;
-          end_ = Code_point.shift 0 0 x.range.end_;
-        };
-    }
+    let min_char =
+      List.fold_left
+        (fun acc n ->
+          min acc (min n.range.start.character n.range.end_.character))
+        max_int nodes
+    in
+    if min_char + n_char < 0 then
+      Error.format_to_or_error
+        "Shift would create negative character positions (min_char=%d shift=%d)"
+        min_char n_char
+    else Ok (List.map (shift_node n_line n_char) nodes)
 
-let num_chars_last_line (x : Syntax_node.t) : int =
-  if x.range.start.line = x.range.end_.line then
-    x.range.end_.character - x.range.start.character
-  else x.range.end_.character
+let height_lines_half_open (r : Code_range.t) : int =
+  if r.end_.line = r.start.line then 1
+  else if r.end_.character = 0 then r.end_.line - r.start.line
+  else r.end_.line - r.start.line + 1
 
 let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
     (doc : t) : (t, Error.t) result =
@@ -359,213 +349,123 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
       Error.format_to_or_error
         "The element with id: %s wasn't found in the document"
         (Uuidm.to_string target_id)
-  | Some removed_node -> (
+  | Some removed_node ->
       let before, after = split_at_id target_id doc in
-      let block_height =
-        removed_node.range.end_.line - removed_node.range.start.line + 1
+      let* shifted_after =
+        match remove_method with
+        | LeaveBlank -> Ok after
+        | ShiftNode -> (
+            match after with
+            | [] -> Ok []
+            | first_after :: _ ->
+                let dl =
+                  removed_node.range.start.line - first_after.range.start.line
+                in
+                let dc =
+                  removed_node.range.start.character
+                  - first_after.range.start.character
+                in
+                shift_block_checked dl dc after)
       in
-
-      let node_before_on_start_line =
-        List.exists
-          (fun x -> x.range.end_.line = removed_node.range.start.line)
-          before
-      in
-
-      let nodes_after_on_end_line =
-        List.exists
-          (fun x -> x.range.start.line = removed_node.range.end_.line)
-          after
-      in
-
-      (* each block is at least a line high *)
-      match remove_method with
-      | LeaveBlank ->
-          let elements = before @ after in
-          let* doc_repr = dump_elements_to_string elements in
-          Ok { doc with elements; document_repr = doc_repr }
-      | ShiftNode ->
-          let line_shift =
-            if node_before_on_start_line then -(block_height - 1)
-            else -block_height
-          in
-          if nodes_after_on_end_line then
-            let elements =
-              before
-              @ List.map
-                  (fun x ->
-                    if x.range.start.line = removed_node.range.end_.line then
-                      shift_node_first_line
-                        (-num_chars_last_line removed_node)
-                        x
-                    else x)
-                  after
-            in
-            let* document_repr = dump_elements_to_string elements in
-            Ok { doc with elements; document_repr }
-          else
-            let elements = before @ List.map (shift_node line_shift 0) after in
-            let* document_repr = dump_elements_to_string elements in
-            Ok { doc with elements; document_repr })
+      let elements = before @ shifted_after in
+      let* document_repr = dump_elements_to_string elements in
+      Ok { doc with elements; document_repr }
 
 let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
   let ( let* ) = Result.bind in
+  let* new_node = validate_syntax_node new_node in
 
-  let element_before_new_node_start, element_after_new_node_start =
-    List.partition
-      (fun node -> Syntax_node.compare node new_node < 0)
-      doc.elements
+  let sorted = List.sort Syntax_node.compare doc.elements in
+  let before, after =
+    List.partition (fun node -> Syntax_node.compare node new_node < 0) sorted
   in
 
-  let element_after_range_opt =
-    Option.map (fun x -> x.range) (List.nth_opt element_after_new_node_start 0)
+  (* Ensure new node doesn't start before previous ends. If it does, it's an overlap. *)
+  let prev_opt = List_utils.last before in
+  let overlaps_prev =
+    match prev_opt with
+    | None -> false
+    | Some prev -> not (Code_point.leq prev.range.end_ new_node.range.start)
   in
 
-  let node_offset_size = String.length (repr new_node) in
-
-  let offset_space =
-    match element_after_range_opt with
-    | Some element_after_range ->
-        offset_of_code_point doc element_after_range.start
-        - offset_of_code_point doc new_node.range.start
-        - 1
-    | None -> 0
-  in
-
-  let total_shift = node_offset_size - offset_space in
-
-  match shift_method with
-  | ShiftHorizontally ->
-      if new_node.range.start.line != new_node.range.end_.line then
-        Error.format_to_or_error
-          "Error when trying to shift %s at: %s.@.Shifting horizontally is \
-           only possible with 1 line height node"
-          (repr new_node)
-          (Code_range.to_string new_node.range)
-      else
-        let multi_lines_nodes_after_same_line =
-          elements_starting_at_line new_node.range.start.line
-            element_after_new_node_start
-          |> List.find_opt (fun node ->
-              node.range.start.character > new_node.range.start.character
-              && node.range.end_.line - node.range.start.line >= 1)
-          |> Option.has_some
+  if overlaps_prev then
+    Error.format_to_or_error
+      "insert_node: new node starts before previous ends\n\
+       prev=%s (%s)\n\
+       new=%s (%s)"
+      (Syntax_node.repr (Option.get prev_opt))
+      (Code_range.to_string (Option.get prev_opt).range)
+      (Syntax_node.repr new_node)
+      (Code_range.to_string new_node.range)
+  else
+    match shift_method with
+    | ShiftHorizontally ->
+        let line = new_node.range.start.line in
+        let boundary = new_node.range.end_.character in
+        let new_after =
+          List.map
+            (fun x ->
+              if x.range.start.line = line then
+                if x.range.start.character < boundary then
+                  Syntax_node.shift_node 0
+                    (boundary - x.range.start.character)
+                    x
+                else x
+              else x)
+            after
         in
-        if multi_lines_nodes_after_same_line then
-          Error.format_to_or_error
-            "Can't shift multi-lines nodes on the same line (%d) as the node \
-             inserted"
-            new_node.range.start.line
-        else
-          let elements =
-            element_before_new_node_start
-            @ new_node
-              :: List.map
-                   (fun node ->
-                     if node.range.start.line = new_node.range.start.line then
-                       shift_node 0 total_shift node
-                     else node)
-                   element_after_new_node_start
-          in
-          let* document_repr = dump_elements_to_string elements in
-          Ok { doc with elements; document_repr }
-  | ShiftVertically ->
-      let line_shift =
-        if List.length (colliding_nodes new_node doc.elements) = 0 then 0
-        else new_node.range.end_.line - new_node.range.start.line + 1
-      in
-      let elements =
-        element_before_new_node_start
-        @ new_node
-          :: List.map
-               (fun node -> shift_node line_shift 0 node)
-               element_after_new_node_start
-      in
-      let* document_repr = dump_elements_to_string elements in
-      Ok { doc with elements; document_repr }
+        let elements = before @ (new_node :: new_after) in
+        let* document_repr = dump_elements_to_string elements in
+        Ok { doc with elements; document_repr }
+    | ShiftVertically ->
+        (* If the first node after would start before end_, we make space. *)
+        let needs_push =
+          match after with
+          | [] -> false
+          | first_after :: _ ->
+              not (Code_point.leq new_node.range.end_ first_after.range.start)
+        in
+        let* after' =
+          if not needs_push then Ok after
+          else
+            let h = height_lines_half_open new_node.range in
+            shift_block_checked h 0 after
+        in
+        let elements = before @ (new_node :: after') in
+        let* document_repr = dump_elements_to_string elements in
+        Ok { doc with elements; document_repr }
 
 let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
     (t, Error.t) result =
   let ( let* ) = Result.bind in
-  let* replacement = validate_syntax_node replacement in
   match element_with_id_opt target_id doc with
+  | None ->
+      Error.format_to_or_error "The target node with id: %s doesn't exist"
+        (Uuidm.to_string target_id)
   | Some target ->
-      let _, after_replaced = (split_at_id target.id) doc in
-      let node_after_opt = List.nth_opt after_replaced 0 in
-
-      let replacement_shifted =
+      let* replacement = validate_syntax_node replacement in
+      let replacement =
         {
           replacement with
           range =
             Code_range.range_from_starting_point_and_repr target.range.start
-              (repr replacement);
+              (Syntax_node.repr replacement);
         }
       in
+      let* replacement = validate_syntax_node replacement in
 
-      let replacement_height =
-        replacement_shifted.range.end_.line
-        - replacement_shifted.range.start.line + 1
-      in
-
-      let* removed_node_doc =
+      let* doc_removed =
         remove_node_with_id ~remove_method:LeaveBlank target.id doc
-        (* we already checked for the node existence but remove node can still fail when reconstructing the document if the doc is invalid *)
       in
 
-      let has_same_lines_elements =
-        List.exists
-          (fun node ->
-            (not (Uuidm.equal node.id target.id))
-            && node.range.start.line = target.range.end_.line)
-          removed_node_doc.elements
+      let shift_method =
+        if replacement.range.start.line = replacement.range.end_.line then
+          ShiftHorizontally
+        else ShiftVertically
       in
 
-      if has_same_lines_elements && replacement_height = 1 then
-        insert_node replacement_shifted ~shift_method:ShiftHorizontally
-          removed_node_doc
-      else
-        let* new_doc =
-          insert_node replacement_shifted ~shift_method:ShiftVertically
-            removed_node_doc
-        in
-
-        let before_replacement, after_replacement =
-          (split_at_id replacement_shifted.id) new_doc
-        in
-        let new_node_after_opt = List.nth_opt after_replacement 0 in
-        if
-          not
-            (Option.equal
-               (fun x y -> Uuidm.equal x.id y.id)
-               node_after_opt new_node_after_opt)
-        then
-          Error.string_to_or_error
-            "This should not happen, please report this bug if you see it"
-        else
-          let dist =
-            match (node_after_opt, new_node_after_opt) with
-            | Some before, Some after ->
-                let dist_before =
-                  before.range.start.line - target.range.end_.line
-                in
-                let dist_after =
-                  after.range.start.line - replacement_shifted.range.end_.line
-                in
-                dist_before - dist_after
-            | _ -> 0
-          in
-          Ok
-            {
-              new_doc with
-              elements =
-                before_replacement
-                @ replacement_shifted
-                  :: List.map (shift_node dist 0) after_replacement;
-            }
-  | None ->
-      Error.string_to_or_error
-        ("The target node with id : " ^ Uuidm.to_string target_id
-       ^ " doesn't exists")
+      insert_node replacement ~shift_method doc_removed
 
 let replace_proof (target_id : Uuidm.t) (new_proof : Proof.t) (doc : t) :
     transformation_step list option =
