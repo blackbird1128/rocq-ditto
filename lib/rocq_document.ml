@@ -225,10 +225,8 @@ let parse_document (doc : Doc.t) : t =
     initial_state = doc.root;
   }
 
-let dump_elements_to_string (elements : Syntax_node.t list) :
+let dump_sorted_elements_to_string (sorted : Syntax_node.t list) :
     (string, Error.t) result =
-  let sorted = List.sort Syntax_node.compare elements in
-
   let append_first (buf : Buffer.t) (node : Syntax_node.t) : unit =
     Buffer.add_string buf (String.make node.range.start.line '\n');
     Buffer.add_string buf (String.make node.range.start.character ' ');
@@ -281,6 +279,11 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
       let buf = Buffer.create 256 in
       append_first buf first;
       aux tail buf first
+
+let dump_elements_to_string (elements : Syntax_node.t list) :
+    (string, Error.t) result =
+  let sorted = List.sort Syntax_node.compare elements in
+  dump_sorted_elements_to_string sorted
 
 let dump_to_string (doc : t) : (string, Error.t) result =
   dump_elements_to_string doc.elements
@@ -374,19 +377,22 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
                     let dc =
                       desired_start_char - first_after.range.start.character
                     in
-                    Ok
-                      (List.map
-                         (fun x ->
-                           if x.range.start.line = removed_start.line then
-                             shift_node 0 dc x
-                           else x)
-                         after)
+                    if dc = 0 then Ok after
+                    else
+                      Ok
+                        (List.map
+                           (fun x ->
+                             if x.range.start.line = removed_start.line then
+                               shift_node 0 dc x
+                             else x)
+                           after)
                 else
                   let dl = removed_start.line - first_after.range.start.line in
-                  Ok (List.map (shift_node dl 0) after))
+                  if dl = 0 then Ok after
+                  else Ok (List.map (shift_node dl 0) after))
       in
       let elements = before @ shifted_after in
-      let* document_repr = dump_elements_to_string elements in
+      let* document_repr = dump_sorted_elements_to_string elements in
       Ok { doc with elements; document_repr }
 
 let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
@@ -394,7 +400,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
   let ( let* ) = Result.bind in
   let* new_node = validate_syntax_node new_node in
 
-  let sorted = List.sort Syntax_node.compare doc.elements in
+  let sorted = doc.elements in
   let before, after =
     match shift_method with
     | ShiftVertically ->
@@ -451,17 +457,19 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
           in
           let total_shift = inserted_width + extra_sep in
           let new_after =
-            List.map
-              (fun x ->
-                if
-                  x.range.start.line = line
-                  && x.range.start.character >= insert_at
-                then Syntax_node.shift_node 0 total_shift x
-                else x)
-              after
+            if total_shift = 0 then after
+            else
+              List.map
+                (fun x ->
+                  if
+                    x.range.start.line = line
+                    && x.range.start.character >= insert_at
+                  then Syntax_node.shift_node 0 total_shift x
+                  else x)
+                after
           in
           let elements = before @ (new_node :: new_after) in
-          let* document_repr = dump_elements_to_string elements in
+          let* document_repr = dump_sorted_elements_to_string elements in
           Ok { doc with elements; document_repr }
     | ShiftVertically ->
         (* Push down only if we overlap the next node; and push by number of
@@ -483,7 +491,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
             shift_block_checked push_lines 0 after
         in
         let elements = before @ (new_node :: new_after) in
-        let* document_repr = dump_elements_to_string elements in
+        let* document_repr = dump_sorted_elements_to_string elements in
         Ok { doc with elements; document_repr }
 
 let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
@@ -529,7 +537,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
           replacement.range.end_.character - replacement.range.start.character
         in
         let delta = new_width - old_width in
-        let sorted = List.sort Syntax_node.compare doc_removed.elements in
+        let sorted = doc_removed.elements in
         let before, after =
           List.partition
             (fun node ->
@@ -560,7 +568,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
                    after)
         in
         let elements = before @ (replacement :: shifted_after) in
-        let* document_repr = dump_elements_to_string elements in
+        let* document_repr = dump_sorted_elements_to_string elements in
         Ok { doc with elements; document_repr }
 
 let replace_proof (target_id : Uuidm.t) (new_proof : Proof.t) (doc : t) :
