@@ -43,7 +43,6 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
     ];
   write_ocaml_list out_chan "blacklisted_proofs"
     [
-      "Col_cases";
       "l4_13";
       "l4_16";
       "NCol_cases";
