@@ -394,6 +394,41 @@ let replace_destruct_fun_with_stab_destruct
         destruct_target
       in
       match core_destruction_arg with
+      | ElimOnIdent h -> (
+          match intro_pattern_naming_expr with
+          | _, Some (ArgArg intro_or_and_pattern) ->
+              let h_constrexpr : Constrexpr.constr_expr =
+                Constrexpr.CRef (Libnames.qualid_of_lident h, None) |> CAst.make
+              in
+
+              let intro_pattern_action_expr =
+                Tactypes.IntroOrAndPattern intro_or_and_pattern.v
+              in
+              let intro_pattern_expr =
+                Tactypes.IntroAction intro_pattern_action_expr |> CAst.make
+              in
+
+              let open_constr_arg =
+                Raw_gen_args_converter.raw_generic_argument_of_open_constr
+                  h_constrexpr
+              in
+
+              let intro_pattern_arg =
+                Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
+                  intro_pattern_expr
+              in
+
+              let ker_name = get_alias_kn Stab_destruct_as_or |> Option.get in
+
+              let stab_destruct_args =
+                List.map
+                  (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
+                  [ open_constr_arg; intro_pattern_arg ]
+              in
+
+              Ltac_plugin.Tacexpr.TacAlias (ker_name, stab_destruct_args)
+              |> CAst.make
+          | _ -> x)
       | ElimOnConstr (constrexpr, NoBindings) -> (
           match constrexpr_to_stab_destruct_fun_name constrexpr with
           | Some kername -> (
@@ -799,6 +834,13 @@ let get_percentage_admitted (doc : Rocq_document.t) :
 
   Ok []
 
+let get_proofs_named (proofs : Proof.t list) (names : string list) =
+  List.filter
+    (fun p ->
+      let name = Proof.get_proof_name p in
+      List.exists (fun x -> Option.equal String.equal name (Some x)) names)
+    proofs
+
 let definitions_of (d : Rocq_document.t) : Syntax_node.t list =
   List.filter Syntax_node.is_syntax_node_definition d.elements
 
@@ -860,18 +902,34 @@ let constructivise_doc (doc : Rocq_document.t) :
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
+  let stab_destruct_raw_expr =
+    Syntax_node.string_to_raw_tactic_expr "stab_destruct H as [H1|H2]."
+    |> Result.get_ok
+  in
+  let stab_destruct_sexp =
+    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr stab_destruct_raw_expr
+    |> Sexp_utils.strip_loc
+  in
+  Logs.debug (fun m ->
+      m "stab destruct sexp: %s" (Sexplib.Sexp.to_string_hum stab_destruct_sexp));
+
+  let blacklist_stage : stage =
+    make_stage "blacklist_stage" (fun doc ->
+        let* proofs = Rocq_document.get_proofs doc in
+
+        let blacklisted_proofs = get_proofs_named proofs blacklisted_proofs in
+
+        List_utils.concat_map_result
+          (Transformations.admit_and_comment_proof_steps doc)
+          blacklisted_proofs)
+  in
+
   let stage_0 : stage =
     make_stage "stage0" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in
 
         let decidability_proofs : Proof.t list =
-          List.filter
-            (fun p ->
-              let name = Proof.get_proof_name p in
-              List.exists
-                (fun x -> Option.equal String.equal name (Some x))
-                decidability_lemmas)
-            proofs
+          get_proofs_named proofs decidability_lemmas
         in
 
         let* prove_decidability_proofs_steps =
@@ -1092,6 +1150,7 @@ let constructivise_doc (doc : Rocq_document.t) :
   let* _, steps =
     run_pipeline doc
       [
+        blacklist_stage;
         stage_0;
         stage_beeson_ch03;
         stage_1;
