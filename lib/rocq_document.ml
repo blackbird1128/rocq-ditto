@@ -229,16 +229,16 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
     (string, Error.t) result =
   let sorted = List.sort Syntax_node.compare elements in
 
-  let append_first (node : Syntax_node.t) : string =
-    String.make node.range.start.line '\n'
-    ^ String.make node.range.start.character ' '
-    ^ Syntax_node.repr node
+  let append_first (buf : Buffer.t) (node : Syntax_node.t) : unit =
+    Buffer.add_string buf (String.make node.range.start.line '\n');
+    Buffer.add_string buf (String.make node.range.start.character ' ');
+    Buffer.add_string buf (Syntax_node.repr node)
   in
 
-  let rec aux (nodes : Syntax_node.t list) (doc_repr : string)
+  let rec aux (nodes : Syntax_node.t list) (buf : Buffer.t)
       (prev : Syntax_node.t) : (string, Error.t) result =
     match nodes with
-    | [] -> Ok doc_repr
+    | [] -> Ok (Buffer.contents buf)
     | node :: tail ->
         let line_diff = node.range.start.line - prev.range.end_.line in
         if line_diff < 0 then
@@ -263,26 +263,24 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
               (Code_range.to_string prev.range)
               (Syntax_node.repr node)
               (Code_range.to_string node.range)
-          else
-            let updated =
-              doc_repr ^ String.make char_diff ' ' ^ Syntax_node.repr node
-            in
-            aux tail updated node
-        else
+          else (
+            Buffer.add_string buf (String.make char_diff ' ');
+            Buffer.add_string buf (Syntax_node.repr node);
+            aux tail buf node)
+        else (
           (* moved to later line(s): newline(s) then indentation spaces *)
-          let updated =
-            doc_repr ^ String.make line_diff '\n'
-            ^ String.make node.range.start.character ' '
-            ^ Syntax_node.repr node
-          in
-          aux tail updated node
+          Buffer.add_string buf (String.make line_diff '\n');
+          Buffer.add_string buf (String.make node.range.start.character ' ');
+          Buffer.add_string buf (Syntax_node.repr node);
+          aux tail buf node)
   in
 
   match sorted with
   | [] -> Ok ""
   | first :: tail ->
-      let doc0 = append_first first in
-      aux tail doc0 first
+      let buf = Buffer.create 256 in
+      append_first buf first;
+      aux tail buf first
 
 let dump_to_string (doc : t) : (string, Error.t) result =
   dump_elements_to_string doc.elements
