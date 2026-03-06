@@ -15,7 +15,9 @@ CONSTRUCTIVISATION_CHAPTERS ?= \
 	Ch03_bet.v \
 	Ch04_cong_bet.v \
 	Ch04_col.v \
-	Ch05_bet_le.v
+	Ch05_bet_le.v \
+	Ch06_out_lines.v \
+	Ch07_midpoint.v \
 
 CHAPTER_PATHS := $(addprefix $(NORMALISED_DIR)/theories/Main/Tarski_dev/, \
                   $(CONSTRUCTIVISATION_CHAPTERS))
@@ -74,6 +76,7 @@ all:
 	dune build
 
 build:
+	dune exec fcc -- --plugin=constructivisation-data-generator-plugin $(GEOCOQ_INPUT_DIR)/theories/Axioms/Definitions.v --no_vo
 	dune build 
 
 count-induction:
@@ -84,9 +87,7 @@ proof_repair:
 	dune exec fcc -- --plugin=shelley-plugin ./test/fixtures/ex_this_or_that.v
 
 constructivisation-uniformise: build
-	$(foreach chapter,$(CONSTRUCTIVISATION_CHAPTERS),\
-		$(DITTO) -i $(GEOCOQ_INPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(NORMALISED_DIR)/theories/Main/Tarski_dev/$(chapter) -t explicit_apply -v;)
-	$(foreach chapter,$(CONSTRUCTIVISATION_CHAPTERS),\
+	$(foreach chapter,$(ALL_CHAPTERS),\
 		$(DITTO) -i $(GEOCOQ_INPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(NORMALISED_DIR)/theories/Main/Tarski_dev/$(chapter) -t replace_induction_with_destruct;)
 
 constructivisation-build: build
