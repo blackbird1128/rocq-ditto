@@ -765,11 +765,6 @@ let destruction_arg_to_string
       Names.Id.to_string id
   | Tactics.ElimOnAnonHyp _ -> "anonymous"
 
-let string_of_raw_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : string =
-  let env = Global.env () in
-  let evd = Evd.from_env env in
-  Ltac_plugin.Pptactic.pr_raw_tactic env evd tac |> Pp.string_of_ppcmds
-
 let map_destruct_to_print_destruct (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
   let open Ltac_plugin in
