@@ -144,7 +144,16 @@ let proof_status_from_last_node (node : Syntax_node.t) :
   | None -> Error.string_to_or_error "not a valid closing node (no ast)"
 
 let get_proof_name (p : t) : string option =
-  List.nth_opt (get_names p.proposition) 0
+  match p.proposition.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynterp _ -> None
+      | VernacSynPure expr_syn -> (
+          match expr_syn with
+          | Vernacexpr.VernacStartTheoremProof (_, [ ((name, _), _) ]) ->
+              Some (Names.Id.to_string name.v)
+          | _ -> None))
+  | None -> None
 
 let get_proof_status (p : t) : proof_status option =
   match p.proof_steps with
@@ -199,19 +208,22 @@ let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
 let proof_nodes (p : t) : Syntax_node.t list = p.proposition :: p.proof_steps
 
 let proof_from_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
-  if List.length nodes < 2 then
-    Error.string_to_or_error
-      ("Not enough elements to create a proof from the nodes.\nnodes: "
-      ^ String.concat ""
-          (List.map
-             (fun node ->
-               repr node ^ " range:" ^ Code_range.to_string node.range)
-             nodes))
-  else
-    let last_node_status =
-      List.hd (List.rev nodes) |> proof_status_from_last_node
-    in
-    match last_node_status with
-    | Ok status ->
-        Ok { proposition = List.hd nodes; proof_steps = List.tl nodes; status }
-    | Error err -> Error err
+  match nodes with
+  | [] | [ _ ] ->
+      Error.string_to_or_error
+        ("Not enough elements to create a proof from the nodes.\nnodes: "
+        ^ String.concat ""
+            (List.map
+               (fun node ->
+                 repr node ^ " range:" ^ Code_range.to_string node.range)
+               nodes))
+  | _ -> (
+      let last_node =
+        List_utils.last nodes
+        |> Option.get (* there is always a last node in this path *)
+      in
+      match proof_status_from_last_node last_node with
+      | Ok status ->
+          Ok
+            { proposition = List.hd nodes; proof_steps = List.tl nodes; status }
+      | Error err -> Error err)
