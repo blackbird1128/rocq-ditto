@@ -74,6 +74,9 @@ val is_syntax_node_focus_command : t -> bool
 val is_syntax_node_definition : t -> bool
 (** [is_syntax_node_definition] check if [x] is the command [Definition] *)
 
+val is_syntax_node_goal : t -> bool
+(** [is_syntax_node_goal] check if [x] is the command [Goal] *)
+
 val get_definition_name : t -> string option
 val get_definition_constrexpr : t -> Constrexpr.constr_expr option
 

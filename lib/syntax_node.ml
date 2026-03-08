@@ -395,6 +395,21 @@ let is_syntax_node_definition (x : t) : bool =
           match expr with Vernacexpr.VernacDefinition _ -> true | _ -> false))
   | None -> false
 
+let is_syntax_node_goal (x : t) : bool =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynterp _ -> false
+      | VernacSynPure expr -> (
+          match expr with
+          | Vernacexpr.VernacDefinition
+              ((NoDischarge, Decls.Definition), (lname, _), definition_expr) ->
+              if lname.v = Names.Anonymous then
+                match definition_expr with ProveBody _ -> true | _ -> false
+              else false
+          | _ -> false))
+  | None -> false
+
 let is_syntax_node_definition_with_proof (x : t) : bool =
   (* TODO: check if this include anonymous goals *)
   match x.ast with
