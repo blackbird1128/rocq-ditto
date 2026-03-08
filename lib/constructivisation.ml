@@ -958,6 +958,10 @@ let constructivise_doc (doc : Rocq_document.t) :
           attach_prelude_to_chapter doc "Ch12_parallel_inter_dec.v"
         in
 
+        let* attach_prelude_to_chapter_13_5_steps =
+          attach_prelude_to_chapter doc "Ch13_5_Pappus_Pascal.v"
+        in
+
         let* replace_require_steps =
           List_utils.concat_map_result replace_require doc.elements
         in
@@ -993,6 +997,7 @@ let constructivise_doc (doc : Rocq_document.t) :
                prove_decidability_proofs_steps;
                attach_prelude_to_chapter_two_steps;
                attach_prelude_to_chapter_twelwe_inted_dec_steps;
+               attach_prelude_to_chapter_13_5_steps;
                replace_require_steps;
                replace_context_steps;
                replace_or_by_constructive_or_in_proofs_steps;

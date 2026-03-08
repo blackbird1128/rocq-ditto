@@ -203,6 +203,40 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
       "l13_8";
       (* ch 13_2 *)
       "lg_cong";
+      "lg_cong_lg";
+      "lg_null_instance";
+      "ex_eqL";
+      (* ch 13_3 *)
+      "is_ang_distinct";
+      "ang_sym";
+      "anga_sym";
+      "anga_conga_anga";
+      "anga_out_anga";
+      (* ch 13_4 *)
+      "l13_6";
+      "null_lcos_eql";
+      "lcos_lg";
+      "l13_7";
+      "lcos_uniqueness";
+      (* ch 13_5 *)
+      "l13_6_bis";
+      "lcos_per_anga";
+      "lcos_lcos_cop__col";
+      "l13_10_aux3";
+      "l13_10_aux4";
+      "l13_10_aux5";
+      (* ch 13_6 *)
+      "l13_18_2";
+      (* ch 14_sum *)
+      "sum_uniqueness";
+      "opp0_uniqueness";
+      "proj_col";
+      "proj_id";
+      "sum_A_B_A";
+      "sum_A_B_B";
+      "sum_uniquenessA";
+      "sum_uniquenessB";
+      "sum_cong";
     ];
   close_out out_chan
 
