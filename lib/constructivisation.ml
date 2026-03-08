@@ -157,14 +157,6 @@ let replace_notation_in_proof_proposition (old_notation : string)
     (replace_notation_in_constrexpr old_notation new_notation)
     x
 
-let prolong_arg_to_string
-    (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
-    string option =
-  match x with
-  | Ltac_plugin.Tacexpr.Reference reference ->
-      Some (Libnames.string_of_qualid reference)
-  | _ -> None
-
 (** If [tacexpr] is exactly a TacArg(TacCall ...), rename the called qualid. *)
 let replace_taccall_tacarg_in_tacexpr (old_tac_call_name : string)
     (new_tac_call_name : string) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -184,6 +176,14 @@ let replace_taccall_tacarg_in_tacexpr (old_tac_call_name : string)
         TacArg (TacCall new_tac_call) |> CAst.make
       else tacexpr
   | _ -> tacexpr
+
+let prolong_arg_to_string
+    (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
+    string option =
+  match x with
+  | Ltac_plugin.Tacexpr.Reference reference ->
+      Some (Libnames.string_of_qualid reference)
+  | _ -> None
 
 let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -376,11 +376,15 @@ let eq_dec_points_alias_kn : Names.KerName.t option Lazy.t =
 let stab_destruct_as_or_alias_kn : Names.KerName.t option Lazy.t =
   lazy (compute_alias_kername Stab_destruct_as_or)
 
+let stab_destruct_no_args_alias_kn : Names.KerName.t option Lazy.t =
+  lazy (compute_alias_kername Stab_destruct_no_args)
+
 let get_alias_kn = function
   | Inner_pasch -> Lazy.force inner_pasch_alias_kn
   | Segment_construction -> Lazy.force segment_construction_alias_kn
   | Eq_Dec_Points -> Lazy.force eq_dec_points_alias_kn
   | Stab_destruct_as_or -> Lazy.force stab_destruct_as_or_alias_kn
+  | Stab_destruct_no_args -> Lazy.force stab_destruct_no_args_alias_kn
 
 let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
   if is_constrexpr_c_app_named c "inner_pasch" then get_alias_kn Inner_pasch
@@ -430,6 +434,25 @@ let replace_destruct_fun_with_stab_destruct
                   (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
                   [ open_constr_arg; intro_pattern_arg ]
               in
+
+              Ltac_plugin.Tacexpr.TacAlias (ker_name, stab_destruct_args)
+              |> CAst.make
+          | None, None ->
+              let h_constrexpr : Constrexpr.constr_expr =
+                Constrexpr.CRef (Libnames.qualid_of_lident h, None) |> CAst.make
+              in
+
+              let open_constr_arg =
+                Raw_gen_args_converter.raw_generic_argument_of_open_constr
+                  h_constrexpr
+              in
+              let stab_destruct_args =
+                List.map
+                  (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
+                  [ open_constr_arg ]
+              in
+
+              let ker_name = get_alias_kn Stab_destruct_no_args |> Option.get in
 
               Ltac_plugin.Tacexpr.TacAlias (ker_name, stab_destruct_args)
               |> CAst.make
@@ -902,17 +925,6 @@ let constructivise_doc (doc : Rocq_document.t) :
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
-  let stab_destruct_raw_expr =
-    Syntax_node.string_to_raw_tactic_expr "stab_destruct H as [H1|H2]."
-    |> Result.get_ok
-  in
-  let stab_destruct_sexp =
-    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr stab_destruct_raw_expr
-    |> Sexp_utils.strip_loc
-  in
-  Logs.debug (fun m ->
-      m "stab destruct sexp: %s" (Sexplib.Sexp.to_string_hum stab_destruct_sexp));
-
   let blacklist_stage : stage =
     make_stage "blacklist_stage" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in
@@ -980,11 +992,21 @@ let constructivise_doc (doc : Rocq_document.t) :
              [
                prove_decidability_proofs_steps;
                attach_prelude_to_chapter_two_steps;
+               attach_prelude_to_chapter_twelwe_inted_dec_steps;
                replace_require_steps;
                replace_context_steps;
                replace_or_by_constructive_or_in_proofs_steps;
                replace_or_by_constructive_or_in_definitions_steps;
              ]))
+  in
+
+  let blacklist_first_goal_ch10 : stage =
+    make_stage "blacklist_comment_first_goal_ch10" (fun doc ->
+        if String.ends_with ~suffix:"/Ch10_line_reflexivity.v" doc.filename then
+          let* proofs = Rocq_document.get_proofs doc in
+          let first_proof = List.hd proofs in
+          Transformations.admit_and_comment_proof_steps doc first_proof
+        else Ok [])
   in
 
   let stage_beeson_ch03 : stage =
@@ -1152,7 +1174,6 @@ let constructivise_doc (doc : Rocq_document.t) :
   let* _, steps =
     run_pipeline doc
       [
-        blacklist_stage;
         stage_0;
         stage_beeson_ch03;
         stage_1;
@@ -1163,6 +1184,8 @@ let constructivise_doc (doc : Rocq_document.t) :
         stage_6;
         stage_7;
         stage_8;
+        blacklist_first_goal_ch10;
+        blacklist_stage;
         (* stage_11; *)
       ]
   in

@@ -18,6 +18,15 @@ CONSTRUCTIVISATION_CHAPTERS ?= \
 	Ch05_bet_le.v \
 	Ch06_out_lines.v \
 	Ch07_midpoint.v \
+	Ch08_orthogonality.v \
+	Ch09_plane.v \
+	Ch10_line_reflexivity.v \
+	Ch10_line_reflexivity_2.v \
+	Ch11_angles.v \
+	Ch12_parallel.v \
+	Ch12_parallel_inter_dec.v \
+	Ch13_1.v \
+	Ch13_2_length.v \
 
 CHAPTER_PATHS := $(addprefix $(NORMALISED_DIR)/theories/Main/Tarski_dev/, \
                   $(CONSTRUCTIVISATION_CHAPTERS))
@@ -88,14 +97,13 @@ proof_repair:
 
 constructivisation-uniformise: build
 	$(foreach chapter,$(ALL_CHAPTERS),\
-		$(DITTO) -i $(GEOCOQ_INPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(NORMALISED_DIR)/theories/Main/Tarski_dev/$(chapter) -t replace_induction_with_destruct;)
+		$(DITTO) -i $(GEOCOQ_INPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(NORMALISED_DIR)/theories/Main/Tarski_dev/$(chapter) -t replace_induction_with_destruct --reverse-order;)
 
 constructivisation-build: build
 	$(foreach chapter,$(CONSTRUCTIVISATION_CHAPTERS),\
 		$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -t constructivise_geocoq -v;)
 
 constructivisation-compile:
-	$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Definitions.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Definitions.v -t id_doc_transformation -v --save-vo
 	$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -t id_doc_transformation -v --save-vo
 	$(foreach chapter,$(CONSTRUCTIVISATION_CHAPTERS),\
 		$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter) -t id_doc_transformation -v --save-vo;)
