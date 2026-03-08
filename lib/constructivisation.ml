@@ -73,27 +73,36 @@ let replace_require (x : Syntax_node.t) :
       | _ -> Ok [])
   | None -> Ok []
 
-let replace_context (x : Syntax_node.t) :
+let replace_contexts (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
-  if Syntax_node.is_syntax_node_context x then
-    let new_context_str : string =
-      "Context {Pred : predicates}\n\
-      \        {ITn : independent_Tarski_neutral_dimensionless Pred}\n\
-      \        {ES : Eq_stability Pred ITn}\n\
-      \        {Dim : dimension}\n\
-      \        {ITnD : @independent_Tarski_nD Pred ITn (incr (incr Dim))}."
-    in
-    let* new_context_node =
-      Syntax_node.syntax_node_of_string new_context_str x.range.start
-    in
+  let new_context_str : string =
+    "Context {Pred : predicates}\n\
+    \        {ITn : independent_Tarski_neutral_dimensionless Pred}\n\
+    \        {ES : Eq_stability Pred ITn}\n\
+    \        {Dim : dimension}\n\
+    \        {ITnD : @independent_Tarski_nD Pred ITn (incr (incr Dim))}."
+  in
+  let rec aux (nodes : Syntax_node.t list) (prev_was_context : bool)
+      (acc : transformation_step list) :
+      (transformation_step list, Error.t) result =
+    match nodes with
+    | [] -> Ok (List.rev acc)
+    | node :: tail ->
+        if Syntax_node.is_syntax_node_context node then
+          if prev_was_context then aux tail true (Remove node.id :: acc)
+          else
+            let* new_context_node =
+              Syntax_node.syntax_node_of_string new_context_str node.range.start
+            in
+            aux tail true (Replace (node.id, new_context_node) :: acc)
+        else aux tail false acc
+  in
+  aux doc.elements false []
 
-    Ok [ Replace (x.id, new_context_node) ]
-  else Ok []
-
-let attach_prelude_to_chapter_two (doc : Rocq_document.t) :
+let attach_prelude_to_chapter (doc : Rocq_document.t) (chapter_name : string) :
     (transformation_step list, Error.t) result =
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
-  if Filename.basename doc.filename = "Ch02_cong.v" then
+  if Filename.basename doc.filename = chapter_name then
     let last_require_opt =
       List_utils.find_last_opt Syntax_node.is_syntax_node_require doc.elements
     in
@@ -934,16 +943,18 @@ let constructivise_doc (doc : Rocq_document.t) :
         in
 
         let* attach_prelude_to_chapter_two_steps =
-          attach_prelude_to_chapter_two doc
+          attach_prelude_to_chapter doc "Ch02_cong.v"
+        in
+
+        let* attach_prelude_to_chapter_twelwe_inted_dec_steps =
+          attach_prelude_to_chapter doc "Ch12_parallel_inter_dec.v"
         in
 
         let* replace_require_steps =
           List_utils.concat_map_result replace_require doc.elements
         in
 
-        let* replace_context_steps =
-          List_utils.concat_map_result replace_context doc.elements
-        in
+        let* replace_context_steps = replace_contexts doc in
 
         let definitions = definitions_of doc in
 
