@@ -14,9 +14,14 @@ let ltac_definition_extend_name : Vernacexpr.extend_name =
     ext_index = 0;
   }
 
-let get_raw_atomic_tactic_expr (x : Tacexpr.raw_tactic_expr) :
+let get_raw_atomic_tactic_expr (t : Tacexpr.raw_tactic_expr) :
     Tacexpr.raw_atomic_tactic_expr option =
-  match x.v with TacAtom expr -> Some expr | _ -> None
+  match t.v with TacAtom expr -> Some expr | _ -> None
+
+let get_alias_kername (t : Tacexpr.raw_tactic_expr) : Names.KerName.t option =
+  match t.v with
+  | Ltac_plugin.Tacexpr.TacAlias (kn, _args) -> Some kn
+  | _ -> None
 
 let string_of_raw_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : string =
   let env = Global.env () in

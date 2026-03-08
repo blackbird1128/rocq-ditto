@@ -343,30 +343,26 @@ let replace_elim_with_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       else x
   | _ -> x
 
-let find_alias_kername (t : Ltac_plugin.Tacexpr.raw_tactic_expr) :
-    Names.KerName.t option =
-  match t.v with
-  | Ltac_plugin.Tacexpr.TacAlias (kn, _args) -> Some kn
-  | _ -> None
-
 type stab_kind =
   | Inner_pasch
   | Segment_construction
   | Eq_Dec_Points
   | Stab_destruct_as_or
+  | Stab_destruct_no_args
 
 let dummy_tactic_for_kind = function
   | Inner_pasch -> "stab_destruct (by_inner_pasch A B C D X X X) as [I []]."
   | Segment_construction ->
       "stab_destruct (by_segment_construction A B C D) as [I []]."
   | Eq_Dec_Points -> "stab_destruct (by_eq_dec_points B C)."
+  | Stab_destruct_no_args -> "stab_destruct H."
   | Stab_destruct_as_or -> "stab_destruct H as [HL|HR]."
 
 let compute_alias_kername (k : stab_kind) : Names.KerName.t option =
   let s = dummy_tactic_for_kind k in
   match Syntax_node.string_to_raw_tactic_expr s with
   | Error _ -> None
-  | Ok raw -> find_alias_kername raw
+  | Ok raw -> Ltac.get_alias_kername raw
 
 let inner_pasch_alias_kn : Names.KerName.t option Lazy.t =
   lazy (compute_alias_kername Inner_pasch)

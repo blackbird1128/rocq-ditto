@@ -6,4 +6,5 @@ val ltac_definition_extend_name : Vernacexpr.extend_name
 val get_raw_atomic_tactic_expr :
   Tacexpr.raw_tactic_expr -> Tacexpr.raw_atomic_tactic_expr option
 
+val get_alias_kername : Tacexpr.raw_tactic_expr -> Names.KerName.t option
 val string_of_raw_tactic : Tacexpr.raw_tactic_expr -> string
