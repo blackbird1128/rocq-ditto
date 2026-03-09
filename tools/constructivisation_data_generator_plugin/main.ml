@@ -313,6 +313,7 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
       "bet_betCood_aux";
       "same_abscissa_col";
       "characterization_of_collinearity";
+      "square_distance_formula";
       (* ch15 pyth rel *)
       "Ps_Col";
       "PythRel_uniqueness";
