@@ -137,6 +137,9 @@ constructivisation-build: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch14_sum.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch14_sum.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch14_prod.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch14_prod.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch14_order.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch14_order.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch15_lengths.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch15_lengths.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch16_coordinates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch16_coordinates.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch15_pyth_rel.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch15_pyth_rel.v -t constructivise_geocoq -v
 
 constructivisation-compile:
 	$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -t id_doc_transformation -v --save-vo

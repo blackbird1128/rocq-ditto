@@ -87,7 +87,9 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
       "lt_diff";
       (* ch06 out lines *)
       "bet_out__bet";
+      "l6_2";
       "l6_6";
+      "l6_3_2";
       "out2__bet";
       "l6_11_uniqueness";
       "or_bet_out";
@@ -237,6 +239,84 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
       "sum_uniquenessA";
       "sum_uniquenessB";
       "sum_cong";
+      "opp_uniqueness";
+      "opp_midpoint";
+      "pj_uniqueness";
+      "double_null_null";
+      "double_not_null_not_nul";
+      "diff_uniqueness";
+      "sum_stable";
+      "plg_to_sum";
+      "diff_to_plg";
+      "sum3_uniqueness";
+      (* ch 14 prod *)
+      "prod_uniqueness";
+      "prod_null";
+      "prod_O_l_eq";
+      "prod_O_r_eq";
+      "prod_uniquenessA";
+      "prod_1_l_eq";
+      (* ch 14 order *)
+      "l14_36_a";
+      "pos_null_neg";
+      "sum_pos_pos";
+      "prod_pos_pos";
+      "pos_not_neg";
+      "neg_not_pos";
+      "opp_pos_neg";
+      "opp_neg_pos";
+      "pos_opp_neg";
+      "not_pos_and_neg";
+      "leP_asym";
+      "square_pos";
+      "col_pos_or_neg";
+      "ltP_neg";
+      "lt_diff_ps";
+      (* CH 15 lengths *)
+      "length_id_1";
+      "length_eq_cong_1";
+      "ltP_pos";
+      "leP_bet";
+      "length_Ar2";
+      "l15_3";
+      "length_uniqueness";
+      "length_Ps";
+      "length_not_col_null";
+      "length_out";
+      "image_preserves_bet1";
+      "image_preserves_out";
+      "project_preserves_out";
+      "prod_col";
+      "signeq__prod_pos";
+      "pos_neg__prod_neg";
+      "not_signEq_prod_neg";
+      "prod_pos__signeq";
+      "prod_ng___not_signeq";
+      "length_pos_or_null";
+      "not_neg_pos";
+      "sum_pos_null";
+      "length_not_neg";
+      "signEq_refl";
+      "square_not_neg";
+      "root_uniqueness";
+      "inter_tangent_circle";
+      "circle_projp_between";
+      "sign_dec";
+      (* ch16 coordinates *)
+      "Cs_not_Col";
+      "Cd_Col";
+      "eq_points_coordinates";
+      "l16_9_1";
+      "l16_9_2";
+      "cong_3_2_cong_4";
+      "cong_3_3_cong_5";
+      "characterization_of_congruence";
+      "bet_betCood_aux";
+      "same_abscissa_col";
+      "characterization_of_collinearity";
+      (* ch15 pyth rel *)
+      "Ps_Col";
+      "PythRel_uniqueness";
     ];
   close_out out_chan
 
