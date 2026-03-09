@@ -1,0 +1,240 @@
+"l4_13"; wrong intros (->).
+"l4_16"; error with decompose_stab_or_and:     stab_destruct_aux H.
+    decompose [or and] H work
+(* ch05 *)
+"l5_1"; inner_pasch to by_inner_pasch
+"bet3__bet"; destruct (lemma application) not turned to stab_destruct
+"between_cong_3"; elim T to stab_elim T
+"lt_diff"; stab_destruct should apply `destruct` and not fail
+(* ch06 out lines *)
+"bet_out__bet"; ???
+"l6_6"; "intuition" should be replaced by (unfold or_dm in *)
+"l6_3_2";     assert (exists X : Tpoint, (Bet A R X \/ Bet A X R) /\ Cong A X B C) by (apply (segment_construction_2);assumption). not working
+"out2__bet"; some issue with stab_destruct
+"l6_11_uniqueness"; "CongR" issue
+"or_bet_out"; destruct (lemma application) not turned to stab_destruct
+"not_bet_out"; ???
+"out_to_bet"; destruct (lemma application) not turned to stab_destruct and
+ second stab_destruct not working
+"out_bet__out"; no applicable tactic: stab_destruct.
+(* ch07 midpoint *)
+"l7_17"; stab_destruct issue (should be a destruct instead )
+"l7_20";  pass :]
+"l7_21"; stab_destruct issue (should be a destruct instead )
+"l7_20_bis"; destruct (lemma application) not turned to stab_destruct
+"cong_mid2__cong"; stab_destruct issue (should be a destruct instead )
+"cong_col_mid"; intuition doesn't work anymore
+"l7_22_aux"; stab_destruct issue (should be a destruct instead )
+"col_cong_bet"; CongR
+"col_cong2_bet3"; ColR
+"col_cong2_bet4"; ColR
+"per_not_col"; ColR
+"perp_not_col2"; destruct (lemma application) not turned to stab_destruct
+"per_cong_mid"; pass :]
+"col_per2_cases"; ColR
+"per_cong"; pass :]
+(* ch9 *)
+"ts_distincts";  stab_destruct issue (should be a destruct instead )
+"tsp_distincts"; stab_destruct issue (should be a destruct instead )
+"l9_4_1_aux"; pass :]
+"per_col_eq"; stab_destruct issue (should be a destruct instead )
+"l9_4_1"; stab_destruct issue (should be a destruct instead )
+"mid_two_sides"; a supprimer preuve avec exists
+"os_distincts";  stab_destruct issue (should be a destruct instead )
+"one_side_chara"; stab_destruct issue (should be a destruct instead )
+"col_one_side_out"; pass :]
+"col_two_sides_bet"; pass :]
+"ts__ncol"; ColR
+"l9_30"; Unable to unify "tarski_axioms.Bet ?M8351 ?M8352 ?M8353 \/ tarski_axioms.Bet ?M8352 ?M8353 ?M8351 \/ tarski_axioms.Bet ?M8353 ?M8351 ?M8352" with
+ "~ BetC A B C /\ ~ (BetC B C A \_/ BetC C A B) -> False". (annexe issue ?)
+"cop_per2__col"; ColR && stab_destruct issue (should be a destruct instead )
+"cop_perp2__col"; apply col_permutation_2. Unable to unify
+"col2_cop2__eq"; ColR
+"cong3_cop2__col"; ??
+"ncop_distincts"; Cop doesn't seem to work
+(* ch10 (first goal not working as well *)
+"l10_2_uniqueness";  Hypotheses containing (ReflectL P1 P B B) are not supported.
+"l10_2_uniqueness_spec"; Issues with stab_destruct 
+"l10_5"; Hypotheses containing (ReflectL P' P B B) are not supported.
+"l10_6_uniqueness_spec"; Issues with stab_destruct 
+"image_id"; ColR
+"image__midpoint"; destruct 1
+"osym_not_col"; Hypotheses containing (ReflectL P P' A B) are not supported.
+(* ch10 part 2 *)
+"cop__cong_on_bissect"; Hypotheses containing (Perp_at M X M A B) are not supported.
+"cop_image_in2__col"; Issue with Annexe
+"l10_10_spec"; ColR
+"l10_6_uniqueness";
+"l10_10"; Hypotheses containing (Perp_at M X M A B) are not supported.
+"cong_cop_image__col"; Hypotheses containing (ReflectL P P' A B) are not supported.
+"cong_cop_per2_1"; Cop doesn't work
+"per2__col"; Unable to unify "let (Tpoint, Bet, Cong, _, _, _, _, _, _, _, PA, PB, PC, _) := ?Tn in Tpoint" with "let (Tpoint, _, _) := Pred in Tpoint".
+(* ch11 angle *)
+"conga_os__out"; eapply error
+"l11_19"; destruct (lemma application) not turned to stab_destruct
+"l11_22_bet"; Unification coplanar_perm (Annexes)
+"in_angle_out"; pass :]
+"col_in_angle_out"; pass :]
+"col_conga_col"; pass :]
+"bet_in_angle_bet"; pass :]
+"eq_conga_out"; pass :]
+"acute_distincts"; stab_destruct issue (should be a destruct instead ) or Treat ACute.
+"obtuse_distincts"; stab_destruct issue (should be a destruct instead ) or treat ADistinct
+"acute_col__out";  stab_destruct issue (should be a destruct instead ) or treat ACute
+"col_obtuse__bet";  stab_destruct issue (should be a destruct instead ) or treat ACute
+"lea_distincts"; stab_destruct issue (should be a destruct instead ) or treat ACute
+"l11_44_1_b"; Hypotheses containing (Gt B A B C) are not supported.
+"l11_47"; destruct (lemma application) not turned to stab_destruct
+"l11_60_aux"; issues with destruct and stab_destruct
+"mid2_orth_at2__cong";  stab_destruct issue (should be a destruct instead )
+"cong2__ncol"; should be a stab_elim
+"cong4_cop2__eq"; issues with destruct and stab_destruct
+"conga_cop_out_reflectl__out"; issue with: stab_destruct (conga_cop__or_out_ts P B A C)
+"col_conga_cop_reflectl__col"; destruct (lemma application) not turned to stab_destruct && ColR
+"conga2_cop2__col"; issues with destruct and stab_destruct
+"conga2_cop2__col_1"; Cop doesn't solve 
+"col_inangle2__out"; Issues with stab_destruct (bet_dec) 
+"col_lta__bet"; stab_destruct issue (should be a destruct instead )
+"col_lta__out"; 
+"lta_distincts";stab_destruct issue (should be a destruct instead )
+(* ch12 parallel *)
+"par_id"; pass :]
+"par_neq1"; Par should be unfolded
+"col_cop2_perp2__col"; ColR
+"col_perp2_ncol__col";  Coplanar A B X2 Y1 isn't stable for stab_destruct
+"not_par_not_col"; pass :]
+"not_par_inter_uniqueness"; ColR
+"inter_distincts"; stab_destruct issue (should be a destruct instead )
+"acute_col_perp__out"; stab_destruct issue (should be a destruct instead )
+"acute_col_perp__out_1"; ColR
+"not_strict_par1"; pass :]
+"par_distinct"; destruct H qui devrait etre stab_destruct wtf
+(* ch12 parallel inter dec *)
+"parallel_uniqueness"; ???
+"col_par_par_col"; apply par_distinct: Annexes ?
+(* ch13_1 *)
+"per23_preserves_bet"; ColR
+"per23_preserves_bet_inv"; ColR
+"perp2_preserves_bet13"; ColR
+"per13_preserves_bet"; ColR
+"per13_preserves_bet_inv"; ColR
+"per3_preserves_bet1"; ColR
+"per3_preserves_bet2_aux"; ColR
+"per3_preserves_bet2"; ColR
+"cop4_perp_in2__col"; ColR
+"perp2_preserves_bet23"; ColR
+"l13_8"; ColR
+(* ch 13_2 *)
+"lg_cong"; stab_destruct issue (should be a destruct instead )
+"lg_cong_lg"; stab_destruct issue (should be a destruct instead )
+"lg_null_instance"; stab_destruct issue (should be a destruct instead )
+"ex_eqL"; stab_destruct issue (should be a destruct instead )
+(* ch 13_3 *)
+"is_ang_distinct"; stab_destruct issue (should be a destruct instead )
+"ang_sym"; stab_destruct issue (should be a destruct instead )
+"anga_sym"; stab_destruct issue (should be a destruct instead )
+"anga_conga_anga"; stab_destruct issue (should be a destruct instead )
+"anga_out_anga"; stab_destruct issue (should be a destruct instead )
+(* ch 13_4 *)
+"l13_6"; Can't stab_destruct (eq_dec_points Z1 Y1).
+"null_lcos_eql";  HQ : C = B \_/ A = B, Goal:  EqL l lp, stab_destruct HQ.
+"lcos_lg"; ??
+"l13_7"; induction (is_null_anga_dec a), not working
+"lcos_uniqueness"; EqL isnt stable 
+(* ch 13_5 *)
+"l13_6_bis"; EqL isn't stable
+"lcos_per_anga"; a A O P isn't stable
+"lcos_lcos_cop__col"; Error when applying:  apply cop_per2__col
+"l13_10_aux3"; The term "B" has type "Tpoint" while it is expected to have type "tarski_axioms.Tpoint".
+"l13_10_aux4"; ColR
+"l13_10_aux5"; ColR
+(* ch 13_6 *)
+"l13_18_2";       apply(col_transitivity_1 _ A) not working
+(* ch 14_sum *)
+"sum_uniqueness"; unification issue
+"opp0_uniqueness"; unification issue: Annexe ?
+"proj_col"; unification issue: Annexe
+"proj_id"; unification issue
+"sum_A_B_A";
+"sum_A_B_B";
+"sum_uniquenessA";
+"sum_uniquenessB";
+"sum_cong";
+"opp_uniqueness";
+"opp_midpoint";
+"pj_uniqueness";
+"double_null_null";
+"double_not_null_not_nul";
+"diff_uniqueness";
+"sum_stable";
+"plg_to_sum";
+"diff_to_plg";
+"sum3_uniqueness";
+(* ch 14 prod *)
+"prod_uniqueness";
+"prod_null";
+"prod_O_l_eq";
+"prod_O_r_eq";
+"prod_uniquenessA";
+"prod_1_l_eq";
+(* ch 14 order *)
+"l14_36_a";
+"pos_null_neg";
+"sum_pos_pos";
+"prod_pos_pos";
+"pos_not_neg";
+"neg_not_pos";
+"opp_pos_neg";
+"opp_neg_pos";
+"pos_opp_neg";
+"not_pos_and_neg";
+"leP_asym";
+"square_pos";
+"col_pos_or_neg";
+"ltP_neg";
+"lt_diff_ps";
+(* CH 15 lengths *)
+"length_id_1";
+"length_eq_cong_1";
+"ltP_pos";
+"leP_bet";
+"length_Ar2";
+"l15_3";
+"length_uniqueness";
+"length_Ps";
+"length_not_col_null";
+"length_out";
+"image_preserves_bet1";
+"image_preserves_out";
+"project_preserves_out";
+"prod_col";
+"signeq__prod_pos";
+"pos_neg__prod_neg";
+"not_signEq_prod_neg";
+"prod_pos__signeq";
+"prod_ng___not_signeq";
+"length_pos_or_null";
+"not_neg_pos";
+"sum_pos_null";
+"length_not_neg";
+"signEq_refl";
+"square_not_neg";
+"root_uniqueness";
+"inter_tangent_circle";
+"circle_projp_between";
+"sign_dec";
+(* ch16 coordinates *)
+"Cs_not_Col";
+"Cd_Col";
+"eq_points_coordinates";
+"l16_9_1";
+"l16_9_2";
+"cong_3_2_cong_4";
+"cong_3_3_cong_5";
+"characterization_of_congruence";
+"bet_betCood_aux";
+"same_abscissa_col";
+"characterization_of_collinearity";
+(* ch15 pyth rel *)
+"Ps_Col";
+"PythRel_uniqueness";
