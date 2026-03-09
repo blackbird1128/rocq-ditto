@@ -87,7 +87,6 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
       "lt_diff";
       (* ch06 out lines *)
       "bet_out__bet";
-      "l6_2";
       "l6_6";
       "l6_3_2";
       "out2__bet";

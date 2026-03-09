@@ -125,7 +125,9 @@ constructivisation-build: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch10_line_reflexivity.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch10_line_reflexivity.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch10_line_reflexivity_2.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch10_line_reflexivity_2.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch11_angles.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch11_angles.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/suma.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/suma.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch12_parallel.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch12_parallel.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/quadrilaterals.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/quadrilaterals.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch12_parallel_inter_dec.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch12_parallel_inter_dec.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch13_1.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch13_1.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch13_2_length.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch13_2_length.v -t constructivise_geocoq -v
