@@ -172,8 +172,8 @@
 "sum3_uniqueness";
 (* ch 14 prod *)
 "prod_uniqueness";
-"prod_null";
-"prod_O_l_eq";
+"prod_null"; unification issues (Annexes)
+"prod_O_l_eq";unification issues (Annexes)
 "prod_O_r_eq";
 "prod_uniquenessA";
 "prod_1_l_eq";

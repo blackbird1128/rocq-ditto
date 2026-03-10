@@ -317,6 +317,73 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
       (* ch15 pyth rel *)
       "Ps_Col";
       "PythRel_uniqueness";
+      (* perp bisect *)
+      "perp_bisect_is_on_perp_bisect";
+      "cong_cop2_perp_bisect_col";
+      (* suma *)
+      "suma_distincts";
+      "trisuma_distincts";
+      "sams_distincts";
+      "col_suma__col";
+      "per2_suma__bet";
+      "acute2_suma__nbet";
+      "col2_suma__col";
+      "suma_suppa__bet";
+      "col_trisuma__bet";
+      (* quadrilaterals *)
+      "midpoint_midpoint_col";
+      "bet3_cong3_bet";
+      "bet_double_bet";
+      "bet_half_bet";
+      "bet_cong_bet";
+      "plgf_permut";
+      "mid_plgf_aux";
+      "mid_plgf";
+      "midpoint_cong_uniqueness";
+      "plgf_not_comm";
+      "parallelogram_strict_not_col_2";
+      "parallelogram_strict_not_col_4";
+      "plg_col_plgf";
+      "plgf_trivial_neq";
+      "plgf_trivial_trans";
+      "plgf3_mid";
+      "cong3_id";
+      "not_col_sym_not_col";
+      "plgf_bet";
+      (* saccheri *)
+      "sac__cong";
+      "conga_per2_os__cong";
+      "lam_per__cong";
+      "t22_7__cong";
+      "t22_8__cong";
+      "per_sac__rah";
+      "acute_sac__aah ";
+      "obtuse_sac__oah";
+      "saccheri_s_three_hypotheses";
+      "not_rah";
+      "not_oah";
+      "t22_14__bet_aux";
+      "t22_14__bet";
+      "t22_14__rah";
+      "t22_14__aah";
+      "t22_14__oah";
+      (* quad inter dec *)
+      "plgs_cong";
+      "plg_cong";
+      "plg_mid_2";
+      "plgf_comm2";
+      "parallelogram_strict_midpoint";
+      "plgf_rect_id";
+      "par_cong_cong";
+      "col_cong_cong";
+      "not_par_pars_not_cong";
+      "plg_uniqueness";
+      "plgf_plgf_plgf";
+      "degenerated_rect_eq";
+      (* vector *)
+      "vector_construction_uniqueness";
+      "null_vector";
+      "vector_uniqueness";
     ];
   close_out out_chan
 

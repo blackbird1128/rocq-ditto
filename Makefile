@@ -107,9 +107,6 @@ constructivisation-uniformise: build
 	$(foreach chapter,$(ALL_CHAPTERS),\
 		$(DITTO) -i $(GEOCOQ_INPUT_DIR)/theories/Main/Tarski_dev/$(chapter) -o $(NORMALISED_DIR)/theories/Main/Tarski_dev/$(chapter) -t replace_induction_with_destruct --reverse-order;)
 
-constructivisation-all: build
-	$(DITTO) -i $(NORMALISED_DIR) -o $(GEOCOQ_OUTPUT_DIR) -t constructivise_geocoq -v
-
 constructivisation-build: build
 	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/
 	# $(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch02_cong.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch02_cong.v -t constructivise_geocoq -v
@@ -124,11 +121,19 @@ constructivisation-build: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch09_plane.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch09_plane.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch10_line_reflexivity.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch10_line_reflexivity.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch10_line_reflexivity_2.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch10_line_reflexivity_2.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/perp_bisect.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/perp_bisect.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch11_angles.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch11_angles.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/suma.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/suma.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch12_parallel.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch12_parallel.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/quadrilaterals.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/quadrilaterals.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/Tagged_predicates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/Tagged_predicates.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/quadrilaterals.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/quadrilaterals.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch12_parallel_inter_dec.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch12_parallel_inter_dec.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/quadrilaterals_inter_dec.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/quadrilaterals_inter_dec.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/midpoint_theorems.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/midpoint_theorems.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/vectors.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/vectors.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/project.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/project.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/saccheri.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/saccheri.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch13_1.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch13_1.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch13_2_length.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch13_2_length.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch13_3_angles.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch13_3_angles.v -t constructivise_geocoq -v
@@ -142,6 +147,9 @@ constructivisation-build: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch15_lengths.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch15_lengths.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch16_coordinates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch16_coordinates.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch15_pyth_rel.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch15_pyth_rel.v -t constructivise_geocoq -v
+
+single:
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/project.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/project.v -t constructivise_geocoq -v
 
 constructivisation-compile:
 	$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -t id_doc_transformation -v --save-vo
