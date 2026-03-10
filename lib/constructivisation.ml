@@ -57,6 +57,36 @@ let replace_require (x : Syntax_node.t) :
                 in
                 Ok [ Replace (x.id, new_node) ]
               else if
+                String.starts_with ~prefix:"GeoCoq.Main.Annexes" qualid_str
+              then
+                let _, postfix =
+                  String_utils.split_prefix "GeoCoq.Main.Annexes" qualid_str
+                  |> Option.get
+                in
+                let new_qualid_str = "GeoCoq.Constructive.Annexes" ^ postfix in
+                let new_qualid = Libnames.qualid_of_string new_qualid_str in
+                let new_head_tuple = (new_qualid, import_filter) in
+                let new_libnames_import_list =
+                  new_head_tuple :: List_utils.drop 1 libnames_import_list
+                in
+                let new_expr =
+                  VernacSynterp
+                    (VernacRequire
+                       ( option_libname,
+                         export_with_cats_opt,
+                         new_libnames_import_list ))
+                in
+                let new_vernac_control =
+                  Syntax_node.mk_vernac_control new_expr
+                in
+
+                let new_node =
+                  Syntax_node.syntax_node_of_coq_ast
+                    (Coq.Ast.of_coq new_vernac_control)
+                    x.range.start
+                in
+                Ok [ Replace (x.id, new_node) ]
+              else if
                 String.starts_with ~prefix:"GeoCoq.Axioms.Definitions"
                   qualid_str
               then
@@ -99,10 +129,10 @@ let replace_contexts (doc : Rocq_document.t) :
   in
   aux doc.elements false []
 
-let attach_prelude_to_chapter (doc : Rocq_document.t) (chapter_name : string) :
+let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
     (transformation_step list, Error.t) result =
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
-  if Filename.basename doc.filename = chapter_name then
+  if Filename.basename doc.filename = filename then
     let last_require_opt =
       List_utils.find_last_opt Syntax_node.is_syntax_node_require doc.elements
     in
@@ -951,15 +981,19 @@ let constructivise_doc (doc : Rocq_document.t) :
         in
 
         let* attach_prelude_to_chapter_two_steps =
-          attach_prelude_to_chapter doc "Ch02_cong.v"
+          attach_prelude_to_file doc "Ch02_cong.v"
         in
 
         let* attach_prelude_to_chapter_twelwe_inted_dec_steps =
-          attach_prelude_to_chapter doc "Ch12_parallel_inter_dec.v"
+          attach_prelude_to_file doc "Ch12_parallel_inter_dec.v"
         in
 
         let* attach_prelude_to_chapter_13_5_steps =
-          attach_prelude_to_chapter doc "Ch13_5_Pappus_Pascal.v"
+          attach_prelude_to_file doc "Ch13_5_Pappus_Pascal.v"
+        in
+
+        let* attach_prelude_to_project_steps =
+          attach_prelude_to_file doc "project.v"
         in
 
         let* replace_require_steps =
@@ -998,6 +1032,7 @@ let constructivise_doc (doc : Rocq_document.t) :
                attach_prelude_to_chapter_two_steps;
                attach_prelude_to_chapter_twelwe_inted_dec_steps;
                attach_prelude_to_chapter_13_5_steps;
+               attach_prelude_to_project_steps;
                replace_require_steps;
                replace_context_steps;
                replace_or_by_constructive_or_in_proofs_steps;
@@ -1057,9 +1092,7 @@ let constructivise_doc (doc : Rocq_document.t) :
         let replace_tactic_calls =
           replace_taccalls_steps
             [
-              ("left", "stab_left");
-              ("right", "stab_right");
-              ("tauto", "firstorder");
+              ("left", "stab_left"); ("right", "stab_right"); ("tauto", "tautoC");
             ]
             doc
         in
