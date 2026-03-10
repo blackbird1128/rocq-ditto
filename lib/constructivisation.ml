@@ -87,12 +87,106 @@ let replace_require (x : Syntax_node.t) :
                 in
                 Ok [ Replace (x.id, new_node) ]
               else if
+                String.starts_with ~prefix:"GeoCoq.Main.Meta_theory.Models"
+                  qualid_str
+              then
+                let _, postfix =
+                  String_utils.split_prefix "GeoCoq.Main.Meta_theory.Models"
+                    qualid_str
+                  |> Option.get
+                in
+                let new_qualid_str =
+                  "GeoCoq.Constructive.Tactic_instances" ^ postfix
+                in
+                let new_qualid = Libnames.qualid_of_string new_qualid_str in
+                let new_head_tuple = (new_qualid, import_filter) in
+                let new_libnames_import_list =
+                  new_head_tuple :: List_utils.drop 1 libnames_import_list
+                in
+                let new_expr =
+                  VernacSynterp
+                    (VernacRequire
+                       ( option_libname,
+                         export_with_cats_opt,
+                         new_libnames_import_list ))
+                in
+                let new_vernac_control =
+                  Syntax_node.mk_vernac_control new_expr
+                in
+
+                let new_node =
+                  Syntax_node.syntax_node_of_coq_ast
+                    (Coq.Ast.of_coq new_vernac_control)
+                    x.range.start
+                in
+                Ok [ Replace (x.id, new_node) ]
+              else if
+                String.starts_with ~prefix:"GeoCoq.Main.Annexes" qualid_str
+              then
+                let _, postfix =
+                  String_utils.split_prefix "GeoCoq.Main.Annexes" qualid_str
+                  |> Option.get
+                in
+                let new_qualid_str = "GeoCoq.Constructive.Annexes" ^ postfix in
+                let new_qualid = Libnames.qualid_of_string new_qualid_str in
+                let new_head_tuple = (new_qualid, import_filter) in
+                let new_libnames_import_list =
+                  new_head_tuple :: List_utils.drop 1 libnames_import_list
+                in
+                let new_expr =
+                  VernacSynterp
+                    (VernacRequire
+                       ( option_libname,
+                         export_with_cats_opt,
+                         new_libnames_import_list ))
+                in
+                let new_vernac_control =
+                  Syntax_node.mk_vernac_control new_expr
+                in
+
+                let new_node =
+                  Syntax_node.syntax_node_of_coq_ast
+                    (Coq.Ast.of_coq new_vernac_control)
+                    x.range.start
+                in
+                Ok [ Replace (x.id, new_node) ]
+              else if
+                String.starts_with ~prefix:"GeoCoq.Main.Tactics" qualid_str
+              then
+                let _, postfix =
+                  String_utils.split_prefix "GeoCoq.Main.Tactics" qualid_str
+                  |> Option.get
+                in
+                let new_qualid_str = "GeoCoq.Constructive.Tactics" ^ postfix in
+                let new_qualid = Libnames.qualid_of_string new_qualid_str in
+                let new_head_tuple = (new_qualid, import_filter) in
+                let new_libnames_import_list =
+                  new_head_tuple :: List_utils.drop 1 libnames_import_list
+                in
+                let new_expr =
+                  VernacSynterp
+                    (VernacRequire
+                       ( option_libname,
+                         export_with_cats_opt,
+                         new_libnames_import_list ))
+                in
+                let new_vernac_control =
+                  Syntax_node.mk_vernac_control new_expr
+                in
+
+                let new_node =
+                  Syntax_node.syntax_node_of_coq_ast
+                    (Coq.Ast.of_coq new_vernac_control)
+                    x.range.start
+                in
+                Ok [ Replace (x.id, new_node) ]
+              else if
                 String.starts_with ~prefix:"GeoCoq.Axioms.Definitions"
                   qualid_str
               then
                 let* new_node =
                   Syntax_node.syntax_node_of_string
-                    "Require Export GeoCoq.Constructive.Definitions."
+                    "Require Export GeoCoq.Constructive.Prelude.Definitions."
                     x.range.start
                 in
                 Ok [ Replace (x.id, new_node) ]
@@ -102,6 +196,71 @@ let replace_require (x : Syntax_node.t) :
                 "Error getting libnames_import_list in %s" (Syntax_node.repr x))
       | _ -> Ok [])
   | None -> Ok []
+
+let replace_congr (doc : Rocq_document.t) :
+    (transformation_step list, Error.t) result =
+  let dummy_start : Code_point.t = { line = 0; character = 0 } in
+  if Filename.basename doc.filename = "Ch04_cong_bet.v" then
+    Ok
+      (List.filter_map
+         (fun node ->
+           if
+             String.equal (Syntax_node.repr node)
+               "Ltac congr :=\n\
+               \  let tpoint := constr:(Tpoint) in\n\
+               \  let cong := constr:(Cong) in\n\
+               \    Cong_refl tpoint cong."
+           then
+             let new_congr =
+               Syntax_node.syntax_node_of_string
+                 "Ltac congr :=\n\
+                 \  let tpoint := constr:(Tpoint) in\n\
+                 \  let cong := constr:(CongC) in\n\
+                 \    Cong_refl tpoint cong."
+                 dummy_start
+               |> Result.get_ok
+             in
+             Some (Replace (node.id, new_congr))
+           else None)
+         doc.elements)
+  else Ok []
+
+let replace_cong_theory (doc : Rocq_document.t) :
+    (transformation_step list, Error.t) result =
+  let dummy_start : Code_point.t = { line = 0; character = 0 } in
+  if Filename.basename doc.filename = "tarski_to_cong_theory.v" then
+    Ok
+      (List.filter_map
+         (fun node ->
+           if
+             String.equal (Syntax_node.repr node)
+               "Global Instance Tarski_is_a_Cong_theory : (Cong_theory Tpoint \
+                Cong)."
+           then
+             let new_global_instance_node =
+               Syntax_node.syntax_node_of_string
+                 "Global Instance Tarski_is_a_Cong_theory : (Cong_theory \
+                  Tpoint CongC)."
+                 dummy_start
+               |> Result.get_ok
+             in
+             Some (Replace (node.id, new_global_instance_node))
+           else if
+             String.equal (Syntax_node.repr node)
+               "exact (Build_Cong_theory Tpoint Cong cong_reflexivity \
+                cong_left_commutativity cong_symmetry cong_transitivity)."
+           then
+             let new_exact_node =
+               Syntax_node.syntax_node_of_string
+                 "exact (Build_Cong_theory Tpoint CongC cong_reflexivity \
+                  cong_left_commutativity cong_symmetry cong_transitivity)."
+                 dummy_start
+               |> Result.get_ok
+             in
+             Some (Replace (node.id, new_exact_node))
+           else None)
+         doc.elements)
+  else Ok []
 
 let replace_contexts (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
@@ -140,13 +299,12 @@ let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
     | Some last_require ->
         let* prelude_node =
           Syntax_node.syntax_node_of_string
-            "Require Export GeoCoq.Constructive.Prelude." dummy_start
+            "Require Export GeoCoq.Constructive.Prelude.Prelude." dummy_start
         in
         Ok [ Attach (prelude_node, LineAfter, last_require.id) ]
     | None ->
         Error.string_to_or_error
-          "Attach prelude: No Require node was found in chapter 2, check \
-           assumptions !"
+          "Attach prelude: No Require node was found, check assumptions !"
   else Ok []
 
 let replace_notation_in_constrexpr (old_notation : string)
@@ -946,7 +1104,7 @@ let constructivise_doc (doc : Rocq_document.t) :
 
   let* require_prelude_node =
     Syntax_node.syntax_node_of_string
-      "Require Import GeoCoq.Constructive.Prelude." dummy_start
+      "Require Import GeoCoq.Constructive.Prelude.Prelude." dummy_start
   in
 
   let _preload_prelude =
@@ -996,6 +1154,14 @@ let constructivise_doc (doc : Rocq_document.t) :
           attach_prelude_to_file doc "project.v"
         in
 
+        let* attach_prelude_to_playfair_existential_playfair =
+          attach_prelude_to_file doc "playfair_existential_playfair.v"
+        in
+
+        let* replace_cong_theory_steps = replace_cong_theory doc in
+
+        let* replace_congr_steps = replace_congr doc in
+
         let* replace_require_steps =
           List_utils.concat_map_result replace_require doc.elements
         in
@@ -1029,6 +1195,8 @@ let constructivise_doc (doc : Rocq_document.t) :
           (List.concat
              [
                prove_decidability_proofs_steps;
+               replace_cong_theory_steps;
+               replace_congr_steps;
                attach_prelude_to_chapter_two_steps;
                attach_prelude_to_chapter_twelwe_inted_dec_steps;
                attach_prelude_to_chapter_13_5_steps;
