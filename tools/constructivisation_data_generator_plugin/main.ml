@@ -357,11 +357,12 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
       "t22_7__cong";
       "t22_8__cong";
       "per_sac__rah";
-      "acute_sac__aah ";
+      "acute_sac__aah";
       "obtuse_sac__oah";
       "saccheri_s_three_hypotheses";
       "not_rah";
       "not_oah";
+      "not_aah";
       "t22_14__bet_aux";
       "t22_14__bet";
       "t22_14__rah";
@@ -380,10 +381,49 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
       "plg_uniqueness";
       "plgf_plgf_plgf";
       "degenerated_rect_eq";
+      "rmb_cong";
       (* vector *)
       "vector_construction_uniqueness";
       "null_vector";
       "vector_uniqueness";
+      "eqv_opp_null";
+      "eqv_mid";
+      "one_side_col_out";
+      "same_dir_out";
+      "same_dir_out1";
+      "same_dir_null";
+      "plgs_plgs_bet";
+      "plgf_plgf_bet";
+      "plg_plg_bet";
+      "plgf_out_plgf";
+      "same_dir_id";
+      (* midpoints theorem *)
+      "col_permut132";
+      "col_permut213";
+      "col_permut231";
+      "col_permut312";
+      "col_permut321";
+      "col123_124__col134";
+      "col123_124__col234";
+      "triangle_par_mid";
+      (* project *)
+      "project_id";
+      "project_par";
+      "ker_col";
+      "project_uniqueness";
+      "project_col_eq";
+      "project_preserves_bet";
+      "cong_conga3_cong3";
+      "eqv_project_eq_eq";
+      "eqv_cong";
+      "proj_distinct";
+      "projp_id";
+      "projp2_col";
+      "col_projp_eq";
+      "projp_col";
+      "perp_projp2_eq";
+      "col_par_projp2_eq";
+      "col_2_par_projp2_cong";
     ];
   close_out out_chan
 
