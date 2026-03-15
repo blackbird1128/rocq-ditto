@@ -7,7 +7,7 @@ V_TARGET_GEN := $(V_TARGET_SRC:%=%.target.json)
 
 GEOCOQ_INPUT_DIR ?= ../private-geocoq/
 GEOCOQ_OUTPUT_DIR ?= ../geocoq_bis
-NORMALISED_DIR ?= ../normalised_geocoq_out/
+NORMALISED_DIR ?= ../dittoed-geocoq/
 DITTO ?= dune exec --profile=release rocq-ditto --
 
 CONSTRUCTIVISATION_FILES ?= \
@@ -113,13 +113,18 @@ constructivisation-uniformise-1: build
 constructivisation-uniformise-2: build
 	$(DITTO) -i ../normalised_geocoq_in/ -o ../normalised_geocoq_out -t explicit_apply --save-vo
 
-
-
 constructivisation-axioms: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/continuity_axioms.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/continuity_axioms.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/parallel_postulates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/parallel_postulates.v -t constructivise_geocoq -v
 
 constructivisation-build: build
+	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Tactics/
+	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Tactic_instances/
+	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Dimension_axioms/
+	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/
+	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/continuity_axioms.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/continuity_axioms.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/parallel_postulates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/parallel_postulates.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch02_cong.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch02_cong.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Models/tarski_to_cong_theory.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Tactic_instances/tarski_to_cong_theory.v  -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tactics/CongR.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Tactics/CongR.v -t constructivise_geocoq -v
@@ -225,9 +230,6 @@ constructivisation-build: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch15_lengths.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch15_lengths.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch16_coordinates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch16_coordinates.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch15_pyth_rel.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch15_pyth_rel.v -t constructivise_geocoq -v
-
-single:
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/project.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/project.v -t constructivise_geocoq -v
 
 constructivisation-compile:
 	$(DITTO) -i $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude.v -t id_doc_transformation -v --save-vo

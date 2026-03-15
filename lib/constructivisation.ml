@@ -1154,7 +1154,7 @@ let constructivise_doc (doc : Rocq_document.t) :
           attach_prelude_to_file doc "project.v"
         in
 
-        let* attach_prelude_to_playfair_existential_playfair =
+        let* attach_prelude_to_playfair_existential_playfair_steps =
           attach_prelude_to_file doc "playfair_existential_playfair.v"
         in
 
@@ -1201,6 +1201,7 @@ let constructivise_doc (doc : Rocq_document.t) :
                attach_prelude_to_chapter_twelwe_inted_dec_steps;
                attach_prelude_to_chapter_13_5_steps;
                attach_prelude_to_project_steps;
+               attach_prelude_to_playfair_existential_playfair_steps;
                replace_require_steps;
                replace_context_steps;
                replace_or_by_constructive_or_in_proofs_steps;
