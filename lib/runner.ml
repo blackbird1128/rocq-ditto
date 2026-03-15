@@ -87,11 +87,11 @@ let rec parse_execute_loop ~token ~memo pa ~msg_acc st =
       match eval ~token (st, ast) with
       | Coq.Protect.E.
           { r = Coq.Protect.R.Completed (Ok st); feedback = messages } ->
-          parse_execute_loop ~token ~memo pa ~msg_acc:(msg_acc @ messages) st
-      | res -> Coq.Protect.E.map ~f:(fun x -> (x, msg_acc)) res)
-  (* On EOF we return the previous state, the command was the empty string or a
-     comment *)
-  | None -> Coq.Protect.E.ok (st, msg_acc)
+          parse_execute_loop ~token ~memo pa
+            ~msg_acc:(List.rev_append messages msg_acc)
+            st
+      | res -> Coq.Protect.E.map ~f:(fun x -> (x, List.rev msg_acc)) res)
+  | None -> Coq.Protect.E.ok (st, List.rev msg_acc)
 
 let parse_and_execute_in ~token ~loc tac st =
   let str = Gramlib.Stream.of_string tac in
