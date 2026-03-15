@@ -68,7 +68,7 @@ let simple_proof_repair (doc : Rocq_document.t)
                       else Ok (new_state, steps_acc, ignore_acc, num_goals)
                   | Error _ ->
                       let childs =
-                        List.concat (List.map Nary_tree.flatten children)
+                        List.concat_map Nary_tree.flatten children
                         |> List.filter (fun x ->
                             not (is_syntax_node_proof_intro_or_end x))
                       in

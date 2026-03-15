@@ -101,12 +101,11 @@ let mapi (f : int -> 'a -> 'b) (tree : 'a nary_tree) : 'b nary_tree =
   snd (depth_first_fold_map (fun i x -> (i + 1, f i x)) 0 tree)
 
 let rec flatten (tree : 'a nary_tree) : 'a list =
-  match tree with
-  | Node (x, children) -> x :: List.concat (List.map flatten children)
+  match tree with Node (x, children) -> x :: List.concat_map flatten children
 
 let rec flatten_map (f : 'a -> 'b) (tree : 'a nary_tree) : 'b list =
   match tree with
-  | Node (x, children) -> f x :: List.concat (List.map (flatten_map f) children)
+  | Node (x, children) -> f x :: List.concat_map (flatten_map f) children
 
 let rec top_n (n : int) (Node (value, children)) : 'a nary_tree =
   if n <= 0 then Node (value, [])
