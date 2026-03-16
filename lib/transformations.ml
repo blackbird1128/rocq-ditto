@@ -194,8 +194,8 @@ let remove_random_step (_ : Rocq_document.t) (proof : Proof.t) :
     in
     Ok [ Replace (rand_node.id, incorrect_node) ]
 
-let admit_and_comment_proof_steps (_ : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
+    (proof : Proof.t) : (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
   let remove_all_steps =
     List.map (fun step -> Remove step.id) proof.proof_steps
@@ -214,7 +214,10 @@ let admit_and_comment_proof_steps (_ : Rocq_document.t) (proof : Proof.t) :
         Rocq_document.dump_elements_to_string normalized_range_steps
     | _ -> Ok ""
   in
-  let comment_content = "(* " ^ comment_content ^ "*)" in
+  let comment_content =
+    if String.equal msg "" then "(* " ^ comment_content ^ "*)"
+    else "(* " ^ msg ^ " *)" ^ "\n(*" ^ comment_content ^ "*)"
+  in
 
   let* comment_node =
     Syntax_node.comment_syntax_node_of_string comment_content

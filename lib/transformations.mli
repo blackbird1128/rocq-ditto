@@ -30,7 +30,10 @@ val admit_proof :
   Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
 
 val admit_and_comment_proof_steps :
-  Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
+  ?msg:string ->
+  Rocq_document.t ->
+  Proof.t ->
+  (transformation_step list, Error.t) result
 
 val remove_random_step :
   Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
