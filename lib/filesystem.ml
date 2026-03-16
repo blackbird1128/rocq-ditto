@@ -55,6 +55,10 @@ let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
         Ok ()
     | entry -> (
         if entry = "." || entry = ".." then loop ()
+        else if entry = ".git" then (
+          Printf.printf
+            "Warning: ignoring .git when copying input directory\n%!";
+          loop ())
         else
           let src_path = Filename.concat src entry in
           let dst_path = Filename.concat dst entry in
