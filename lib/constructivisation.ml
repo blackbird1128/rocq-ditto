@@ -14,188 +14,84 @@ end)
 
 module StringSet = Set.Make (String)
 
+let rewrite_qualid_prefix ~(old_prefix : string) ~(new_prefix : string)
+    (qualid : Libnames.qualid) : Libnames.qualid option =
+  let qualid_str = Libnames.string_of_qualid qualid in
+  match String_utils.split_prefix old_prefix qualid_str with
+  | Some (_, postfix) -> Some (Libnames.qualid_of_string (new_prefix ^ postfix))
+  | None -> None
+
+let rewrite_first_import ~(rules : (string * string) list)
+    (libnames_import_list : (Libnames.qualid * import_filter_expr) list) :
+    (Libnames.qualid * import_filter_expr) list option =
+  match libnames_import_list with
+  | [] -> None
+  | (qualid, import_filter) :: rest ->
+      let rec try_rules = function
+        | [] -> None
+        | (old_prefix, new_prefix) :: rules -> (
+            match rewrite_qualid_prefix ~old_prefix ~new_prefix qualid with
+            | Some new_qualid -> Some ((new_qualid, import_filter) :: rest)
+            | None -> try_rules rules)
+      in
+      try_rules rules
+
+let rebuild_require_node (x : Syntax_node.t)
+    (option_libname : Libnames.qualid option)
+    (export_with_cats_opt : export_with_cats option)
+    (libnames_import_list : (Libnames.qualid * import_filter_expr) list) :
+    (Syntax_node.t, Error.t) result =
+  let new_expr =
+    VernacSynterp
+      (VernacRequire (option_libname, export_with_cats_opt, libnames_import_list))
+  in
+  let new_vernac_control = Syntax_node.mk_vernac_control new_expr in
+  Ok
+    (Syntax_node.syntax_node_of_coq_ast
+       (Coq.Ast.of_coq new_vernac_control)
+       x.range.start)
+
 let replace_require (x : Syntax_node.t) :
     (transformation_step list, Error.t) result =
+  let require_prefix_rules : (string * string) list =
+    [
+      ("GeoCoq.Main.Tarski_dev", "GeoCoq.Constructive");
+      ("GeoCoq.Main.Annexes", "GeoCoq.Constructive.Annexes");
+      ("GeoCoq.Main.Meta_theory.Models", "GeoCoq.Constructive.Tactic_instances");
+      ( "GeoCoq.Main.Meta_theory.Parallel_postulates",
+        "GeoCoq.Constructive.Parallel_postulates" );
+      ("GeoCoq.Main.Tactics", "GeoCoq.Constructive.Tactics");
+      ("GeoCoq.Axioms.Definitions", "GeoCoq.Constructive.Prelude.Definitions");
+      ( "GeoCoq.Axioms.continuity_axioms",
+        "GeoCoq.Constructive.Prelude.continuity_axioms" );
+      ( "GeoCoq.Axioms.parallel_postulates",
+        "GeoCoq.Constructive.Prelude.parallel_postulates" );
+    ]
+  in
   match x.ast with
+  | None -> Ok []
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynterp
           (VernacRequire
              (option_libname, export_with_cats_opt, libnames_import_list)) -> (
-          match List.nth_opt libnames_import_list 0 with
-          | Some (qualid, import_filter) ->
-              let qualid_str = Libnames.string_of_qualid qualid in
-              if String.starts_with ~prefix:"GeoCoq.Main.Tarski_dev" qualid_str
-              then
-                let _, postfix =
-                  String_utils.split_prefix "GeoCoq.Main.Tarski_dev" qualid_str
-                  |> Option.get
-                in
-
-                let new_qualid_str = "GeoCoq.Constructive" ^ postfix in
-
-                let new_qualid = Libnames.qualid_of_string new_qualid_str in
-                let new_head_tuple = (new_qualid, import_filter) in
-                let new_libnames_import_list =
-                  new_head_tuple :: List_utils.drop 1 libnames_import_list
-                in
-                let new_expr =
-                  VernacSynterp
-                    (VernacRequire
-                       ( option_libname,
-                         export_with_cats_opt,
-                         new_libnames_import_list ))
-                in
-                let new_vernac_control =
-                  Syntax_node.mk_vernac_control new_expr
-                in
-
-                let new_node =
-                  Syntax_node.syntax_node_of_coq_ast
-                    (Coq.Ast.of_coq new_vernac_control)
-                    x.range.start
-                in
-                Ok [ Replace (x.id, new_node) ]
-              else if
-                String.starts_with ~prefix:"GeoCoq.Main.Annexes" qualid_str
-              then
-                let _, postfix =
-                  String_utils.split_prefix "GeoCoq.Main.Annexes" qualid_str
-                  |> Option.get
-                in
-                let new_qualid_str = "GeoCoq.Constructive.Annexes" ^ postfix in
-                let new_qualid = Libnames.qualid_of_string new_qualid_str in
-                let new_head_tuple = (new_qualid, import_filter) in
-                let new_libnames_import_list =
-                  new_head_tuple :: List_utils.drop 1 libnames_import_list
-                in
-                let new_expr =
-                  VernacSynterp
-                    (VernacRequire
-                       ( option_libname,
-                         export_with_cats_opt,
-                         new_libnames_import_list ))
-                in
-                let new_vernac_control =
-                  Syntax_node.mk_vernac_control new_expr
-                in
-
-                let new_node =
-                  Syntax_node.syntax_node_of_coq_ast
-                    (Coq.Ast.of_coq new_vernac_control)
-                    x.range.start
-                in
-                Ok [ Replace (x.id, new_node) ]
-              else if
-                String.starts_with ~prefix:"GeoCoq.Main.Meta_theory.Models"
-                  qualid_str
-              then
-                let _, postfix =
-                  String_utils.split_prefix "GeoCoq.Main.Meta_theory.Models"
-                    qualid_str
-                  |> Option.get
-                in
-                let new_qualid_str =
-                  "GeoCoq.Constructive.Tactic_instances" ^ postfix
-                in
-                let new_qualid = Libnames.qualid_of_string new_qualid_str in
-                let new_head_tuple = (new_qualid, import_filter) in
-                let new_libnames_import_list =
-                  new_head_tuple :: List_utils.drop 1 libnames_import_list
-                in
-                let new_expr =
-                  VernacSynterp
-                    (VernacRequire
-                       ( option_libname,
-                         export_with_cats_opt,
-                         new_libnames_import_list ))
-                in
-                let new_vernac_control =
-                  Syntax_node.mk_vernac_control new_expr
-                in
-
-                let new_node =
-                  Syntax_node.syntax_node_of_coq_ast
-                    (Coq.Ast.of_coq new_vernac_control)
-                    x.range.start
-                in
-                Ok [ Replace (x.id, new_node) ]
-              else if
-                String.starts_with ~prefix:"GeoCoq.Main.Annexes" qualid_str
-              then
-                let _, postfix =
-                  String_utils.split_prefix "GeoCoq.Main.Annexes" qualid_str
-                  |> Option.get
-                in
-                let new_qualid_str = "GeoCoq.Constructive.Annexes" ^ postfix in
-                let new_qualid = Libnames.qualid_of_string new_qualid_str in
-                let new_head_tuple = (new_qualid, import_filter) in
-                let new_libnames_import_list =
-                  new_head_tuple :: List_utils.drop 1 libnames_import_list
-                in
-                let new_expr =
-                  VernacSynterp
-                    (VernacRequire
-                       ( option_libname,
-                         export_with_cats_opt,
-                         new_libnames_import_list ))
-                in
-                let new_vernac_control =
-                  Syntax_node.mk_vernac_control new_expr
-                in
-
-                let new_node =
-                  Syntax_node.syntax_node_of_coq_ast
-                    (Coq.Ast.of_coq new_vernac_control)
-                    x.range.start
-                in
-                Ok [ Replace (x.id, new_node) ]
-              else if
-                String.starts_with ~prefix:"GeoCoq.Main.Tactics" qualid_str
-              then
-                let _, postfix =
-                  String_utils.split_prefix "GeoCoq.Main.Tactics" qualid_str
-                  |> Option.get
-                in
-                let new_qualid_str = "GeoCoq.Constructive.Tactics" ^ postfix in
-                let new_qualid = Libnames.qualid_of_string new_qualid_str in
-                let new_head_tuple = (new_qualid, import_filter) in
-                let new_libnames_import_list =
-                  new_head_tuple :: List_utils.drop 1 libnames_import_list
-                in
-                let new_expr =
-                  VernacSynterp
-                    (VernacRequire
-                       ( option_libname,
-                         export_with_cats_opt,
-                         new_libnames_import_list ))
-                in
-                let new_vernac_control =
-                  Syntax_node.mk_vernac_control new_expr
-                in
-
-                let new_node =
-                  Syntax_node.syntax_node_of_coq_ast
-                    (Coq.Ast.of_coq new_vernac_control)
-                    x.range.start
-                in
-                Ok [ Replace (x.id, new_node) ]
-              else if
-                String.starts_with ~prefix:"GeoCoq.Axioms.Definitions"
-                  qualid_str
-              then
-                let* new_node =
-                  Syntax_node.syntax_node_of_string
-                    "Require Export GeoCoq.Constructive.Prelude.Definitions."
-                    x.range.start
-                in
-                Ok [ Replace (x.id, new_node) ]
-              else Ok []
-          | None ->
+          match libnames_import_list with
+          | [] ->
               Error.format_to_or_error
-                "Error getting libnames_import_list in %s" (Syntax_node.repr x))
+                "Error getting libnames_import_list in %s" (Syntax_node.repr x)
+          | (_, _) :: _ -> (
+              match
+                rewrite_first_import ~rules:require_prefix_rules
+                  libnames_import_list
+              with
+              | None -> Ok []
+              | Some new_libnames_import_list ->
+                  let* new_node =
+                    rebuild_require_node x option_libname export_with_cats_opt
+                      new_libnames_import_list
+                  in
+                  Ok [ Replace (x.id, new_node) ]))
       | _ -> Ok [])
-  | None -> Ok []
 
 let replace_congr (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
@@ -1120,7 +1016,7 @@ let constructivise_doc (doc : Rocq_document.t) :
         let blacklisted_proofs = get_proofs_named proofs blacklisted_proofs in
 
         List_utils.concat_map_result
-          (Transformations.admit_and_comment_proof_steps doc)
+          (Transformations.admit_and_comment_proof_steps ~msg:"blacklisted" doc)
           blacklisted_proofs)
   in
 
@@ -1214,7 +1110,8 @@ let constructivise_doc (doc : Rocq_document.t) :
         if String.ends_with ~suffix:"/Ch10_line_reflexivity.v" doc.filename then
           let* proofs = Rocq_document.get_proofs doc in
           let first_proof = List.hd proofs in
-          Transformations.admit_and_comment_proof_steps doc first_proof
+          Transformations.admit_and_comment_proof_steps ~msg:"blacklisted" doc
+            first_proof
         else Ok [])
   in
 
@@ -1233,7 +1130,8 @@ let constructivise_doc (doc : Rocq_document.t) :
 
         let* admit_exists_proofs_steps =
           List_utils.concat_map_result
-            (Transformations.admit_and_comment_proof_steps doc)
+            (Transformations.admit_and_comment_proof_steps
+               ~msg:"existential predicate in conclusion" doc)
             proofs_with_exists
         in
 
