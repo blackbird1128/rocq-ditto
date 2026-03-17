@@ -7,7 +7,7 @@ V_TARGET_GEN := $(V_TARGET_SRC:%=%.target.json)
 
 GEOCOQ_INPUT_DIR ?= ../private-geocoq/
 GEOCOQ_OUTPUT_DIR ?= ../geocoq_bis
-NORMALISED_DIR ?= ../dittoed-geocoq/
+NORMALISED_DIR ?= ../normalised_second_pass/
 DITTO ?= dune exec --profile=release rocq-ditto --
 
 CONSTRUCTIVISATION_FILES ?= \
@@ -108,10 +108,10 @@ constructivisation-get-dep: build
 
 
 constructivisation-uniformise-1: build
-	$(DITTO) -i $(GEOCOQ_INPUT_DIR) -o $(NORMALISED_DIR) -t replace_induction_with_destruct --save-vo
+	$(DITTO) -i $(GEOCOQ_INPUT_DIR) -o ../normalised_first_pass/ -t replace_induction_with_destruct --save-vo
 
 constructivisation-uniformise-2: build
-	$(DITTO) -i ../normalised_geocoq_in/ -o ../normalised_geocoq_out -t explicit_apply --save-vo
+	$(DITTO) -i ../normalised_first_pass/ -o ../normalised_second_pass/ -t explicit_apply --save-vo
 
 constructivisation-axioms: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/continuity_axioms.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/continuity_axioms.v -t constructivise_geocoq -v
@@ -123,7 +123,6 @@ constructivisation-build: build
 	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Dimension_axioms/
 	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/
 	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/continuity_axioms.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/continuity_axioms.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/parallel_postulates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/parallel_postulates.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch02_cong.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch02_cong.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Models/tarski_to_cong_theory.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Tactic_instances/tarski_to_cong_theory.v  -t constructivise_geocoq -v
@@ -159,66 +158,20 @@ constructivisation-build: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/saccheri.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/saccheri.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/defect.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/defect.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch13_1.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch13_1.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/SPP_tarski.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/SPP_tarski.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/alternate_interior_angles_consecutive_interior_angles.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/alternate_interior_angles_consecutive_interior_angles.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/alternate_interior_angles_playfair_bis.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/alternate_interior_angles_playfair_bis.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/alternate_interior_angles_triangle.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/alternate_interior_angles_triangle.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/alternate_interior_angles_proclus.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/alternate_interior_angles_proclus.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/bachmann_s_lotschnittaxiom_variant.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/bachmann_s_lotschnittaxiom_variant.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/bachmann_s_lotschnittaxiom_legendre_s_parallel_postulate.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/bachmann_s_lotschnittaxiom_legendre_s_parallel_postulate.v -t constructivise_geocoq -v 
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/bachmann_s_lotschnittaxiom_weak_inverse_projection_postulate.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/bachmann_s_lotschnittaxiom_weak_inverse_projection_postulate.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/bachmann_s_lotschnittaxiom_weak_triangle_circumscription_principle.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/bachmann_s_lotschnittaxiom_weak_triangle_circumscription_principle.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/consecutive_interior_angles_alternate_interior_angles.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/consecutive_interior_angles_alternate_interior_angles.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/existential_playfair_rah.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/existential_playfair_rah.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/existential_saccheri_rah.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/existential_saccheri_rah.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/inverse_projection_postulate_proclus_bis.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/inverse_projection_postulate_proclus_bis.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/SPP_ID.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/SPP_ID.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/TCP_tarski.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/TCP_tarski.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/euclid_5_original_euclid.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/euclid_5_original_euclid.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/existential_triangle_rah.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/existential_triangle_rah.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/par_perp_perp_TCP.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/par_perp_perp_TCP.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/playfair_alternate_interior_angles.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/playfair_alternate_interior_angles.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/playfair_bis_playfair.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/playfair_bis_playfair.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/playfair_universal_posidonius_postulate.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/playfair_universal_posidonius_postulate.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/proclus_SPP.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/proclus_SPP.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/rah_triangle.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/rah_triangle.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/tarski_euclid.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/tarski_euclid.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/triangle_playfair_bis.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/triangle_playfair_bis.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/triangle_existential_triangle.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/triangle_existential_triangle.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/rah_thales_postulate.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/rah_thales_postulate.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/thales_converse_postulate_weak_triangle_circumscription_principle.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/thales_converse_postulate_weak_triangle_circumscription_principle.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/thales_postulate_thales_converse_postulate.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/thales_postulate_thales_converse_postulate.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/weak_triangle_circumscription_principle_bachmann_s_lotschnittaxiom.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/weak_triangle_circumscription_principle_bachmann_s_lotschnittaxiom.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/bachmann_s_lotschnittaxiom_variant.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/bachmann_s_lotschnittaxiom_variant.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/par_trans_NID.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/par_trans_NID.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/universal_posidonius_postulate_par_perp_perp.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/universal_posidonius_postulate_par_perp_perp.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/legendre.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/legendre.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/midpoint_playfair.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/midpoint_playfair.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/original_euclid_original_spp.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/original_euclid_original_spp.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/original_spp_inverse_projection_postulate.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/original_spp_inverse_projection_postulate.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/par_perp_2_par_par_perp_perp.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/par_perp_2_par_par_perp_perp.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/par_perp_perp_par_perp_2_par.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/par_perp_perp_par_perp_2_par.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/par_perp_perp_playfair.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/par_perp_perp_playfair.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/par_trans_playfair.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/par_trans_playfair.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/playfair_existential_playfair.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/playfair_existential_playfair.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/playfair_midpoint.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/playfair_midpoint.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/playfair_par_trans.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/playfair_par_trans.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/posidonius_postulate_rah.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/posidonius_postulate_rah.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/tarski_playfair.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/tarski_playfair.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/proclus_aristotle.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/proclus_aristotle.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/proclus_bis_proclus.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/proclus_bis_proclus.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/rah_existential_saccheri.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/rah_existential_saccheri.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/rah_rectangle_principle.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/rah_rectangle_principle.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/rah_similar.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/rah_similar.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/rah_posidonius_postulate.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/rah_posidonius_postulate.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/rectangle_existence_rah.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/rectangle_existence_rah.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/rectangle_principle_rectangle_existence.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/rectangle_principle_rectangle_existence.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/similar_rah.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/similar_rah.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/thales_converse_postulate_thales_existence.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/thales_converse_postulate_thales_existence.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/thales_existence_rah.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/thales_existence_rah.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/weak_inverse_projection_postulate_bachmann_s_lotschnittaxiom.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/weak_inverse_projection_postulate_bachmann_s_lotschnittaxiom.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/weak_inverse_projection_postulate_weak_tarski_s_parallel_postulate.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/weak_inverse_projection_postulate_weak_tarski_s_parallel_postulate.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/weak_tarski_s_parallel_postulate_weak_inverse_projection_postulate.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/weak_tarski_s_parallel_postulate_weak_inverse_projection_postulate.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/parallel_postulates.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/parallel_postulates.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/par_trans_NID.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/par_trans_NID.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/parallel_postulates_2.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/parallel_postulates_2.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch13_2_length.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch13_2_length.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch13_3_angles.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch13_3_angles.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch13_4_cos.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch13_4_cos.v -t constructivise_geocoq -v
