@@ -113,6 +113,30 @@ let compile_files (files : string list) (root : string) =
       | err -> (err, curr_file_count + 1))
     (Ok (), 1) files
 
+let pp_deg_graph fmt tbl =
+  let bindings = tbl |> Hashtbl.to_seq |> List.of_seq |> List.sort compare in
+  Format.fprintf fmt "@[<v 2>{";
+  if bindings <> [] then Format.fprintf fmt "@,";
+  List.iter (fun (k, v) -> Format.fprintf fmt "  %S: %d;@," k v) bindings;
+  Format.fprintf fmt "}@]"
+
+let pp_string_list fmt xs =
+  Format.fprintf fmt "[@[";
+  Format.pp_print_list
+    ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
+    (fun fmt s -> Format.fprintf fmt "%S" s)
+    fmt xs;
+  Format.fprintf fmt "@]]"
+
+let pp_dep_graph fmt tbl =
+  let bindings = tbl |> Hashtbl.to_seq |> List.of_seq |> List.sort compare in
+  Format.fprintf fmt "@[<v 2>{";
+  if bindings <> [] then Format.fprintf fmt "@,";
+  List.iter
+    (fun (k, v) -> Format.fprintf fmt "  %S: %a;@," k pp_string_list v)
+    bindings;
+  Format.fprintf fmt "}@]"
+
 let transform_project (opts : cli_options) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let input = opts.input
@@ -153,6 +177,7 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
         "REVERSE_ORDER=" ^ string_of_bool reverse_order;
       |]
   in
+
   let prog = "fcc" in
   match pathkind with
   | File ->
@@ -237,8 +262,9 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
           let filenames =
             List.map (fun x -> Filename.basename x.thing) p.files
           in
+
           let* dep_files = Compile.coqproject_sorted_files coqproject_path in
-          let dep_files =
+          let dep_files_out =
             List.map
               (fun file ->
                 let rel_file_path = remove_prefix file input in
@@ -247,6 +273,36 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
                 out_path)
               dep_files
           in
+
+          let* depgraph : (string, string list) Hashtbl.t =
+            Compile.coqproject_to_dep_graph coqproject_path
+          in
+          let _pad_depgraph =
+            List.iter
+              (fun x ->
+                if not (Hashtbl.mem depgraph x) then Hashtbl.add depgraph x [])
+              dep_files
+          in
+
+          let dependents = Compile.build_dependents depgraph in
+
+          let indeg_graph = Compile.build_indegrees depgraph in
+          let indeg_graph_seq = Hashtbl.to_seq indeg_graph in
+          let indeg_graph_list = List.of_seq indeg_graph_seq in
+          let indeg_graph_file_list = List.map fst indeg_graph_list in
+
+          Logs.debug (fun m -> m "dependents:\n%a" pp_dep_graph dependents);
+
+          Logs.debug (fun m ->
+              m "dep files:\n%s" ([%show: string list] dep_files));
+          Logs.debug (fun m ->
+              m "indeg graph length: %d" (List.length indeg_graph_file_list));
+          Logs.debug (fun m -> m "num filenames: %d" (List.length dep_files));
+          let diff l1 l2 = List.filter (fun x -> not (List.mem x l2)) l1 in
+          Logs.debug (fun m ->
+              m "diff: %s"
+                ([%show: string list] (diff dep_files indeg_graph_file_list)));
+
           let makefile_path = Filename.concat coqproject_dir "Makefile" in
 
           let* new_dir_state = Filesystem.make_dir output in
@@ -264,10 +320,10 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
             else Ok ()
           in
 
-          let total_file_count = List.length dep_files in
+          let total_file_count = List.length dep_files_out in
 
           let transformations_status =
-            transform_files output dep_files prog total_file_count base_env
+            transform_files output dep_files_out prog total_file_count base_env
               save_vo verbose
           in
           fst transformations_status)

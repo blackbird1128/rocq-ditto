@@ -14,6 +14,9 @@ val coqproject_sorted_files : string -> (string list, Error.t) result
 val coqproject_to_dep_graph :
   string -> ((string, string list) Hashtbl.t, Error.t) result
 
+val build_indegrees : ('a, 'a list) Hashtbl.t -> ('a, int) Hashtbl.t
+val build_dependents : ('a, 'b list) Hashtbl.t -> ('b, 'a list) Hashtbl.t
+
 val get_file_dependencies :
   string -> (string, string list) Hashtbl.t -> string list
 

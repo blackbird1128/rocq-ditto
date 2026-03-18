@@ -153,6 +153,30 @@ let get_file_dependencies (fname : string)
   in
   aux fname |> dedup
 
+let build_indegrees (deps : ('a, 'a list) Hashtbl.t) : ('a, int) Hashtbl.t =
+  let indeg = Hashtbl.create 128 in
+  Hashtbl.iter
+    (fun a prereqs ->
+      Hashtbl.replace indeg a (List.length prereqs);
+      List.iter
+        (fun b -> if not (Hashtbl.mem indeg b) then Hashtbl.add indeg b 0)
+        prereqs)
+    deps;
+  indeg
+
+let build_dependents (deps : ('a, 'b list) Hashtbl.t) : ('b, 'a list) Hashtbl.t
+    =
+  let rev = Hashtbl.create 128 in
+  Hashtbl.iter
+    (fun a prereqs ->
+      List.iter
+        (fun b ->
+          let lst = Hashtbl.find_opt rev b |> Option.default [] in
+          Hashtbl.replace rev b (a :: lst))
+        prereqs)
+    deps;
+  rev
+
 let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
   let msg_string = Pp.string_of_ppcmds x.message in
 
