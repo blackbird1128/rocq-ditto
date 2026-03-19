@@ -12,10 +12,11 @@ type cli_options = {
   reverse_order : bool;
   skipped_files : string list;
   dependencies_action : dependencies_action;
+  jobs : int option;
 }
 
 type process_status = Success | Failure of string
-type running_job = { target : string; pid : int }
+type running_job = { target : string }
 
 let string_of_process_status = function
   | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
@@ -114,7 +115,7 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
     let curr_args = make_args_transform_files prog root verbose save_vo file in
     let curr_env = Array.append env [| "OUTPUT_FILENAME=" ^ file |] in
     let pid = spawn_process ~env:curr_env ~args:curr_args prog in
-    let running_job = { target = file; pid } in
+    let running_job = { target = file } in
     Hashtbl.add running pid running_job
   in
 
@@ -205,30 +206,6 @@ let compile_files (files : string list) (root : string) =
       | err -> (err, curr_file_count + 1))
     (Ok (), 1) files
 
-let pp_deg_graph fmt tbl =
-  let bindings = tbl |> Hashtbl.to_seq |> List.of_seq |> List.sort compare in
-  Format.fprintf fmt "@[<v 2>{";
-  if bindings <> [] then Format.fprintf fmt "@,";
-  List.iter (fun (k, v) -> Format.fprintf fmt "  %S: %d;@," k v) bindings;
-  Format.fprintf fmt "}@]"
-
-let pp_string_list fmt xs =
-  Format.fprintf fmt "[@[";
-  Format.pp_print_list
-    ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
-    (fun fmt s -> Format.fprintf fmt "%S" s)
-    fmt xs;
-  Format.fprintf fmt "@]]"
-
-let pp_dep_graph fmt tbl =
-  let bindings = tbl |> Hashtbl.to_seq |> List.of_seq |> List.sort compare in
-  Format.fprintf fmt "@[<v 2>{";
-  if bindings <> [] then Format.fprintf fmt "@,";
-  List.iter
-    (fun (k, v) -> Format.fprintf fmt "  %S: %a;@," k pp_string_list v)
-    bindings;
-  Format.fprintf fmt "}@]"
-
 let transform_project (opts : cli_options) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let input = opts.input
@@ -237,7 +214,8 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
   and verbose = opts.verbose
   and quiet = opts.quiet
   and save_vo = opts.save_vo
-  and reverse_order = opts.reverse_order in
+  and reverse_order = opts.reverse_order
+  and jobs_opt = opts.jobs in
 
   let out = Format.std_formatter in
   let reporter =
@@ -269,6 +247,8 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
         "REVERSE_ORDER=" ^ string_of_bool reverse_order;
       |]
   in
+
+  let jobs = Option.default 1 jobs_opt in
 
   let prog = "fcc" in
   match pathkind with
@@ -344,13 +324,7 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
           let coqproject_path =
             Filename.concat coqproject_dir coqproject_file
           in
-          let coqproject_dir_out, coqproject_file_out =
-            Compile.find_coqproject_dir_and_file output |> Option.get
-          in
-          let coqproject_out_path =
-            Filename.concat coqproject_dir_out coqproject_file_out
-          in
-          Logs.debug (fun m -> m "coqproject out path: %s" coqproject_out_path);
+
           let open CoqProject_file in
           let p =
             CoqProject_file.read_project_file
@@ -373,20 +347,6 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
               dep_files
           in
 
-          let* depgraph : (string, string list) Hashtbl.t =
-            Compile.coqproject_to_dep_graph coqproject_out_path
-          in
-          let _pad_depgraph =
-            List.iter
-              (fun x ->
-                if not (Hashtbl.mem depgraph x) then Hashtbl.add depgraph x [])
-              dep_files_out
-          in
-
-          let dependents = Compile.build_dependents depgraph in
-
-          let indeg_graph = Compile.build_indegrees depgraph in
-
           let makefile_path = Filename.concat coqproject_dir "Makefile" in
 
           let* new_dir_state = Filesystem.make_dir output in
@@ -404,21 +364,29 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
             else Ok ()
           in
 
-          let total_file_count = List.length dep_files_out in
-
-          Logs.debug (fun m -> m "output: %s" output);
-          Logs.debug (fun m ->
-              m "dep files out: %s" ([%show: string list] dep_files_out));
-          let transformations_status =
-            run_parallel ~jobs:8 ~env:base_env ~prog ~root:output ~save_vo
-              ~verbose ~dependents ~indegree:indeg_graph
+          let coqproject_dir_out, coqproject_file_out =
+            Compile.find_coqproject_dir_and_file output |> Option.get
+          in
+          let coqproject_out_path =
+            Filename.concat coqproject_dir_out coqproject_file_out
           in
 
-          (* let transformations_status = *)
-          (*   transform_files output dep_files_out prog total_file_count base_env *)
-          (*     save_vo verbose *)
-          (* in *)
-          transformations_status)
+          let* depgraph : (string, string list) Hashtbl.t =
+            Compile.coqproject_to_dep_graph coqproject_out_path
+          in
+          let _pad_depgraph =
+            List.iter
+              (fun x ->
+                if not (Hashtbl.mem depgraph x) then Hashtbl.add depgraph x [])
+              dep_files_out
+          in
+
+          let dependents = Compile.build_dependents depgraph in
+
+          let indeg_graph = Compile.build_indegrees depgraph in
+
+          run_parallel ~jobs ~env:base_env ~prog ~root:output ~save_vo ~verbose
+            ~dependents ~indegree:indeg_graph)
 
 (* --- Cmdliner definitions ------------------------------------------- *)
 
@@ -491,9 +459,24 @@ let reverse_order_t =
           "Reverse the order of proof processing to improve cache hits (may \
            produce invalid output).")
 
+let positive_int =
+  let parse s =
+    match int_of_string_opt s with
+    | Some n when n > 0 -> Ok n
+    | Some _ -> Error (`Msg "must be a positive integer")
+    | None -> Error (`Msg "invalid integer")
+  in
+  let print fmt n = Format.fprintf fmt "%d" n in
+  Arg.conv (parse, print)
+
+let jobs_t =
+  let doc = "Number of jobs to run in parallel (> 0)." in
+  Arg.(
+    value & opt (some positive_int) None & info [ "j"; "jobs" ] ~docv:"N" ~doc)
+
 let cli_options_t =
   let combine input output transformation verbose quiet save_vo reverse_order
-      skipped_files dependencies_action =
+      skipped_files dependencies_action jobs =
     {
       input;
       output;
@@ -504,11 +487,12 @@ let cli_options_t =
       reverse_order;
       skipped_files;
       dependencies_action;
+      jobs;
     }
   in
   Term.(
     const combine $ input_t $ output_t $ transformation_t $ verbose_t $ quiet_t
-    $ save_vo_t $ reverse_order_t $ skip_t $ dependencies_action_t)
+    $ save_vo_t $ reverse_order_t $ skip_t $ dependencies_action_t $ jobs_t)
 
 let main opts =
   match opts.transformation with
