@@ -14,6 +14,9 @@ type cli_options = {
   dependencies_action : dependencies_action;
 }
 
+type process_status = Success | Failure of string
+type running_job = { target : string; pid : int }
+
 let string_of_process_status = function
   | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
   | Unix.WSIGNALED signal -> Printf.sprintf "Killed by signal %d" signal
@@ -43,10 +46,21 @@ let validate_opts opts pathkind =
     Error.string_to_or_error "Cannot use both --verbose and --quiet"
   else Ok ()
 
+let spawn_process ~(env : string array) ~(args : string array) (prog : string) =
+  let pid =
+    Unix.create_process_env prog args env Unix.stdin Unix.stdout Unix.stderr
+  in
+  pid
+
+let wait_for_one () : int * process_status =
+  let pid, status = Unix.wait () in
+  match status with
+  | WEXITED 0 -> (pid, Success)
+  | _ -> (pid, Failure (string_of_process_status status))
+
 let run_process ~(env : string array) ~(args : string array) (prog : string)
     (stdin : Unix.file_descr) (stdout : Unix.file_descr)
     (stderr : Unix.file_descr) =
-  (* Open /dev/null for output redirection *)
   let pid = Unix.create_process_env prog args env stdin stdout stderr in
   let _, status = Unix.waitpid [] pid in
   match status with
@@ -75,6 +89,84 @@ let make_args_transform_files (prog : string) (root : string) (verbose : bool)
 
 let make_args_compile_files (root : string) (input_file : string) =
   [| "fcc"; "--root=" ^ root; input_file |]
+
+let kill_all_running running =
+  Hashtbl.iter
+    (fun pid _ -> try Unix.kill pid Sys.sigterm with _ -> ())
+    running
+
+let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
+    ~(root : string) ~(verbose : bool) ~(save_vo : bool)
+    ~(dependents : (string, string list) Hashtbl.t)
+    ~(indegree : (string, int) Hashtbl.t) : (unit, Error.t) result =
+  let ready = Queue.create () in
+  let running : (int, running_job) Hashtbl.t = Hashtbl.create 32 in
+
+  let total_nodes = Hashtbl.length indegree in
+  let completed = ref 0 in
+  let failed = ref None in
+
+  Hashtbl.iter
+    (fun file degree -> if degree = 0 then Queue.add file ready else ())
+    indegree;
+
+  let spawn_for_file (file : string) =
+    let curr_args = make_args_transform_files prog root verbose save_vo file in
+    let curr_env = Array.append env [| "OUTPUT_FILENAME=" ^ file |] in
+    let pid = spawn_process ~env:curr_env ~args:curr_args prog in
+    let running_job = { target = file; pid } in
+    Hashtbl.add running pid running_job
+  in
+
+  let fill_slots () =
+    while Hashtbl.length running < jobs && not (Queue.is_empty ready) do
+      let file = Queue.take ready in
+      spawn_for_file file
+    done
+  in
+
+  let mark_done (file : string) =
+    incr completed;
+    let dependents_on = Hashtbl.find_all dependents file |> List.concat in
+    List.iter
+      (fun dep ->
+        match Hashtbl.find_opt indegree dep with
+        | None -> ()
+        | Some degree ->
+            let d' = degree - 1 in
+            Hashtbl.replace indegree dep d';
+            if d' = 0 then Queue.add dep ready)
+      dependents_on
+  in
+
+  let rec loop () =
+    match !failed with
+    | Some failure -> Error.string_to_or_error failure
+    | None -> (
+        fill_slots ();
+        if !completed = total_nodes then Ok ()
+        else if Hashtbl.length running = 0 then
+          Error.string_to_or_error
+            "something went wrong: no runnable jobs, but build not complete"
+        else
+          let pid, status = wait_for_one () in
+          match Hashtbl.find_opt running pid with
+          | None ->
+              Error.format_to_or_error "Unknown child process finished: pid: %d"
+                pid
+          | Some job -> (
+              Hashtbl.remove running pid;
+              match status with
+              | Success ->
+                  mark_done job.target;
+                  loop ()
+              | Failure msg ->
+                  failed := Some (Printf.sprintf "%s failed: %s" job.target msg);
+                  kill_all_running running;
+                  Error.format_to_or_error "%s failed: %s" job.target msg))
+  in
+
+  loop ()
 
 let transform_files (root : string) (dep_files : string list) (prog : string)
     (total_file_count : int) (base_env : string array) (save_vo : bool)
@@ -252,6 +344,13 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
           let coqproject_path =
             Filename.concat coqproject_dir coqproject_file
           in
+          let coqproject_dir_out, coqproject_file_out =
+            Compile.find_coqproject_dir_and_file output |> Option.get
+          in
+          let coqproject_out_path =
+            Filename.concat coqproject_dir_out coqproject_file_out
+          in
+          Logs.debug (fun m -> m "coqproject out path: %s" coqproject_out_path);
           let open CoqProject_file in
           let p =
             CoqProject_file.read_project_file
@@ -275,33 +374,18 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
           in
 
           let* depgraph : (string, string list) Hashtbl.t =
-            Compile.coqproject_to_dep_graph coqproject_path
+            Compile.coqproject_to_dep_graph coqproject_out_path
           in
           let _pad_depgraph =
             List.iter
               (fun x ->
                 if not (Hashtbl.mem depgraph x) then Hashtbl.add depgraph x [])
-              dep_files
+              dep_files_out
           in
 
           let dependents = Compile.build_dependents depgraph in
 
           let indeg_graph = Compile.build_indegrees depgraph in
-          let indeg_graph_seq = Hashtbl.to_seq indeg_graph in
-          let indeg_graph_list = List.of_seq indeg_graph_seq in
-          let indeg_graph_file_list = List.map fst indeg_graph_list in
-
-          Logs.debug (fun m -> m "dependents:\n%a" pp_dep_graph dependents);
-
-          Logs.debug (fun m ->
-              m "dep files:\n%s" ([%show: string list] dep_files));
-          Logs.debug (fun m ->
-              m "indeg graph length: %d" (List.length indeg_graph_file_list));
-          Logs.debug (fun m -> m "num filenames: %d" (List.length dep_files));
-          let diff l1 l2 = List.filter (fun x -> not (List.mem x l2)) l1 in
-          Logs.debug (fun m ->
-              m "diff: %s"
-                ([%show: string list] (diff dep_files indeg_graph_file_list)));
 
           let makefile_path = Filename.concat coqproject_dir "Makefile" in
 
@@ -322,11 +406,19 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
 
           let total_file_count = List.length dep_files_out in
 
+          Logs.debug (fun m -> m "output: %s" output);
+          Logs.debug (fun m ->
+              m "dep files out: %s" ([%show: string list] dep_files_out));
           let transformations_status =
-            transform_files output dep_files_out prog total_file_count base_env
-              save_vo verbose
+            run_parallel ~jobs:8 ~env:base_env ~prog ~root:output ~save_vo
+              ~verbose ~dependents ~indegree:indeg_graph
           in
-          fst transformations_status)
+
+          (* let transformations_status = *)
+          (*   transform_files output dep_files_out prog total_file_count base_env *)
+          (*     save_vo verbose *)
+          (* in *)
+          transformations_status)
 
 (* --- Cmdliner definitions ------------------------------------------- *)
 
