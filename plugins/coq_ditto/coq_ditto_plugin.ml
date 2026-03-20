@@ -31,6 +31,8 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   | ExplicitApply -> ProofScope Transformations.explicit_apply
   | ReplaceInductionWithDestruct ->
       ProofScope Transformations.replace_induction_by_destruct_when_possible
+  | AddProofNodeIfMissing ->
+      ProofScope Transformations.add_proof_node_if_missing
   | ConstructiviseGeocoq -> DocScope Constructivisation.constructivise_doc
   | ConstructivisationGetPercentageAdmitted ->
       DocScope Constructivisation.get_percentage_admitted

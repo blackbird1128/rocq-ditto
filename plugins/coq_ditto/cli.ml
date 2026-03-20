@@ -10,6 +10,7 @@ type transformation_kind =
   | ReplaceInductionWithDestruct
   | ExplicitIdentInIntro
   | ExplicitApply
+  | AddProofNodeIfMissing
   | IdProofTransformation
   | IdDocTransformation
   | ConstructiviseGeocoq
@@ -78,6 +79,8 @@ let transformation_help_fun (kind : transformation_kind) :
         "Replace calls to `intro` with `intro X` where X is the identifier \
          introduced"
     | ExplicitApply -> "Experimental: Explicit the parameters of an apply call"
+    | AddProofNodeIfMissing ->
+        "Add Proof. before the steps of a proof if missing"
     | ReplaceInductionWithDestruct ->
         "Experimental: Replace induction with destruct when no induction \
          hypothesis is generated"

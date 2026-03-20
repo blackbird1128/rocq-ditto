@@ -84,6 +84,9 @@ val name_identifier_in_intro :
 val explicit_apply :
   Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
 
+val add_proof_node_if_missing :
+  Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
+
 val apply_proof_transformation :
   (Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result) ->
   Rocq_document.t ->

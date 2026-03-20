@@ -1518,3 +1518,22 @@ let apply_proof_tree_transformation
           Rocq_document.apply_transformations_steps steps acc
       | err -> err)
     (Ok doc) proof_trees
+
+let add_proof_node_if_missing (_ : Rocq_document.t) (proof : Proof.t) :
+    (transformation_step list, Error.t) result =
+  let dummy_start : Code_point.t = { line = 0; character = 0 } in
+  match proof.proof_steps with
+  | first_node :: _ -> (
+      if Syntax_node.is_syntax_node_proof_command first_node then Ok []
+      else
+        let proof_node =
+          Syntax_node.syntax_node_of_string "Proof." dummy_start
+        in
+        match proof_node with
+        | Ok proof_node ->
+            Ok [ Attach (proof_node, LineAfter, proof.proposition.id) ]
+        | Error err ->
+            Error.format_to_or_error
+              "Error when creating a Proof node, this should never happen:\n%s"
+              (Error.to_string_hum err))
+  | _ -> Ok []
