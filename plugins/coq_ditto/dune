@@ -43,3 +43,15 @@
  (package coq-ditto)
  (files "../../vendor/fcc")
  (section bin))
+
+(rule
+ (target (dir cmdliner-support))
+ (deps coq_ditto_wrapper.exe)
+ (action
+  (ignore-stdout
+   (run cmdliner install tool-support ./coq_ditto_wrapper.exe:rocq-ditto cmdliner-support))))
+
+(install
+ (package coq-ditto)
+ (section share_root)
+ (dirs (cmdliner-support/share as .)))

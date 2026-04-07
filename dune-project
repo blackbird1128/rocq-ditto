@@ -6,6 +6,7 @@
 (source (github blackbird1128/rocq-ditto))
 
 (license LGPL-3.0-or-later)
+(using directory-targets 0.1)
 
 (authors "Alexandre Jean")
 (maintainers "Alexandre Jean")
