@@ -6,8 +6,8 @@ V_TARGET_SRC := $(shell find test/fixtures/unit_test_fixtures/ -name "$(PATTERN)
 V_TARGET_GEN := $(V_TARGET_SRC:%=%.target.json)
 
 GEOCOQ_INPUT_DIR ?= ../private-geocoq/
-GEOCOQ_OUTPUT_DIR ?= ../geocoq_bis
-NORMALISED_DIR ?= ../normalised_second_pass/
+GEOCOQ_OUTPUT_DIR ?= ../constructivisation_result/
+NORMALISED_DIR ?= ../normalised_third_pass/
 DITTO ?= dune exec --profile=release rocq-ditto --
 
 CONSTRUCTIVISATION_FILES ?= \
@@ -112,6 +112,9 @@ constructivisation-uniformise-1: build
 
 constructivisation-uniformise-2: build
 	$(DITTO) -i ../normalised_first_pass/ -o ../normalised_second_pass/ -t explicit_apply --save-vo
+
+constructivisation-uniformise-3: build
+	$(DITTO) -i ../normalised_second_pass/ -o ../normalised_third_pass/ -t add_proof_node_if_missing --save-vo
 
 constructivisation-axioms: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/continuity_axioms.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/continuity_axioms.v -t constructivise_geocoq -v
