@@ -131,6 +131,25 @@ let coqproject_to_dep_graph (coqproject_file : string) :
       Error.format_to_or_error "%s terminated abnormally"
         Rocq_version.dep_executable
 
+let depgraph_to_dot_format (graph : (string, string list) Hashtbl.t) : string =
+  let buf = Buffer.create (Hashtbl.length graph * 16) in
+  Buffer.add_string buf "digraph G {\n";
+  Buffer.add_string buf
+    " rankdir=RL;\n\
+    \ splines=true;\n\
+    \ overlap=false;\n\
+    \ concentrate=true;\n\
+    \ node [shape=box, fontsize=10];";
+  Hashtbl.iter
+    (fun file neighbors ->
+      List.iter
+        (fun x ->
+          Buffer.add_string buf (Printf.sprintf "\"%s\" -> \"%s\"\n" file x))
+        neighbors)
+    graph;
+  Buffer.add_string buf "}";
+  Buffer.to_bytes buf |> Bytes.to_string
+
 let dedup l =
   let seen = Hashtbl.create 16 in
   let rec aux acc = function
