@@ -58,6 +58,8 @@ let replace_require (x : Syntax_node.t) :
       ("GeoCoq.Main.Tarski_dev", "GeoCoq.Constructive");
       ("GeoCoq.Main.Annexes", "GeoCoq.Constructive.Annexes");
       ("GeoCoq.Main.Meta_theory.Models", "GeoCoq.Constructive.Tactic_instances");
+      ( "GeoCoq.Main.Meta_theory.Dimension_axioms",
+        "GeoCoq.Constructive.Dimension_axioms" );
       ( "GeoCoq.Main.Meta_theory.Parallel_postulates",
         "GeoCoq.Constructive.Parallel_postulates" );
       ("GeoCoq.Main.Tactics", "GeoCoq.Constructive.Tactics");
@@ -1009,17 +1011,16 @@ let constructivise_doc (doc : Rocq_document.t) :
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
-  let blacklist_stage : stage =
-    make_stage "blacklist_stage" (fun doc ->
-        let* proofs = Rocq_document.get_proofs doc in
+  (* let blacklist_stage : stage = *)
+  (*   make_stage "blacklist_stage" (fun doc -> *)
+  (*       let* proofs = Rocq_document.get_proofs doc in *)
 
-        let blacklisted_proofs = get_proofs_named proofs blacklisted_proofs in
+  (*       let blacklisted_proofs = get_proofs_named proofs blacklisted_proofs in *)
 
-        List_utils.concat_map_result
-          (Transformations.admit_and_comment_proof_steps ~msg:"blacklisted" doc)
-          blacklisted_proofs)
-  in
-
+  (*       List_utils.concat_map_result *)
+  (*         (Transformations.admit_and_comment_proof_steps ~msg:"blacklisted" doc) *)
+  (*         blacklisted_proofs) *)
+  (* in *)
   let stage_0 : stage =
     make_stage "stage0" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in
@@ -1290,7 +1291,7 @@ let constructivise_doc (doc : Rocq_document.t) :
         stage_7;
         stage_8;
         blacklist_first_goal_ch10;
-        blacklist_stage;
+        (* blacklist_stage; *)
         (* stage_11; *)
       ]
   in
