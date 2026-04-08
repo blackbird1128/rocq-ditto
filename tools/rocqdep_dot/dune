@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (package rocqdep-dot)
+ (public_name rocqdep-dot)
+ (libraries unix coq-ditto))

@@ -133,6 +133,16 @@
   coq-ditto))
 
 (package
+ (name rocqdep-dot)
+ (synopsis "Get the dot representation of the dependency graph of a _CoqProject")
+ (allow_empty)
+ (depends
+   ocaml
+   (coq-lsp (and (>= 0.2.4) (< 0.25)))
+   base-unix
+   coq-ditto))             
+
+(package
  (name target-generator-plugin)
  (synopsis "Generate JSON results for test comparisons")
  (allow_empty)
