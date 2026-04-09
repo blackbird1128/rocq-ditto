@@ -866,61 +866,6 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     (remove_all_steps_except_qed
     @ [ Attach (solve_dec_node, LineAfter, proof.proposition.id) ])
 
-let destruction_arg_to_string
-    (x : Constrexpr.constr_expr Tactypes.with_bindings Tactics.destruction_arg)
-    : string =
-  let _, with_bindings = x in
-  match with_bindings with
-  | Tactics.ElimOnConstr constr ->
-      let constr_expr, _ = constr in
-      Constrexpr_utils.constrexpr_to_string constr_expr
-  | Tactics.ElimOnIdent ident ->
-      let id = ident.v in
-      Names.Id.to_string id
-  | Tactics.ElimOnAnonHyp _ -> "anonymous"
-
-let map_destruct_to_print_destruct (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
-    Ltac_plugin.Tacexpr.raw_tactic_expr =
-  let open Ltac_plugin in
-  (* only treat destruct A. not destruct A, B for now *)
-  match x.v with
-  | Tacexpr.TacAtom
-      (Tacexpr.TacInductionDestruct
-         (false, false, ([ induction_clause_l ], _with_bindings))) -> (
-      let destruction_arg, (_intro_pattern_naming_expr, _), _clause_expr_opt =
-        induction_clause_l
-      in
-      let destruction_arg_str = destruction_arg_to_string destruction_arg in
-      let print_tac_str =
-        Printf.sprintf
-          "let E := uconstr:(%s) in first [ generalize E; match goal with |- \
-           ?T -> _ => idtac \"destructPat:\" E \":\" T end; intros _ | idtac  \
-           \"destructPat:\" E; fail 1 \"does not typecheck\"]."
-          destruction_arg_str
-      in
-
-      let print_tac_res = Syntax_node.string_to_raw_tactic_expr print_tac_str in
-      match print_tac_res with
-      | Ok print_tac ->
-          let raw_tac = Tacexpr.TacThen (print_tac, x) |> CAst.make in
-          raw_tac
-      | Error _ -> x)
-  | _ -> x
-
-let transform_to_print_destruct (doc : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
-  let token = Coq.Limits.Token.create () in
-  Runner.fold_proof_with_state doc token
-    (fun state acc node ->
-      let* new_state = Runner.run_node token state node in
-      match
-        Transformations.map_raw_tactic_expr_in_node
-          map_destruct_to_print_destruct node
-      with
-      | Some step -> Ok (new_state, step :: acc)
-      | None -> Ok (new_state, acc))
-    [] proof
-
 let get_percentage_admitted (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let* proofs = Rocq_document.get_proofs doc in
@@ -1011,16 +956,6 @@ let constructivise_doc (doc : Rocq_document.t) :
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
-  (* let blacklist_stage : stage = *)
-  (*   make_stage "blacklist_stage" (fun doc -> *)
-  (*       let* proofs = Rocq_document.get_proofs doc in *)
-
-  (*       let blacklisted_proofs = get_proofs_named proofs blacklisted_proofs in *)
-
-  (*       List_utils.concat_map_result *)
-  (*         (Transformations.admit_and_comment_proof_steps ~msg:"blacklisted" doc) *)
-  (*         blacklisted_proofs) *)
-  (* in *)
   let stage_0 : stage =
     make_stage "stage0" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in
@@ -1291,7 +1226,6 @@ let constructivise_doc (doc : Rocq_document.t) :
         stage_7;
         stage_8;
         blacklist_first_goal_ch10;
-        (* blacklist_stage; *)
         (* stage_11; *)
       ]
   in
