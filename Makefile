@@ -151,8 +151,9 @@ constructivisation-build: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Dimension_axioms/upper_dim_3.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Dimension_axioms/upper_dim_3.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/suma.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/suma.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch12_parallel.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch12_parallel.v -t constructivise_geocoq -v
-	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/Tagged_predicates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/Tagged_predicates.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/quadrilaterals.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/quadrilaterals.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/Tagged_predicates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/Tagged_predicates.v -t constructivise_geocoq -v
+	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Meta_theory/Parallel_postulates/parallel_postulates_2.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Parallel_postulates/parallel_postulates_2.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Tarski_dev/Ch12_parallel_inter_dec.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Ch12_parallel_inter_dec.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/quadrilaterals_inter_dec.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/quadrilaterals_inter_dec.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Main/Annexes/midpoint_theorems.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Annexes/midpoint_theorems.v -t constructivise_geocoq -v
