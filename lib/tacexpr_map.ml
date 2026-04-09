@@ -1,14 +1,31 @@
 open Ltac_plugin
 
-let map_match_pattern map_p = function
+let map_match_pattern (map_p : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    = function
   | Tacexpr.Term x -> Tacexpr.Term (map_p x)
   | Tacexpr.Subterm (idopt, x) ->
       Tacexpr.Subterm (idopt, Constrexpr_map.constr_expr_map map_p x)
 
-let map_match_context_hyps map_p = function
+let map_match_context_hyps
+    (map_p : Constrexpr.constr_expr -> Constrexpr.constr_expr) = function
   | Tacexpr.Hyp (ln, p) -> Tacexpr.Hyp (ln, map_match_pattern map_p p)
   | Tacexpr.Def (ln, p1, p2) ->
       Tacexpr.Def (ln, map_match_pattern map_p p1, map_match_pattern map_p p2)
+
+let map_may_eval (map_p : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (x : ('a, 'b, 'c, 'occvar) May_eval_view.t) :
+    ('a, 'b, 'c, 'occvar) May_eval_view.t =
+  match x with
+  | May_eval_view.ConstrTerm term ->
+      May_eval_view.ConstrTerm (Constrexpr_map.constr_expr_map map_p term)
+  | May_eval_view.ConstrEval (red_expr_gen, term) ->
+      May_eval_view.ConstrEval
+        (red_expr_gen, Constrexpr_map.constr_expr_map map_p term)
+  | May_eval_view.ConstrContext (name, term) ->
+      May_eval_view.ConstrContext
+        (name, Constrexpr_map.constr_expr_map map_p term)
+  | May_eval_view.ConstrTypeOf term ->
+      May_eval_view.ConstrTypeOf (Constrexpr_map.constr_expr_map map_p term)
 
 let rec tacexpr_fold_map_with_constr
     (step : 'acc -> Tacexpr.raw_tactic_expr -> 'acc)
@@ -46,7 +63,8 @@ let rec tacexpr_fold_map_with_constr
       'acc * 'a Tacexpr.gen_tactic_arg =
     match arg with
     | Tacexpr.TacGeneric _ -> (acc, arg)
-    | Tacexpr.ConstrMayEval _ -> (acc, arg)
+    | Tacexpr.ConstrMayEval may_eval ->
+        (acc, Tacexpr.ConstrMayEval (map_may_eval g may_eval))
     | Tacexpr.Reference _ -> (acc, arg)
     | Tacexpr.TacFreshId _ -> (acc, arg)
     | Tacexpr.TacPretype _ -> (acc, arg)
@@ -293,10 +311,11 @@ let tacexpr_map_with_constr_result
         ('a Tacexpr.gen_tactic_arg, 'e) result =
       match arg with
       | Tacexpr.TacGeneric _ -> Ok arg
-      | Tacexpr.ConstrMayEval _ -> Ok arg
+      | Tacexpr.ConstrMayEval may_eval ->
+          Ok (Tacexpr.ConstrMayEval (map_may_eval g may_eval))
       | Tacexpr.Reference _ -> Ok arg
       | Tacexpr.TacFreshId _ -> Ok arg
-      | Tacexpr.TacPretype _ -> Ok arg
+      | Tacexpr.TacPretype expr -> Ok (Tacexpr.TacPretype (g expr))
       | Tacexpr.TacNumgoals -> Ok arg
       | Tacexpr.Tacexp t ->
           let* t' = map1 t in
