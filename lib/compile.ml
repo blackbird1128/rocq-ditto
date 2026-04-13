@@ -139,12 +139,16 @@ let depgraph_to_dot_format (graph : (string, string list) Hashtbl.t) : string =
     \ splines=true;\n\
     \ overlap=false;\n\
     \ concentrate=true;\n\
-    \ node [shape=box, fontsize=10];";
+    \ node [shape=box, fontsize=10];\n";
   Hashtbl.iter
     (fun file neighbors ->
+      let file_without_leading_slash = String_utils.remove_prefix file "/" in
       List.iter
         (fun x ->
-          Buffer.add_string buf (Printf.sprintf "\"%s\" -> \"%s\"\n" file x))
+          let x_without_leading_slash = String_utils.remove_prefix x "/" in
+          Buffer.add_string buf
+            (Printf.sprintf "\"%s\" -> \"%s\"\n" file_without_leading_slash
+               x_without_leading_slash))
         neighbors)
     graph;
   Buffer.add_string buf "}";
