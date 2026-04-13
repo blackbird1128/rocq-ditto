@@ -120,17 +120,6 @@ constructivisation-axioms: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/continuity_axioms.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/continuity_axioms.v -t constructivise_geocoq -v
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/parallel_postulates.v  -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/parallel_postulates.v -t constructivise_geocoq -v
 
-PAIRS := $(shell cat pairs.txt)
-
-define make-rule
-$2: $1
-	$(DITTO) --other-opts -i $1 -o $2 --other-opts
-endef
-
-$(foreach pair,$(PAIRS),\
-  $(eval $(call make-rule,$(word 1,$(pair)),$(word 2,$(pair)))))
-
-
 constructivisation-build: build
 	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Tactics/
 	mkdir -p $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Tactic_instances/
