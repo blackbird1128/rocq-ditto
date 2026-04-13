@@ -131,6 +131,55 @@ let coqproject_to_dep_graph (coqproject_file : string) :
       Error.format_to_or_error "%s terminated abnormally"
         Rocq_version.dep_executable
 
+let coqproject_to_project_args (coqproject_file : string) =
+  let proj =
+    CoqProject_file.read_project_file ~warning_fn:(fun _ -> ()) coqproject_file
+  in
+  CoqProject_file.coqtop_args_from_project proj
+
+let get_ninja_rule () =
+  let flagname = Rocq_version.executable_name ^ "flags" in
+  let rule =
+    Ninja.make_rule ~name:Rocq_version.executable_name
+      ~command:
+        (Printf.sprintf "%s $%s $in" Rocq_version.executable_name flagname)
+      ()
+  in
+  Ninja.rule rule
+
+let coqproject_to_ninja_file (coqproject_path : string) :
+    (Ninja.t, Error.t) result =
+  let ( let* ) = Result.bind in
+  let* depgraph = coqproject_to_dep_graph coqproject_path in
+  let* depfiles = coqproject_sorted_files coqproject_path in
+  let flagname = Rocq_version.executable_name ^ "flags" in
+  let args = coqproject_to_project_args coqproject_path |> String.concat " " in
+  let detached = List.filter (fun x -> not (Hashtbl.mem depgraph x)) depfiles in
+
+  let _pad_depgraph = List.iter (fun x -> Hashtbl.add depgraph x []) detached in
+
+  let flags_var = Ninja.variable flagname args in
+
+  let rule = get_ninja_rule () in
+  let rule_string = rule |> Ninja.to_string in
+
+  let depsgraph_seq = Hashtbl.to_seq depgraph |> List.of_seq in
+
+  let builds =
+    List.map
+      (fun (file, neighbors) ->
+        let filepath = Ninja.Path.v file in
+        let neighbors_paths = List.map Ninja.Path.v neighbors in
+        Ninja.make_build ~inputs:[ filepath ] ~outputs:[ filepath ]
+          ~implicit:neighbors_paths ~rule:rule_string ())
+      depsgraph_seq
+    |> List.map Ninja.build |> Ninja.concat
+  in
+  let detched_paths = List.map Ninja.Path.v detached in
+  let defaults = Ninja.default detched_paths in
+
+  Ok (Ninja.concat [ flags_var; rule; builds; defaults ])
+
 let depgraph_to_dot_format (graph : (string, string list) Hashtbl.t) : string =
   let buf = Buffer.create (Hashtbl.length graph * 16) in
   Buffer.add_string buf "digraph G {\n";
