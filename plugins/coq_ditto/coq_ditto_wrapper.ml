@@ -23,12 +23,6 @@ let string_of_process_status = function
   | Unix.WSIGNALED signal -> Printf.sprintf "Killed by signal %d" signal
   | Unix.WSTOPPED signal -> Printf.sprintf "Stopped by signal %d" signal
 
-let remove_prefix (str : string) (prefix : string) =
-  let prefix_len = String.length prefix in
-  if String.length str >= prefix_len && String.sub str 0 prefix_len = prefix
-  then String.sub str prefix_len (String.length str - prefix_len)
-  else str
-
 let warn_if_exists (dir_state : Filesystem.newDirState) =
   match dir_state with
   | AlreadyExists ->
@@ -340,7 +334,7 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
           let dep_files_out =
             List.map
               (fun file ->
-                let rel_file_path = remove_prefix file input in
+                let rel_file_path = String_utils.remove_prefix file input in
                 let out_path = Filename.concat output rel_file_path in
 
                 out_path)
