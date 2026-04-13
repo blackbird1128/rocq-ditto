@@ -1,7 +1,4 @@
 open Ditto
-open Arg
-
-let usage_msg = "rocqdep-dot <coqprojectpath>"
 
 let output_dot_of_coqproject (project_dir : string) (project_filename : string)
     : (unit, Error.t) result =
