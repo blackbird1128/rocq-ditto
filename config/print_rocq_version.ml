@@ -14,8 +14,7 @@ let is_regular_file path =
   try
     let stats = Unix.lstat path in
     stats.st_kind = Unix.S_REG
-  with _ ->
-    false
+  with _ -> false
 
 let find_executable (names : string list) =
   let cur_dir = Sys.getcwd () in
@@ -66,14 +65,16 @@ let () =
         (int_of_string maj, int_of_string min, int_of_string pat)
     | _ -> failwith "Unexpected main coqc version format"
   in
+  let executable_name = if major < 9 then "coq" else "rocq" in
   let opt_comp_format = Array.exists (( = ) "--optcomp") Sys.argv in
+
   if opt_comp_format then (
     Printf.printf
       "[%%%%define rocq_major_version %d]\n\
        [%%%%define rocq_minor_version %d]\n\
        [%%%%define rocq_patch_version %d]\n\
-       [%%%%define rocq_executable_name \"rocq\"]\n"
-      major minor patch;
+       [%%%%define rocq_executable_name \"%s\"]\n"
+      major minor patch executable_name;
     Printf.printf "[%%%%define rocq_version (%d,%d,%d)]" major minor patch)
   else (
     Printf.printf
@@ -82,11 +83,13 @@ let () =
     if major >= 9 then (
       print_endline
         "let executable_name = \"rocq\"\nlet dep_executable = \"rocq dep\"";
+      print_endline "let compiler_command = \"rocq c\"\n";
       print_endline "let ltac_ext_plugin_name = \"rocq-runtime.plugins.ltac\"";
       print_endline
         "let ltac_funid_plugin_name = \"rocq-runtime.plugins.funind\"")
     else (
       print_endline
         "let executable_name = \"coq\"\nlet dep_executable = \"coqdep\"";
+      print_endline "let compiler_command = \"coqc\"";
       print_endline "let ltac_ext_plugin_name = \"coq-core.plugins.ltac\"";
       print_endline "let ltac_funid_plugin_name = \"coq-core.plugins.funind\""))
