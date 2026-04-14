@@ -10,7 +10,6 @@ type cli_options = {
   quiet : bool;
   save_vo : bool;
   reverse_order : bool;
-  skipped_files : string list;
   dependencies_action : dependencies_action;
   jobs : int option;
 }
@@ -31,10 +30,7 @@ let warn_if_exists (dir_state : Filesystem.newDirState) =
   | _ -> ()
 
 let validate_opts opts pathkind =
-  if pathkind = Filesystem.File && opts.skipped_files <> [] then
-    Error.string_to_or_error
-      "Using --skip with a single file doesn't make sense"
-  else if opts.dependencies_action != NoAction && pathkind = Filesystem.Dir then
+  if opts.dependencies_action != NoAction && pathkind = Filesystem.Dir then
     Error.string_to_or_error
       "Using a dependency action when targeting a folder doesn't make sense"
   else if opts.verbose && opts.quiet then
@@ -470,7 +466,7 @@ let jobs_t =
 
 let cli_options_t =
   let combine input output transformation verbose quiet save_vo reverse_order
-      skipped_files dependencies_action jobs =
+      dependencies_action jobs =
     {
       input;
       output;
@@ -479,16 +475,15 @@ let cli_options_t =
       quiet;
       save_vo;
       reverse_order;
-      skipped_files;
       dependencies_action;
       jobs;
     }
   in
   Term.(
     const combine $ input_t $ output_t $ transformation_t $ verbose_t $ quiet_t
-    $ save_vo_t $ reverse_order_t $ skip_t $ dependencies_action_t $ jobs_t)
+    $ save_vo_t $ reverse_order_t $ dependencies_action_t $ jobs_t)
 
-let main opts =
+let main (opts : cli_options) =
   match opts.transformation with
   | Help ->
       Printf.printf "Available transformations:\n";
