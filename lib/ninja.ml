@@ -109,7 +109,7 @@ module Pp = struct
     if b.implicit_outputs <> [] then
       fprintf fmt " | %a" pp_path_list b.implicit_outputs;
     fprintf fmt ": %s" b.rule;
-    if b.inputs <> [] then fprintf fmt "%a" pp_path_list b.inputs;
+    if b.inputs <> [] then fprintf fmt " %a" pp_path_list b.inputs;
     if b.implicit <> [] then fprintf fmt " | %a" pp_path_list b.implicit;
     if b.order_only <> [] then fprintf fmt " || %a" pp_path_list b.order_only;
     fprintf fmt "\n";
