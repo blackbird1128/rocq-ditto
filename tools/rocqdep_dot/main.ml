@@ -35,7 +35,7 @@ let output_dot_of_coqproject (project_dir : string) (project_filename : string)
 
 let get_project_dot () =
   if Array.length Sys.argv != 2 then
-    Error.string_to_or_error "Usage: rocqdep-dot file"
+    Error.string_to_or_error "Usage: rocqdep-dot path"
   else
     let path = Sys.argv.(1) in
     if not (Sys.file_exists path) then

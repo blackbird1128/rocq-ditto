@@ -137,63 +137,6 @@ let coqproject_to_project_args (coqproject_file : string) =
   in
   CoqProject_file.coqtop_args_from_project proj
 
-let get_ninja_rule () =
-  let flagname = Rocq_version.executable_name ^ "flags" in
-  let rule =
-    Ninja.make_rule ~name:Rocq_version.executable_name
-      ~command:
-        (Printf.sprintf "%s $%s $in" Rocq_version.executable_name flagname)
-      ()
-  in
-  Ninja.rule rule
-
-let coqproject_to_ninja_file (coqproject_path : string) :
-    (Ninja.t, Error.t) result =
-  let ( let* ) = Result.bind in
-  let* depgraph = coqproject_to_dep_graph coqproject_path in
-  let* depfiles = coqproject_sorted_files coqproject_path in
-  let flagname = Rocq_version.executable_name ^ "flags" in
-  let args = coqproject_to_project_args coqproject_path |> String.concat " " in
-  let detached = List.filter (fun x -> not (Hashtbl.mem depgraph x)) depfiles in
-
-  let _pad_depgraph = List.iter (fun x -> Hashtbl.add depgraph x []) detached in
-
-  let flags_var = Ninja.variable flagname args in
-
-  let rule = get_ninja_rule () in
-
-  let depsgraph_seq = Hashtbl.to_seq depgraph |> List.of_seq in
-
-  let builds =
-    List.map
-      (fun (file, neighbors) ->
-        let filepath = Ninja.Path.v file in
-        let output_filepath =
-          Filename.remove_extension file ^ ".vo" |> Ninja.Path.v
-        in
-        let neighbors_paths =
-          List.map
-            (fun file ->
-              let file_vo = Filename.remove_extension file ^ ".vo" in
-              Ninja.Path.v file_vo)
-            neighbors
-        in
-        Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
-          ~implicit:neighbors_paths ~rule:Rocq_version.executable_name ())
-      depsgraph_seq
-    |> List.map Ninja.build |> Ninja.concat
-  in
-  let default_paths =
-    List.map
-      (fun file ->
-        let file_vo = Filename.remove_extension file ^ ".vo" in
-        Ninja.Path.v file_vo)
-      depfiles
-  in
-  let defaults = Ninja.default default_paths in
-
-  Ok (Ninja.concat [ flags_var; rule; builds; defaults ])
-
 let depgraph_to_dot_format (graph : (string, string list) Hashtbl.t) : string =
   let buf = Buffer.create (Hashtbl.length graph * 16) in
   Buffer.add_string buf "digraph G {\n";

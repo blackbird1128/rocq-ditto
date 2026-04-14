@@ -140,7 +140,17 @@
    ocaml
    (coq-lsp (and (>= 0.2.4) (< 0.25)))
    base-unix
-   coq-ditto))             
+   coq-ditto))
+
+(package
+ (name rocq-ninja)
+ (synopsis "Get a ninja file that can be used to compile the target _CoqProject when placed in that project folder")
+ (allow_empty)
+ (depends
+   ocaml
+   (coq-lsp (and (>= 0.2.4) (< 0.25)))
+   base-unix
+   coq-ditto))
 
 (package
  (name target-generator-plugin)

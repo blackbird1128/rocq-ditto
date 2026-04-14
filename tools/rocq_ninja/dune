@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (package rocq-ninja)
+ (public_name rocq-ninja)
+ (libraries unix coq-ditto))

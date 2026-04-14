@@ -15,7 +15,6 @@ val coqproject_to_dep_graph :
   string -> ((string, string list) Hashtbl.t, Error.t) result
 
 val coqproject_to_project_args : string -> string list
-val coqproject_to_ninja_file : string -> (Ninja.t, Error.t) result
 val depgraph_to_dot_format : (string, string list) Hashtbl.t -> string
 val build_indegrees : ('a, 'a list) Hashtbl.t -> ('a, int) Hashtbl.t
 val build_dependents : ('a, 'b list) Hashtbl.t -> ('b, 'a list) Hashtbl.t
