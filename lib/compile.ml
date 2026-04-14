@@ -161,7 +161,6 @@ let coqproject_to_ninja_file (coqproject_path : string) :
   let flags_var = Ninja.variable flagname args in
 
   let rule = get_ninja_rule () in
-  let rule_string = rule |> Ninja.to_string in
 
   let depsgraph_seq = Hashtbl.to_seq depgraph |> List.of_seq in
 
@@ -169,14 +168,29 @@ let coqproject_to_ninja_file (coqproject_path : string) :
     List.map
       (fun (file, neighbors) ->
         let filepath = Ninja.Path.v file in
-        let neighbors_paths = List.map Ninja.Path.v neighbors in
-        Ninja.make_build ~inputs:[ filepath ] ~outputs:[ filepath ]
-          ~implicit:neighbors_paths ~rule:rule_string ())
+        let output_filepath =
+          Filename.remove_extension file ^ ".vo" |> Ninja.Path.v
+        in
+        let neighbors_paths =
+          List.map
+            (fun file ->
+              let file_vo = Filename.remove_extension file ^ ".vo" in
+              Ninja.Path.v file_vo)
+            neighbors
+        in
+        Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
+          ~implicit:neighbors_paths ~rule:Rocq_version.executable_name ())
       depsgraph_seq
     |> List.map Ninja.build |> Ninja.concat
   in
-  let detched_paths = List.map Ninja.Path.v detached in
-  let defaults = Ninja.default detched_paths in
+  let default_paths =
+    List.map
+      (fun file ->
+        let file_vo = Filename.remove_extension file ^ ".vo" in
+        Ninja.Path.v file_vo)
+      depfiles
+  in
+  let defaults = Ninja.default default_paths in
 
   Ok (Ninja.concat [ flags_var; rule; builds; defaults ])
 
