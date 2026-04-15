@@ -33,6 +33,8 @@ let validate_opts opts pathkind =
   if opts.dependencies_action != NoAction && pathkind = Filesystem.Dir then
     Error.string_to_or_error
       "Using a dependency action when targeting a folder doesn't make sense"
+  else if Option.has_some opts.jobs && pathkind = Filesystem.File then
+    Error.string_to_or_error "Cannot use --jobs on a single file"
   else if opts.verbose && opts.quiet then
     Error.string_to_or_error "Cannot use both --verbose and --quiet"
   else Ok ()
