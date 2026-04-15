@@ -428,10 +428,6 @@ let dependencies_action_t =
     & opt dependencies_action_conv NoAction
     & info [ "a"; "action" ] ~docv:"ACTION" ~doc)
 
-let skip_t =
-  let doc = "Files to skip (can be given multiple times)." in
-  Arg.(value & opt_all string [] & info [ "skip" ] ~docv:"FILE" ~doc)
-
 let verbose_t =
   Arg.(value & flag & info [ "v"; "verbose" ] ~doc:"Enable verbose output.")
 
