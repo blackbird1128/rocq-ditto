@@ -152,6 +152,16 @@
    base-unix
    coq-ditto))
 
+ (package
+ (name ditto-ninja)
+ (synopsis "Get a ninja file that can be used to run rocq-ditto on the target _CoqProject")
+ (allow_empty)
+ (depends
+   ocaml
+   (coq-lsp (and (>= 0.2.4) (< 0.25)))
+   base-unix
+   coq-ditto))
+
 (package
  (name target-generator-plugin)
  (synopsis "Generate JSON results for test comparisons")

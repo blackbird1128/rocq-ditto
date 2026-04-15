@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (package ditto-ninja)
+ (public_name ditto-ninja)
+ (libraries unix coq-ditto))
