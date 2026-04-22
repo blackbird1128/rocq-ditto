@@ -4,6 +4,7 @@ module Path : sig
   type t = Path of string
 
   val v : string -> t
+  val to_string : t -> string
   val escape : t -> t
   val pp : Format.formatter -> t -> unit
 end
