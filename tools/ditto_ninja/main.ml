@@ -187,7 +187,7 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
   let depsgraph_seq = Hashtbl.to_seq depgraph |> List.of_seq in
 
   let builds =
-    List.map
+    List.concat_map
       (fun (file, neighbors) ->
         let filepath = file |> Ninja.Path.v in
         let output_filepath =
@@ -203,22 +203,54 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
             neighbors
         in
         let normalized = normalize_path ~project_dir file in
-        let rulename =
-          if List.mem normalized default_files then "ditto" else "id"
+        let normalized_out =
+          normalize_path ~project_dir:output_folder
+            (Ninja.Path.to_string output_filepath)
         in
-        Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
-          ~implicit:neighbors_paths ~rule:rulename ())
+
+        if List.mem normalized default_files then
+          if String.equal normalized normalized_out then
+            [
+              Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
+                ~implicit:neighbors_paths ~rule:"ditto" ();
+            ]
+          else
+            let unmapped_output_filepath =
+              Filename.concat output_folder normalized |> Ninja.Path.v
+            in
+            [
+              Ninja.make_build ~inputs:[ filepath ]
+                ~outputs:[ unmapped_output_filepath ]
+                ~implicit:neighbors_paths ~rule:"id" ();
+              Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
+                ~implicit:neighbors_paths ~rule:"ditto" ();
+            ]
+        else
+          [
+            Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
+              ~implicit:neighbors_paths ~rule:"id" ();
+          ])
       depsgraph_seq
     |> List.map Ninja.build |> Ninja.concat
   in
-  let default_paths =
+
+  let unmapped =
+    List.filter_map
+      (fun file ->
+        if not (List.mem_assoc file output_file_map) then
+          Some (Ninja.Path.v (relocate project_dir output_folder file))
+        else None)
+      depfiles
+  in
+
+  let default_paths_mapped =
     List.map
       (fun file ->
         mapped_output_path ~project_dir ~output_folder ~output_file_map file
         |> Ninja.Path.v)
       depfiles
   in
-  let defaults = Ninja.default default_paths in
+  let defaults = Ninja.default (List.append default_paths_mapped unmapped) in
 
   Ok
     (Ninja.concat
