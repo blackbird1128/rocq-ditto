@@ -6,3 +6,6 @@ val get_pathkind : string -> path_kind
 val copy_file : string -> string -> (unit, Error.t) result
 val copy_dir : string -> string -> string list -> (unit, Error.t) result
 val make_dir : string -> (newDirState, Error.t) result
+val relocate_path : string -> string -> string -> string
+val normalize_path : containing_dir:string -> string -> string
+val read_nonempty_lines : string -> (string list, Error.t) result
