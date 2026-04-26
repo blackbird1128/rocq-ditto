@@ -5,7 +5,8 @@ let split_prefix (prefix : string) (s : string) : (string * string) option =
   else None
 
 let remove_prefix (str : string) (prefix : string) =
+  let str_len = String.length str in
   let prefix_len = String.length prefix in
-  if String.length str >= prefix_len && String.sub str 0 prefix_len = prefix
-  then String.sub str prefix_len (String.length str - prefix_len)
+  if str_len >= prefix_len && String.starts_with ~prefix str then
+    String.sub str prefix_len (str_len - prefix_len)
   else str

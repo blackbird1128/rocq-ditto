@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (package get-minim-deps)
+ (public_name get-minim-deps)
+ (libraries unix coq-ditto))

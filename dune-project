@@ -143,6 +143,17 @@
    coq-ditto))
 
 (package
+ (name get-minim-deps)
+ (synopsis "Get the smallest subset of files in a _CoqProject necessary to compile another subset of files")
+ (allow_empty)
+ (depends
+   ocaml
+   (coq-lsp (and (>= 0.2.4) (< 0.25)))
+   base-unix
+   coq-ditto))
+ 
+
+(package
  (name rocq-ninja)
  (synopsis "Get a ninja file that can be used to compile the target _CoqProject when placed in that project folder")
  (allow_empty)
