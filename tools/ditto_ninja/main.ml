@@ -20,34 +20,6 @@ let get_id_ninja_rule () =
   let rule = Ninja.make_rule ~name:"id" ~command:"cp $in $out" () in
   Ninja.rule rule
 
-let relocate (input_folder : string) (output_folder : string)
-    (filename : string) =
-  let rel_file_path = String_utils.remove_prefix filename input_folder in
-  let rel_file_without_lead_slash =
-    String_utils.remove_prefix rel_file_path "/"
-  in
-  Filename.concat output_folder rel_file_without_lead_slash
-
-let normalize_path ~(project_dir : string) (path : string) : string =
-  let with_sep =
-    if Filename.check_suffix project_dir Filename.dir_sep then project_dir
-    else project_dir ^ Filename.dir_sep
-  in
-  (path |> fun x -> String_utils.remove_prefix x with_sep) |> fun x ->
-  String_utils.remove_prefix x "/"
-
-let read_nonempty_lines (path : string) : (string list, Error.t) result =
-  try
-    let ic = open_in_bin path in
-    let len = in_channel_length ic in
-    let contents = really_input_string ic len in
-    close_in ic;
-    contents |> String.split_on_char '\n' |> List.map String.trim
-    |> List.filter (fun line ->
-        line <> "" && not (String.starts_with ~prefix:"#" line))
-    |> fun lines -> Ok lines
-  with Sys_error msg -> Error.string_to_or_error msg
-
 let split_words (line : string) : string list =
   let rec skip_spaces i =
     if i < String.length line then
@@ -70,14 +42,10 @@ let split_words (line : string) : string list =
   in
   loop 0 []
 
-let read_default_file_list (file_list_path : string) :
-    (string list, Error.t) result =
-  read_nonempty_lines file_list_path
-
 let read_output_file_map (map_path : string) :
     ((string * string) list, Error.t) result =
   let ( let* ) = Result.bind in
-  let* lines = read_nonempty_lines map_path in
+  let* lines = Filesystem.read_nonempty_lines map_path in
   let rec loop acc = function
     | [] -> Ok (List.rev acc)
     | line :: rest -> (
@@ -96,10 +64,10 @@ let read_output_file_map (map_path : string) :
 
 let mapped_output_path ~(project_dir : string) ~(output_folder : string)
     ~(output_file_map : (string * string) list) (file : string) : string =
-  let normalized = normalize_path ~project_dir file in
+  let normalized = Filesystem.normalize_path ~containing_dir:project_dir file in
   match List.assoc_opt normalized output_file_map with
   | Some mapped_path -> Filename.concat output_folder mapped_path
-  | None -> relocate project_dir output_folder file
+  | None -> Filesystem.relocate_path project_dir output_folder file
 
 let validate_unique_outputs ~(project_dir : string) ~(output_folder : string)
     ~(output_file_map : (string * string) list) (files : string list) :
@@ -111,7 +79,9 @@ let validate_unique_outputs ~(project_dir : string) ~(output_folder : string)
         let output_path =
           mapped_output_path ~project_dir ~output_folder ~output_file_map file
         in
-        let normalized = normalize_path ~project_dir file in
+        let normalized =
+          Filesystem.normalize_path ~containing_dir:project_dir file
+        in
         match Hashtbl.find_opt outputs output_path with
         | None ->
             Hashtbl.add outputs output_path normalized;
@@ -133,7 +103,7 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
     match default_file_list with
     | None -> Ok []
     | Some file_list_path ->
-        let* files = read_default_file_list file_list_path in
+        let* files = Filesystem.read_nonempty_lines file_list_path in
         Ok files
   in
   let* output_file_map =
@@ -144,7 +114,9 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
 
   let* depgraph = Compile.coqproject_to_dep_graph coqproject_path in
   let* depfiles = Compile.coqproject_sorted_files coqproject_path in
-  let project_depfiles = List.map (normalize_path ~project_dir) depfiles in
+  let project_depfiles =
+    List.map (Filesystem.normalize_path ~containing_dir:project_dir) depfiles
+  in
   let* () =
     match default_files with
     | [] -> Ok ()
@@ -202,9 +174,11 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
               |> Ninja.Path.v)
             neighbors
         in
-        let normalized = normalize_path ~project_dir file in
+        let normalized =
+          Filesystem.normalize_path ~containing_dir:project_dir file
+        in
         let normalized_out =
-          normalize_path ~project_dir:output_folder
+          Filesystem.normalize_path ~containing_dir:output_folder
             (Ninja.Path.to_string output_filepath)
         in
 
@@ -215,13 +189,13 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
                 ~implicit:neighbors_paths ~rule:"ditto" ();
             ]
           else
-            let unmapped_output_filepath =
-              Filename.concat output_folder normalized |> Ninja.Path.v
-            in
+            (* let unmapped_output_filepath = *)
+            (*   Filename.concat output_folder normalized |> Ninja.Path.v *)
+            (* in *)
             [
-              Ninja.make_build ~inputs:[ filepath ]
-                ~outputs:[ unmapped_output_filepath ]
-                ~implicit:neighbors_paths ~rule:"id" ();
+              (* Ninja.make_build ~inputs:[ filepath ] *)
+              (*   ~outputs:[ unmapped_output_filepath ] *)
+              (*   ~implicit:neighbors_paths ~rule:"id" (); *)
               Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
                 ~implicit:neighbors_paths ~rule:"ditto" ();
             ]
@@ -238,19 +212,20 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
     List.filter_map
       (fun file ->
         if not (List.mem_assoc file output_file_map) then
-          Some (Ninja.Path.v (relocate project_dir output_folder file))
+          Some
+            (Ninja.Path.v
+               (Filesystem.relocate_path project_dir output_folder file))
         else None)
       depfiles
   in
-
   let default_paths_mapped =
     List.map
       (fun file ->
         mapped_output_path ~project_dir ~output_folder ~output_file_map file
         |> Ninja.Path.v)
-      depfiles
+      default_files
   in
-  let defaults = Ninja.default (List.append default_paths_mapped unmapped) in
+  let defaults = Ninja.default (List.append default_paths_mapped []) in
 
   Ok
     (Ninja.concat

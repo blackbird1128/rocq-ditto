@@ -108,13 +108,13 @@ constructivisation-get-dep: build
 
 
 constructivisation-uniformise-1: build
-	$(DITTO) -i $(GEOCOQ_INPUT_DIR) -o ../normalised_first_pass/ -t replace_induction_with_destruct --save-vo
+	$(DITTO) -i $(GEOCOQ_INPUT_DIR) -o ../normalised_first_pass/ -t replace_induction_with_destruct -j 8 --save-vo
 
 constructivisation-uniformise-2: build
-	$(DITTO) -i ../normalised_first_pass/ -o ../normalised_second_pass/ -t explicit_apply --save-vo
+	$(DITTO) -i ../normalised_first_pass/ -o ../normalised_second_pass/ -t explicit_apply -j 8 --save-vo
 
 constructivisation-uniformise-3: build
-	$(DITTO) -i ../normalised_second_pass/ -o ../normalised_third_pass/ -t add_proof_node_if_missing --save-vo
+	$(DITTO) -i ../normalised_second_pass/ -o ../normalised_third_pass/ -t add_proof_node_if_missing -j 6  --save-vo
 
 constructivisation-axioms: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/continuity_axioms.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/continuity_axioms.v -t constructivise_geocoq -v
