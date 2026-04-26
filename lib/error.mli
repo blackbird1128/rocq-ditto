@@ -32,4 +32,4 @@ val or_error_to_string_result : 'a or_error -> ('a, string) result
 val string_to_or_error : string -> ('a, t) result
 
 val format_to_or_error :
-  ('fmt, unit, string, ('payload, t) result) format4 -> 'fmt
+  ('fmt, Format.formatter, unit, ('payload, t) result) format4 -> 'fmt

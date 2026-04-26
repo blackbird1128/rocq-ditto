@@ -73,4 +73,6 @@ let or_error_to_string_result (x : 'a or_error) =
   match x with Ok a -> Ok a | Error t -> to_string_result t
 
 let string_to_or_error (x : string) : ('a, t) result = Error (of_string x)
-let format_to_or_error fmt = Printf.ksprintf (fun s -> Error (of_string s)) fmt
+
+let format_to_or_error fmt =
+  Stdlib.Format.kasprintf (fun s -> Error (of_string s)) fmt
