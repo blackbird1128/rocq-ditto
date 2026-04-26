@@ -47,6 +47,18 @@ let find_index (f : 'a -> bool) (xs : 'a list) =
 let find_last_opt (p : 'a -> bool) (l : 'a list) : 'a option =
   List.fold_left (fun acc x -> if p x then Some x else acc) None l
 
+let dedup (l : 'a list) : 'a list =
+  let seen = Hashtbl.create 16 in
+  let rec aux acc = function
+    | [] -> List.rev acc
+    | x :: tl ->
+        if Hashtbl.mem seen x then aux acc tl
+        else (
+          Hashtbl.add seen x ();
+          aux (x :: acc) tl)
+  in
+  aux [] l
+
 let option_all (xs : 'a option list) : 'a list option =
   let rec go acc = function
     | [] -> Some (List.rev acc)

@@ -6,6 +6,7 @@ val last : 'a list -> 'a option
 val last_and_len : 'a list -> 'a option * int
 val find_index : ('a -> bool) -> 'a list -> int option
 val find_last_opt : ('a -> bool) -> 'a list -> 'a option
+val dedup : 'a list -> 'a list
 val option_all : 'a option list -> 'a list option
 val result_all : ('a, 'e) result list -> ('a list, 'e) result
 val concat_result : ('a list, 'e) result list -> ('a list, 'e) result

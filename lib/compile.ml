@@ -160,27 +160,18 @@ let depgraph_to_dot_format (graph : (string, string list) Hashtbl.t) : string =
   Buffer.add_string buf "}";
   Buffer.to_bytes buf |> Bytes.to_string
 
-let dedup l =
-  let seen = Hashtbl.create 16 in
-  let rec aux acc = function
-    | [] -> List.rev acc
-    | x :: tl ->
-        if Hashtbl.mem seen x then aux acc tl
-        else (
-          Hashtbl.add seen x ();
-          aux (x :: acc) tl)
-  in
-  aux [] l
-
-let get_file_dependencies (fname : string)
+let get_file_dependencies (filename : string)
     (dep_graph : (string, string list) Hashtbl.t) : string list =
   let rec aux filename : string list =
-    let curr_deps = Hashtbl.find_all dep_graph filename |> List.concat in
-    (* we want an empty list in case of no value found *)
-    let deps = List.map aux curr_deps |> List.concat in
+    let curr_deps =
+      match Hashtbl.find_opt dep_graph filename with
+      | Some deps -> deps
+      | None -> []
+    in
+    let deps = List.concat_map aux curr_deps in
     curr_deps @ deps
   in
-  aux fname |> dedup
+  aux filename |> List_utils.dedup
 
 let build_indegrees (deps : ('a, 'a list) Hashtbl.t) : ('a, int) Hashtbl.t =
   let indeg = Hashtbl.create 128 in
