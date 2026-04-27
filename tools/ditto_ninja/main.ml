@@ -4,7 +4,7 @@ type cli_options = {
   path : string;
   output_folder : string;
   default_prefixes : string list;
-  default_file_list : string option;
+  transformed_file_list : string option;
   output_file_map : string option;
 }
 
@@ -94,18 +94,19 @@ let validate_unique_outputs ~(project_dir : string) ~(output_folder : string)
   loop files
 
 let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
-    ~(default_file_list : string option) ~(output_file_map : string option) :
-    (Ninja.t, Error.t) result =
+    ~(transformed_file_list : string option) ~(output_file_map : string option)
+    : (Ninja.t, Error.t) result =
   let ( let* ) = Result.bind in
 
   let project_dir = Filename.dirname coqproject_path in
-  let* default_files =
-    match default_file_list with
+  let* transformed_files =
+    match transformed_file_list with
     | None -> Ok []
     | Some file_list_path ->
         let* files = Filesystem.read_nonempty_lines file_list_path in
         Ok files
   in
+
   let* output_file_map =
     match output_file_map with
     | None -> Ok []
@@ -117,18 +118,7 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
   let project_depfiles =
     List.map (Filesystem.normalize_path ~containing_dir:project_dir) depfiles
   in
-  let* () =
-    match default_files with
-    | [] -> Ok ()
-    | files ->
-        let unknown_files =
-          List.filter (fun file -> not (List.mem file project_depfiles)) files
-        in
-        if unknown_files = [] then Ok ()
-        else
-          Error.format_to_or_error "Unknown file(s) in default file list: %s"
-            (String.concat ", " unknown_files)
-  in
+
   let* () =
     let unknown_inputs =
       output_file_map |> List.map fst
@@ -174,31 +164,21 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
               |> Ninja.Path.v)
             neighbors
         in
-        let normalized =
-          Filesystem.normalize_path ~containing_dir:project_dir file
-        in
+        (* let normalized = *)
+        (*   Filesystem.normalize_path ~containing_dir:project_dir file *)
+        (* in *)
+
         let normalized_out =
           Filesystem.normalize_path ~containing_dir:output_folder
             (Ninja.Path.to_string output_filepath)
         in
 
-        if List.mem normalized default_files then
-          if String.equal normalized normalized_out then
-            [
-              Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
-                ~implicit:neighbors_paths ~rule:"ditto" ();
-            ]
-          else
-            (* let unmapped_output_filepath = *)
-            (*   Filename.concat output_folder normalized |> Ninja.Path.v *)
-            (* in *)
-            [
-              (* Ninja.make_build ~inputs:[ filepath ] *)
-              (*   ~outputs:[ unmapped_output_filepath ] *)
-              (*   ~implicit:neighbors_paths ~rule:"id" (); *)
-              Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
-                ~implicit:neighbors_paths ~rule:"ditto" ();
-            ]
+        if transformed_files = [] || List.mem normalized_out transformed_files
+        then
+          [
+            Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
+              ~implicit:neighbors_paths ~rule:"ditto" ();
+          ]
         else
           [
             Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
@@ -208,24 +188,25 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
     |> List.map Ninja.build |> Ninja.concat
   in
 
-  let unmapped =
-    List.filter_map
-      (fun file ->
-        if not (List.mem_assoc file output_file_map) then
-          Some
-            (Ninja.Path.v
-               (Filesystem.relocate_path project_dir output_folder file))
-        else None)
-      depfiles
-  in
-  let default_paths_mapped =
+  (* let unmapped = *)
+  (*   List.filter_map *)
+  (*     (fun file -> *)
+  (*       if not (List.mem_assoc file output_file_map) then *)
+  (*         Some *)
+  (*           (Ninja.Path.v *)
+  (*              (Filesystem.relocate_path project_dir output_folder file)) *)
+  (*       else None) *)
+  (*     depfiles *)
+  (* in *)
+  let all_files =
     List.map
       (fun file ->
         mapped_output_path ~project_dir ~output_folder ~output_file_map file
         |> Ninja.Path.v)
-      default_files
+      depfiles
   in
-  let defaults = Ninja.default (List.append default_paths_mapped []) in
+
+  let defaults = all_files |> Ninja.default in
 
   Ok
     (Ninja.concat
@@ -240,12 +221,12 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
 
 let output_ditto_ninja_of_coqproject (project_dir : string)
     (project_filename : string) (output_folder : string)
-    ~(default_file_list : string option) ~(output_file_map : string option) :
-    (unit, Error.t) result =
+    ~(transformed_file_list : string option) ~(output_file_map : string option)
+    : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let project_path = Filename.concat project_dir project_filename in
   let* ninja_file =
-    coqproject_to_ninja_file project_path output_folder ~default_file_list
+    coqproject_to_ninja_file project_path output_folder ~transformed_file_list
       ~output_file_map
   in
   Format.printf "%a\n%!" Ninja.pp ninja_file;
@@ -255,7 +236,7 @@ let parse_args () : (cli_options, Error.t) result =
   let path = ref None in
   let output_folder = ref "" in
   let default_prefixes = ref [] in
-  let default_file_list = ref None in
+  let transformed_file_list = ref None in
   let output_file_map = ref None in
 
   let usage_msg =
@@ -266,10 +247,10 @@ let parse_args () : (cli_options, Error.t) result =
       ( "--output-folder",
         Arg.Set_string output_folder,
         "Set the output folder of the ninja file" );
-      ( "--default-file-list",
-        Arg.String (fun path -> default_file_list := Some path),
-        "Restrict files listed in the default ninja target to project-relative \
-         paths listed in this file, one per line" );
+      ( "--transformed-file-list",
+        Arg.String (fun path -> transformed_file_list := Some path),
+        "Restrict files transformed by rocq-ditto to project-relative paths \
+         listed in this file, one per line" );
       ( "--output-file-map",
         Arg.String (fun path -> output_file_map := Some path),
         "Rename selected outputs using a file of project-relative <input> \
@@ -290,7 +271,7 @@ let parse_args () : (cli_options, Error.t) result =
             path;
             output_folder = !output_folder;
             default_prefixes = List.rev !default_prefixes;
-            default_file_list = !default_file_list;
+            transformed_file_list = !transformed_file_list;
             output_file_map = !output_file_map;
           }
     | None -> Error.string_to_or_error "Please provide a path"
@@ -306,7 +287,7 @@ let get_project_ninja () : (unit, Error.t) result =
          path;
          output_folder;
          default_prefixes;
-         default_file_list;
+         transformed_file_list;
          output_file_map;
        } =
     parse_args ()
@@ -314,9 +295,10 @@ let get_project_ninja () : (unit, Error.t) result =
 
   if output_folder = "" then
     Error.string_to_or_error "Please provide an output folder"
-  else if default_file_list <> None && default_prefixes <> [] then
+  else if transformed_file_list <> None && default_prefixes <> [] then
     Error.string_to_or_error
-      "Please provide at most one of --default-prefix and --default-file-list"
+      "Please provide at most one of --default-prefix and \
+       --transformed-file-list"
   else if not (Sys.file_exists path) then
     Error.string_to_or_error
       "Please provide a path to an existing file or directory"
@@ -327,7 +309,7 @@ let get_project_ninja () : (unit, Error.t) result =
           "No _CoqProject or _RocqProject found in the directory provided"
     | Some (dir, filename) ->
         output_ditto_ninja_of_coqproject dir filename output_folder
-          ~default_file_list ~output_file_map
+          ~transformed_file_list ~output_file_map
   else if
     Filename.basename path <> "_CoqProject"
     && Filename.basename path <> "_RocqProject"
@@ -339,7 +321,7 @@ let get_project_ninja () : (unit, Error.t) result =
     let path_dir = Filename.dirname path in
     let path_name = Filename.basename path in
     output_ditto_ninja_of_coqproject path_dir path_name output_folder
-      ~default_file_list ~output_file_map
+      ~transformed_file_list ~output_file_map
 
 let main =
   match get_project_ninja () with
