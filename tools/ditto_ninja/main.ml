@@ -3,9 +3,9 @@ open Ditto
 type cli_options = {
   path : string;
   output_folder : string;
-  default_prefixes : string list;
   transformed_file_list : string option;
   output_file_map : string option;
+  ditto_flags : string;
 }
 
 let get_ninja_rule () =
@@ -95,7 +95,7 @@ let validate_unique_outputs ~(project_dir : string) ~(output_folder : string)
 
 let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
     ~(transformed_file_list : string option) ~(output_file_map : string option)
-    : (Ninja.t, Error.t) result =
+    ~(ditto_flags : string) : (Ninja.t, Error.t) result =
   let ( let* ) = Result.bind in
 
   let project_dir = Filename.dirname coqproject_path in
@@ -138,11 +138,9 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
 
   let _pad_depgraph = List.iter (fun x -> Hashtbl.add depgraph x []) detached in
 
-  let ditto_var =
-    Ninja.variable "ditto" "dune exec --profile=release rocq-ditto --"
-  in
+  let ditto_var = Ninja.variable "ditto" "rocq-ditto" in
 
-  let ditto_flags_var = Ninja.variable "dittoflags" "" in
+  let ditto_flags_var = Ninja.variable "dittoflags" ditto_flags in
 
   let ditto_rule = get_ninja_rule () in
 
@@ -222,12 +220,12 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
 let output_ditto_ninja_of_coqproject (project_dir : string)
     (project_filename : string) (output_folder : string)
     ~(transformed_file_list : string option) ~(output_file_map : string option)
-    : (unit, Error.t) result =
+    ~(ditto_flags : string) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let project_path = Filename.concat project_dir project_filename in
   let* ninja_file =
     coqproject_to_ninja_file project_path output_folder ~transformed_file_list
-      ~output_file_map
+      ~output_file_map ~ditto_flags
   in
   Format.printf "%a\n%!" Ninja.pp ninja_file;
   Ok ()
@@ -235,7 +233,7 @@ let output_ditto_ninja_of_coqproject (project_dir : string)
 let parse_args () : (cli_options, Error.t) result =
   let path = ref None in
   let output_folder = ref "" in
-  let default_prefixes = ref [] in
+  let ditto_flags = ref "" in
   let transformed_file_list = ref None in
   let output_file_map = ref None in
 
@@ -255,6 +253,9 @@ let parse_args () : (cli_options, Error.t) result =
         Arg.String (fun path -> output_file_map := Some path),
         "Rename selected outputs using a file of project-relative <input> \
          <output> pairs, one per line" );
+      ( "--ditto-flags",
+        Arg.Set_string ditto_flags,
+        "The ditto flags to use for each invocation, empty by default" );
     ]
   in
   let set_path arg =
@@ -270,9 +271,9 @@ let parse_args () : (cli_options, Error.t) result =
           {
             path;
             output_folder = !output_folder;
-            default_prefixes = List.rev !default_prefixes;
             transformed_file_list = !transformed_file_list;
             output_file_map = !output_file_map;
+            ditto_flags = !ditto_flags;
           }
     | None -> Error.string_to_or_error "Please provide a path"
   with
@@ -286,19 +287,15 @@ let get_project_ninja () : (unit, Error.t) result =
   let* {
          path;
          output_folder;
-         default_prefixes;
          transformed_file_list;
          output_file_map;
+         ditto_flags;
        } =
     parse_args ()
   in
 
   if output_folder = "" then
     Error.string_to_or_error "Please provide an output folder"
-  else if transformed_file_list <> None && default_prefixes <> [] then
-    Error.string_to_or_error
-      "Please provide at most one of --default-prefix and \
-       --transformed-file-list"
   else if not (Sys.file_exists path) then
     Error.string_to_or_error
       "Please provide a path to an existing file or directory"
@@ -309,7 +306,7 @@ let get_project_ninja () : (unit, Error.t) result =
           "No _CoqProject or _RocqProject found in the directory provided"
     | Some (dir, filename) ->
         output_ditto_ninja_of_coqproject dir filename output_folder
-          ~transformed_file_list ~output_file_map
+          ~transformed_file_list ~output_file_map ~ditto_flags
   else if
     Filename.basename path <> "_CoqProject"
     && Filename.basename path <> "_RocqProject"
@@ -321,7 +318,7 @@ let get_project_ninja () : (unit, Error.t) result =
     let path_dir = Filename.dirname path in
     let path_name = Filename.basename path in
     output_ditto_ninja_of_coqproject path_dir path_name output_folder
-      ~transformed_file_list ~output_file_map
+      ~transformed_file_list ~output_file_map ~ditto_flags
 
 let main =
   match get_project_ninja () with
