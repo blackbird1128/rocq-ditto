@@ -1041,16 +1041,6 @@ let constructivise_doc (doc : Rocq_document.t) :
              ]))
   in
 
-  let blacklist_first_goal_ch10 : stage =
-    make_stage "blacklist_comment_first_goal_ch10" (fun doc ->
-        if String.ends_with ~suffix:"/Ch10_line_reflexivity.v" doc.filename then
-          let* proofs = Rocq_document.get_proofs doc in
-          let first_proof = List.hd proofs in
-          Transformations.admit_and_comment_proof_steps ~msg:"blacklisted" doc
-            first_proof
-        else Ok [])
-  in
-
   let stage_beeson_ch03 : stage =
     make_stage "stage_beeson_ch03" (fun doc ->
         if String.ends_with ~suffix:"/Ch03_bet.v" doc.filename then
@@ -1225,7 +1215,6 @@ let constructivise_doc (doc : Rocq_document.t) :
         stage_6;
         stage_7;
         stage_8;
-        blacklist_first_goal_ch10;
         (* stage_11; *)
       ]
   in
