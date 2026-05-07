@@ -433,7 +433,7 @@ type stab_kind =
   | Inner_pasch
   | Segment_construction
   | Eq_Dec_Points
-  | Stab_destruct_as_or
+  | Stab_destruct_with_args
   | Stab_destruct_no_args
 
 let dummy_tactic_for_kind = function
@@ -442,7 +442,7 @@ let dummy_tactic_for_kind = function
       "stab_destruct (by_segment_construction A B C D) as [I []]."
   | Eq_Dec_Points -> "stab_destruct (by_eq_dec_points B C)."
   | Stab_destruct_no_args -> "stab_destruct H."
-  | Stab_destruct_as_or -> "stab_destruct H as [HL|HR]."
+  | Stab_destruct_with_args -> "stab_destruct H as [HL|HR]."
 
 let compute_alias_kername (k : stab_kind) : Names.KerName.t option =
   let s = dummy_tactic_for_kind k in
@@ -459,8 +459,8 @@ let segment_construction_alias_kn : Names.KerName.t option Lazy.t =
 let eq_dec_points_alias_kn : Names.KerName.t option Lazy.t =
   lazy (compute_alias_kername Eq_Dec_Points)
 
-let stab_destruct_as_or_alias_kn : Names.KerName.t option Lazy.t =
-  lazy (compute_alias_kername Stab_destruct_as_or)
+let stab_destruct_with_args_alias_kn : Names.KerName.t option Lazy.t =
+  lazy (compute_alias_kername Stab_destruct_with_args)
 
 let stab_destruct_no_args_alias_kn : Names.KerName.t option Lazy.t =
   lazy (compute_alias_kername Stab_destruct_no_args)
@@ -469,15 +469,13 @@ let get_alias_kn = function
   | Inner_pasch -> Lazy.force inner_pasch_alias_kn
   | Segment_construction -> Lazy.force segment_construction_alias_kn
   | Eq_Dec_Points -> Lazy.force eq_dec_points_alias_kn
-  | Stab_destruct_as_or -> Lazy.force stab_destruct_as_or_alias_kn
+  | Stab_destruct_with_args -> Lazy.force stab_destruct_with_args_alias_kn
   | Stab_destruct_no_args -> Lazy.force stab_destruct_no_args_alias_kn
 
 let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
   if is_constrexpr_c_app_named c "inner_pasch" then get_alias_kn Inner_pasch
   else if is_constrexpr_c_app_named c "segment_construction" then
     get_alias_kn Segment_construction
-  else if is_constrexpr_c_app_named c "eq_dec_points" then
-    get_alias_kn Eq_Dec_Points
   else None
 
 let replace_destruct_fun_with_stab_destruct
@@ -513,7 +511,9 @@ let replace_destruct_fun_with_stab_destruct
                   intro_pattern_expr
               in
 
-              let ker_name = get_alias_kn Stab_destruct_as_or |> Option.get in
+              let kername =
+                get_alias_kn Stab_destruct_with_args |> Option.get
+              in
 
               let stab_destruct_args =
                 List.map
@@ -521,7 +521,7 @@ let replace_destruct_fun_with_stab_destruct
                   [ open_constr_arg; intro_pattern_arg ]
               in
 
-              Ltac_plugin.Tacexpr.TacAlias (ker_name, stab_destruct_args)
+              Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
               |> CAst.make
           | None, None ->
               let h_constrexpr : Constrexpr.constr_expr =
@@ -538,9 +538,9 @@ let replace_destruct_fun_with_stab_destruct
                   [ open_constr_arg ]
               in
 
-              let ker_name = get_alias_kn Stab_destruct_no_args |> Option.get in
+              let kername = get_alias_kn Stab_destruct_no_args |> Option.get in
 
-              Ltac_plugin.Tacexpr.TacAlias (ker_name, stab_destruct_args)
+              Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
               |> CAst.make
           | _ -> x)
       | ElimOnConstr (constrexpr, NoBindings) -> (
@@ -598,7 +598,55 @@ let replace_destruct_fun_with_stab_destruct
                   Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
                   |> CAst.make
               | _ -> x)
-          | None -> x)
+          | None -> (
+              match intro_pattern_naming_expr with
+              | _, Some (ArgArg intro_or_and_pattern) ->
+                  let kername =
+                    get_alias_kn Stab_destruct_with_args |> Option.get
+                  in
+
+                  let intro_action =
+                    Tactypes.IntroOrAndPattern intro_or_and_pattern.v
+                  in
+                  let intro_pattern_expr =
+                    Tactypes.IntroAction intro_action |> CAst.make
+                  in
+                  let intro_arg =
+                    Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
+                      intro_pattern_expr
+                  in
+
+                  let openconstr_constrexpr =
+                    constrexpr
+                    |> Raw_gen_args_converter
+                       .raw_generic_argument_of_open_constr
+                  in
+
+                  let stab_destruct_args =
+                    List.map
+                      (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
+                      [ openconstr_constrexpr; intro_arg ]
+                  in
+
+                  Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
+                  |> CAst.make
+              | _, None ->
+                  let kername =
+                    get_alias_kn Stab_destruct_no_args |> Option.get
+                  in
+
+                  let stab_destruct_args =
+                    List.map
+                      (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
+                      [
+                        constrexpr
+                        |> Raw_gen_args_converter
+                           .raw_generic_argument_of_open_constr;
+                      ]
+                  in
+                  Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
+                  |> CAst.make
+              | _ -> x))
       | _ -> x)
   | _ -> x
 
