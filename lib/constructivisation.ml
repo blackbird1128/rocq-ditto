@@ -404,37 +404,13 @@ let replace_decompose_or_with_decompose_stab_or
       | _ -> x)
   | _ -> x
 
-let replace_elim_with_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
-    Ltac_plugin.Tacexpr.raw_tactic_expr =
-  match x.v with
-  | TacAtom (TacElim (_, binding_args, _)) ->
-      let _, (elim_expr, _) = binding_args in
-      if is_constrexpr_c_app_named elim_expr "eq_dec_points" then
-        let fun_args = get_func_args elim_expr in
-        let fun_args_str_opt =
-          List.map
-            (fun x -> get_cref_qualid x |> Option.map Libnames.string_of_qualid)
-            fun_args
-        in
-        match List_utils.option_all fun_args_str_opt with
-        | Some fun_args_str -> (
-            let stab_eq_str =
-              "stab_eq_point  " ^ String.concat " " fun_args_str ^ "."
-            in
-
-            match Syntax_node.string_to_raw_tactic_expr stab_eq_str with
-            | Ok expr -> expr
-            | Error _ -> x)
-        | None -> x
-      else x
-  | _ -> x
-
 type stab_kind =
   | Inner_pasch
   | Segment_construction
   | Eq_Dec_Points
   | Stab_destruct_with_args
   | Stab_destruct_no_args
+  | Stab_elim_no_args
 
 let dummy_tactic_for_kind = function
   | Inner_pasch -> "stab_destruct (by_inner_pasch A B C D X X X) as [I []]."
@@ -443,6 +419,7 @@ let dummy_tactic_for_kind = function
   | Eq_Dec_Points -> "stab_destruct (by_eq_dec_points B C)."
   | Stab_destruct_no_args -> "stab_destruct H."
   | Stab_destruct_with_args -> "stab_destruct H as [HL|HR]."
+  | Stab_elim_no_args -> "stab_elim H."
 
 let compute_alias_kername (k : stab_kind) : Names.KerName.t option =
   let s = dummy_tactic_for_kind k in
@@ -465,12 +442,37 @@ let stab_destruct_with_args_alias_kn : Names.KerName.t option Lazy.t =
 let stab_destruct_no_args_alias_kn : Names.KerName.t option Lazy.t =
   lazy (compute_alias_kername Stab_destruct_no_args)
 
+let stab_elim_no_args_alias_kn : Names.KerName.t option Lazy.t =
+  lazy (compute_alias_kername Stab_elim_no_args)
+
 let get_alias_kn = function
   | Inner_pasch -> Lazy.force inner_pasch_alias_kn
   | Segment_construction -> Lazy.force segment_construction_alias_kn
   | Eq_Dec_Points -> Lazy.force eq_dec_points_alias_kn
   | Stab_destruct_with_args -> Lazy.force stab_destruct_with_args_alias_kn
   | Stab_destruct_no_args -> Lazy.force stab_destruct_no_args_alias_kn
+  | Stab_elim_no_args -> Lazy.force stab_elim_no_args_alias_kn
+
+let replace_elim_with_stab_elim (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  match x.v with
+  | TacAtom (TacElim (false, binding_args, None)) ->
+      (* no eelim (false evar flag + no with *)
+      let _, (constrexpr, _) = binding_args in
+
+      let open_constr_arg =
+        Raw_gen_args_converter.raw_generic_argument_of_open_constr constrexpr
+      in
+      let stab_elim_args =
+        List.map
+          (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
+          [ open_constr_arg ]
+      in
+
+      let kername = get_alias_kn Stab_elim_no_args |> Option.get in
+
+      Ltac_plugin.Tacexpr.TacAlias (kername, stab_elim_args) |> CAst.make
+  | _ -> x
 
 let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
   if is_constrexpr_c_app_named c "inner_pasch" then get_alias_kn Inner_pasch
@@ -546,17 +548,18 @@ let replace_destruct_fun_with_stab_destruct
       | ElimOnConstr (constrexpr, NoBindings) -> (
           match constrexpr_to_stab_destruct_fun_name constrexpr with
           | Some kername -> (
-              let fun_args = get_func_args constrexpr in
-              let fun_args_str_opt =
-                List.map
-                  (fun x ->
-                    get_cref_qualid x |> Option.map Libnames.string_of_qualid)
-                  fun_args
-                |> List_utils.option_all
-              in
-
               match intro_pattern_naming_expr with
               | _, Some (ArgArg intro_or_and_pattern) ->
+                  let fun_args = get_func_args constrexpr in
+                  let fun_args_str_opt =
+                    List.map
+                      (fun x ->
+                        get_cref_qualid x
+                        |> Option.map Libnames.string_of_qualid)
+                      fun_args
+                    |> List_utils.option_all
+                  in
+
                   let fun_args_name_id_arg =
                     Option.map
                       (List.map (fun x ->
@@ -1171,15 +1174,15 @@ let constructivise_doc (doc : Rocq_document.t) :
           map_raw_tactic_expr_steps replace_induction_by_stab_eq_point doc
         in
 
-        let replace_elim_with_stab_eq_point_steps =
-          map_raw_tactic_expr_steps replace_elim_with_stab_eq_point doc
+        let replace_elim_with_stab_elim_steps =
+          map_raw_tactic_expr_steps replace_elim_with_stab_elim doc
         in
 
         Ok
           (List.concat
              [
                replace_induction_by_stab_eq_point_steps;
-               replace_elim_with_stab_eq_point_steps;
+               replace_elim_with_stab_elim_steps;
              ]))
   in
 
