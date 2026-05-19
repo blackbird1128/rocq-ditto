@@ -1226,6 +1226,12 @@ let explicit_apply_partial_args (doc : Doc.t) () : unit =
 let explicit_apply_with_comma_simple (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.explicit_apply ()
 
+let test_remove_proof_with_simple (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.remove_proof_with ()
+
+let test_remove_proof_with_multiple (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.remove_proof_with ()
+
 let test_flattening_goal_select_simple (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.flatten_goal_selectors ()
 
@@ -1821,6 +1827,12 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "test replacing induction by destruct with previous IH present"
        test_replacing_induction_by_destruct_simple doc);
+  Hashtbl.add table "ex_proof_with_remove.v"
+    (create_fixed_test "test removing \"Proof with\" from a simple proof"
+       test_remove_proof_with_simple doc);
+  Hashtbl.add table "ex_proof_with_remove_multiple.v"
+    (create_fixed_test "test removing \"Proof with\" with multiple elipsises"
+       test_remove_proof_with_multiple doc);
 
   (* Hashtbl.add table "ex_goal_select_flattening1.v" *)
   (*   (create_fixed_test "test flattening a single goal selector" *)
