@@ -197,9 +197,11 @@ let remove_random_step (_ : Rocq_document.t) (proof : Proof.t) :
 let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
     (proof : Proof.t) : (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
+
   let remove_all_steps =
-    List.map (fun step -> Remove step.id) proof.proof_steps
+    proof.proof_steps |> List.rev |> List.map (fun step -> Remove step.id)
   in
+
   let first_proof_node = List.hd proof.proof_steps in
 
   let* comment_content =
