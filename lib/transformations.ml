@@ -711,6 +711,48 @@ let rec get_oneliner (suffix : Syntax_node.t option)
           Ok (CAst.make (Ltac_plugin.Tacexpr.TacThens (new_x_raw_expr, mapped)))
       )
 
+let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
+    (transformation_step list, Error.t) result =
+  let dummy_point : Code_point.t = { line = 0; character = 0 } in
+
+  let suffix_node_opt =
+    proof.proof_steps
+    |> List.find_map Syntax_node.get_syntax_node_proof_with_tactic
+    |> Option.map (fun x ->
+        Syntax_node.syntax_node_of_string (x ^ ".") dummy_point |> Result.get_ok)
+  in
+  match suffix_node_opt with
+  | Some suffix_node ->
+      let steps =
+        List.filter_map
+          (fun node ->
+            if Syntax_node.is_syntax_node_ending_with_elipsis node then
+              let node_repr_without_elipsis =
+                String_utils.remove_suffix (Syntax_node.repr node) "..."
+              in
+              let node_concat_repr =
+                node_repr_without_elipsis ^ ";" ^ Syntax_node.repr suffix_node
+              in
+              let new_node =
+                Syntax_node.syntax_node_of_string node_concat_repr dummy_point
+              in
+              Some (Result.map (fun x -> Replace (node.id, x)) new_node)
+            else None)
+          proof.proof_steps
+      in
+
+      let proof_node_with =
+        List.find Syntax_node.is_syntax_node_proof_command proof.proof_steps
+      in
+      let new_proof_node =
+        Syntax_node.syntax_node_of_string "Proof." dummy_point
+      in
+      let proof_node_replace =
+        Result.map (fun x -> Replace (proof_node_with.id, x)) new_proof_node
+      in
+      List_utils.result_all (proof_node_replace :: steps)
+  | None -> Ok []
+
 let turn_into_oneliner (_ : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =

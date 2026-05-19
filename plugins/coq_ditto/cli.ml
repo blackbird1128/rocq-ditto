@@ -11,6 +11,7 @@ type transformation_kind =
   | ExplicitIdentInIntro
   | ExplicitApply
   | AddProofNodeIfMissing
+  | RemoveProofWith
   | IdProofTransformation
   | IdDocTransformation
   | ConstructiviseGeocoq
@@ -80,6 +81,9 @@ let transformation_help_fun (kind : transformation_kind) :
     | ExplicitApply -> "Experimental: Explicit the parameters of an apply call"
     | AddProofNodeIfMissing ->
         "Add Proof. before the steps of a proof if missing"
+    | RemoveProofWith ->
+        "Remove all proofs containing \"Proof with X\" by replacing each \
+         \"tactic...\" with \"tactic;X.\" "
     | ReplaceInductionWithDestruct ->
         "Experimental: Replace induction with destruct when no induction \
          hypothesis is generated"
