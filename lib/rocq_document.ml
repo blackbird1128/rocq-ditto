@@ -524,11 +524,31 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
       let target_is_multiline =
         target.range.start.line <> target.range.end_.line
       in
-      if target_is_multiline || not is_single_line then (
-        let* doc_removed =
-          remove_node_with_id ~remove_method:ShiftNode target.id doc
+      if target_is_multiline || not is_single_line then
+        let delta_lines = replacement.range.end_.line - target.range.end_.line in
+        let end_char_delta =
+          replacement.range.end_.character - target.range.end_.character
         in
-        insert_node replacement ~shift_method:ShiftVertically doc_removed)
+        let sorted = doc_removed.elements in
+        let before, after =
+          List.partition
+            (fun node ->
+              Code_point.compare node.range.start replacement.range.start < 0)
+            sorted
+        in
+        let shifted_after =
+          List.map
+            (fun node ->
+              if node.range.start.line = target.range.end_.line then
+                Syntax_node.shift_node delta_lines end_char_delta node
+              else if node.range.start.line > target.range.end_.line then
+                Syntax_node.shift_node delta_lines 0 node
+              else node)
+            after
+        in
+        let elements = before @ (replacement :: shifted_after) in
+        let* document_repr = dump_sorted_elements_to_string elements in
+        Ok { doc with elements; document_repr }
       else
         let old_width =
           target.range.end_.character - target.range.start.character
