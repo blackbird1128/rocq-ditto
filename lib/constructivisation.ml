@@ -1099,22 +1099,21 @@ let constructivise_doc (doc : Rocq_document.t) :
         else Ok [])
   in
 
-  let stage_1 : stage =
-    make_stage "stage1" (fun doc ->
-        let* proofs = Rocq_document.get_proofs doc in
+  (* let stage_1 : stage = *)
+  (*   make_stage "stage1" (fun doc -> *)
+  (*       let* proofs = Rocq_document.get_proofs doc in *)
 
-        let proofs_with_exists = List.filter is_proof_about_exists proofs in
+  (*       let proofs_with_exists = List.filter is_proof_about_exists proofs in *)
 
-        let* admit_exists_proofs_steps =
-          List_utils.concat_map_result
-            (Transformations.admit_and_comment_proof_steps
-               ~msg:"existential predicate in conclusion" doc)
-            proofs_with_exists
-        in
+  (*       let* admit_exists_proofs_steps = *)
+  (*         List_utils.concat_map_result *)
+  (*           (Transformations.admit_and_comment_proof_steps *)
+  (*              ~msg:"existential predicate in conclusion" doc) *)
+  (*           proofs_with_exists *)
+  (*       in *)
 
-        Ok admit_exists_proofs_steps)
-  in
-
+  (*       Ok admit_exists_proofs_steps) *)
+  (* in *)
   let stage_2 : stage =
     make_stage "stage2" (fun doc ->
         let* proofs_stage_two = Rocq_document.get_proofs doc in
@@ -1258,7 +1257,7 @@ let constructivise_doc (doc : Rocq_document.t) :
       [
         stage_0;
         stage_beeson_ch03;
-        stage_1;
+        (* stage_1; *)
         stage_2;
         stage_3;
         stage_4;
