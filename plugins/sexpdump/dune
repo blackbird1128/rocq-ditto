@@ -1,0 +1,4 @@
+(library
+ (public_name sexpdump-plugin)
+ (name sexp_dump_plugin)
+ (libraries coq-ditto coq-lsp.fleche))

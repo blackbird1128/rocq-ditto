@@ -122,6 +122,17 @@
   coq-ditto))
 
 (package
+ (name sexpdump-plugin)
+ (synopsis "Dump the sexp representation of a file on stdout")
+ (allow_empty)
+ (depends
+  ocaml
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))
+  base-unix
+  re
+  coq-ditto))
+ 
+(package
  (name get-dependencies)
  (synopsis "Get the dependencies of a file")
  (allow_empty)
@@ -152,7 +163,6 @@
    base-unix
    coq-ditto))
  
-
 (package
  (name rocq-ninja)
  (synopsis "Get a ninja file that can be used to compile the target _CoqProject when placed in that project folder")
