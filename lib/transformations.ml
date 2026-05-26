@@ -711,6 +711,10 @@ let rec get_oneliner (suffix : Syntax_node.t option)
           Ok (CAst.make (Ltac_plugin.Tacexpr.TacThens (new_x_raw_expr, mapped)))
       )
 
+let rename_definition (_doc : Rocq_document.t) :
+    (transformation_step list, Error.t) result =
+  Ok []
+
 let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   let dummy_point : Code_point.t = { line = 0; character = 0 } in

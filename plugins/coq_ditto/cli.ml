@@ -2,6 +2,7 @@ open Ditto
 
 type transformation_kind =
   | Help
+  | RenameDefinition
   | ExplicitFreshVariables
   | TurnIntoOneliner
   | ReplaceAutoWithSteps
@@ -63,6 +64,9 @@ let transformation_help_fun (kind : transformation_kind) :
   let help_text =
     match kind with
     | Help -> "Display what all the transformations do"
+    | RenameDefinition ->
+        "Rename a Definition, updating the code in the file to match the new \
+         name"
     | ExplicitFreshVariables ->
         "Replace calls to tactics creating fresh variables such as `intros` \
          with explicit variable names (`intros V1 V2 ... Vn`)."

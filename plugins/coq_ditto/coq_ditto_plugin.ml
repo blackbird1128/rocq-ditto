@@ -17,6 +17,7 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   let ( let* ) = Result.bind in
   match kind with
   | Help -> DocScope (fun _ -> Ok [])
+  | RenameDefinition -> DocScope Transformations.rename_definition
   | ExplicitFreshVariables ->
       ProofScope Transformations.explicit_fresh_variables
   | TurnIntoOneliner ->

@@ -46,6 +46,9 @@ val simple_proof_repair :
 val explicit_fresh_variables :
   Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
 
+val rename_definition :
+  Rocq_document.t -> (transformation_step list, Error.t) result
+
 val remove_proof_with :
   Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result
 

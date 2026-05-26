@@ -29,7 +29,7 @@ let warn_if_exists (dir_state : Filesystem.newDirState) =
         "Warning: output directory already exists: replacing files\n%!"
   | _ -> ()
 
-let validate_opts opts pathkind =
+let validate_opts (opts : cli_options) (pathkind : Filesystem.path_kind) =
   if opts.dependencies_action != NoAction && pathkind = Filesystem.Dir then
     Error.string_to_or_error
       "Using a dependency action when targeting a folder doesn't make sense"
@@ -83,7 +83,7 @@ let make_args_transform_files (prog : string) (root : string) (verbose : bool)
 let make_args_compile_files (root : string) (input_file : string) =
   [| "fcc"; "--root=" ^ root; input_file |]
 
-let kill_all_running running =
+let kill_all_running (running : (int, 'a) Hashtbl.t) =
   Hashtbl.iter
     (fun pid _ -> try Unix.kill pid Sys.sigterm with _ -> ())
     running
