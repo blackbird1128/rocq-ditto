@@ -711,9 +711,45 @@ let rec get_oneliner (suffix : Syntax_node.t option)
           Ok (CAst.make (Ltac_plugin.Tacexpr.TacThens (new_x_raw_expr, mapped)))
       )
 
+type rename = {
+  old_name : string; [@key "old"]
+  new_name : string; [@key "new"]
+  ordering : int list option;
+}
+[@@deriving yojson]
+
+type renames_file = { renames : rename list } [@@deriving yojson]
+
+let read_renames (filepath : string) : (rename list, Error.t) result =
+  try
+    let json = Yojson.Safe.from_file filepath in
+    match renames_file_of_yojson json with
+    | Ok r -> Ok r.renames
+    | Error msg -> Error.string_to_or_error msg
+  with Sys_error msg -> Error.string_to_or_error msg
+
 let rename_definition (_doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
-  Ok []
+  let error_path =
+    Error.string_to_or_error
+      "Please provide a valid path to a JSON file containing the renames \
+       specification using DITTO_ARG0"
+  in
+  match Sys.getenv_opt "DITTO_ARG0" with
+  | Some arg -> (
+      match read_renames arg with
+      | Ok [] ->
+          Error.string_to_or_error
+            "Please provide at least a renaming in the file"
+      | Ok renames ->
+          List.iter
+            (fun r -> Printf.printf "%s -> %s\n" r.old_name r.new_name)
+            renames;
+
+          let first_rename = List.hd renames in
+          Ok []
+      | Error err -> Error err)
+  | None -> error_path
 
 let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
