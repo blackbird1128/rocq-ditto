@@ -1548,6 +1548,14 @@ let explicit_apply (doc : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   rewrite_proof_nodes doc proof ~rewrite:explicit_apply_in_node
 
+let apply_doc_transformation
+    (transformation :
+      Rocq_document.t -> (transformation_step list, Error.t) result)
+    (doc : Rocq_document.t) : (Rocq_document.t, Error.t) result =
+  let* steps = transformation doc in
+
+  Rocq_document.apply_transformations_steps steps doc
+
 let apply_proof_transformation
     (transformation :
       Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result)

@@ -46,16 +46,7 @@ let local_apply_doc_transformation (doc_acc : Rocq_document.t)
     (trans : Rocq_document.t -> (transformation_step list, Error.t) result)
     (_transformation_kind : transformation_kind) (_verbose : bool)
     (_quiet : bool) : (Rocq_document.t, Error.t) result =
-  let transformation_steps = trans doc_acc in
-  match transformation_steps with
-  | Ok steps ->
-      List.fold_left
-        (fun doc_acc_err step ->
-          match doc_acc_err with
-          | Ok doc -> Rocq_document.apply_transformation_step step doc
-          | Error err -> Error err)
-        (Ok doc_acc) steps
-  | Error err -> Error err
+  Transformations.apply_doc_transformation trans doc_acc
 
 let print_current_running (proof_count : int) (proof_total : int)
     (proof_name : string) (transformation_kind : transformation_kind) quiet
