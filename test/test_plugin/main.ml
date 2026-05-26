@@ -1160,6 +1160,23 @@ let test_proof_transformation (doc : Doc.t)
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
+let test_doc_transformation (doc : Doc.t)
+    (doc_transformation :
+      Rocq_document.t -> (transformation_step list, Error.t) result) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Rocq_document.parse_document doc in
+
+  let parsed_target = get_target uri_str in
+
+  let new_doc =
+    Transformations.apply_doc_transformation doc_transformation doc
+  in
+
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
+    "The two list should be the same" (Ok parsed_target) new_doc_res
+
 let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.replace_auto_with_steps ()
 
@@ -1241,6 +1258,11 @@ let test_flattening_goal_select_range (doc : Doc.t) () : unit =
 let test_replacing_induction_by_destruct_simple (doc : Doc.t) () : unit =
   test_proof_transformation doc
     Transformations.replace_induction_by_destruct_when_possible ()
+
+let test_renaming_def_in_proof_steps (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
 
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -1833,6 +1855,10 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_proof_with_remove_multiple.v"
     (create_fixed_test "test removing \"Proof with\" with multiple elipsises"
        test_remove_proof_with_multiple doc);
+
+  Hashtbl.add table "ex_rename_definition_in_proof_steps.v"
+    (create_fixed_test "test renaming definition Foo to Bar in proof steps"
+       test_renaming_def_in_proof_steps doc);
 
   (* Hashtbl.add table "ex_goal_select_flattening1.v" *)
   (*   (create_fixed_test "test flattening a single goal selector" *)

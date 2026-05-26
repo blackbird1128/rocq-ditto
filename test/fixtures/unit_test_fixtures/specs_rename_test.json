@@ -1,0 +1,5 @@
+{
+  "renames" : [  
+  { "old" : "Foo", "new" : "Bar", "ordering": [0,1,2] }
+ ]
+}
