@@ -710,7 +710,7 @@ let read_renames (filepath : string) : (rename list, Error.t) result =
     | Error msg -> Error.string_to_or_error msg
   with Sys_error msg -> Error.string_to_or_error msg
 
-let rename_definition (_doc : Rocq_document.t) :
+let rename_definition (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let error_path =
     Error.string_to_or_error
@@ -724,12 +724,20 @@ let rename_definition (_doc : Rocq_document.t) :
           Error.string_to_or_error
             "Please provide at least a renaming in the file"
       | Ok renames ->
-          List.iter
-            (fun r -> Printf.printf "%s -> %s\n" r.old_name r.new_name)
-            renames;
+          let* proofs = Rocq_document.get_proofs doc in
 
-          let _first_rename = List.hd renames in
-          Ok []
+          let first_rename = List.hd renames in
+
+          let replace_fun =
+            Constrexpr_utils.replace_fun_name_in_constrexpr
+              first_rename.old_name first_rename.new_name
+          in
+
+          let rename_in_proof_proposition_steps : transformation_step list =
+            List.filter_map (Proof.map_proof_proposition replace_fun) proofs
+          in
+
+          Ok rename_in_proof_proposition_steps
       | Error err -> Error err)
   | None -> error_path
 
