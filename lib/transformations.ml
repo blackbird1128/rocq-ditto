@@ -6,24 +6,6 @@ open Sexplib.Conv
 open Re
 module Tacexpr = Ltac_plugin.Tacexpr
 
-let map_raw_tactic_expr_in_node
-    (f :
-      Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
-    (node : Syntax_node.t) : Proof.transformation_step option =
-  let ( let+ ) = Option.bind in
-  let open Proof in
-  let+ raw_tac_expr = get_node_raw_tactic_expr node in
-  let raw_expr_mapped = Tacexpr_map.tacexpr_map f raw_tac_expr in
-  if raw_tac_expr = raw_expr_mapped then None
-  else
-    let selector = get_node_goal_selector_opt node in
-    let+ new_node =
-      Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
-        node.range.start
-      |> Result.to_option
-    in
-    Some (Replace (node.id, new_node))
-
 let simple_proof_repair (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
@@ -746,7 +728,7 @@ let rename_definition (_doc : Rocq_document.t) :
             (fun r -> Printf.printf "%s -> %s\n" r.old_name r.new_name)
             renames;
 
-          let first_rename = List.hd renames in
+          let _first_rename = List.hd renames in
           Ok []
       | Error err -> Error err)
   | None -> error_path

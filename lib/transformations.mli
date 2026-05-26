@@ -1,11 +1,6 @@
 open Proof
 open Nary_tree
 
-val map_raw_tactic_expr_in_node :
-  (Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr) ->
-  Syntax_node.t ->
-  Proof.transformation_step option
-
 val fold_replace_assumption_with_apply :
   Rocq_document.t ->
   Syntax_node.t nary_tree ->

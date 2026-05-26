@@ -292,42 +292,6 @@ let map_assert_constr_expr
       |> CAst.make
   | _ -> tacexpr
 
-let map_tacdef_bodies_in_node
-    (f :
-      Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
-    (g : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (node : Syntax_node.t) : transformation_step option =
-  let+ tacdef_bodies = Syntax_node.get_node_tacdef_bodies node in
-  let tacdef_bodies_mapped =
-    List.map
-      (fun (body : Ltac_plugin.Tacexpr.tacdef_body) ->
-        match body with
-        | Ltac_plugin.Tacexpr.TacticDefinition (name, tacexpr) ->
-            Ltac_plugin.Tacexpr.TacticDefinition
-              (name, Tacexpr_map.tacexpr_map_with_constr f g tacexpr)
-        | Ltac_plugin.Tacexpr.TacticRedefinition (name, tacexpr) ->
-            Ltac_plugin.Tacexpr.TacticRedefinition
-              (name, Tacexpr_map.tacexpr_map_with_constr f g tacexpr))
-      tacdef_bodies
-  in
-
-  if not (List.equal ( = ) tacdef_bodies tacdef_bodies_mapped) then
-    let+ new_node =
-      Syntax_node.tacdef_body_list_to_syntax_node tacdef_bodies_mapped
-        node.range.start
-      |> Result.to_option
-    in
-
-    Some (Replace (node.id, new_node))
-  else None
-
-let replace_taccall_tacarg_in_node (old_tac_call_name : string)
-    (new_tac_call_name : string) (node : Syntax_node.t) :
-    transformation_step option =
-  Transformations.map_raw_tactic_expr_in_node
-    (replace_taccall_tacarg_in_tacexpr old_tac_call_name new_tac_call_name)
-    node
-
 let get_tac_generic_genarg
     (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
     Genarg.rlevel Genarg.generic_argument option =
@@ -664,42 +628,6 @@ let replace_induction_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr)
       | _ -> x)
   | _ -> x
 
-let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (x : Syntax_node.t) : transformation_step option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynPure
-          (Vernacexpr.VernacDefinition
-             ((discharge, definition_object_kind), name_decl, expr)) -> (
-          match expr with
-          | ProveBody _ -> None
-          | DefineBody (binders, raw_red_expr_opt, expr1, opt_expr) ->
-              let new_expr = Constrexpr_map.constr_expr_map f expr1 in
-              if not (Constrexpr_ops.constr_expr_eq expr1 new_expr) then
-                let new_define_body =
-                  DefineBody (binders, raw_red_expr_opt, new_expr, opt_expr)
-                in
-                let new_vernacexpr =
-                  VernacSynPure
-                    (VernacDefinition
-                       ( (discharge, definition_object_kind),
-                         name_decl,
-                         new_define_body ))
-                in
-                let new_vernac_control =
-                  Syntax_node.mk_vernac_control new_vernacexpr
-                in
-                let new_node =
-                  Syntax_node.syntax_node_of_coq_ast
-                    (Coq.Ast.of_coq new_vernac_control)
-                    x.range.start
-                in
-                Some (Replace (x.id, new_node))
-              else None)
-      | _ -> None)
-  | None -> None
-
 let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
   Constrexpr_fold.exists
     (fun expr ->
@@ -945,7 +873,9 @@ let map_raw_tactic_expr_steps
     (f :
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
     (doc : Rocq_document.t) : transformation_step list =
-  List.filter_map (Transformations.map_raw_tactic_expr_in_node f) doc.elements
+  List.filter_map
+    (Transformation_utils.map_raw_tactic_expr_in_node f)
+    doc.elements
 
 let replace_taccalls_in_tacexpr (renames : (string * string) list)
     (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
@@ -1052,7 +982,7 @@ let constructivise_doc (doc : Rocq_document.t) :
                :
                transformation_step option
              ->
-               map_definition_body
+               Transformation_utils.map_definition_body
                  (replace_notation_in_constrexpr old_notation new_notation)
                  x)
                "_ \\/ _" "_ \\_/ _")
@@ -1113,7 +1043,8 @@ let constructivise_doc (doc : Rocq_document.t) :
 
         let replace_bet_and_cong_by_cons_ver_definitions_steps =
           List.filter_map
-            (map_definition_body replace_bet_and_cong_in_constrexpr)
+            (Transformation_utils.map_definition_body
+               replace_bet_and_cong_in_constrexpr)
             definitions_stage_two
         in
 
@@ -1144,7 +1075,7 @@ let constructivise_doc (doc : Rocq_document.t) :
 
         let replace_bet_by_betc_and_or_by_cons_or_in_assert_steps =
           List.filter_map
-            (Transformations.map_raw_tactic_expr_in_node
+            (Transformation_utils.map_raw_tactic_expr_in_node
                (map_assert_constr_expr f_assert))
             doc.elements
         in
@@ -1220,7 +1151,7 @@ let constructivise_doc (doc : Rocq_document.t) :
         Ok
           (List.filter_map
              (fun x ->
-               map_tacdef_bodies_in_node Fun.id
+               Transformation_utils.map_tacdef_bodies_in_node Fun.id
                  (Constrexpr_map.constr_expr_map
                     replace_bet_and_cong_in_constrexpr)
                  x)
