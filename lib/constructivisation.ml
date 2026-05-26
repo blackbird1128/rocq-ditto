@@ -216,21 +216,6 @@ let replace_notation_in_constrexpr (old_notation : string)
            (scope, (entry, new_notation), (l1, ll, pat, binders)))
   | _ -> term
 
-let replace_fun_name_in_constrexpr (old_fun_name : string)
-    (new_fun_name : string) (term : Constrexpr.constr_expr) :
-    Constrexpr.constr_expr =
-  let old_q = Libnames.qualid_of_string old_fun_name in
-  let new_q = Libnames.qualid_of_string new_fun_name in
-
-  let matches_ref q = Libnames.qualid_eq q old_q in
-
-  match term.v with
-  | Constrexpr.CRef (q, instance_expr_opt) when matches_ref q ->
-      CAst.make (Constrexpr.CRef (new_q, instance_expr_opt))
-  | Constrexpr.CAppExpl ((q, instance_expr_opt), l) when matches_ref q ->
-      CAst.make (Constrexpr.CAppExpl ((new_q, instance_expr_opt), l))
-  | _ -> term
-
 let replace_bet_and_cong_in_constrexpr (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
   term

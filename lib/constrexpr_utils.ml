@@ -33,3 +33,18 @@ let is_constrexpr_c_app_named (x : Constrexpr.constr_expr) (name : string) :
   | Constrexpr.CApp (func, _) ->
       Option.map Libnames.string_of_qualid (get_cref_qualid func) = Some name
   | _ -> false
+
+let replace_fun_name_in_constrexpr (old_fun_name : string)
+    (new_fun_name : string) (term : Constrexpr.constr_expr) :
+    Constrexpr.constr_expr =
+  let old_q = Libnames.qualid_of_string old_fun_name in
+  let new_q = Libnames.qualid_of_string new_fun_name in
+
+  let matches_ref q = Libnames.qualid_eq q old_q in
+
+  match term.v with
+  | Constrexpr.CRef (q, instance_expr_opt) when matches_ref q ->
+      CAst.make (Constrexpr.CRef (new_q, instance_expr_opt))
+  | Constrexpr.CAppExpl ((q, instance_expr_opt), l) when matches_ref q ->
+      CAst.make (Constrexpr.CAppExpl ((new_q, instance_expr_opt), l))
+  | _ -> term
