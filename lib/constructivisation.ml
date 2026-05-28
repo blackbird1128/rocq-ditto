@@ -292,13 +292,6 @@ let map_assert_constr_expr
       |> CAst.make
   | _ -> tacexpr
 
-let get_tac_generic_genarg
-    (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
-    Genarg.rlevel Genarg.generic_argument option =
-  match x with
-  | Ltac_plugin.Tacexpr.TacGeneric (_, genarg) -> Some genarg
-  | _ -> None
-
 let replace_decompose_or_with_decompose_stab_or
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -308,7 +301,7 @@ let replace_decompose_or_with_decompose_stab_or
            (Names.KerName.to_string alias)
            ~prefix:"Corelib.Init.Ltac.decompose_[_#_]_#_" -> (
       let decomposed_args_genarg =
-        get_tac_generic_genarg decomposed_args |> Option.get
+        Ltac.get_tac_generic_genarg decomposed_args |> Option.get
       in
       let args_str =
         Raw_gen_args_converter.constr_expr_list_of_raw_generic_argument
@@ -318,7 +311,7 @@ let replace_decompose_or_with_decompose_stab_or
       match args_str with
       | Some [ "or" ] ->
           let hypothesis_genarg =
-            get_tac_generic_genarg hypothesis |> Option.get
+            Ltac.get_tac_generic_genarg hypothesis |> Option.get
           in
           let hypothesis_str =
             Raw_gen_args_converter.constr_expr_of_raw_generic_argument
@@ -335,7 +328,7 @@ let replace_decompose_or_with_decompose_stab_or
           decompose_stab_or_raw_tac_expr
       | Some [ "or"; "and" ] | Some [ "and"; "or" ] ->
           let hypothesis_genarg =
-            get_tac_generic_genarg hypothesis |> Option.get
+            Ltac.get_tac_generic_genarg hypothesis |> Option.get
           in
           let hypothesis_str =
             Raw_gen_args_converter.constr_expr_of_raw_generic_argument

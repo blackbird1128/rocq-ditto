@@ -27,3 +27,10 @@ let string_of_raw_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : string =
   let env = Global.env () in
   let evd = Evd.from_env env in
   Ltac_plugin.Pptactic.pr_raw_tactic env evd tac |> Pp.string_of_ppcmds
+
+let get_tac_generic_genarg
+    (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
+    Genarg.rlevel Genarg.generic_argument option =
+  match x with
+  | Ltac_plugin.Tacexpr.TacGeneric (_, genarg) -> Some genarg
+  | _ -> None

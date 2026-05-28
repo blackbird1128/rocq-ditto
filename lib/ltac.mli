@@ -8,3 +8,7 @@ val get_raw_atomic_tactic_expr :
 
 val get_alias_kername : Tacexpr.raw_tactic_expr -> Names.KerName.t option
 val string_of_raw_tactic : Tacexpr.raw_tactic_expr -> string
+
+val get_tac_generic_genarg :
+  Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg ->
+  Genarg.rlevel Genarg.generic_argument option
