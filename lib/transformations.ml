@@ -710,8 +710,94 @@ let read_renames (filepath : string) : (rename list, Error.t) result =
     | Error msg -> Error.string_to_or_error msg
   with Sys_error msg -> Error.string_to_or_error msg
 
+(* let rename_qualid (old_name : string) (new_name : string) (x : Libnames.qualid) *)
+(*     : Libnames.qualid = *)
+(*   let old_name_qualid = Libnames.qualid_of_string old_name in *)
+(*   let new_name_qualid = Libnames.qualid_of_string new_name in *)
+(*   if Libnames.qualid_eq old_name_qualid x then new_name_qualid else x *)
+
+(* let rename_name (old_name : string) (new_name : string) (name : Names.Name.t) : *)
+(*     Names.Name.t = *)
+(*   let old_name_cast : Names.Name.t = Name (Names.Id.of_string old_name) in *)
+(*   if Names.Name.equal old_name_cast name then Name (Names.Id.of_string new_name) *)
+(*   else name *)
+
+(* let rename_definition_node (old_name : string) (new_name : string) *)
+(*     (x : Syntax_node.t) : Syntax_node.t = *)
+(*   match x.ast with *)
+(*   | Some ast -> ( *)
+(*       match (Coq.Ast.to_coq ast.v).v.expr with *)
+(*       | VernacSynPure *)
+(*           (Vernacexpr.VernacDefinition (kind, (name, name_univ), expr)) -> *)
+(*           let name_mapped = rename_name old_name new_name name.v in *)
+(*           let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in *)
+(*           let vernac_mapped = *)
+(*             Vernacexpr.VernacSynPure *)
+(*               (VernacDefinition (kind, name_decl_mapped, expr)) *)
+(*           in *)
+(*           let vernac_control_mapped = *)
+(*             Syntax_node.mk_vernac_control vernac_mapped *)
+(*           in *)
+
+(*           Syntax_node.syntax_node_of_coq_ast *)
+(*             (Coq.Ast.of_coq vernac_control_mapped) *)
+(*             x.range.start *)
+(*       | _ -> x) *)
+(*   | None -> x *)
+
+let rename_rcst (old_name : string) (new_name : string) (x : Genredexpr.r_cst) :
+    Genredexpr.r_cst =
+  let old_name_qualid = Libnames.qualid_of_string old_name in
+  let new_name_qualid = Libnames.qualid_of_string new_name in
+  match x.v with
+  | Constrexpr.AN qualid when Libnames.qualid_eq old_name_qualid qualid ->
+      Constrexpr.AN new_name_qualid |> CAst.make
+  | Constrexpr.ByNotation _ -> x
+  | _ -> x
+
+let rename_in_tac_reduce (old_name : string) (new_name : string)
+    (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let open Ltac_plugin in
+  match x.v with
+  (* tacReduce will change in 9.3 :[ *)
+  | TacAtom (TacReduce (user_red_expr, clause_expr)) -> (
+      match user_red_expr with
+      | Genredexpr.Simpl (_, _) -> x
+      | Genredexpr.Cbv _ ->
+          x (* we will need to deal with delta flag at some point :[ *)
+      | Genredexpr.Cbn _ -> x
+      | Genredexpr.Lazy _ -> x
+      | Genredexpr.Unfold occs ->
+          let mapped_occs =
+            List.map
+              (fun (occs_gen, r_cst) ->
+                (occs_gen, rename_rcst old_name new_name r_cst))
+              occs
+          in
+          Tacexpr.TacAtom
+            (TacReduce (Genredexpr.Unfold mapped_occs, clause_expr))
+          |> CAst.make
+      | Genredexpr.Fold constrexpr_list ->
+          Tacexpr.TacAtom
+            (TacReduce
+               ( Genredexpr.Fold
+                   (List.map
+                      (Constrexpr_utils.replace_fun_name_in_constrexpr old_name
+                         new_name)
+                      constrexpr_list),
+                 clause_expr ))
+          |> CAst.make
+      | Genredexpr.Pattern _ -> x
+      | Genredexpr.ExtraRedExpr _ -> x
+      | Genredexpr.CbvVm _ -> x
+      | Genredexpr.CbvNative _ -> x
+      | _ -> x)
+  | _ -> x
+
 let rename_definition (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
+  let open Pipeline in
   let error_path =
     Error.string_to_or_error
       "Please provide a valid path to a JSON file containing the renames \
