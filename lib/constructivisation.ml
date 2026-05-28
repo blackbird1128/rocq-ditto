@@ -281,17 +281,6 @@ let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       else x
   | _ -> x
 
-let map_assert_constr_expr
-    (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
-    Ltac_plugin.Tacexpr.raw_tactic_expr =
-  let open Ltac_plugin.Tacexpr in
-  match tacexpr.v with
-  | TacAtom (TacAssert (a, b, c, d, asrt)) ->
-      TacAtom (TacAssert (a, b, c, d, Constrexpr_map.constr_expr_map f asrt))
-      |> CAst.make
-  | _ -> tacexpr
-
 let replace_decompose_or_with_decompose_stab_or
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -855,13 +844,6 @@ let get_proofs_named (proofs : Proof.t list) (names : string list) =
 let definitions_of (d : Rocq_document.t) : Syntax_node.t list =
   List.filter Syntax_node.is_syntax_node_definition d.elements
 
-type stage = {
-  name : string;
-  build_steps : Rocq_document.t -> (transformation_step list, Error.t) result;
-}
-
-let make_stage name build_steps = { name; build_steps }
-
 let map_raw_tactic_expr_steps
     (f :
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -882,24 +864,9 @@ let replace_taccalls_steps (renames : (string * string) list)
     (doc : Rocq_document.t) : transformation_step list =
   map_raw_tactic_expr_steps (replace_taccalls_in_tacexpr renames) doc
 
-let apply_stage (doc : Rocq_document.t) (st : stage) =
-  let* steps = st.build_steps doc in
-  Rocq_document.apply_transformations_steps steps doc
-
-let run_pipeline doc stages :
-    (Rocq_document.t * transformation_step list, Error.t) result =
-  List.fold_left
-    (fun (acc : (Rocq_document.t * transformation_step list, Error.t) result) st
-       ->
-      let* doc_acc, steps_acc = acc in
-      let* steps = st.build_steps doc_acc in
-      let doc' = Rocq_document.apply_transformations_steps steps doc_acc in
-      Result.product doc' (Ok (steps_acc @ steps)))
-    (Ok (doc, []))
-    stages
-
 let constructivise_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
+  let open Pipeline in
   let token = Coq.Limits.Token.create () in
 
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
@@ -1069,7 +1036,7 @@ let constructivise_doc (doc : Rocq_document.t) :
         let replace_bet_by_betc_and_or_by_cons_or_in_assert_steps =
           List.filter_map
             (Transformation_utils.map_raw_tactic_expr_in_node
-               (map_assert_constr_expr f_assert))
+               (Ltac.map_assert_constr_expr f_assert))
             doc.elements
         in
 
