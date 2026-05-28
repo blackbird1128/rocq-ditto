@@ -34,3 +34,14 @@ let get_tac_generic_genarg
   match x with
   | Ltac_plugin.Tacexpr.TacGeneric (_, genarg) -> Some genarg
   | _ -> None
+
+let map_assert_constr_expr
+    (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let open Ltac_plugin.Tacexpr in
+  match tacexpr.v with
+  | TacAtom (TacAssert (a, b, c, d, asrt)) ->
+      TacAtom (TacAssert (a, b, c, d, Constrexpr_map.constr_expr_map f asrt))
+      |> CAst.make
+  | _ -> tacexpr
