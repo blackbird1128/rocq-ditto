@@ -806,12 +806,11 @@ let rename_definition (doc : Rocq_document.t) :
   match Sys.getenv_opt "DITTO_ARG0" with
   | Some arg -> (
       match read_renames arg with
+      | Error e -> Error e
       | Ok [] ->
           Error.string_to_or_error
             "Please provide at least a renaming in the file"
       | Ok renames ->
-          let* proofs = Rocq_document.get_proofs doc in
-
           let first_rename = List.hd renames in
 
           let replace_fun =
@@ -819,12 +818,56 @@ let rename_definition (doc : Rocq_document.t) :
               first_rename.old_name first_rename.new_name
           in
 
-          let rename_in_proof_proposition_steps : transformation_step list =
-            List.filter_map (Proof.map_proof_proposition replace_fun) proofs
+          let stage_rename_in_proof_prop : stage =
+            make_stage "rename in proof prop" (fun doc ->
+                let* proofs = Rocq_document.get_proofs doc in
+                Ok
+                  (List.filter_map
+                     (Proof.map_proof_proposition replace_fun)
+                     proofs))
           in
 
-          Ok rename_in_proof_proposition_steps
-      | Error err -> Error err)
+          let stage_rename_in_definition : stage =
+            make_stage "rename in definition" (fun doc ->
+                Ok
+                  (List.filter_map
+                     (Transformation_utils.map_definition_body replace_fun)
+                     doc.elements))
+          in
+
+          let stage_rename_in_assert : stage =
+            make_stage "rename in assert" (fun doc ->
+                Ok
+                  (List.filter_map
+                     (Transformation_utils.map_raw_tactic_expr_in_node
+                        (Ltac.map_assert_constr_expr replace_fun))
+                     doc.elements))
+          in
+
+          let stage_rename_in_tac_reduce : stage =
+            make_stage "rename in TacReduce" (fun doc ->
+                Ok
+                  (List.filter_map
+                     (Transformation_utils.map_raw_tactic_expr_in_node
+                        (rename_in_tac_reduce first_rename.old_name
+                           first_rename.new_name))
+                     doc.elements))
+          in
+
+          let stage_rename_definition_name : stage =
+            make_stage "rename definition name" (fun doc -> Ok)
+          in
+
+          let* _, steps =
+            run_pipeline doc
+              [
+                stage_rename_in_proof_prop;
+                stage_rename_in_definition;
+                stage_rename_in_assert;
+                stage_rename_in_tac_reduce;
+              ]
+          in
+          Ok steps)
   | None -> error_path
 
 let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
