@@ -755,6 +755,49 @@ let rename_rcst (old_name : string) (new_name : string) (x : Genredexpr.r_cst) :
   | Constrexpr.ByNotation _ -> x
   | _ -> x
 
+let rename_id (old_name : string) (new_name : string) (x : Names.Id.t) :
+    Names.Id.t =
+  let old_name_id = Names.Id.of_string old_name in
+  if Names.Id.equal x old_name_id then Names.Id.of_string new_name else x
+
+let rename_lident (old_name : string) (new_name : string) (x : Names.lident) :
+    Names.lident =
+  CAst.map (rename_id old_name new_name) x
+
+let rename_ident_decl (old_name : string) (new_name : string)
+    (x : Constrexpr.ident_decl) : Constrexpr.ident_decl =
+  (fun (lname, univ_decl_opt) ->
+    (rename_lident old_name new_name lname, univ_decl_opt))
+    x
+
+let rename_in_vernac_assumption (old_name : string) (new_name : string)
+    (x : Vernacexpr.vernac_expr) : Vernacexpr.vernac_expr =
+  match x with
+  | VernacSynterp _ -> x
+  | VernacSynPure expr -> (
+      match expr with
+      | VernacAssumption
+          (discharge_assumption_kind, mods_inline, with_coercion_list) ->
+          let mapped_with_coercion_list =
+            List.map
+              (fun (coercion, (ident_decl_list, constr_expr)) ->
+                ( coercion,
+                  ( List.map
+                      (rename_ident_decl old_name new_name)
+                      ident_decl_list,
+                    constr_expr ) ))
+              with_coercion_list
+          in
+          let mapped_synpure =
+            Vernacexpr.VernacSynPure
+              (Vernacexpr.VernacAssumption
+                 ( discharge_assumption_kind,
+                   mods_inline,
+                   mapped_with_coercion_list ))
+          in
+          mapped_synpure
+      | _ -> x)
+
 let rename_in_tac_reduce (old_name : string) (new_name : string)
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -811,6 +854,38 @@ let rename_definition (doc : Rocq_document.t) :
           Error.string_to_or_error
             "Please provide at least a renaming in the file"
       | Ok renames ->
+          let dummy_start : Code_point.t = { line = 0; character = 0 } in
+
+          let class_syntax_node : Syntax_node.t =
+            Syntax_node.syntax_node_of_string
+              "Class Foo :=\n\
+               {\n\
+              \  Point : Type;\n\
+              \  eq := @eq Point;\n\
+              \  neq A B := ~ eq A B;\n\
+               }.\n"
+              dummy_start
+            |> Result.get_ok
+          in
+          let class_vernaxexpr =
+            Syntax_node.get_vernac_expr_gen class_syntax_node |> Option.get
+          in
+
+          let new_node_from_class =
+            Syntax_node.syntax_node_of_vernacexpr class_vernaxexpr dummy_start
+          in
+
+          Logs.debug (fun m ->
+              m "new node repr: %s" (Syntax_node.repr new_node_from_class));
+
+          (* let class_sexp = *)
+          (*   Serlib.Ser_vernacexpr.sexp_of_vernac_expr_gen *)
+          (*     Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr class_vernaxexpr *)
+          (*   |> Sexp_utils.strip_loc *)
+          (* in *)
+
+          (* Logs.debug (fun m -> *)
+          (*     m "class sexp: %s" (Sexplib.Sexp.to_string_hum class_sexp)); *)
           let first_rename = List.hd renames in
 
           let replace_fun =
@@ -854,10 +929,25 @@ let rename_definition (doc : Rocq_document.t) :
                      doc.elements))
           in
 
-          let stage_rename_definition_name : stage =
-            make_stage "rename definition name" (fun doc -> Ok)
+          let stage_rename_in_vernac_assumption : stage =
+            make_stage "rename in VernacAssumption" (fun doc ->
+                Ok
+                  (List.filter_map
+                     (Transformation_utils.map_vernacexpr_in_node
+                        (rename_in_vernac_assumption first_rename.old_name
+                           first_rename.new_name))
+                     doc.elements))
           in
 
+          (* let stage_rename_definition_name : stage = (\*  *\) *)
+          (*   make_stage "rename definition name" (fun doc -> *)
+          (*       Ok *)
+          (*         (List.filter_map *)
+          (*            (Transformation_utils.map_syntax_node *)
+          (*               (rename_definition_node first_rename.old_name *)
+          (*                  first_rename.new_name)) *)
+          (*            doc.elements)) *)
+          (* in *)
           let* _, steps =
             run_pipeline doc
               [
@@ -865,6 +955,8 @@ let rename_definition (doc : Rocq_document.t) :
                 stage_rename_in_definition;
                 stage_rename_in_assert;
                 stage_rename_in_tac_reduce;
+                stage_rename_in_vernac_assumption;
+                (* stage_rename_definition_name; *)
               ]
           in
           Ok steps)
