@@ -215,6 +215,12 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
     diagnostics = [];
   }
 
+let syntax_node_of_vernacexpr (expr : Vernacexpr.vernac_expr)
+    (start_point : Code_point.t) : t =
+  let vernac_control = mk_vernac_control expr in
+  let ast = Coq.Ast.of_coq vernac_control in
+  syntax_node_of_coq_ast ast start_point
+
 let reformat_node (x : t) : (t, Error.t) result =
   match x.ast with
   | Some ast ->
