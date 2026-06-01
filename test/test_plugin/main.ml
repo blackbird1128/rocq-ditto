@@ -1264,6 +1264,16 @@ let test_renaming_def_in_proof_steps (doc : Doc.t) () : unit =
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
   test_doc_transformation doc Transformations.rename_definition ()
 
+let test_renaming_def_fold_unfold_in_proof_steps (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
+let test_renaming_def_in_variable (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -1859,6 +1869,12 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_rename_definition_in_proof_steps.v"
     (create_fixed_test "test renaming definition Foo to Bar in proof steps"
        test_renaming_def_in_proof_steps doc);
+  Hashtbl.add table "ex_rename_definition_fold_unfold.v"
+    (create_fixed_test "test renaming Foo to Bar in fold and unfold"
+       test_renaming_def_fold_unfold_in_proof_steps doc);
+  Hashtbl.add table "ex_rename_definition_variable.v"
+    (create_fixed_test "test renaming a Variable from Foo to Bar"
+       test_renaming_def_in_variable doc);
 
   (* Hashtbl.add table "ex_goal_select_flattening1.v" *)
   (*   (create_fixed_test "test flattening a single goal selector" *)
