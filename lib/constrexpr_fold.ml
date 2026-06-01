@@ -1,5 +1,16 @@
 open Constrexpr
 
+[%%import "rocq_version_optcomp.mlh"]
+[%%if rocq_major_version < 9]
+
+type ditto_fixpoint_order_expr = recursion_order_expr
+
+[%%else]
+
+type ditto_fixpoint_order_expr = fixpoint_order_expr
+
+[%%endif]
+
 let rec children_cases_pattern_expr (cp : cases_pattern_expr) =
   match cp.v with
   | CPatAlias (p, _) -> children_cases_pattern_expr p
@@ -38,7 +49,7 @@ let children_branch_expr (b : branch_expr) =
   let pats, body = b.v in
   body :: List.concat_map (List.concat_map children_cases_pattern_expr) pats
 
-let children_fixpoint_order_expr (fo : fixpoint_order_expr) =
+let children_fixpoint_order_expr (fo : ditto_fixpoint_order_expr) =
   match fo.v with
   | CStructRec _ -> []
   | CWfRec (_, e) -> [ e ]

@@ -1,5 +1,18 @@
 open Constrexpr
 
+[%%import "rocq_version_optcomp.mlh"]
+[%%if rocq_major_version < 9]
+
+type ditto_fixpoint_order_expr = recursion_order_expr
+type ditto_fixpoint_order_expr_r = recursion_order_expr_r
+
+[%%else]
+
+type ditto_fixpoint_order_expr = fixpoint_order_expr
+type ditto_fixpoint_order_expr_r = fixpoint_order_expr_r
+
+[%%endif]
+
 let rec cases_pattern_expr_map m (cp : cases_pattern_expr) =
   let v =
     match cp.v with
@@ -30,8 +43,8 @@ and local_binder_expr_map m = function
         (id, k, constr_expr_map m rhs, Option.map (constr_expr_map m) ty_opt)
   | CLocalPattern _ as lb -> lb
 
-and fixpoint_order_expr_map m (fo : fixpoint_order_expr) =
-  let (v : fixpoint_order_expr_r) =
+and fixpoint_order_expr_map m (fo : ditto_fixpoint_order_expr) =
+  let (v : ditto_fixpoint_order_expr_r) =
     match fo.v with
     | CStructRec _ -> fo.v
     | CWfRec (id, e) -> CWfRec (id, constr_expr_map m e)

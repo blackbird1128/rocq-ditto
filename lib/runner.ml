@@ -144,6 +144,7 @@ let run_raw_tactic_expr (token : Coq.Limits.Token.t)
     ?(selector : Goal_select.t option) (state : Coq.State.t)
     (expr : Ltac_plugin.Tacexpr.raw_tactic_expr) =
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
+  let selector = Option.map Goal_select_view.make selector in
   match
     Syntax_node.raw_tactic_expr_to_syntax_node ?selector expr dummy_start
   with

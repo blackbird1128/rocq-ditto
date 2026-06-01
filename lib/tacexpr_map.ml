@@ -15,17 +15,7 @@ let map_match_context_hyps
 let map_may_eval (map_p : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (x : ('a, 'b, 'c, 'occvar) May_eval_view.t) :
     ('a, 'b, 'c, 'occvar) May_eval_view.t =
-  match x with
-  | May_eval_view.ConstrTerm term ->
-      May_eval_view.ConstrTerm (Constrexpr_map.constr_expr_map map_p term)
-  | May_eval_view.ConstrEval (red_expr_gen, term) ->
-      May_eval_view.ConstrEval
-        (red_expr_gen, Constrexpr_map.constr_expr_map map_p term)
-  | May_eval_view.ConstrContext (name, term) ->
-      May_eval_view.ConstrContext
-        (name, Constrexpr_map.constr_expr_map map_p term)
-  | May_eval_view.ConstrTypeOf term ->
-      May_eval_view.ConstrTypeOf (Constrexpr_map.constr_expr_map map_p term)
+  May_eval_view.map_term (Constrexpr_map.constr_expr_map map_p) x
 
 let rec tacexpr_fold_map_with_constr
     (step : 'acc -> Tacexpr.raw_tactic_expr -> 'acc)

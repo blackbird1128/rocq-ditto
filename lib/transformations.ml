@@ -1407,14 +1407,18 @@ let rewrite_node_tacexpr (token : Coq.Limits.Token.t)
   match Syntax_node.get_node_raw_tactic_expr node with
   | None -> Ok node
   | Some tacexpr ->
-      let selector = Syntax_node.get_node_goal_selector_opt node in
+      let selector_view = Syntax_node.get_node_goal_selector_opt node in
+      let selector =
+        Option.map Goal_select_view.to_goal_select
+          selector_view
+      in
       let* new_tacexpr =
         Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
           f
       in
       if new_tacexpr = tacexpr then Ok node
       else
-        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector
+        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector:selector_view
           node.range.start
 
 let rewrite_proof_nodes (doc : Rocq_document.t) (proof : Proof.t)
