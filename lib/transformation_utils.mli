@@ -15,3 +15,13 @@ val map_tacdef_bodies_in_node :
   (Constrexpr.constr_expr -> Constrexpr.constr_expr) ->
   Syntax_node.t ->
   transformation_step option
+
+val map_syntax_node :
+  (Syntax_node.t -> Syntax_node.t) ->
+  Syntax_node.t ->
+  transformation_step option
+
+val map_vernacexpr_in_node :
+  (Vernacexpr.vernac_expr -> Vernacexpr.vernac_expr) ->
+  Syntax_node.t ->
+  transformation_step option

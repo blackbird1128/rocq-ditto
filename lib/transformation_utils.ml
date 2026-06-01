@@ -86,3 +86,20 @@ let map_tacdef_bodies_in_node
 
     Some (Replace (node.id, new_node))
   else None
+
+let map_syntax_node (f : Syntax_node.t -> Syntax_node.t) (x : Syntax_node.t) :
+    transformation_step option =
+  let fx = f x in
+  if not (x = fx) then Some (Replace (x.id, fx)) else None
+
+let map_vernacexpr_in_node
+    (f : Vernacexpr.vernac_expr -> Vernacexpr.vernac_expr) (x : Syntax_node.t) :
+    transformation_step option =
+  match x.ast with
+  | Some ast ->
+      let mapped_vernacexpr = f (Coq.Ast.to_coq ast.v).v.expr in
+      let new_node =
+        Syntax_node.syntax_node_of_vernacexpr mapped_vernacexpr x.range.start
+      in
+      if not (x = new_node) then Some (Replace (x.id, new_node)) else None
+  | None -> None
