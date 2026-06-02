@@ -710,50 +710,34 @@ let read_renames (filepath : string) : (rename list, Error.t) result =
     | Error msg -> Error.string_to_or_error msg
   with Sys_error msg -> Error.string_to_or_error msg
 
-(* let rename_qualid (old_name : string) (new_name : string) (x : Libnames.qualid) *)
-(*     : Libnames.qualid = *)
-(*   let old_name_qualid = Libnames.qualid_of_string old_name in *)
-(*   let new_name_qualid = Libnames.qualid_of_string new_name in *)
-(*   if Libnames.qualid_eq old_name_qualid x then new_name_qualid else x *)
+let rename_name (old_name : string) (new_name : string) (name : Names.Name.t) :
+    Names.Name.t =
+  let old_name_cast : Names.Name.t = Name (Names.Id.of_string old_name) in
+  if Names.Name.equal old_name_cast name then Name (Names.Id.of_string new_name)
+  else name
 
-(* let rename_name (old_name : string) (new_name : string) (name : Names.Name.t) : *)
-(*     Names.Name.t = *)
-(*   let old_name_cast : Names.Name.t = Name (Names.Id.of_string old_name) in *)
-(*   if Names.Name.equal old_name_cast name then Name (Names.Id.of_string new_name) *)
-(*   else name *)
+let rename_definition_node (old_name : string) (new_name : string)
+    (x : Syntax_node.t) : Syntax_node.t =
+  match x.ast with
+  | Some ast -> (
+      match (Coq.Ast.to_coq ast.v).v.expr with
+      | VernacSynPure
+          (Vernacexpr.VernacDefinition (kind, (name, name_univ), expr)) ->
+          let name_mapped = rename_name old_name new_name name.v in
+          let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in
+          let vernac_mapped =
+            Vernacexpr.VernacSynPure
+              (VernacDefinition (kind, name_decl_mapped, expr))
+          in
+          let vernac_control_mapped =
+            Syntax_node.mk_vernac_control vernac_mapped
+          in
 
-(* let rename_definition_node (old_name : string) (new_name : string) *)
-(*     (x : Syntax_node.t) : Syntax_node.t = *)
-(*   match x.ast with *)
-(*   | Some ast -> ( *)
-(*       match (Coq.Ast.to_coq ast.v).v.expr with *)
-(*       | VernacSynPure *)
-(*           (Vernacexpr.VernacDefinition (kind, (name, name_univ), expr)) -> *)
-(*           let name_mapped = rename_name old_name new_name name.v in *)
-(*           let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in *)
-(*           let vernac_mapped = *)
-(*             Vernacexpr.VernacSynPure *)
-(*               (VernacDefinition (kind, name_decl_mapped, expr)) *)
-(*           in *)
-(*           let vernac_control_mapped = *)
-(*             Syntax_node.mk_vernac_control vernac_mapped *)
-(*           in *)
-
-(*           Syntax_node.syntax_node_of_coq_ast *)
-(*             (Coq.Ast.of_coq vernac_control_mapped) *)
-(*             x.range.start *)
-(*       | _ -> x) *)
-(*   | None -> x *)
-
-let rename_rcst (old_name : string) (new_name : string) (x : Genredexpr.r_cst) :
-    Genredexpr.r_cst =
-  let old_name_qualid = Libnames.qualid_of_string old_name in
-  let new_name_qualid = Libnames.qualid_of_string new_name in
-  match x.v with
-  | Constrexpr.AN qualid when Libnames.qualid_eq old_name_qualid qualid ->
-      Constrexpr.AN new_name_qualid |> CAst.make
-  | Constrexpr.ByNotation _ -> x
-  | _ -> x
+          Syntax_node.syntax_node_of_coq_ast
+            (Coq.Ast.of_coq vernac_control_mapped)
+            x.range.start
+      | _ -> x)
+  | None -> x
 
 let rename_id (old_name : string) (new_name : string) (x : Names.Id.t) :
     Names.Id.t =
@@ -798,6 +782,21 @@ let rename_in_vernac_assumption (old_name : string) (new_name : string)
           mapped_synpure
       | _ -> x)
 
+let rename_rcst (old_name : string) (new_name : string) (x : Genredexpr.r_cst) :
+    Genredexpr.r_cst =
+  let old_name_qualid = Libnames.qualid_of_string old_name in
+  let new_name_qualid = Libnames.qualid_of_string new_name in
+  match x.v with
+  | Constrexpr.AN qualid when Libnames.qualid_eq old_name_qualid qualid ->
+      Constrexpr.AN new_name_qualid |> CAst.make
+  | Constrexpr.ByNotation _ -> x
+  | _ -> x
+
+let rename_in_glob_ref_flag (old_name : string) (new_name : string)
+    (grf : Genredexpr.r_cst Genredexpr.glob_red_flag) :
+    Genredexpr.r_cst Genredexpr.glob_red_flag =
+  { grf with rConst = List.map (rename_rcst old_name new_name) grf.rConst }
+
 let rename_in_tac_reduce (old_name : string) (new_name : string)
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -806,11 +805,28 @@ let rename_in_tac_reduce (old_name : string) (new_name : string)
   (* tacReduce will change in 9.3 :[ *)
   | TacAtom (TacReduce (user_red_expr, clause_expr)) -> (
       match user_red_expr with
-      | Genredexpr.Simpl (_, _) -> x
-      | Genredexpr.Cbv _ ->
-          x (* we will need to deal with delta flag at some point :[ *)
-      | Genredexpr.Cbn _ -> x
-      | Genredexpr.Lazy _ -> x
+      | Genredexpr.Simpl (_glob_red_flag, _) -> x
+      | Genredexpr.Cbv glob_red_flag ->
+          Tacexpr.TacAtom
+            (TacReduce
+               ( Genredexpr.Cbv
+                   (rename_in_glob_ref_flag old_name new_name glob_red_flag),
+                 clause_expr ))
+          |> CAst.make
+      | Genredexpr.Cbn glob_red_flag ->
+          Tacexpr.TacAtom
+            (TacReduce
+               ( Genredexpr.Cbn
+                   (rename_in_glob_ref_flag old_name new_name glob_red_flag),
+                 clause_expr ))
+          |> CAst.make
+      | Genredexpr.Lazy glob_red_flag ->
+          Tacexpr.TacAtom
+            (TacReduce
+               ( Genredexpr.Lazy
+                   (rename_in_glob_ref_flag old_name new_name glob_red_flag),
+                 clause_expr ))
+          |> CAst.make
       | Genredexpr.Unfold occs ->
           let mapped_occs =
             List.map
