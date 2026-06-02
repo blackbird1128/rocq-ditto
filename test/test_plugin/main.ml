@@ -1274,6 +1274,26 @@ let test_renaming_def_in_variable (doc : Doc.t) () : unit =
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
   test_doc_transformation doc Transformations.rename_definition ()
 
+let test_renaming_def_in_cbv (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
+let test_renaming_def_in_cbn (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
+let test_renaming_def_in_lazy (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
+let test_rename_in_exists_tac (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -1875,6 +1895,18 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_rename_definition_variable.v"
     (create_fixed_test "test renaming a Variable from Foo to Bar"
        test_renaming_def_in_variable doc);
+  Hashtbl.add table "ex_rename_definition_cbv.v"
+    (create_fixed_test "test renaming in cbv delta from Foo to Bar"
+       test_renaming_def_in_cbv doc);
+  Hashtbl.add table "ex_rename_definition_cbn.v"
+    (create_fixed_test "test renaming in cbn delta from Foo to Bar"
+       test_renaming_def_in_cbn doc);
+  Hashtbl.add table "ex_rename_definition_lazy.v"
+    (create_fixed_test "test renaming in lazy delta from Foo to Bar"
+       test_renaming_def_in_lazy doc);
+  Hashtbl.add table "ex_rename_definition_exists_tac.v"
+    (create_fixed_test "test renaming in exists tactic from Foo to Bar"
+       test_rename_in_exists_tac doc);
 
   (* Hashtbl.add table "ex_goal_select_flattening1.v" *)
   (*   (create_fixed_test "test flattening a single goal selector" *)
