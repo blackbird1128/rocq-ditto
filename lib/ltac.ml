@@ -45,3 +45,61 @@ let map_assert_constr_expr
       TacAtom (TacAssert (a, b, c, d, Constrexpr_map.constr_expr_map f asrt))
       |> CAst.make
   | _ -> tacexpr
+
+let map_bindings (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (bindings : Constrexpr.constr_expr Tactypes.bindings) :
+    Constrexpr.constr_expr Tactypes.bindings =
+  let map_constr = Constrexpr_map.constr_expr_map f in
+  match bindings with
+  | Tactypes.NoBindings -> Tactypes.NoBindings
+  | Tactypes.ImplicitBindings args ->
+      Tactypes.ImplicitBindings (List.map map_constr args)
+  | Tactypes.ExplicitBindings args ->
+      Tactypes.ExplicitBindings
+        (List.map
+           (fun (arg :
+                  (Tactypes.quantified_hypothesis * Constrexpr.constr_expr)
+                  CAst.t) ->
+             let hyp, constr = arg.v in
+             CAst.make ?loc:arg.loc (hyp, map_constr constr))
+           args)
+
+let map_bindings_list_arg (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (arg : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
+    Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg =
+  let open Ltac_plugin.Tacexpr in
+  match arg with
+  | TacGeneric (isquot, genarg) -> (
+      match
+        Raw_gen_args_converter.bindings_list_of_raw_generic_argument genarg
+      with
+      | Some bindings ->
+          let mapped_bindings = List.map (map_bindings f) bindings in
+          let atype = Genarg.Rawwit (Genarg.ListArg Tacarg.wit_bindings) in
+          TacGeneric (isquot, Genarg.in_gen atype mapped_bindings)
+      | None -> arg)
+  | _ -> arg
+
+let map_exists_constr_expr
+    (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let open Ltac_plugin.Tacexpr in
+  match tacexpr.v with
+  | TacAlias (kername, args) ->
+      let corelib_id = Names.Id.of_string "Corelib" in
+      let init_id = Names.Id.of_string "Init" in
+      let ltac_id = Names.Id.of_string "Ltac" in
+      let ltac_dirpath = Names.DirPath.make [ ltac_id; init_id; corelib_id ] in
+      let ltac_modpath = Names.ModPath.MPfile ltac_dirpath in
+
+      let modpath, label = Names.KerName.repr kername in
+      let label_string = Names.Label.to_string label in
+
+      if
+        Names.ModPath.equal modpath ltac_modpath
+        && String.starts_with ~prefix:"exists" label_string
+      then
+        TacAlias (kername, List.map (map_bindings_list_arg f) args) |> CAst.make
+      else tacexpr
+  | _ -> tacexpr
