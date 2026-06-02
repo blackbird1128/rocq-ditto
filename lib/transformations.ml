@@ -870,29 +870,19 @@ let rename_definition (doc : Rocq_document.t) :
           Error.string_to_or_error
             "Please provide at least a renaming in the file"
       | Ok renames ->
-          let dummy_start : Code_point.t = { line = 0; character = 0 } in
-
-          let class_syntax_node : Syntax_node.t =
-            Syntax_node.syntax_node_of_string
-              "Class Foo :=\n\
-               {\n\
-              \  Point : Type;\n\
-              \  eq := @eq Point;\n\
-              \  neq A B := ~ eq A B;\n\
-               }.\n"
-              dummy_start
+          (* let dummy_start : Code_point.t = { line = 0; character = 0 } in *)
+          let exists_raw_tac_expr =
+            Syntax_node.string_to_raw_tactic_expr "exists (Foo A B C)."
             |> Result.get_ok
           in
-          let class_vernaxexpr =
-            Syntax_node.get_vernac_expr_gen class_syntax_node |> Option.get
-          in
 
-          let new_node_from_class =
-            Syntax_node.syntax_node_of_vernacexpr class_vernaxexpr dummy_start
+          let exists_sexp =
+            Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr exists_raw_tac_expr
+            |> Sexp_utils.strip_loc
           in
 
           Logs.debug (fun m ->
-              m "new node repr: %s" (Syntax_node.repr new_node_from_class));
+              m "exists sexp:\n%s" (Sexplib.Sexp.to_string_hum exists_sexp));
 
           (* let class_sexp = *)
           (*   Serlib.Ser_vernacexpr.sexp_of_vernac_expr_gen *)
@@ -935,6 +925,15 @@ let rename_definition (doc : Rocq_document.t) :
                      doc.elements))
           in
 
+          let stage_rename_in_exists : stage =
+            make_stage "rename in exists" (fun doc ->
+                Ok
+                  (List.filter_map
+                     (Transformation_utils.map_raw_tactic_expr_in_node
+                        (Ltac.map_exists_constr_expr replace_fun))
+                     doc.elements))
+          in
+
           let stage_rename_in_tac_reduce : stage =
             make_stage "rename in TacReduce" (fun doc ->
                 Ok
@@ -955,24 +954,26 @@ let rename_definition (doc : Rocq_document.t) :
                      doc.elements))
           in
 
-          (* let stage_rename_definition_name : stage = (\*  *\) *)
-          (*   make_stage "rename definition name" (fun doc -> *)
-          (*       Ok *)
-          (*         (List.filter_map *)
-          (*            (Transformation_utils.map_syntax_node *)
-          (*               (rename_definition_node first_rename.old_name *)
-          (*                  first_rename.new_name)) *)
-          (*            doc.elements)) *)
-          (* in *)
+          let stage_rename_definition_name : stage =
+            (* *)
+            make_stage "rename definition name" (fun doc ->
+                Ok
+                  (List.filter_map
+                     (Transformation_utils.map_syntax_node
+                        (rename_definition_node first_rename.old_name
+                           first_rename.new_name))
+                     doc.elements))
+          in
           let* _, steps =
             run_pipeline doc
               [
                 stage_rename_in_proof_prop;
                 stage_rename_in_definition;
                 stage_rename_in_assert;
+                stage_rename_in_exists;
                 stage_rename_in_tac_reduce;
                 stage_rename_in_vernac_assumption;
-                (* stage_rename_definition_name; *)
+                stage_rename_definition_name;
               ]
           in
           Ok steps)
@@ -1424,18 +1425,15 @@ let rewrite_node_tacexpr (token : Coq.Limits.Token.t)
   | None -> Ok node
   | Some tacexpr ->
       let selector_view = Syntax_node.get_node_goal_selector_opt node in
-      let selector =
-        Option.map Goal_select_view.to_goal_select
-          selector_view
-      in
+      let selector = Option.map Goal_select_view.to_goal_select selector_view in
       let* new_tacexpr =
         Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
           f
       in
       if new_tacexpr = tacexpr then Ok node
       else
-        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr ?selector:selector_view
-          node.range.start
+        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr
+          ?selector:selector_view node.range.start
 
 let rewrite_proof_nodes (doc : Rocq_document.t) (proof : Proof.t)
     ~(rewrite :
