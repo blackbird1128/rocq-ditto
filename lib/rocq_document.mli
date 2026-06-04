@@ -74,6 +74,8 @@ val get_proofs : t -> (Proof.t list, Error.t) result
     aggregating elements of the document that share the same proof identifier.
 *)
 
+val get_ltac_outside_proofs : t -> (Syntax_node.t list, Error.t) result
+
 val dump_elements_to_string : Syntax_node.t list -> (string, Error.t) result
 (** Convert a list of [Syntax_node.t] to a string representation as they would
     be represented *)

@@ -1090,23 +1090,7 @@ let constructivise_doc (doc : Rocq_document.t) :
 
   let stage_8 : stage =
     make_stage "stage8" (fun doc ->
-        let* proofs = Rocq_document.get_proofs doc in
-
-        let proof_steps_node =
-          List.concat_map (fun p -> p.proof_steps) proofs
-        in
-
-        let all_ltac_nodes_set =
-          Syntax_nodeSet.of_list
-            (List.filter Syntax_node.is_syntax_node_ltac doc.elements)
-        in
-
-        let proof_steps_set = Syntax_nodeSet.of_list proof_steps_node in
-
-        let ltac_nodes =
-          Syntax_nodeSet.diff all_ltac_nodes_set proof_steps_set
-          |> Syntax_nodeSet.to_list
-        in
+        let* ltac_nodes = Rocq_document.get_ltac_outside_proofs doc in
 
         Ok
           (List.filter_map

@@ -311,6 +311,30 @@ let proof_with_name_opt (proof_name : string) (doc : t) : Proof.t option =
         proofs
   | Error _ -> None
 
+module Syntax_nodeSet = Set.Make (struct
+  type t = Syntax_node.t
+
+  let compare = Syntax_node.compare
+end)
+
+let get_ltac_outside_proofs (doc : t) : (Syntax_node.t list, Error.t) result =
+  let ( let* ) = Result.bind in
+
+  let* proofs = get_proofs doc in
+
+  let proof_steps_node = List.concat_map (fun p -> p.proof_steps) proofs in
+
+  let all_ltac_nodes_set =
+    Syntax_nodeSet.of_list
+      (List.filter Syntax_node.is_syntax_node_ltac doc.elements)
+  in
+
+  let proof_steps_set = Syntax_nodeSet.of_list proof_steps_node in
+
+  Ok
+    (Syntax_nodeSet.diff all_ltac_nodes_set proof_steps_set
+    |> Syntax_nodeSet.to_list)
+
 let split_at_id (target_id : Uuidm.t) (doc : t) :
     Syntax_node.t list * Syntax_node.t list =
   let rec aux (elements : Syntax_node.t list) (acc : Syntax_node.t list) =
@@ -525,7 +549,9 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         target.range.start.line <> target.range.end_.line
       in
       if target_is_multiline || not is_single_line then
-        let delta_lines = replacement.range.end_.line - target.range.end_.line in
+        let delta_lines =
+          replacement.range.end_.line - target.range.end_.line
+        in
         let end_char_delta =
           replacement.range.end_.character - target.range.end_.character
         in
@@ -580,10 +606,10 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
               Ok
                 (List.map
                    (fun x ->
-                     if predicate x then
+                     if predicate x then (
                        let y = List.hd !shifted_queue in
                        shifted_queue := List.tl !shifted_queue;
-                       y
+                       y)
                      else x)
                    after)
         in
