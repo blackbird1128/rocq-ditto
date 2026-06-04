@@ -228,26 +228,6 @@ let replace_notation_in_proof_proposition (old_notation : string)
     (replace_notation_in_constrexpr old_notation new_notation)
     x
 
-(** If [tacexpr] is exactly a TacArg(TacCall ...), rename the called qualid. *)
-let replace_taccall_tacarg_in_tacexpr (old_tac_call_name : string)
-    (new_tac_call_name : string) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
-    : Ltac_plugin.Tacexpr.raw_tactic_expr =
-  let open Ltac_plugin.Tacexpr in
-  match tacexpr.v with
-  | TacArg (TacCall call_arg) ->
-      let old_call_qualid, old_call_args = call_arg.v in
-      let old_call_qualid_str = Libnames.string_of_qualid old_call_qualid in
-      if old_call_qualid_str = old_tac_call_name then
-        let new_tac_call_name_qualid =
-          Libnames.qualid_of_string new_tac_call_name
-        in
-        let new_tac_call =
-          CAst.make (new_tac_call_name_qualid, old_call_args)
-        in
-        TacArg (TacCall new_tac_call) |> CAst.make
-      else tacexpr
-  | _ -> tacexpr
-
 let prolong_arg_to_string
     (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
     string option =
@@ -857,7 +837,7 @@ let replace_taccalls_in_tacexpr (renames : (string * string) list)
     Ltac_plugin.Tacexpr.raw_tactic_expr =
   List.fold_left
     (fun expr (old_name, new_name) ->
-      replace_taccall_tacarg_in_tacexpr old_name new_name expr)
+      Rename.rename_taccall_tacarg_in_tacexpr old_name new_name expr)
     tacexpr renames
 
 let replace_taccalls_steps (renames : (string * string) list)

@@ -710,12 +710,6 @@ let read_renames (filepath : string) : (rename list, Error.t) result =
     | Error msg -> Error.string_to_or_error msg
   with Sys_error msg -> Error.string_to_or_error msg
 
-let rename_name (old_name : string) (new_name : string) (name : Names.Name.t) :
-    Names.Name.t =
-  let old_name_cast : Names.Name.t = Name (Names.Id.of_string old_name) in
-  if Names.Name.equal old_name_cast name then Name (Names.Id.of_string new_name)
-  else name
-
 let rename_definition_node (old_name : string) (new_name : string)
     (x : Syntax_node.t) : Syntax_node.t =
   match x.ast with
@@ -723,7 +717,7 @@ let rename_definition_node (old_name : string) (new_name : string)
       match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynPure
           (Vernacexpr.VernacDefinition (kind, (name, name_univ), expr)) ->
-          let name_mapped = rename_name old_name new_name name.v in
+          let name_mapped = Rename.rename_name old_name new_name name.v in
           let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in
           let vernac_mapped =
             Vernacexpr.VernacSynPure
@@ -739,19 +733,10 @@ let rename_definition_node (old_name : string) (new_name : string)
       | _ -> x)
   | None -> x
 
-let rename_id (old_name : string) (new_name : string) (x : Names.Id.t) :
-    Names.Id.t =
-  let old_name_id = Names.Id.of_string old_name in
-  if Names.Id.equal x old_name_id then Names.Id.of_string new_name else x
-
-let rename_lident (old_name : string) (new_name : string) (x : Names.lident) :
-    Names.lident =
-  CAst.map (rename_id old_name new_name) x
-
 let rename_ident_decl (old_name : string) (new_name : string)
     (x : Constrexpr.ident_decl) : Constrexpr.ident_decl =
   (fun (lname, univ_decl_opt) ->
-    (rename_lident old_name new_name lname, univ_decl_opt))
+    (Rename.rename_lident old_name new_name lname, univ_decl_opt))
     x
 
 let rename_in_vernac_assumption (old_name : string) (new_name : string)
