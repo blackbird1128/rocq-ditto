@@ -1294,6 +1294,26 @@ let test_rename_in_exists_tac (doc : Doc.t) () : unit =
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
   test_doc_transformation doc Transformations.rename_definition ()
 
+let test_rename_in_pattern_match_ltac (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
+let test_rename_in_class (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
+let test_rename_in_class_field (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
+let test_rename_patch_pp_class_bug (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -1907,6 +1927,19 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_rename_definition_exists_tac.v"
     (create_fixed_test "test renaming in exists tactic from Foo to Bar"
        test_rename_in_exists_tac doc);
+  Hashtbl.add table "ex_rename_definition_pattern_match_ltac.v"
+    (create_fixed_test "test renaming in pattern match from Foo to Bar"
+       test_rename_in_pattern_match_ltac doc);
+  Hashtbl.add table "ex_rename_definition_class.v"
+    (create_fixed_test "test renaming in class from Foo to Bar"
+       test_rename_in_class doc);
+  Hashtbl.add table "ex_rename_definition_field_class.v"
+    (create_fixed_test "test renaming in class field from Foo to Bar"
+       test_rename_in_class_field doc);
+  Hashtbl.add table "ex_rename_definition_patch_pp_class_bug.v"
+    (create_fixed_test
+       "test renaming in class field from Foo to Bar patch pp class bug"
+       test_rename_patch_pp_class_bug doc);
 
   (* Hashtbl.add table "ex_goal_select_flattening1.v" *)
   (*   (create_fixed_test "test flattening a single goal selector" *)
