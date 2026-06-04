@@ -767,6 +767,167 @@ let rename_in_vernac_assumption (old_name : string) (new_name : string)
           mapped_synpure
       | _ -> x)
 
+(* Constrexpr.cumul_ident_decl Vernacexpr.with_coercion *)
+(* * Vernacexpr.inductive_params_expr *)
+(* * Constrexpr.constr_expr option *)
+(* * Vernacexpr.constructor_list_or_record_decl_expr *)
+
+(* renaming in inductive expr is a bit ambiguous, there is multiple construct handled:
+   - Inductive
+   - Mutual inductive
+   - Record
+   - Class
+   - Variant
+   - Structure
+
+   cumul_ident_with_coerc contains the name of the inductive
+   
+ *)
+
+let rename_in_local_binder_expr (old_name : string) (new_name : string)
+    (x : Constrexpr.local_binder_expr) : Constrexpr.local_binder_expr =
+  let rename_expr =
+    Constrexpr_map.constr_expr_map
+      (Constrexpr_utils.replace_fun_name_in_constrexpr old_name new_name)
+  in
+  match x with
+  | Constrexpr.CLocalAssum (lnames, relevance, binder_kind, expr) ->
+      Constrexpr.CLocalAssum
+        ( List.map (Rename.rename_lname old_name new_name) lnames,
+          relevance,
+          binder_kind,
+          rename_expr expr )
+  | Constrexpr.CLocalDef (lname, relevance, expr, expr_opt) ->
+      Constrexpr.CLocalDef
+        ( Rename.rename_lname old_name new_name lname,
+          relevance,
+          rename_expr expr,
+          Option.map rename_expr expr_opt )
+  | Constrexpr.CLocalPattern _ -> x
+
+let rename_in_inductive_params_expr (old_name : string) (new_name : string)
+    (x : Vernacexpr.inductive_params_expr) : Vernacexpr.inductive_params_expr =
+  let params, params_opt = x in
+  ( List.map (rename_in_local_binder_expr old_name new_name) params,
+    Option.map
+      (List.map (rename_in_local_binder_expr old_name new_name))
+      params_opt )
+
+let infer_type_expr (env : Environ.env) (sigma : Evd.evar_map)
+    (impls_env : Constrintern.internalization_env)
+    (lbe : Constrexpr.local_binder_expr list) (expr : Constrexpr.constr_expr) =
+  let sigma, (impls, ((env_bl, _ctx), _imps, _locs)) =
+    Constrintern.interp_context_evars ~program_mode:false ~impl_env:impls_env
+      env sigma lbe
+  in
+  let sigma, (body, _impsbody) =
+    Constrintern.interp_constr_evars_impls ~program_mode:false env_bl sigma
+      ~impls expr
+  in
+  let typ = Retyping.get_type_of env_bl sigma body in
+  (sigma, Constrextern.extern_type env_bl sigma typ)
+
+let type_expr (env : Environ.env) (sigma : Evd.evar_map)
+    (impls_env : Constrintern.internalization_env)
+    (lbe : Constrexpr.local_binder_expr list) (expr : Constrexpr.constr_expr)
+    (expr_opt : Constrexpr.constr_expr option) =
+  match expr_opt with
+  | Some t -> (sigma, t)
+  | None -> infer_type_expr env sigma impls_env lbe expr
+
+let rename_in_local_decl_expr (old_name : string) (new_name : string)
+    (x : Vernacexpr.local_decl_expr) : Vernacexpr.local_decl_expr =
+  let rename_expr =
+    Constrexpr_map.constr_expr_map
+      (Constrexpr_utils.replace_fun_name_in_constrexpr old_name new_name)
+  in
+  let rename_binders =
+    List.map (rename_in_local_binder_expr old_name new_name)
+  in
+
+  match x with
+  | Vernacexpr.AssumExpr (lname, lbe, expr) ->
+      Vernacexpr.AssumExpr
+        ( Rename.rename_lname old_name new_name lname,
+          rename_binders lbe,
+          rename_expr expr )
+  | Vernacexpr.DefExpr (lname, lbe, expr, expr_opt) ->
+      let mapped_expr_opt = Option.map rename_expr expr_opt in
+
+      let mapped_expr_opt =
+        match (lbe, mapped_expr_opt) with
+        | [], _ | _, Some _ -> mapped_expr_opt
+        | _ :: _, None ->
+            let env = Global.env () in
+            let sigma = Evd.from_env env in
+            let impls_env = Constrintern.empty_internalization_env in
+            let _sigma, t = type_expr env sigma impls_env lbe expr mapped_expr_opt in
+            Some t
+      in
+
+      Vernacexpr.DefExpr
+        ( Rename.rename_lname old_name new_name lname,
+          rename_binders lbe,
+          rename_expr expr,
+          mapped_expr_opt )
+
+let rename_in_record_field (old_name : string) (new_name : string)
+    (x : Vernacexpr.local_decl_expr * Vernacexpr.record_field_attr_unparsed) :
+    Vernacexpr.local_decl_expr * Vernacexpr.record_field_attr_unparsed =
+  let local_decl, record_field_attr = x in
+  (rename_in_local_decl_expr old_name new_name local_decl, record_field_attr)
+
+let rename_in_constructor_list_or_record_decl_expr (old_name : string)
+    (new_name : string) (x : Vernacexpr.constructor_list_or_record_decl_expr) :
+    Vernacexpr.constructor_list_or_record_decl_expr =
+  match x with
+  | Constructors _ ->
+      x
+      (* for now we ignore constructors, might be interesting at some points tho *)
+  | RecordDecl (name_opt, fields, ident_opt) ->
+      (* The first ident is the name of the record *)
+      (* the second ident is for record syntax using as ident. *)
+      RecordDecl
+        ( name_opt,
+          List.map (rename_in_record_field old_name new_name) fields,
+          ident_opt )
+
+let rename_in_inductive_expr (old_name : string) (new_name : string)
+    (x : Vernacexpr.inductive_expr) : Vernacexpr.inductive_expr =
+  let ( cumul_ident_with_coerc,
+        ind_params_expr,
+        opt_expr,
+        cons_list_or_record_decl ) =
+    x
+  in
+
+  let rename_expr =
+    Constrexpr_map.constr_expr_map
+      (Constrexpr_utils.replace_fun_name_in_constrexpr old_name new_name)
+  in
+  ( cumul_ident_with_coerc,
+    rename_in_inductive_params_expr old_name new_name ind_params_expr,
+    Option.map rename_expr opt_expr,
+    rename_in_constructor_list_or_record_decl_expr old_name new_name
+      cons_list_or_record_decl )
+
+let rename_in_vernac_induction (old_name : string) (new_name : string)
+    (x : Vernacexpr.vernac_expr) : Vernacexpr.vernac_expr =
+  match x with
+  | VernacSynterp _ -> x
+  | VernacSynPure expr -> (
+      match expr with
+      | VernacInductive (ind_kind, ind_list) ->
+          Vernacexpr.VernacSynPure
+            (Vernacexpr.VernacInductive
+               ( ind_kind,
+                 List.map
+                   (fun (ind_expr, notation_decl_l) ->
+                     ( rename_in_inductive_expr old_name new_name ind_expr,
+                       notation_decl_l ))
+                   ind_list ))
+      | _ -> x)
+
 let rename_rcst (old_name : string) (new_name : string) (x : Genredexpr.r_cst) :
     Genredexpr.r_cst =
   let old_name_qualid = Libnames.qualid_of_string old_name in
@@ -855,28 +1016,30 @@ let rename_definition (doc : Rocq_document.t) :
           Error.string_to_or_error
             "Please provide at least a renaming in the file"
       | Ok renames ->
-          (* let dummy_start : Code_point.t = { line = 0; character = 0 } in *)
-          let exists_raw_tac_expr =
-            Syntax_node.string_to_raw_tactic_expr "exists (Foo A B C)."
+          let dummy_start : Code_point.t = { line = 0; character = 0 } in
+          let class_syntax_node =
+            Syntax_node.syntax_node_of_string
+              "Class FooClass :=\n\
+               {\n\
+              \  Point : Type;\n\
+              \  eq := @eq Point;\n\
+              \  neq A B := ~ eq A B;\n\
+               }."
+              dummy_start
             |> Result.get_ok
           in
+          let class_vernacexpr =
+            Syntax_node.get_vernac_expr_gen class_syntax_node |> Option.get
+          in
 
-          let exists_sexp =
-            Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr exists_raw_tac_expr
+          let class_sexp =
+            Serlib.Ser_vernacexpr.sexp_of_vernac_expr_gen
+              Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr class_vernacexpr
             |> Sexp_utils.strip_loc
           in
 
           Logs.debug (fun m ->
-              m "exists sexp:\n%s" (Sexplib.Sexp.to_string_hum exists_sexp));
-
-          (* let class_sexp = *)
-          (*   Serlib.Ser_vernacexpr.sexp_of_vernac_expr_gen *)
-          (*     Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr class_vernaxexpr *)
-          (*   |> Sexp_utils.strip_loc *)
-          (* in *)
-
-          (* Logs.debug (fun m -> *)
-          (*     m "class sexp: %s" (Sexplib.Sexp.to_string_hum class_sexp)); *)
+              m "class sexp: %s" (Sexplib.Sexp.to_string_hum class_sexp));
           let first_rename = List.hd renames in
 
           let replace_fun =
@@ -939,8 +1102,45 @@ let rename_definition (doc : Rocq_document.t) :
                      doc.elements))
           in
 
+          let stage_rename_in_pattern_ltac_outside_proofs : stage =
+            make_stage "rename in Ltac pattern match outside proofs" (fun doc ->
+                let* ltac_nodes = Rocq_document.get_ltac_outside_proofs doc in
+
+                Ok
+                  (List.filter_map
+                     (fun x ->
+                       Transformation_utils.map_tacdef_bodies_in_node Fun.id
+                         (Constrexpr_map.constr_expr_map replace_fun)
+                         x)
+                     ltac_nodes))
+          in
+
+          let stage_rename_in_pattern_branches_ltac_outside_proofs : stage =
+            make_stage "rename in Ltac branches in match outside proofs"
+              (fun doc ->
+                let* ltac_nodes = Rocq_document.get_ltac_outside_proofs doc in
+                Ok
+                  (List.filter_map
+                     (fun x ->
+                       Transformation_utils.map_tacdef_bodies_in_node
+                         (rename_in_tac_reduce first_rename.old_name
+                            first_rename.new_name)
+                         (Constrexpr_map.constr_expr_map replace_fun)
+                         x)
+                     ltac_nodes))
+          in
+
+          let stage_rename_in_class : stage =
+            make_stage "rename in class" (fun doc ->
+                Ok
+                  (List.filter_map
+                     (Transformation_utils.map_vernacexpr_in_node
+                        (rename_in_vernac_induction first_rename.old_name
+                           first_rename.new_name))
+                     doc.elements))
+          in
+
           let stage_rename_definition_name : stage =
-            (* *)
             make_stage "rename definition name" (fun doc ->
                 Ok
                   (List.filter_map
@@ -949,6 +1149,7 @@ let rename_definition (doc : Rocq_document.t) :
                            first_rename.new_name))
                      doc.elements))
           in
+
           let* _, steps =
             run_pipeline doc
               [
@@ -958,6 +1159,9 @@ let rename_definition (doc : Rocq_document.t) :
                 stage_rename_in_exists;
                 stage_rename_in_tac_reduce;
                 stage_rename_in_vernac_assumption;
+                stage_rename_in_class;
+                stage_rename_in_pattern_ltac_outside_proofs;
+                stage_rename_in_pattern_branches_ltac_outside_proofs;
                 stage_rename_definition_name;
               ]
           in
