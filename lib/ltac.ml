@@ -42,8 +42,9 @@ let map_assert_constr_expr
   let open Ltac_plugin.Tacexpr in
   match tacexpr.v with
   | TacAtom (TacAssert (a, b, c, d, asrt)) ->
-      TacAtom (TacAssert (a, b, c, d, Constrexpr_map.constr_expr_map f asrt))
-      |> CAst.make
+      let asrt_mapped = Constrexpr_map.constr_expr_map f asrt in
+      if Constrexpr_ops.constr_expr_eq asrt asrt_mapped then tacexpr
+      else TacAtom (TacAssert (a, b, c, d, asrt_mapped)) |> CAst.make
   | _ -> tacexpr
 
 let map_bindings (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)

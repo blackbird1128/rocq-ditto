@@ -720,18 +720,20 @@ let rename_definition_node (old_name : string) (new_name : string)
       | VernacSynPure
           (Vernacexpr.VernacDefinition (kind, (name, name_univ), expr)) ->
           let name_mapped = Rename.rename_name old_name new_name name.v in
-          let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in
-          let vernac_mapped =
-            Vernacexpr.VernacSynPure
-              (VernacDefinition (kind, name_decl_mapped, expr))
-          in
-          let vernac_control_mapped =
-            Syntax_node.mk_vernac_control vernac_mapped
-          in
+          if Names.Name.equal name.v name_mapped then x
+          else
+            let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in
+            let vernac_mapped =
+              Vernacexpr.VernacSynPure
+                (VernacDefinition (kind, name_decl_mapped, expr))
+            in
+            let vernac_control_mapped =
+              Syntax_node.mk_vernac_control vernac_mapped
+            in
 
-          Syntax_node.syntax_node_of_coq_ast
-            (Coq.Ast.of_coq vernac_control_mapped)
-            x.range.start
+            Syntax_node.syntax_node_of_coq_ast
+              (Coq.Ast.of_coq vernac_control_mapped)
+              x.range.start
       | _ -> x)
   | None -> x
 

@@ -90,7 +90,7 @@ let map_tacdef_bodies_in_node
 let map_syntax_node (f : Syntax_node.t -> Syntax_node.t) (x : Syntax_node.t) :
     transformation_step option =
   let fx = f x in
-  if not (x = fx) then Some (Replace (x.id, fx)) else None
+  if x == fx then None else Some (Replace (x.id, fx))
 
 let map_vernacexpr_in_node
     (f : Vernacexpr.vernac_expr -> Vernacexpr.vernac_expr) (x : Syntax_node.t) :
