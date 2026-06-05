@@ -1,3 +1,5 @@
+[%%import "rocq_version_optcomp.mlh"]
+
 open Nary_tree
 open Proof
 open Syntax_node
@@ -813,12 +815,32 @@ let rename_in_inductive_params_expr (old_name : string) (new_name : string)
       (List.map (rename_in_local_binder_expr old_name new_name))
       params_opt )
 
+[%%if rocq_version < (9, 1, 0)]
+
+let interp_context_evars_env_bl ~program_mode ~impl_env env sigma lbe =
+  let sigma, (impls, ((env_bl, _ctx), _imps)) =
+    Constrintern.interp_context_evars ~program_mode ~impl_env env sigma lbe
+  in
+
+  (sigma, impls, env_bl)
+
+[%%else]
+
+let interp_context_evars_env_bl ~program_mode ~impl_env env sigma lbe =
+  let sigma, (impls, ((env_bl, _ctx), _imps, _locs)) =
+    Constrintern.interp_context_evars ~program_mode ~impl_env env sigma lbe
+  in
+
+  (sigma, impls, env_bl)
+
+[%%endif]
+
 let infer_type_expr (env : Environ.env) (sigma : Evd.evar_map)
     (impls_env : Constrintern.internalization_env)
     (lbe : Constrexpr.local_binder_expr list) (expr : Constrexpr.constr_expr) =
-  let sigma, (impls, ((env_bl, _ctx), _imps, _locs)) =
-    Constrintern.interp_context_evars ~program_mode:false ~impl_env:impls_env
-      env sigma lbe
+  let sigma, impls, env_bl =
+    interp_context_evars_env_bl ~program_mode:false ~impl_env:impls_env env sigma
+      lbe
   in
   let sigma, (body, _impsbody) =
     Constrintern.interp_constr_evars_impls ~program_mode:false env_bl sigma
