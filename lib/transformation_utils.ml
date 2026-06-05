@@ -97,9 +97,12 @@ let map_vernacexpr_in_node
     transformation_step option =
   match x.ast with
   | Some ast ->
-      let mapped_vernacexpr = f (Coq.Ast.to_coq ast.v).v.expr in
-      let new_node =
-        Syntax_node.syntax_node_of_vernacexpr mapped_vernacexpr x.range.start
-      in
-      if not (x = new_node) then Some (Replace (x.id, new_node)) else None
+      let vernacexpr = (Coq.Ast.to_coq ast.v).v.expr in
+      let mapped_vernacexpr = f vernacexpr in
+      if vernacexpr = mapped_vernacexpr then None
+      else
+        let new_node =
+          Syntax_node.syntax_node_of_vernacexpr mapped_vernacexpr x.range.start
+        in
+        Some (Replace (x.id, new_node))
   | None -> None
