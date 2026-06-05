@@ -199,6 +199,7 @@ let remove_outer_parentheses s =
 
 let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
   let coq_ast = Coq.Ast.to_coq ast in
+
   let repr =
     Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds
     |> remove_outer_parentheses
@@ -642,10 +643,11 @@ let raw_tactic_expr_to_syntax_node
   with
   | Some tac -> Ok tac
   | None ->
-      let empty_env = Environ.empty_env in
-      let empty_evd = Evd.empty in
+      let env = Global.env () in
+      let evd = Evd.from_env env in
+
       let pp_str =
-        Ltac_plugin.Pptactic.pr_raw_tactic empty_env empty_evd raw_expr
+        Ltac_plugin.Pptactic.pr_raw_tactic env evd raw_expr
         |> Pp.string_of_ppcmds
       in
       Error.format_to_or_error "Error creating a syntax node from %s" pp_str
