@@ -1294,6 +1294,11 @@ let test_rename_in_exists_tac (doc : Doc.t) () : unit =
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
   test_doc_transformation doc Transformations.rename_definition ()
 
+let test_rename_in_assert_by_tac (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
 let test_rename_in_pattern_match_ltac (doc : Doc.t) () : unit =
   Unix.putenv "DITTO_ARG0"
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
@@ -1940,6 +1945,9 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "test renaming in class field from Foo to Bar patch pp class bug"
        test_rename_patch_pp_class_bug doc);
+  Hashtbl.add table "ex_rename_definition_assert_by.v"
+    (create_fixed_test "test renaming in assert by X from Foo to Bar"
+       test_rename_in_assert_by_tac doc);
 
   (* Hashtbl.add table "ex_goal_select_flattening1.v" *)
   (*   (create_fixed_test "test flattening a single goal selector" *)
