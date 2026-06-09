@@ -22,6 +22,13 @@ val syntax_node_of_coq_ast : Coq.Ast.t -> Code_point.t -> t
 (** [syntax_node_of_coq_ast ast starting_point] create a syntax node from a Coq
     AST element and a point to start the node. *)
 
+val syntax_node_of_coq_ast_in_state :
+  token:Coq.Limits.Token.t ->
+  st:Coq.State.t ->
+  Coq.Ast.t ->
+  Code_point.t ->
+  (t, Error.t) result
+
 val syntax_node_of_vernacexpr : Vernacexpr.vernac_expr -> Code_point.t -> t
 
 val comment_syntax_node_of_string :

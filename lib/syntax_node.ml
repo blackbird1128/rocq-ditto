@@ -216,6 +216,33 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
     diagnostics = [];
   }
 
+let syntax_node_of_coq_ast_in_state ~(token : Coq.Limits.Token.t)
+    ~(st : Coq.State.t) (ast : Coq.Ast.t) (start_point : Code_point.t) :
+    (t, Error.t) result =
+  let ( let* ) = Result.bind in
+  let coq_ast = Coq.Ast.to_coq ast in
+
+  let* repr =
+    Coq.State.in_state ~token ~st
+      ~f:(fun coq_ast ->
+        Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds
+        |> remove_outer_parentheses)
+      coq_ast
+    |> Error.protect_to_result
+  in
+  let range = Code_range.range_from_starting_point_and_repr start_point repr in
+  let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
+  Ok
+    {
+      ast = Some node_ast;
+      range;
+      id = Unique_id.uuid ();
+      (* id is set during document insertion *)
+      repr = lazy repr;
+      proof_id = None;
+      diagnostics = [];
+    }
+
 let syntax_node_of_vernacexpr (expr : Vernacexpr.vernac_expr)
     (start_point : Code_point.t) : t =
   let vernac_control = mk_vernac_control expr in
