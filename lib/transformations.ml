@@ -841,8 +841,8 @@ let infer_type_expr (env : Environ.env) (sigma : Evd.evar_map)
     (impls_env : Constrintern.internalization_env)
     (lbe : Constrexpr.local_binder_expr list) (expr : Constrexpr.constr_expr) =
   let sigma, impls, env_bl =
-    interp_context_evars_env_bl ~program_mode:false ~impl_env:impls_env env sigma
-      lbe
+    interp_context_evars_env_bl ~program_mode:false ~impl_env:impls_env env
+      sigma lbe
   in
   let sigma, (body, _impsbody) =
     Constrintern.interp_constr_evars_impls ~program_mode:false env_bl sigma
@@ -885,7 +885,9 @@ let rename_in_local_decl_expr (old_name : string) (new_name : string)
             let env = Global.env () in
             let sigma = Evd.from_env env in
             let impls_env = Constrintern.empty_internalization_env in
-            let _sigma, t = type_expr env sigma impls_env lbe expr mapped_expr_opt in
+            let _sigma, t =
+              type_expr env sigma impls_env lbe expr mapped_expr_opt
+            in
             Some t
       in
 
@@ -967,6 +969,45 @@ let rename_in_glob_ref_flag (old_name : string) (new_name : string)
     Genredexpr.r_cst Genredexpr.glob_red_flag =
   { grf with rConst = List.map (rename_rcst old_name new_name) grf.rConst }
 
+let rec rename_in_gen_tactic_arg (old_name : string) (new_name : string)
+    (x : Tacexpr.r_dispatch Tacexpr.gen_tactic_arg) :
+    Tacexpr.r_dispatch Tacexpr.gen_tactic_arg =
+  match x with
+  | Tacexpr.TacGeneric (_, _) -> x
+  | Tacexpr.ConstrMayEval _ -> x
+  | Tacexpr.Reference reference ->
+      Tacexpr.Reference (Rename.rename_qualid old_name new_name reference)
+  | Tacexpr.TacCall call_args ->
+      let qualid, args = call_args.v in
+      let mapped_qualid = Rename.rename_qualid old_name new_name qualid in
+      let mapped_args =
+        List.map (rename_in_gen_tactic_arg old_name new_name) args
+      in
+      let mapped_call_args =
+        (mapped_qualid, mapped_args) |> CAst.make ?loc:call_args.loc
+      in
+      Tacexpr.TacCall mapped_call_args
+  | Tacexpr.TacFreshId _ -> x
+  | Tacexpr.Tacexp _raw_tac_expr -> x
+  | Tacexpr.TacPretype cexpr ->
+      let mapped_cexpr =
+        Constrexpr_map.constr_expr_map
+          (Constrexpr_utils.replace_fun_name_in_constrexpr old_name new_name)
+          cexpr
+      in
+      Tacexpr.TacPretype mapped_cexpr
+  | Tacexpr.TacNumgoals -> x
+
+let rename_in_tac_arg (old_name : string) (new_name : string)
+    (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let open Ltac_plugin in
+  match x.v with
+  | TacArg args ->
+      Tacexpr.TacArg (rename_in_gen_tactic_arg old_name new_name args)
+      |> CAst.make ?loc:x.loc
+  | _ -> x
+
 let rename_in_tac_reduce (old_name : string) (new_name : string)
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -1040,32 +1081,62 @@ let rename_definition (doc : Rocq_document.t) :
           Error.string_to_or_error
             "Please provide at least a renaming in the file"
       | Ok renames ->
+          let token = Coq.Limits.Token.create () in
+
           let dummy_start : Code_point.t = { line = 0; character = 0 } in
-          let class_syntax_node =
-            Syntax_node.syntax_node_of_string
-              "Class FooClass :=\n\
-               {\n\
-              \  Point : Type;\n\
-              \  eq := @eq Point;\n\
-              \  neq A B := ~ eq A B;\n\
-               }."
+
+          let* fizz_def_node =
+            Syntax_node.syntax_node_of_string "Ltac fizz t := unfold t in *."
               dummy_start
-            |> Result.get_ok
-          in
-          let class_vernacexpr =
-            Syntax_node.get_vernac_expr_gen class_syntax_node |> Option.get
           in
 
-          let class_sexp =
-            Serlib.Ser_vernacexpr.sexp_of_vernac_expr_gen
-              Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr class_vernacexpr
+          let* foo_def_node =
+            Syntax_node.syntax_node_of_string
+              "Definition Foo A B C := A \\/ B \\/ C." dummy_start
+          in
+
+          let _preload_fizz =
+            ignore
+              (Runner.get_state_after doc.initial_state token
+                 [ fizz_def_node; foo_def_node ])
+          in
+
+          let* fizz_use_raw_tac_expr =
+            Syntax_node.string_to_raw_tactic_expr "fizz Foo."
+          in
+
+          let fizz_use_sexp =
+            Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr
+              fizz_use_raw_tac_expr
             |> Sexp_utils.strip_loc
           in
-
           Logs.debug (fun m ->
-              m "class sexp: %s" (Sexplib.Sexp.to_string_hum class_sexp));
-          let first_rename = List.hd renames in
+              m "fizz use sexp:\n%s" (Sexplib.Sexp.to_string_hum fizz_use_sexp));
 
+          (* let class_syntax_node = *)
+          (*   Syntax_node.syntax_node_of_string *)
+          (*     "Class FooClass :=\n\ *)
+          (*      {\n\ *)
+          (*     \  Point : Type;\n\ *)
+          (*     \  eq := @eq Point;\n\ *)
+          (*     \  neq A B := ~ eq A B;\n\ *)
+          (*      }." *)
+          (*     dummy_start *)
+          (*   |> Result.get_ok *)
+          (* in *)
+          (* let class_vernacexpr = *)
+          (*   Syntax_node.get_vernac_expr_gen class_syntax_node |> Option.get *)
+          (* in *)
+
+          (* let class_sexp = *)
+          (*   Serlib.Ser_vernacexpr.sexp_of_vernac_expr_gen *)
+          (*     Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr class_vernacexpr *)
+          (*   |> Sexp_utils.strip_loc *)
+          (* in *)
+
+          (* Logs.debug (fun m -> *)
+          (*     m "class sexp: %s" (Sexplib.Sexp.to_string_hum class_sexp)); *)
+          let first_rename = List.hd renames in
           let replace_fun =
             Constrexpr_utils.replace_fun_name_in_constrexpr
               first_rename.old_name first_rename.new_name
@@ -1164,6 +1235,16 @@ let rename_definition (doc : Rocq_document.t) :
                      doc.elements))
           in
 
+          let stage_rename_in_tacarg : stage =
+            make_stage "rename in TacReduce" (fun doc ->
+                Ok
+                  (List.filter_map
+                     (Transformation_utils.map_raw_tactic_expr_in_node
+                        (rename_in_tac_arg first_rename.old_name
+                           first_rename.new_name))
+                     doc.elements))
+          in
+
           let stage_rename_definition_name : stage =
             make_stage "rename definition name" (fun doc ->
                 Ok
@@ -1186,6 +1267,7 @@ let rename_definition (doc : Rocq_document.t) :
                 stage_rename_in_class;
                 stage_rename_in_pattern_ltac_outside_proofs;
                 stage_rename_in_pattern_branches_ltac_outside_proofs;
+                stage_rename_in_tacarg;
                 stage_rename_definition_name;
               ]
           in
