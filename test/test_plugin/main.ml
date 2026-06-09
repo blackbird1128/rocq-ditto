@@ -399,6 +399,28 @@ let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
          (Error.of_string "'.' expected after [lconstr] (in [query_command])"))
       node_repr)
 
+let test_syntax_node_of_coq_ast_in_state (doc : Doc.t) () =
+  let parsed_doc = Rocq_document.parse_document doc in
+  let token = Coq.Limits.Token.create () in
+  let lemma_node =
+    List.find
+      (fun n ->
+        String.starts_with ~prefix:"Lemma state_printer_notation"
+          (Syntax_node.repr n))
+      parsed_doc.elements
+  in
+  let ast = Option.get lemma_node.ast in
+  let st = Runner.get_init_state parsed_doc lemma_node token |> Result.get_ok in
+  let new_node =
+    Syntax_node.syntax_node_of_coq_ast_in_state ~token ~st ast.v
+      lemma_node.range.start
+    |> Result.get_ok
+  in
+  Alcotest.(check string)
+    "prints lemma in local notation state"
+    (Syntax_node.repr lemma_node)
+    (Syntax_node.repr new_node)
+
 let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
   let code_point_a : Code_point.t = { line = 0; character = 0 } in
   let code_point_b : Code_point.t = { line = 1; character = 0 } in
@@ -1634,6 +1656,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating an invalid node"
        test_creating_invalid_syntax_node_from_string doc);
+  Hashtbl.add table "ex_rename_definition_notation_state.v"
+    (create_fixed_test "test creating a syntax node that depends on the state"
+       test_syntax_node_of_coq_ast_in_state doc);
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a then b from AST (a;b)"
        test_creating_simple_a_then_b doc);
