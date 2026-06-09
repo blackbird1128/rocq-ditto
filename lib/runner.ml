@@ -2,26 +2,6 @@ open Syntax_node
 open Nary_tree
 open Proof
 
-let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, Error.t) result =
-  match r with
-  | { r = Interrupted; feedback = _ } -> Error.string_to_or_error "Interrupted"
-  | { r = Completed (Error (User { msg; _ })); feedback = _ } ->
-      Error.string_to_or_error (Pp.string_of_ppcmds msg)
-  | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
-      Error.string_to_or_error ("Anomaly " ^ Pp.string_of_ppcmds msg)
-  | { r = Completed (Ok r); feedback = _ } -> Ok r
-
-let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
-    ('a * 'b Coq.Message.t list, Error.t * 'b Coq.Message.t list) result =
-  match r with
-  | { r = Interrupted; feedback } ->
-      Error (Error.of_string "Interrupted", feedback)
-  | { r = Completed (Error (User { msg; _ })); feedback } ->
-      Error (Error.of_string (Pp.string_of_ppcmds msg), feedback)
-  | { r = Completed (Error (Anomaly { msg; _ })); feedback } ->
-      Error (Error.of_string ("Anomaly " ^ Pp.string_of_ppcmds msg), feedback)
-  | { r = Completed (Ok r); feedback } -> Ok (r, feedback)
-
 let run_with_timeout ~(token : Coq.Limits.Token.t) ~(timeout : int)
     ~(f : 'a -> ('b, Error.t) result) x : ('b, Error.t) result =
   (* Start a timeout thread *)
@@ -56,7 +36,7 @@ let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
 
   Coq.Protect.E.map ~f
     (Fleche.Info.Goals.goals ~pr:Fleche.Info.Goals.to_pp ~token ~st)
-  |> protect_to_result
+  |> Error.protect_to_result
 
 let message_to_diagnostic (range : Code_range.t) (msg : Loc.t Coq.Message.t) :
     Lang.Diagnostic.t =
@@ -114,7 +94,7 @@ let run_node (token : Coq.Limits.Token.t) (prev_state : Coq.State.t)
     st
   in
 
-  protect_to_result execution
+  Error.protect_to_result execution
 
 let run_node_with_diagnostics (token : Coq.Limits.Token.t)
     (prev_state : Coq.State.t) (node : Syntax_node.t) :
@@ -129,7 +109,7 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
     st
   in
 
-  let res = protect_to_result_with_feedback execution in
+  let res = Error.protect_to_result_with_feedback execution in
   match res with
   | Ok x ->
       let state_msgs, messages = x in
@@ -209,7 +189,7 @@ let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
 
 let get_proof_state (start_result : (Coq.State.t, Loc.t) Coq.Protect.E.t) :
     Coq.State.t =
-  match protect_to_result start_result with
+  match Error.protect_to_result start_result with
   | Ok run_result -> run_result
   | Error err ->
       Printf.eprintf "Error: %s\n" (Error.to_string_hum err);

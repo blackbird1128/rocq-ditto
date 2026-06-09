@@ -76,3 +76,22 @@ let string_to_or_error (x : string) : ('a, t) result = Error (of_string x)
 
 let format_to_or_error fmt =
   Stdlib.Format.kasprintf (fun s -> Error (of_string s)) fmt
+
+let protect_to_result (r : ('a, 'b) Coq.Protect.E.t) : ('a, t) result =
+  match r with
+  | { r = Interrupted; feedback = _ } -> string_to_or_error "Interrupted"
+  | { r = Completed (Error (User { msg; _ })); feedback = _ } ->
+      string_to_or_error (Pp.string_of_ppcmds msg)
+  | { r = Completed (Error (Anomaly { msg; _ })); feedback = _ } ->
+      string_to_or_error ("Anomaly " ^ Pp.string_of_ppcmds msg)
+  | { r = Completed (Ok r); feedback = _ } -> Ok r
+
+let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
+    ('a * 'b Coq.Message.t list, t * 'b Coq.Message.t list) result =
+  match r with
+  | { r = Interrupted; feedback } -> Error (of_string "Interrupted", feedback)
+  | { r = Completed (Error (User { msg; _ })); feedback } ->
+      Error (of_string (Pp.string_of_ppcmds msg), feedback)
+  | { r = Completed (Error (Anomaly { msg; _ })); feedback } ->
+      Error (of_string ("Anomaly " ^ Pp.string_of_ppcmds msg), feedback)
+  | { r = Completed (Ok r); feedback } -> Ok (r, feedback)

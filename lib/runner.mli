@@ -7,12 +7,6 @@ val run_with_timeout :
   'a ->
   ('b, Error.t) result
 
-val protect_to_result : ('a, 'b) Coq.Protect.E.t -> ('a, Error.t) result
-
-val protect_to_result_with_feedback :
-  ('a, 'b) Coq.Protect.E.t ->
-  ('a * 'b Coq.Message.t list, Error.t * 'b Coq.Message.t list) Result.t
-
 val run_node :
   Coq.Limits.Token.t ->
   Coq.State.t ->

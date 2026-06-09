@@ -33,3 +33,9 @@ val string_to_or_error : string -> ('a, t) result
 
 val format_to_or_error :
   ('fmt, Format.formatter, unit, ('payload, t) result) format4 -> 'fmt
+
+val protect_to_result : ('a, 'b) Coq.Protect.E.t -> ('a, t) result
+
+val protect_to_result_with_feedback :
+  ('a, 'b) Coq.Protect.E.t ->
+  ('a * 'b Coq.Message.t list, t * 'b Coq.Message.t list) Result.t

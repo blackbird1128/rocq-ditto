@@ -351,7 +351,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
 
                 let res =
                   Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
-                  |> Runner.protect_to_result
+                  |> Error.protect_to_result
                 in
                 Result.iter
                   (fun _ -> Printf.printf "vo saved successfully\n")
