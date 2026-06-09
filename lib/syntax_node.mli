@@ -31,6 +31,13 @@ val syntax_node_of_coq_ast_in_state :
 
 val syntax_node_of_vernacexpr : Vernacexpr.vernac_expr -> Code_point.t -> t
 
+val syntax_node_of_vernacexpr_in_state :
+  token:Coq.Limits.Token.t ->
+  st:Coq.State.t ->
+  Vernacexpr.vernac_expr ->
+  Code_point.t ->
+  (t, Error.t) result
+
 val comment_syntax_node_of_string :
   string -> Code_point.t -> (t, Error.t) result
 (** [comment_syntax_node_of_string content range] create a syntax node
