@@ -21,6 +21,12 @@ let rename_lname (old_name : string) (new_name : string) (x : Names.lname) :
     Names.lname =
   CAst.map (rename_name old_name new_name) x
 
+let rename_qualid (old_name : string) (new_name : string) (x : Libnames.qualid)
+    : Libnames.qualid =
+  let dirpath, id = Libnames.repr_qualid x in
+  let mapped_id = rename_id old_name new_name id in
+  Libnames.make_qualid dirpath mapped_id
+
 (** If [tacexpr] is exactly a TacArg(TacCall ...), rename the called qualid. *)
 let rename_taccall_tacarg_in_tacexpr (old_taccall_name : string)
     (new_taccall_name : string) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
