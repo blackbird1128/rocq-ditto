@@ -12,9 +12,10 @@ Infix "=F=" := EqF (at level 70) : FScope.
 
 Open Scope FScope.
 
-Lemma state_printer_notation : Bar =F= 0.
+Lemma state_printer_assert : True.
 Proof.
-  reflexivity.
+  assert (Bar =F= 0) by reflexivity.
+  exact I.
 Qed.
 
 End LocalNotation.

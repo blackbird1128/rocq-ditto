@@ -12,9 +12,6 @@ Infix "=F=" := EqF (at level 70) : FScope.
 
 Open Scope FScope.
 
-Lemma state_printer_notation : Bar =F= 0.
-Proof.
-  reflexivity.
-Qed.
+Definition state_printer_definition_body : Prop := Bar =F= 0.
 
 End LocalNotation.

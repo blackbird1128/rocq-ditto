@@ -1988,6 +1988,21 @@ let setup_test_table table (doc : Doc.t) =
        "test renaming a definition inside a local definition state from Foo to \
         Bar"
        test_rename_in_notation_state doc);
+  Hashtbl.add table "ex_rename_definition_notation_state_assert.v"
+    (create_fixed_test "test renaming an assert inside a local notation state"
+       test_rename_in_notation_state doc);
+  Hashtbl.add table "ex_rename_definition_notation_state_definition_body.v"
+    (create_fixed_test
+       "test renaming a definition body inside a local notation state"
+       test_rename_in_notation_state doc);
+  Hashtbl.add table "ex_rename_definition_notation_state_definition_name.v"
+    (create_fixed_test
+       "test renaming a definition name inside a local notation state"
+       test_rename_in_notation_state doc);
+  Hashtbl.add table "ex_rename_definition_notation_state_definition_type.v"
+    (create_fixed_test
+       "test renaming a definition type inside a local notation state"
+       test_rename_in_notation_state doc);
   Hashtbl.add table "ex_rename_definition_user_ltac.v"
     (create_fixed_test
        "test renaming in user ltac call parameters from Foo to Bar"
