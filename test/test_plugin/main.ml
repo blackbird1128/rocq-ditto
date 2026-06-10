@@ -633,6 +633,35 @@ let test_selecting_first_goal_with_goal_select (doc : Doc.t) () : unit =
       (result reified_goal_testable error_testable)
       "The correct goal should be selected" (Ok expected_goal) selected_goal_hd)
 
+let test_selecting_all_goal_with_goal_select (doc : Doc.t) () : unit =
+  let token = Coq.Limits.Token.create () in
+  let parsed_document = Rocq_document.parse_document doc in
+  let fith_node = List.nth parsed_document.elements 4 in
+
+  let state =
+    Runner.get_init_state parsed_document fith_node token |> Result.get_ok
+  in
+  let goals_at_state = Runner.reified_goals_at_state token state in
+
+  let goal_selector : Goal_select_view.t = Goal_select_view.SelectAll in
+
+  let selected_goals =
+    Goal_select_view.apply_goal_selector_view goal_selector goals_at_state
+  in
+  let selected_goals_len = Result.map List.length selected_goals in
+
+  let expected_goals = goals_at_state in
+
+  Alcotest.(
+    check
+      (result int error_testable)
+      "Three goals should have been selected." (Ok 3) selected_goals_len);
+
+  Alcotest.(
+    check
+      (result (list reified_goal_testable) error_testable)
+      "All goals should be selected in order" (Ok expected_goals) selected_goals)
+
 let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
@@ -1274,6 +1303,9 @@ let test_remove_proof_with_multiple (doc : Doc.t) () : unit =
 let test_flattening_goal_select_simple (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.flatten_goal_selectors ()
 
+let test_flattening_goal_select_all (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.flatten_goal_selectors ()
+
 let test_flattening_goal_select_range (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.flatten_goal_selectors ()
 
@@ -1690,8 +1722,13 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test adding the goal selector: SelectAlreadyFocused"
        test_creating_select_already_focused doc);
   Hashtbl.add table "ex_goal_selecting_one.v"
-    (create_fixed_test "test applying a Goal_select_view to a list of goals"
+    (create_fixed_test
+       "test applying a single Goal_select_view to a list of goals"
        test_selecting_first_goal_with_goal_select doc);
+  Hashtbl.add table "ex_goal_selecting_all.v"
+    (create_fixed_test
+       "test apply an all selecting Goal_select_view to a list of goals"
+       test_selecting_all_goal_with_goal_select doc);
 
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test checking if detecting \"Proof with\" is correct"
@@ -2011,6 +2048,10 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_goal_select_flattening_single.v"
     (create_fixed_test "test flattening a single goal selector"
        test_flattening_goal_select_simple doc);
+
+  Hashtbl.add table "ex_goal_select_flattening_all.v"
+    (create_fixed_test "test flattening an 'all' goal selector by duplication"
+       test_flattening_goal_select_all doc);
 
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
