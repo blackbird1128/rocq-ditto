@@ -2008,9 +2008,9 @@ let setup_test_table table (doc : Doc.t) =
        "test renaming in user ltac call parameters from Foo to Bar"
        test_rename_in_user_ltac doc);
 
-  (* Hashtbl.add table "ex_goal_select_flattening1.v" *)
-  (*   (create_fixed_test "test flattening a single goal selector" *)
-  (*      test_flattening_goal_select_simple doc); *)
+  Hashtbl.add table "ex_goal_select_flattening_single.v"
+    (create_fixed_test "test flattening a single goal selector"
+       test_flattening_goal_select_simple doc);
 
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
