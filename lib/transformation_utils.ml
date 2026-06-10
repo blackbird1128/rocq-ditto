@@ -4,6 +4,14 @@ open Vernacexpr
 
 let ( let+ ) = Option.bind
 
+let constr_expr_opt_eq
+    (x : Constrexpr.constr_expr option)
+    (y : Constrexpr.constr_expr option) : bool =
+  match (x, y) with
+  | None, None -> true
+  | Some x, Some y -> Constrexpr_ops.constr_expr_eq x y
+  | _ -> false
+
 let map_raw_tactic_expr_in_node
     (f :
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -34,9 +42,16 @@ let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
           | ProveBody _ -> None
           | DefineBody (binders, raw_red_expr_opt, expr1, opt_expr) ->
               let new_expr = Constrexpr_map.constr_expr_map f expr1 in
-              if not (Constrexpr_ops.constr_expr_eq expr1 new_expr) then
+              let new_opt_expr =
+                Option.map (Constrexpr_map.constr_expr_map f) opt_expr
+              in
+              if
+                (not (Constrexpr_ops.constr_expr_eq expr1 new_expr))
+                || not (constr_expr_opt_eq opt_expr new_opt_expr)
+              then
                 let new_define_body =
-                  DefineBody (binders, raw_red_expr_opt, new_expr, opt_expr)
+                  DefineBody
+                    (binders, raw_red_expr_opt, new_expr, new_opt_expr)
                 in
                 let new_vernacexpr =
                   VernacSynPure
