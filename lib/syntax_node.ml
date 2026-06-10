@@ -631,6 +631,23 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
       Some (syntax_node_of_coq_ast ast_node starting_point)
   | _ -> None
 
+let tactic_raw_generic_arguments_to_syntax_node_in_state
+    ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (ext : extend_name)
+    (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
+    (t option, Error.t) result =
+  let ( let* ) = Result.bind in
+  match args with
+  | [ _; _; _; _ ] ->
+      let expr_syn = Vernacexpr.VernacExtend (ext, args) in
+      let synterp_expr = Vernacexpr.VernacSynterp expr_syn in
+      let control = mk_vernac_control synterp_expr in
+      let ast_node = Coq.Ast.of_coq control in
+      let* new_node =
+        syntax_node_of_coq_ast_in_state ~token ~st ast_node starting_point
+      in
+      Ok (Some new_node)
+  | _ -> Ok None
+
 let tacdef_body_raw_generic_argument_to_syntax_node
     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
     t option =
@@ -645,6 +662,25 @@ let tacdef_body_raw_generic_argument_to_syntax_node
       Some (syntax_node_of_coq_ast ast_node starting_point)
   | _ -> None
 
+(* let tacdef_body_raw_generic_argument_to_syntax_node_in_state *)
+(*     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) *)
+(*     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) : *)
+(*     (t option, Error.t) result = *)
+(*   let ( let* ) = Result.bind in *)
+(*   match args with *)
+(*   | [ _ ] -> *)
+(*       let expr_syn = *)
+(*         Vernacexpr.VernacExtend (Ltac.ltac_definition_extend_name, args) *)
+(*       in *)
+(*       let synterpr_expr = Vernacexpr.VernacSynterp expr_syn in *)
+(*       let control = mk_vernac_control synterpr_expr in *)
+(*       let ast_node = Coq.Ast.of_coq control in *)
+(*       let* new_node = *)
+(*         syntax_node_of_coq_ast_in_state ~token ~st ast_node starting_point *)
+(*       in *)
+(*       Ok (Some new_node) *)
+(*   | _ -> Ok None *)
+
 let tacdef_body_list_to_syntax_node
     (td_list : Ltac_plugin.Tacexpr.tacdef_body list)
     (starting_point : Code_point.t) : (t, Error.t) result =
@@ -656,6 +692,22 @@ let tacdef_body_list_to_syntax_node
   | None ->
       Error.string_to_or_error
         "Error creating a syntax node from the provided tacdef_body list"
+
+(* let tacdef_body_list_to_syntax_node_in_state ~(token : Coq.Limits.Token.t) *)
+(*     ~(st : Coq.State.t) (td_list : Ltac_plugin.Tacexpr.tacdef_body list) *)
+(*     (starting_point : Code_point.t) : (t, Error.t) result = *)
+(*   let args = *)
+(*     [ Raw_gen_args_converter.raw_generic_argument_of_tacdef_bodies td_list ] *)
+(*   in *)
+(*   match *)
+(*     tacdef_body_raw_generic_argument_to_syntax_node_in_state ~token ~st args *)
+(*       starting_point *)
+(*   with *)
+(*   | Ok (Some tac) -> Ok tac *)
+(*   | Ok None -> *)
+(*       Error.string_to_or_error *)
+(*         "Error creating a syntax node from the provided tacdef_body list" *)
+(*   | Error err -> Error err *)
 
 let raw_tactic_expr_to_syntax_node
     (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -685,6 +737,40 @@ let raw_tactic_expr_to_syntax_node
         |> Pp.string_of_ppcmds
       in
       Error.format_to_or_error "Error creating a syntax node from %s" pp_str
+
+let raw_tactic_expr_to_syntax_node_in_state ~(token : Coq.Limits.Token.t)
+    ~(st : Coq.State.t) (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
+    ?(selector : Goal_select_view.t option) ?(use_default = false)
+    (starting_point : Code_point.t) : (t, Error.t) result =
+  let ( let* ) = Result.bind in
+  let args =
+    [
+      Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector;
+      Raw_gen_args_converter.raw_generic_argument_of_empty_ltac_info ();
+      Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr raw_expr;
+      Raw_gen_args_converter.raw_generic_argument_of_ltac_use_default
+        use_default;
+    ]
+  in
+  match
+    tactic_raw_generic_arguments_to_syntax_node_in_state ~token ~st
+      Ltac.ltac_tactic_extend_name args starting_point
+  with
+  | Ok (Some tac) -> Ok tac
+  | Ok None ->
+      let* repr =
+        Coq.State.in_state ~token ~st
+          ~f:(fun raw_expr ->
+            let env = Global.env () in
+            let evd = Evd.from_env env in
+            Ltac_plugin.Pptactic.pr_raw_tactic env evd raw_expr
+            |> Pp.string_of_ppcmds |> remove_outer_parentheses)
+          raw_expr
+        |> Error.protect_to_result
+      in
+
+      Error.format_to_or_error "Error creating a syntax node from %s" repr
+  | Error err -> Error err
 
 let drop_goal_selector (x : t) : t =
   match get_tactic_raw_generic_arguments x with

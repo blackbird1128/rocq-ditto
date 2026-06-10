@@ -157,6 +157,15 @@ val raw_tactic_expr_to_syntax_node :
   Code_point.t ->
   (t, Error.t) result
 
+val raw_tactic_expr_to_syntax_node_in_state :
+  token:Coq.Limits.Token.t ->
+  st:Coq.State.t ->
+  Ltac_plugin.Tacexpr.raw_tactic_expr ->
+  ?selector:Goal_select_view.t ->
+  ?use_default:bool ->
+  Code_point.t ->
+  (t, Error.t) result
+
 val get_node_goal_selector_opt : t -> Goal_select_view.t option
 val get_node_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
