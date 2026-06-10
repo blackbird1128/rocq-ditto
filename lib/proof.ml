@@ -126,6 +126,18 @@ let syntax_node_of_theorem_components (c : theorem_components)
   let coq_ast = Coq.Ast.of_coq control in
   Syntax_node.syntax_node_of_coq_ast coq_ast start_point
 
+let syntax_node_of_theorem_components_in_state ~(token : Coq.Limits.Token.t)
+    ~(st : Coq.State.t) (c : theorem_components) (start_point : Code_point.t) :
+    (Syntax_node.t, Error.t) result =
+  let expr_syn =
+    Vernacexpr.VernacStartTheoremProof
+      (c.kind, [ ((c.name, c.universe), (c.binders, c.expr)) ])
+  in
+  let synpure_expr = VernacSynPure expr_syn in
+  let control = Syntax_node.mk_vernac_control synpure_expr in
+  let coq_ast = Coq.Ast.of_coq control in
+  Syntax_node.syntax_node_of_coq_ast_in_state ~token ~st coq_ast start_point
+
 let proof_status_of_vernacexpr (expr : Vernacexpr.synpure_vernac_expr) :
     (proof_status, Error.t) result =
   match expr with
@@ -204,6 +216,28 @@ let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
 
     Some (Replace (x.proposition.id, new_node))
   else None
+
+let map_proof_proposition_in_state
+    (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (x : t) :
+    (transformation_step option, Error.t) result =
+  let ( let* ) = Result.bind in
+  let x_start = x.proposition.range.start in
+  let components_opt = get_theorem_components x in
+  match components_opt with
+  | Some components ->
+      let new_expr = Constrexpr_map.constr_expr_map f components.expr in
+      if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
+        let new_components = { components with expr = new_expr } in
+
+        let* new_node =
+          syntax_node_of_theorem_components_in_state ~token ~st new_components
+            x_start
+        in
+
+        Ok (Some (Replace (x.proposition.id, new_node)))
+      else Ok None
+  | None -> Ok None
 
 let proof_nodes (p : t) : Syntax_node.t list = p.proposition :: p.proof_steps
 

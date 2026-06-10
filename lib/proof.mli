@@ -50,6 +50,13 @@ val get_theorem_components : t -> theorem_components option
 val syntax_node_of_theorem_components :
   theorem_components -> Code_point.t -> Syntax_node.t
 
+val syntax_node_of_theorem_components_in_state :
+  token:Coq.Limits.Token.t ->
+  st:Coq.State.t ->
+  theorem_components ->
+  Code_point.t ->
+  (Syntax_node.t, Error.t) result
+
 val get_proof_name : t -> string option
 (** Retrieve the name of the proof's proposition if available.
     [get_proof_name p] returns [Some name] if the proof [p] has a proposition
@@ -67,6 +74,13 @@ val map_proof_proposition :
   (Constrexpr.constr_expr -> Constrexpr.constr_expr) ->
   t ->
   transformation_step option
+
+val map_proof_proposition_in_state :
+  (Constrexpr.constr_expr -> Constrexpr.constr_expr) ->
+  token:Coq.Limits.Token.t ->
+  st:Coq.State.t ->
+  t ->
+  (transformation_step option, Error.t) result
 
 val proof_status_from_last_node :
   Syntax_node.t -> (proof_status, Error.t) result
