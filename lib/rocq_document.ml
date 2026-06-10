@@ -659,7 +659,11 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
             match attach_position with
             | LineBefore -> target.range.start
             (* we don't shift back as by default, equal elements are pushed after *)
-            | LineAfter -> Code_point.shift 1 0 target.range.end_
+            | LineAfter ->
+                {
+                  line = target.range.end_.line + 1;
+                  character = target.range.start.character;
+                }
             | SameLine -> Code_point.shift 0 1 target.range.end_
           in
 
@@ -670,14 +674,7 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
           let new_node_range : Code_range.t =
             match attach_position with
             | SameLine -> new_node_range
-            | LineAfter | LineBefore ->
-                {
-                  start =
-                    Code_point.shift 0
-                      (-new_node_range.start.character)
-                      new_node_range.start;
-                  end_ = Code_point.shift 0 0 new_node_range.end_;
-                }
+            | LineAfter | LineBefore -> new_node_range
           in
 
           let* new_node =
