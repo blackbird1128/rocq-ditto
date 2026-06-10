@@ -713,6 +713,7 @@ let read_renames (filepath : string) : (rename list, Error.t) result =
 let rename_definition (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let open Pipeline in
+  let original_doc = doc in
   let error_path =
     Error.string_to_or_error
       "Please provide a valid path to a JSON file containing the renames \
@@ -798,10 +799,16 @@ let rename_definition (doc : Rocq_document.t) :
 
           let stage_rename_in_definition : stage =
             make_stage "rename in definition" (fun doc ->
-                Ok
-                  (List.filter_map
-                     (Transformation_utils.map_definition_body replace_fun)
-                     doc.elements))
+                let token = Coq.Limits.Token.create () in
+                List_utils.concat_map_result
+                  (fun node ->
+                    let* st = Runner.get_init_state original_doc node token in
+                    let* step_opt =
+                      Transformation_utils.map_definition_body_in_state ~token
+                        ~st replace_fun node
+                    in
+                    Ok (Option_utils.to_list step_opt))
+                  doc.elements)
           in
 
           let stage_rename_in_assert : stage =
@@ -903,8 +910,9 @@ let rename_definition (doc : Rocq_document.t) :
           let* _, steps =
             run_pipeline doc
               [
-                stage_rename_in_proof_prop;
                 stage_rename_in_definition;
+                stage_rename_definition_name;
+                stage_rename_in_proof_prop;
                 stage_rename_in_assert;
                 stage_rename_in_exists;
                 stage_rename_in_tac_reduce;
@@ -913,7 +921,6 @@ let rename_definition (doc : Rocq_document.t) :
                 stage_rename_in_pattern_ltac_outside_proofs;
                 stage_rename_in_pattern_branches_ltac_outside_proofs;
                 stage_rename_in_tacarg;
-                stage_rename_definition_name;
               ]
           in
           Ok steps)
