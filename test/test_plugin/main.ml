@@ -1368,6 +1368,11 @@ let test_rename_in_class_field (doc : Doc.t) () : unit =
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
   test_doc_transformation doc Transformations.rename_definition ()
 
+let test_rename_in_class_field_noop (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
 let test_rename_patch_pp_class_bug (doc : Doc.t) () : unit =
   Unix.putenv "DITTO_ARG0"
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
@@ -2013,6 +2018,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_rename_definition_field_class.v"
     (create_fixed_test "test renaming in class field from Foo to Bar"
        test_rename_in_class_field doc);
+  Hashtbl.add table "ex_rename_definition_class_field_noop.v"
+    (create_fixed_test "test no-op rename in class field definitions"
+       test_rename_in_class_field_noop doc);
   Hashtbl.add table "ex_rename_definition_patch_pp_class_bug.v"
     (create_fixed_test
        "test renaming in class field from Foo to Bar patch pp class bug"

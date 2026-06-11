@@ -288,6 +288,33 @@ let type_expr (env : Environ.env) (sigma : Evd.evar_map)
   | Some t -> (sigma, t)
   | None -> infer_type_expr env sigma impls_env lbe expr
 
+let constr_expr_opt_eq
+    (x : Constrexpr.constr_expr option)
+    (y : Constrexpr.constr_expr option) : bool =
+  match (x, y) with
+  | None, None -> true
+  | Some x, Some y -> Constrexpr_ops.constr_expr_eq x y
+  | _ -> false
+
+let local_binder_expr_eq
+    (x : Constrexpr.local_binder_expr)
+    (y : Constrexpr.local_binder_expr) : bool =
+  match (x, y) with
+  | ( CLocalAssum (lnames, relevance, binder_kind, expr),
+      CLocalAssum (lnames', relevance', binder_kind', expr') ) ->
+      lnames = lnames' && relevance = relevance' && binder_kind = binder_kind'
+      && Constrexpr_ops.constr_expr_eq expr expr'
+  | ( CLocalDef (lname, relevance, expr, expr_opt),
+      CLocalDef (lname', relevance', expr', expr_opt') ) ->
+      lname = lname' && relevance = relevance'
+      && Constrexpr_ops.constr_expr_eq expr expr'
+      && constr_expr_opt_eq expr_opt expr_opt'
+  | CLocalPattern p, CLocalPattern p' -> p = p'
+  | _, _ -> false
+
+let local_binder_expr_list_eq =
+  List.equal local_binder_expr_eq
+
 let rename_in_local_decl_expr (old_name : string) (new_name : string)
     (x : Vernacexpr.local_decl_expr) : Vernacexpr.local_decl_expr =
   let rename_expr =
@@ -300,31 +327,43 @@ let rename_in_local_decl_expr (old_name : string) (new_name : string)
 
   match x with
   | Vernacexpr.AssumExpr (lname, lbe, expr) ->
-      Vernacexpr.AssumExpr
-        ( rename_lname old_name new_name lname,
-          rename_binders lbe,
-          rename_expr expr )
+      let mapped_lname = rename_lname old_name new_name lname in
+      let mapped_lbe = rename_binders lbe in
+      let mapped_expr = rename_expr expr in
+      if
+        lname = mapped_lname
+        && local_binder_expr_list_eq lbe mapped_lbe
+        && Constrexpr_ops.constr_expr_eq expr mapped_expr
+      then x
+      else Vernacexpr.AssumExpr (mapped_lname, mapped_lbe, mapped_expr)
   | Vernacexpr.DefExpr (lname, lbe, expr, expr_opt) ->
+      let mapped_lname = rename_lname old_name new_name lname in
+      let mapped_lbe = rename_binders lbe in
+      let mapped_expr = rename_expr expr in
       let mapped_expr_opt = Option.map rename_expr expr_opt in
-
-      let mapped_expr_opt =
-        match (lbe, mapped_expr_opt) with
-        | [], _ | _, Some _ -> mapped_expr_opt
-        | _ :: _, None ->
+      if
+        lname = mapped_lname
+        && local_binder_expr_list_eq lbe mapped_lbe
+        && Constrexpr_ops.constr_expr_eq expr mapped_expr
+        && constr_expr_opt_eq expr_opt mapped_expr_opt
+      then x
+      else
+        let mapped_expr_opt =
+          match (mapped_lbe, mapped_expr_opt) with
+          | [], _ | _, Some _ -> mapped_expr_opt
+          | _ :: _, None ->
             let env = Global.env () in
             let sigma = Evd.from_env env in
             let impls_env = Constrintern.empty_internalization_env in
             let _sigma, t =
-              type_expr env sigma impls_env lbe expr mapped_expr_opt
+              type_expr env sigma impls_env mapped_lbe mapped_expr
+                mapped_expr_opt
             in
             Some t
-      in
+        in
 
-      Vernacexpr.DefExpr
-        ( rename_lname old_name new_name lname,
-          rename_binders lbe,
-          rename_expr expr,
-          mapped_expr_opt )
+        Vernacexpr.DefExpr
+          (mapped_lname, mapped_lbe, mapped_expr, mapped_expr_opt)
 
 (* Constrexpr.cumul_ident_decl Vernacexpr.with_coercion *)
 (* * Vernacexpr.inductive_params_expr *)
