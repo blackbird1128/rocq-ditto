@@ -115,6 +115,14 @@ let decidability_lemmas =
     "out_dec";
     "midpoint_dec";
     "line_dec";
+    "perp_in_dec";
+    "col2_dec";
+    "is_image_spec_dec";
+    "conga_dec";
+    "inangle_dec";
+    "same_dir_dec";
+    "cop_dec";
+    "inter_dec";
   ]
 
 let blacklisted_proofs =

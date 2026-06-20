@@ -2,7 +2,8 @@
  (targets rocq_version.ml)
  (action
   (with-stdout-to %{targets}
-    (run %{bin:print-rocq-version}))))
+   (run %{bin:print-rocq-version})))
+ (mode promote))
 
 (rule
  (targets rocq_version_optcomp.mlh)  

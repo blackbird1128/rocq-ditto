@@ -75,6 +75,14 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
       "out_dec";
       "midpoint_dec";
       "line_dec";
+      "perp_in_dec";
+      "col2_dec";
+      "is_image_spec_dec";
+      "conga_dec";
+      "inangle_dec";
+      "same_dir_dec";
+      "cop_dec";
+      "inter_dec";
     ];
   write_ocaml_list out_chan "blacklisted_proofs"
     [
