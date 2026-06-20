@@ -1,4 +1,3 @@
-
 Definition Foo A B C := A \/ B \/ C.
 
 Ltac fizz t := unfold t in *.

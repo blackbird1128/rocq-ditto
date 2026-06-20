@@ -1388,6 +1388,11 @@ let test_rename_in_user_ltac (doc : Doc.t) () : unit =
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
   test_doc_transformation doc Transformations.rename_definition ()
 
+let test_rename_in_ltac_notation (doc : Doc.t) () : unit =
+  Unix.putenv "DITTO_ARG0"
+    "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
+  test_doc_transformation doc Transformations.rename_definition ()
+
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
@@ -2051,6 +2056,10 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_rename_definition_user_ltac.v"
     (create_fixed_test
        "test renaming in user ltac call parameters from Foo to Bar"
+       test_rename_in_user_ltac doc);
+  Hashtbl.add table "ex_rename_definition_ltac_notation.v"
+    (create_fixed_test
+       "test renaming in Ltac notation parameters from Foo to Bar"
        test_rename_in_user_ltac doc);
 
   Hashtbl.add table "ex_goal_select_flattening_single.v"
