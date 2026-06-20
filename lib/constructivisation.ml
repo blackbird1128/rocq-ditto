@@ -969,6 +969,15 @@ let constructivise_doc (doc : Rocq_document.t) :
 
   (*       Ok admit_exists_proofs_steps) *)
   (* in *)
+  let stage_1 : stage =
+    make_stage "rename Bet and Cong in exists" (fun doc ->
+        Ok
+          (List.filter_map
+             (Transformation_utils.map_raw_tactic_expr_in_node
+                (Ltac.map_exists_constr_expr replace_bet_and_cong_in_constrexpr))
+             doc.elements))
+  in
+
   let stage_2 : stage =
     make_stage "stage2" (fun doc ->
         let* proofs_stage_two = Rocq_document.get_proofs doc in
@@ -1097,7 +1106,7 @@ let constructivise_doc (doc : Rocq_document.t) :
       [
         stage_0;
         stage_beeson_ch03;
-        (* stage_1; *)
+        stage_1;
         stage_2;
         stage_3;
         stage_4;
