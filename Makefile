@@ -106,7 +106,6 @@ constructivisation-get-dep: build
 	$(foreach chapter,$(ALL_CHAPTERS),\
 		dune exec get-dependencies $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/$(chapter))
 
-
 constructivisation-uniformise-1: build
 	$(DITTO) -i $(GEOCOQ_INPUT_DIR) -o ../normalised_first_pass/ -t replace_induction_with_destruct -j 8 --save-vo
 
@@ -115,6 +114,9 @@ constructivisation-uniformise-2: build
 
 constructivisation-uniformise-3: build
 	$(DITTO) -i ../normalised_second_pass/ -o ../normalised_third_pass/ -t add_proof_node_if_missing -j 6  --save-vo
+
+constructivisation-uniformise-4: build
+	$(DITTO) -i ../normalised_third_pass/ -o ../normalised_fourth_pass -t remove_proof_with -j 6 --save-vo
 
 constructivisation-axioms: build
 	$(DITTO) -i $(NORMALISED_DIR)/theories/Axioms/continuity_axioms.v -o $(GEOCOQ_OUTPUT_DIR)/theories/Constructive/Prelude/continuity_axioms.v -t constructivise_geocoq -v
