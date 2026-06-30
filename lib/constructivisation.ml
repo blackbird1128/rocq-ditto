@@ -205,6 +205,29 @@ let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
           "Attach prelude: No Require node was found, check assumptions !"
   else Ok []
 
+let attach_congrc_to_file (doc : Rocq_document.t) (filename : string) :
+    (transformation_step list, Error.t) result =
+  let dummy_start : Code_point.t = { line = 0; character = 0 } in
+  if Filename.basename doc.filename = filename then
+    let congr_node_opt =
+      List.find_opt
+        (fun node ->
+          String.starts_with ~prefix:"Ltac CongR" (Syntax_node.repr node))
+        doc.elements
+    in
+    match congr_node_opt with
+    | Some congr_node ->
+        let* congrc_node =
+          Syntax_node.syntax_node_of_string
+            "Ltac CongRC := solve [CongR | Cong | eCong ]." dummy_start
+        in
+        Logs.debug (fun m -> m "HI from here!");
+        Ok [ Attach (congrc_node, LineAfter, congr_node.id) ]
+    | None ->
+        Error.string_to_or_error
+          "Attach CongRC: No CongR node was found, check assumptions !"
+  else Ok []
+
 let replace_notation_in_constrexpr (old_notation : string)
     (new_notation : string) (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
@@ -856,9 +879,8 @@ let constructivise_doc (doc : Rocq_document.t) :
       "Require Import GeoCoq.Constructive.Prelude.Prelude." dummy_start
   in
 
-  let _preload_prelude =
-    ignore
-      (Runner.get_state_after doc.initial_state token [ require_prelude_node ])
+  let* _preload_prelude =
+    Runner.get_state_after doc.initial_state token [ require_prelude_node ]
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
@@ -894,6 +916,10 @@ let constructivise_doc (doc : Rocq_document.t) :
 
         let* attach_prelude_to_playfair_existential_playfair_steps =
           attach_prelude_to_file doc "playfair_existential_playfair.v"
+        in
+
+        let* attach_congrc_to_file_steps =
+          attach_congrc_to_file doc "Ch04_cong_bet.v"
         in
 
         let* replace_cong_theory_steps = replace_cong_theory doc in
@@ -935,6 +961,7 @@ let constructivise_doc (doc : Rocq_document.t) :
                prove_decidability_proofs_steps;
                replace_cong_theory_steps;
                replace_congr_steps;
+               attach_congrc_to_file_steps;
                attach_prelude_to_chapter_two_steps;
                attach_prelude_to_chapter_twelwe_inted_dec_steps;
                attach_prelude_to_chapter_13_5_steps;
@@ -1000,7 +1027,10 @@ let constructivise_doc (doc : Rocq_document.t) :
         let replace_tactic_calls =
           replace_taccalls_steps
             [
-              ("left", "stab_left"); ("right", "stab_right"); ("tauto", "tautoC");
+              ("left", "stab_left");
+              ("right", "stab_right");
+              ("tauto", "tautoC");
+              ("CongR", "CongRC");
             ]
             doc
         in
