@@ -135,44 +135,22 @@ let run_raw_tactic_expr (token : Coq.Limits.Token.t)
 let get_state_after (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
     (nodes : Syntax_node.t list) : (Coq.State.t, Error.t) result =
   let open Sexplib.Std in
-  let error_tagged = false in
-
-  let state, error_tagged, last_node =
-    List.fold_left
-      (fun (state, error_tagged, prev_node) node ->
-        match state with
-        | Ok state -> (run_node token state node, error_tagged, Some node)
-        | Error err ->
-            if error_tagged then (Error err, error_tagged, Some node)
-            else
-              let prev_node_repr = Option.map (fun x -> repr x) prev_node in
-
-              let msg =
-                [%message
-                  ""
-                    ~loc:(node.range : Code_range.t)
-                    ~repr:(prev_node_repr : string option)]
-              in
-              (Error (Error.tag_sexp err "info" msg), true, Some node))
-      (Ok init_state, error_tagged, None)
-      nodes
+  let tag_error (x : Syntax_node.t) (err : Error.t) : Error.t =
+    let msg =
+      [%message "" ~loc:(x.range : Code_range.t) ~repr:(repr x : string)]
+    in
+    Error.tag_sexp err "info" msg
   in
-  Result.map_error
-    (fun err ->
-      if not error_tagged then
-        let last_node_repr =
-          Option.map (fun x -> Syntax_node.repr x) last_node
-        in
-        let last_node_range = Option.map (fun x -> x.range) last_node in
-        let msg =
-          [%message
-            ""
-              ~loc:(last_node_range : Code_range.t option)
-              ~repr:(last_node_repr : string option)]
-        in
-        Error.tag_sexp err "info" msg
-      else err)
-    state
+
+  let rec aux (state : Coq.State.t) = function
+    | [] -> Ok state
+    | x :: rest -> (
+        match run_node token state x with
+        | Ok new_state -> aux new_state rest
+        | Error err -> Error (tag_error x err))
+  in
+
+  aux init_state nodes
 
 let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
     (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
