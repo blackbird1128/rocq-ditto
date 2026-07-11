@@ -404,6 +404,24 @@ let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
     get_alias_kn Segment_construction
   else None
 
+let raw_genarg_from_intro_pattern
+    (pattern : Constrexpr.constr_expr Tactypes.or_and_intro_pattern_expr CAst.t)
+    : Genarg.raw_generic_argument =
+  let intro_pattern_action_expr = Tactypes.IntroOrAndPattern pattern.v in
+  let intro_pattern_expr =
+    Tactypes.IntroAction intro_pattern_action_expr |> CAst.make
+  in
+
+  Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
+    intro_pattern_expr
+
+let make_alias (kername : Kername.t) (args : Genarg.raw_generic_argument list) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let gen_tactic_args =
+    List.map (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x)) args
+  in
+  Ltac_plugin.Tacexpr.TacAlias (kername, gen_tactic_args) |> CAst.make
+
 let replace_destruct_fun_with_stab_destruct
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -420,11 +438,8 @@ let replace_destruct_fun_with_stab_destruct
                 Constrexpr.CRef (Libnames.qualid_of_lident h, None) |> CAst.make
               in
 
-              let intro_pattern_action_expr =
-                Tactypes.IntroOrAndPattern intro_or_and_pattern.v
-              in
-              let intro_pattern_expr =
-                Tactypes.IntroAction intro_pattern_action_expr |> CAst.make
+              let intro_pattern_arg =
+                raw_genarg_from_intro_pattern intro_or_and_pattern
               in
 
               let open_constr_arg =
@@ -432,23 +447,11 @@ let replace_destruct_fun_with_stab_destruct
                   h_constrexpr
               in
 
-              let intro_pattern_arg =
-                Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
-                  intro_pattern_expr
-              in
-
               let kername =
                 get_alias_kn Stab_destruct_with_args |> Option.get
               in
 
-              let stab_destruct_args =
-                List.map
-                  (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
-                  [ open_constr_arg; intro_pattern_arg ]
-              in
-
-              Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
-              |> CAst.make
+              make_alias kername [ open_constr_arg; intro_pattern_arg ]
           | None, None ->
               let h_constrexpr : Constrexpr.constr_expr =
                 Constrexpr.CRef (Libnames.qualid_of_lident h, None) |> CAst.make
@@ -458,22 +461,20 @@ let replace_destruct_fun_with_stab_destruct
                 Raw_gen_args_converter.raw_generic_argument_of_open_constr
                   h_constrexpr
               in
-              let stab_destruct_args =
-                List.map
-                  (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
-                  [ open_constr_arg ]
-              in
 
               let kername = get_alias_kn Stab_destruct_no_args |> Option.get in
 
-              Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
-              |> CAst.make
+              make_alias kername [ open_constr_arg ]
           | _ -> x)
       | ElimOnConstr (constrexpr, NoBindings) -> (
           match constrexpr_to_stab_destruct_fun_name constrexpr with
           | Some kername -> (
               match intro_pattern_naming_expr with
               | _, Some (ArgArg intro_or_and_pattern) ->
+                  let intro_pattern_arg =
+                    raw_genarg_from_intro_pattern intro_or_and_pattern
+                  in
+
                   let fun_args = get_func_args constrexpr in
                   let fun_args_str_opt =
                     List.map
@@ -493,25 +494,8 @@ let replace_destruct_fun_with_stab_destruct
                     |> Option.get
                   in
 
-                  let intro_action =
-                    Tactypes.IntroOrAndPattern intro_or_and_pattern.v
-                  in
-                  let intro_pattern_expr =
-                    Tactypes.IntroAction intro_action |> CAst.make
-                  in
-                  let intro_arg =
-                    Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
-                      intro_pattern_expr
-                  in
-
-                  let stab_destruct_args =
-                    List.map
-                      (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
-                      (fun_args_name_id_arg @ [ intro_arg ])
-                  in
-
-                  Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
-                  |> CAst.make
+                  make_alias kername
+                    (fun_args_name_id_arg @ [ intro_pattern_arg ])
               | _, None ->
                   let stab_destruct_args =
                     List.map
@@ -532,15 +516,8 @@ let replace_destruct_fun_with_stab_destruct
                     get_alias_kn Stab_destruct_with_args |> Option.get
                   in
 
-                  let intro_action =
-                    Tactypes.IntroOrAndPattern intro_or_and_pattern.v
-                  in
-                  let intro_pattern_expr =
-                    Tactypes.IntroAction intro_action |> CAst.make
-                  in
-                  let intro_arg =
-                    Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
-                      intro_pattern_expr
+                  let intro_pattern_arg =
+                    raw_genarg_from_intro_pattern intro_or_and_pattern
                   in
 
                   let openconstr_constrexpr =
@@ -549,30 +526,18 @@ let replace_destruct_fun_with_stab_destruct
                        .raw_generic_argument_of_open_constr
                   in
 
-                  let stab_destruct_args =
-                    List.map
-                      (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
-                      [ openconstr_constrexpr; intro_arg ]
-                  in
-
-                  Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
-                  |> CAst.make
+                  make_alias kername
+                    [ openconstr_constrexpr; intro_pattern_arg ]
               | _, None ->
                   let kername =
                     get_alias_kn Stab_destruct_no_args |> Option.get
                   in
-
-                  let stab_destruct_args =
-                    List.map
-                      (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
-                      [
-                        constrexpr
-                        |> Raw_gen_args_converter
-                           .raw_generic_argument_of_open_constr;
-                      ]
-                  in
-                  Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
-                  |> CAst.make
+                  make_alias kername
+                    [
+                      constrexpr
+                      |> Raw_gen_args_converter
+                         .raw_generic_argument_of_open_constr;
+                    ]
               | _ -> x))
       | _ -> x)
   | _ -> x
@@ -718,7 +683,9 @@ let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
         Syntax_node.syntax_node_of_string stab_assert_node_str x.range.start
       in
 
-      let* unNNnode = Syntax_node.syntax_node_of_string "unNN." Code_point.dummy in
+      let* unNNnode =
+        Syntax_node.syntax_node_of_string "unNN." Code_point.dummy
+      in
       match by_content with
       | Some (Some expr) ->
           let* tac_node =
@@ -858,7 +825,6 @@ let constructivise_doc (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let open Pipeline in
   let token = Coq.Limits.Token.create () in
-
 
   let* require_prelude_node =
     Syntax_node.syntax_node_of_string
