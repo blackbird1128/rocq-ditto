@@ -38,7 +38,7 @@ let simple_proof_repair (doc : Rocq_document.t)
                       if
                         List.length children = 0
                         && (not
-                              (Syntax_node.is_syntax_node_proof_intro_or_end
+                              (Syntax_node.is_proof_intro_or_end
                                  node))
                         && prev_goal_count <= num_goals
                       then
@@ -52,7 +52,7 @@ let simple_proof_repair (doc : Rocq_document.t)
                       let childs =
                         List.concat_map Nary_tree.flatten children
                         |> List.filter (fun x ->
-                            not (is_syntax_node_proof_intro_or_end x))
+                            not (is_proof_intro_or_end x))
                       in
 
                       let ignore_acc =
@@ -148,7 +148,7 @@ let admit_proof (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
   let proof_close_node_opt =
-    List.find_opt Syntax_node.is_syntax_node_proof_end proof.proof_steps
+    List.find_opt Syntax_node.is_proof_end proof.proof_steps
   in
   match proof_close_node_opt with
   | Some proof_close_node ->
@@ -237,8 +237,8 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : Proof.t) :
     | [] -> acc
     | x :: tail -> (
         if
-          ((not (is_syntax_node_proof_intro_or_end x))
-          && not (is_syntax_node_bullet x))
+          ((not (is_proof_intro_or_end x))
+          && not (is_bullet x))
           && Runner.can_reduce_to_zero_goals state tail
         then
           let* acc = acc in
@@ -646,7 +646,7 @@ let rec get_oneliner (suffix : Syntax_node.t option)
   match tree with
   | Node (x, childrens) -> (
       let* new_x_raw_expr =
-        if Syntax_node.is_syntax_node_ending_with_elipsis x then
+        if Syntax_node.is_ending_with_elipsis x then
           match suffix with
           | None ->
               Error.format_to_or_error
@@ -676,7 +676,7 @@ let rec get_oneliner (suffix : Syntax_node.t option)
 
       let childrens_length_without_proof_end =
         match last_children_opt with
-        | Some (Node (last, _)) when is_syntax_node_proof_end last ->
+        | Some (Node (last, _)) when is_proof_end last ->
             childrens_length - 1
         | _ -> childrens_length
       in
@@ -941,7 +941,7 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
       let steps =
         List.filter_map
           (fun node ->
-            if Syntax_node.is_syntax_node_ending_with_elipsis node then
+            if Syntax_node.is_ending_with_elipsis node then
               let node_repr_without_elipsis =
                 String_utils.remove_suffix (Syntax_node.repr node) "..."
               in
@@ -957,7 +957,7 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
       in
 
       let proof_node_with =
-        List.find Syntax_node.is_syntax_node_proof_command proof.proof_steps
+        List.find Syntax_node.is_proof_command proof.proof_steps
       in
       let new_proof_node =
         Syntax_node.syntax_node_of_string "Proof." dummy_point
@@ -992,7 +992,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
       let cleaned_tree =
         Nary_tree.filter
           (fun node ->
-            (not (is_syntax_node_command_allowed_in_proof node))
+            (not (is_command_allowed_in_proof node))
             && ((not (node_can_open_proof node))
                && not (node_can_close_proof node))
             && Option.has_some node.ast)
@@ -1014,7 +1014,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
               (fun node ->
                 if
                   node_can_open_proof node || node_can_close_proof node
-                  || is_syntax_node_proof_command node
+                  || is_proof_command node
                 then None
                 else Some (Remove node.id))
               flattened
@@ -1022,7 +1022,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
 
           let* first_proof_node_idx =
             List_utils.find_index
-              (fun x -> is_syntax_node_proof_command x || node_can_open_proof x)
+              (fun x -> is_proof_command x || node_can_open_proof x)
               rev_flattened
             |> Option_utils.to_result
                  ~none:
@@ -1264,7 +1264,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
         in
 
         let assert_generated_name =
-          if is_syntax_node_assert_by x then List.nth new_vars 0 |> List.hd
+          if is_assert_by x then List.nth new_vars 0 |> List.hd
           else List.nth new_vars 1 |> List.hd
         in
 
@@ -1792,7 +1792,7 @@ let add_proof_node_if_missing (_ : Rocq_document.t) (proof : Proof.t) :
   let dummy_start : Code_point.t = { line = 0; character = 0 } in
   match proof.proof_steps with
   | first_node :: _ -> (
-      if Syntax_node.is_syntax_node_proof_command first_node then Ok []
+      if Syntax_node.is_proof_command first_node then Ok []
       else
         let proof_node =
           Syntax_node.syntax_node_of_string "Proof." dummy_start

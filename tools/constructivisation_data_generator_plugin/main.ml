@@ -49,7 +49,7 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
 
   let parsed_document = Rocq_document.parse_document doc in
   let definitions =
-    List.filter Syntax_node.is_syntax_node_definition parsed_document.elements
+    List.filter Syntax_node.is_definition parsed_document.elements
   in
 
   let definitions_with_exists =

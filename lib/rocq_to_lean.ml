@@ -10,7 +10,7 @@ let rocq_to_lean (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   (* let proofs = Rocq_document.get_proofs doc in *)
   let require_nodes =
-    List.filter Syntax_node.is_syntax_node_require doc.elements
+    List.filter Syntax_node.is_require doc.elements
   in
   let steps =
     List.map

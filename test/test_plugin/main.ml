@@ -668,7 +668,7 @@ let test_detecting_proof_with (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string "Proof with easy." point |> Result.get_ok
   in
 
-  let is_node_proof_with = Syntax_node.is_syntax_node_proof_with node in
+  let is_node_proof_with = Syntax_node.is_proof_with node in
   Alcotest.(
     check bool "The node should be detected as a \"Proof with\"" true
       is_node_proof_with)
@@ -680,7 +680,7 @@ let test_not_detecting_simple_proof_command_with_proof_with (_ : Doc.t) () :
     Syntax_node.syntax_node_of_string "Proof." point |> Result.get_ok
   in
 
-  let is_node_proof_with = Syntax_node.is_syntax_node_proof_with node in
+  let is_node_proof_with = Syntax_node.is_proof_with node in
   Alcotest.(
     check bool "The node should not have been detected as a \"Proof with\""
       false is_node_proof_with)

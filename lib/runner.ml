@@ -219,8 +219,8 @@ let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
     | step :: tail ->
         let before_count = count_goals token st in
         if
-          is_syntax_node_focusing_goal step
-          || is_syntax_node_closing_bracket step
+          is_focusing_goal step
+          || is_closing_bracket step
         then (before_count, step, before_count) :: aux token st tail
         else
           let state = Fleche.Doc.run ~token ~st (repr step) in

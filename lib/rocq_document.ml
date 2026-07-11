@@ -326,7 +326,7 @@ let get_ltac_outside_proofs (doc : t) : (Syntax_node.t list, Error.t) result =
 
   let all_ltac_nodes_set =
     Syntax_nodeSet.of_list
-      (List.filter Syntax_node.is_syntax_node_ltac doc.elements)
+      (List.filter Syntax_node.is_ltac doc.elements)
   in
 
   let proof_steps_set = Syntax_nodeSet.of_list proof_steps_node in

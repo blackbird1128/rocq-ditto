@@ -290,7 +290,7 @@ let synterp_expr (x : t) =
   | Some (VernacSynterp expr) -> Some expr
   | Some (VernacSynPure _) | None -> None
 
-let is_syntax_node_command_allowed_in_proof (x : t) : bool =
+let is_command_allowed_in_proof (x : t) : bool =
   match synpure_expr x with
   (* Proof structuring *)
   | Some
@@ -309,16 +309,16 @@ let is_syntax_node_command_allowed_in_proof (x : t) : bool =
 let get_vernac_expr_gen (x : t) : synterp_vernac_expr vernac_expr_gen option =
   vernac_expr x
 
-let is_syntax_node_ltac (x : t) : bool =
+let is_ltac (x : t) : bool =
   match synterp_expr x with
   | Some (VernacExtend (ext, _)) ->
       ext.ext_plugin = Rocq_version.ltac_ext_plugin_name
   | Some _ | None -> false
 
-let is_syntax_node_proof_command (x : t) : bool =
+let is_proof_command (x : t) : bool =
   match synpure_expr x with Some (VernacProof _) -> true | _ -> false
 
-let is_syntax_node_proof_with (x : t) : bool =
+let is_proof_with (x : t) : bool =
   match synpure_expr x with
   | Some (VernacProof (Some _, _)) -> true
   | _ -> false
@@ -350,26 +350,26 @@ let get_syntax_node_proof_with_tactic (x : t) : string option =
 
 [%%endif]
 
-let is_syntax_node_ending_with_elipsis (x : t) : bool =
+let is_ending_with_elipsis (x : t) : bool =
   String.ends_with ~suffix:"..." (repr x)
 
-let is_syntax_node_context (x : t) : bool =
+let is_context (x : t) : bool =
   match synpure_expr x with Some (VernacContext _) -> true | _ -> false
 
-let is_syntax_node_require (x : t) : bool =
+let is_require (x : t) : bool =
   match synterp_expr x with Some (VernacRequire _) -> true | _ -> false
 
-let is_syntax_node_function_start (x : t) : bool =
+let is_function_start (x : t) : bool =
   match synterp_expr x with
   | Some (VernacExtend (ext, _)) ->
       ext.ext_plugin = Rocq_version.ltac_funid_plugin_name
       && ext.ext_entry = "Function"
   | _ -> false
 
-let is_syntax_node_instance_start (x : t) : bool =
+let is_instance_start (x : t) : bool =
   match synpure_expr x with Some (VernacInstance _) -> true | _ -> false
 
-let is_syntax_node_program_instance_start (x : t) : bool =
+let is_program_instance_start (x : t) : bool =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
@@ -386,10 +386,10 @@ let is_syntax_node_program_instance_start (x : t) : bool =
           | _ -> false))
   | None -> false
 
-let is_syntax_node_definition (x : t) : bool =
+let is_definition (x : t) : bool =
   match synpure_expr x with Some (VernacDefinition _) -> true | _ -> false
 
-let is_syntax_node_goal (x : t) : bool =
+let is_goal (x : t) : bool =
   match synpure_expr x with
   | Some
       (VernacDefinition
@@ -398,7 +398,7 @@ let is_syntax_node_goal (x : t) : bool =
       && match definition_expr with ProveBody _ -> true | _ -> false)
   | _ -> false
 
-let is_syntax_node_definition_with_proof (x : t) : bool =
+let is_definition_with_proof (x : t) : bool =
   (* TODO: check if this include anonymous goals *)
   match synpure_expr x with
   | Some (VernacDefinition ((_, _), _, ProveBody _)) -> true
@@ -415,32 +415,32 @@ let get_definition_constrexpr (x : t) : Constrexpr.constr_expr option =
   | Some (VernacDefinition (_, _, DefineBody (_, _, expr, _))) -> Some expr
   | _ -> None
 
-let is_syntax_node_bullet (x : t) : bool =
+let is_bullet (x : t) : bool =
   match synpure_expr x with Some (VernacBullet _) -> true | _ -> false
 
-let is_syntax_node_opening_bracket (x : t) : bool =
+let is_opening_bracket (x : t) : bool =
   match synpure_expr x with Some (VernacSubproof _) -> true | _ -> false
 
-let is_syntax_node_closing_bracket (x : t) : bool =
+let is_closing_bracket (x : t) : bool =
   match synpure_expr x with Some VernacEndSubproof -> true | _ -> false
 
-let is_syntax_node_focus_command (x : t) : bool =
+let is_focus_command (x : t) : bool =
   match synpure_expr x with Some (VernacFocus _) -> true | _ -> false
 
-let is_syntax_node_focusing_goal (x : t) : bool =
-  is_syntax_node_bullet x
-  || is_syntax_node_focus_command x
-  || is_syntax_node_opening_bracket x
+let is_focusing_goal (x : t) : bool =
+  is_bullet x
+  || is_focus_command x
+  || is_opening_bracket x
 
-let is_syntax_node_proof_start (x : t) : bool =
+let is_proof_start (x : t) : bool =
   match synpure_expr x with
   | Some (VernacStartTheoremProof _) -> true
   | _ -> false
 
-let is_syntax_node_proof_end (x : t) : bool =
+let is_proof_end (x : t) : bool =
   match synpure_expr x with Some (VernacEndProof _) -> true | _ -> false
 
-let is_syntax_node_proof_abort (x : t) : bool =
+let is_proof_abort (x : t) : bool =
   match synpure_expr x with
   | Some (VernacAbort | VernacAbortAll) -> true
   | _ -> false
@@ -682,17 +682,17 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
             "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
             (repr x))
 
-let is_syntax_node_intros (x : t) : bool =
+let is_intros (x : t) : bool =
   match get_node_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacIntroPattern _) -> true
   | _ -> false
 
-let is_syntax_node_assert (x : t) : bool =
+let is_assert (x : t) : bool =
   match get_node_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacAssert _) -> true
   | _ -> false
 
-let is_syntax_node_assert_by (x : t) : bool =
+let is_assert_by (x : t) : bool =
   match get_node_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacAssert (false, true, Some (Some _), _, _)) ->
       true
@@ -799,19 +799,19 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
 
 let node_can_open_proof (x : t) : bool =
   let res =
-    is_syntax_node_proof_start x
-    || is_syntax_node_definition_with_proof x
-    || is_syntax_node_instance_start x
-       && not (is_syntax_node_program_instance_start x)
+    is_proof_start x
+    || is_definition_with_proof x
+    || is_instance_start x
+       && not (is_program_instance_start x)
        (* TODO actually treat Program and Obligation *)
-    || is_syntax_node_function_start x
+    || is_function_start x
   in
   res
 
 let node_can_close_proof (x : t) : bool =
-  is_syntax_node_proof_abort x || is_syntax_node_proof_end x
+  is_proof_abort x || is_proof_end x
 
-let is_syntax_node_proof_intro_or_end (x : t) : bool =
-  is_syntax_node_proof_start x
-  || is_syntax_node_proof_command x
-  || is_syntax_node_proof_end x
+let is_proof_intro_or_end (x : t) : bool =
+  is_proof_start x
+  || is_proof_command x
+  || is_proof_end x

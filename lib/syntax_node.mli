@@ -64,64 +64,64 @@ val shift_node : int -> int -> t -> t
 (** [shift_node n_line n_char node] shift the range of [node] by [n_line],
     [n_char] using [shift_range] *)
 
-val is_syntax_node_command_allowed_in_proof : t -> bool
-(** [is_syntax_node_command_allowed_in_proof x] checks if [x] is a command
+val is_command_allowed_in_proof : t -> bool
+(** [is_command_allowed_in_proof x] checks if [x] is a command
     allowed inside a proof block context *)
 
-val is_syntax_node_proof_with : t -> bool
+val is_proof_with : t -> bool
 val get_syntax_node_proof_with_tactic : t -> string option
-val is_syntax_node_ending_with_elipsis : t -> bool
+val is_ending_with_elipsis : t -> bool
 val get_vernac_expr_gen : t -> synterp_vernac_expr vernac_expr_gen option
 
-val is_syntax_node_ltac : t -> bool
-(** [is_syntax_node_ltac x] checks if [x] represents a tactic. *)
+val is_ltac : t -> bool
+(** [is_ltac x] checks if [x] represents a tactic. *)
 
-val is_syntax_node_bullet : t -> bool
-(** [is_syntax_node_bullet x] check if [x] is a Rocq bullet made of repeated -,
+val is_bullet : t -> bool
+(** [is_bullet x] check if [x] is a Rocq bullet made of repeated -,
     + or * symbols *)
 
-val is_syntax_node_opening_bracket : t -> bool
-val is_syntax_node_closing_bracket : t -> bool
-val is_syntax_node_focusing_goal : t -> bool
+val is_opening_bracket : t -> bool
+val is_closing_bracket : t -> bool
+val is_focusing_goal : t -> bool
 
-val is_syntax_node_focus_command : t -> bool
-(** [is_syntax_node_focus_command] check if [x] is the command [Focus] *)
+val is_focus_command : t -> bool
+(** [is_focus_command] check if [x] is the command [Focus] *)
 
-val is_syntax_node_definition : t -> bool
-(** [is_syntax_node_definition] check if [x] is the command [Definition] *)
+val is_definition : t -> bool
+(** [is_definition] check if [x] is the command [Definition] *)
 
-val is_syntax_node_goal : t -> bool
-(** [is_syntax_node_goal] check if [x] is the command [Goal] *)
+val is_goal : t -> bool
+(** [is_goal] check if [x] is the command [Goal] *)
 
 val get_definition_name : t -> string option
 val get_definition_constrexpr : t -> Constrexpr.constr_expr option
 
-val is_syntax_node_proof_start : t -> bool
-(** [is_syntax_node_proof_start x] checks if [x] marks the start of a proof.
+val is_proof_start : t -> bool
+(** [is_proof_start x] checks if [x] marks the start of a proof.
     meaning if it's a sentence starting with: Theorem | Lemma | Fact | Remark |
     Property | Proposition | Corollary *)
 
-val is_syntax_node_proof_end : t -> bool
-(** [is_syntax_node_proof_end x] checks if [x] marks the end of a proof. meaning
+val is_proof_end : t -> bool
+(** [is_proof_end x] checks if [x] marks the end of a proof. meaning
     if it's either Qed. or Admitted. *)
 
-val is_syntax_node_proof_command : t -> bool
-(** [is_syntax_node_proof_command x] check if [x] is the command Proof. *)
+val is_proof_command : t -> bool
+(** [is_proof_command x] check if [x] is the command Proof. *)
 
-val is_syntax_node_context : t -> bool
-(** [is_syntax_node_context x] check if [x] is a context command. *)
+val is_context : t -> bool
+(** [is_context x] check if [x] is a context command. *)
 
-val is_syntax_node_require : t -> bool
-(** [is_syntax_node_require x] check if [x] is the Require command. *)
+val is_require : t -> bool
+(** [is_require x] check if [x] is the Require command. *)
 
-val is_syntax_node_proof_intro_or_end : t -> bool
-(** [is_syntax_node_proof_intro_or_end x] check if [x] is an intro of a proof or
+val is_proof_intro_or_end : t -> bool
+(** [is_proof_intro_or_end x] check if [x] is an intro of a proof or
     an end of a proof, meaning if it's either a a sentence starting with:
     Theorem | Lemma | Fact | Remark | Property | Proposition | Corollary or the
     command Proof, Qed or Admitted *)
 
-val is_syntax_node_proof_abort : t -> bool
-(** [is_syntax_node_proof_abort x] check if [x] abort a proof, meaning it's
+val is_proof_abort : t -> bool
+(** [is_proof_abort x] check if [x] abort a proof, meaning it's
     either Abort or Abort all *)
 
 val node_can_open_proof : t -> bool
@@ -180,10 +180,10 @@ val string_to_raw_tactic_expr :
 val get_node_ltac_elements : t -> ltac_elements option
 val drop_goal_selector : t -> t
 val add_goal_selector : t -> Goal_select_view.t -> (t, Error.t) result
-val is_syntax_node_intros : t -> bool
-val is_syntax_node_assert : t -> bool
+val is_intros : t -> bool
+val is_assert : t -> bool
 val get_syntax_node_assert_expr : t -> Constrexpr.constr_expr option
-val is_syntax_node_assert_by : t -> bool
+val is_assert_by : t -> bool
 
 val get_syntax_node_assert_by_raw_tac_expr :
   t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
