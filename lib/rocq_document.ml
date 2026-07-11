@@ -697,11 +697,11 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
           | LineAfter | LineBefore ->
               insert_node ~shift_method:ShiftVertically new_node doc))
 
-let apply_transformations_steps (steps : transformation_step list) (doc : t) :
-    (t, Error.t) result =
-  List.fold_left
-    (fun doc_acc_err step ->
-      match doc_acc_err with
-      | Ok doc -> apply_transformation_step step doc
-      | Error err -> Error err)
-    (Ok doc) steps
+let rec apply_transformations_steps (steps : transformation_step list) (doc : t)
+    : (t, Error.t) result =
+  let ( let* ) = Result.bind in
+  match steps with
+  | [] -> Ok doc
+  | step :: tail ->
+      let* doc = apply_transformation_step step doc in
+      apply_transformations_steps tail doc
