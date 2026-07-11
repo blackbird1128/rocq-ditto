@@ -27,16 +27,17 @@ let generate_ast (code : string) :
   let entry = Pvernac.main_entry (Some mode) in
   let code_stream = Gramlib.Stream.of_string code in
   let init_parser = Procq.Parsable.make code_stream in
-  let rec f parser =
-    try
-      match Procq.Entry.parse entry parser with
-      | None -> Ok []
-      | Some ast -> (
-          let res = f parser in
-          match res with Ok elem -> Ok (ast :: elem) | Error err -> Error err)
+  let parse_one () =
+    try Ok (Procq.Entry.parse entry init_parser)
     with Gramlib.Grammar.Error exn -> Error (Error.of_string exn)
   in
-  f init_parser
+  let rec parse_all acc =
+    match parse_one () with
+    | Ok None -> Ok (List.rev acc)
+    | Ok (Some ast) -> (parse_all [@tailcall]) (ast :: acc)
+    | Error err -> Error err
+  in
+  parse_all []
 
 let mk_vernac_control ?(loc : Loc.t option)
     (ve : synterp_vernac_expr vernac_expr_gen) : vernac_control =
@@ -428,9 +429,7 @@ let is_focus_command (x : t) : bool =
   match synpure_expr x with Some (VernacFocus _) -> true | _ -> false
 
 let is_focusing_goal (x : t) : bool =
-  is_bullet x
-  || is_focus_command x
-  || is_opening_bracket x
+  is_bullet x || is_focus_command x || is_opening_bracket x
 
 let is_proof_start (x : t) : bool =
   match synpure_expr x with
@@ -796,21 +795,16 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
        (Error.format_to_or_error "failed to create a then betwen %s and %s"
           (repr a) (repr b))
 
-let node_can_open_proof (x : t) : bool =
+let can_open_proof (x : t) : bool =
   let res =
-    is_proof_start x
-    || is_definition_with_proof x
-    || is_instance_start x
-       && not (is_program_instance_start x)
+    is_proof_start x || is_definition_with_proof x
+    || (is_instance_start x && not (is_program_instance_start x))
        (* TODO actually treat Program and Obligation *)
     || is_function_start x
   in
   res
 
-let node_can_close_proof (x : t) : bool =
-  is_proof_abort x || is_proof_end x
+let node_can_close_proof (x : t) : bool = is_proof_abort x || is_proof_end x
 
 let is_proof_intro_or_end (x : t) : bool =
-  is_proof_start x
-  || is_proof_command x
-  || is_proof_end x
+  is_proof_start x || is_proof_command x || is_proof_end x

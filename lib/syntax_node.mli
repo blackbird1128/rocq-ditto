@@ -65,8 +65,8 @@ val shift_node : int -> int -> t -> t
     [n_char] using [shift_range] *)
 
 val is_command_allowed_in_proof : t -> bool
-(** [is_command_allowed_in_proof x] checks if [x] is a command
-    allowed inside a proof block context *)
+(** [is_command_allowed_in_proof x] checks if [x] is a command allowed inside a
+    proof block context *)
 
 val is_proof_with : t -> bool
 val get_syntax_node_proof_with_tactic : t -> string option
@@ -97,13 +97,13 @@ val get_definition_name : t -> string option
 val get_definition_constrexpr : t -> Constrexpr.constr_expr option
 
 val is_proof_start : t -> bool
-(** [is_proof_start x] checks if [x] marks the start of a proof.
-    meaning if it's a sentence starting with: Theorem | Lemma | Fact | Remark |
-    Property | Proposition | Corollary *)
+(** [is_proof_start x] checks if [x] marks the start of a proof. meaning if it's
+    a sentence starting with: Theorem | Lemma | Fact | Remark | Property |
+    Proposition | Corollary *)
 
 val is_proof_end : t -> bool
-(** [is_proof_end x] checks if [x] marks the end of a proof. meaning
-    if it's either Qed. or Admitted. *)
+(** [is_proof_end x] checks if [x] marks the end of a proof. meaning if it's
+    either Qed. or Admitted. *)
 
 val is_proof_command : t -> bool
 (** [is_proof_command x] check if [x] is the command Proof. *)
@@ -115,17 +115,17 @@ val is_require : t -> bool
 (** [is_require x] check if [x] is the Require command. *)
 
 val is_proof_intro_or_end : t -> bool
-(** [is_proof_intro_or_end x] check if [x] is an intro of a proof or
-    an end of a proof, meaning if it's either a a sentence starting with:
-    Theorem | Lemma | Fact | Remark | Property | Proposition | Corollary or the
-    command Proof, Qed or Admitted *)
+(** [is_proof_intro_or_end x] check if [x] is an intro of a proof or an end of a
+    proof, meaning if it's either a a sentence starting with: Theorem | Lemma |
+    Fact | Remark | Property | Proposition | Corollary or the command Proof, Qed
+    or Admitted *)
 
 val is_proof_abort : t -> bool
-(** [is_proof_abort x] check if [x] abort a proof, meaning it's
-    either Abort or Abort all *)
+(** [is_proof_abort x] check if [x] abort a proof, meaning it's either Abort or
+    Abort all *)
 
-val node_can_open_proof : t -> bool
-(** [node_can_open_proof x] check if [x] can start a proof, meaning it's either:
+val can_open_proof : t -> bool
+(** [can_open_proof x] check if [x] can start a proof, meaning it's either:
     - a sentence starting with: Theorem | Lemma | Fact | Remark | Property |
       Proposition | Corollary
     - a sentence starting with Goal (anonymous goal)
