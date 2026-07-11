@@ -97,7 +97,6 @@ let replace_require (x : Syntax_node.t) :
 
 let replace_congr (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
-  let dummy_start : Code_point.t = { line = 0; character = 0 } in
   if Filename.basename doc.filename = "Ch04_cong_bet.v" then
     Ok
       (List.filter_map
@@ -115,7 +114,7 @@ let replace_congr (doc : Rocq_document.t) :
                  \  let tpoint := constr:(Tpoint) in\n\
                  \  let cong := constr:(CongC) in\n\
                  \    Cong_refl tpoint cong."
-                 dummy_start
+                 Code_point.dummy
                |> Result.get_ok
              in
              Some (Replace (node.id, new_congr))
@@ -125,7 +124,6 @@ let replace_congr (doc : Rocq_document.t) :
 
 let replace_cong_theory (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
-  let dummy_start : Code_point.t = { line = 0; character = 0 } in
   if Filename.basename doc.filename = "tarski_to_cong_theory.v" then
     Ok
       (List.filter_map
@@ -139,7 +137,7 @@ let replace_cong_theory (doc : Rocq_document.t) :
                Syntax_node.syntax_node_of_string
                  "Global Instance Tarski_is_a_Cong_theory : (Cong_theory \
                   Tpoint CongC)."
-                 dummy_start
+                 Code_point.dummy
                |> Result.get_ok
              in
              Some (Replace (node.id, new_global_instance_node))
@@ -152,7 +150,7 @@ let replace_cong_theory (doc : Rocq_document.t) :
                Syntax_node.syntax_node_of_string
                  "exact (Build_Cong_theory Tpoint CongC cong_reflexivity \
                   cong_left_commutativity cong_symmetry cong_transitivity)."
-                 dummy_start
+                 Code_point.dummy
                |> Result.get_ok
              in
              Some (Replace (node.id, new_exact_node))
@@ -175,7 +173,7 @@ let replace_contexts (doc : Rocq_document.t) :
     match nodes with
     | [] -> Ok (List.rev acc)
     | node :: tail ->
-        if Syntax_node.is_syntax_node_context node then
+        if Syntax_node.is_context node then
           if prev_was_context then aux tail true (Remove node.id :: acc)
           else
             let* new_context_node =
@@ -188,16 +186,15 @@ let replace_contexts (doc : Rocq_document.t) :
 
 let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
     (transformation_step list, Error.t) result =
-  let dummy_start : Code_point.t = { line = 0; character = 0 } in
   if Filename.basename doc.filename = filename then
     let last_require_opt =
-      List_utils.find_last_opt Syntax_node.is_syntax_node_require doc.elements
+      List_utils.find_last_opt Syntax_node.is_require doc.elements
     in
     match last_require_opt with
     | Some last_require ->
         let* prelude_node =
           Syntax_node.syntax_node_of_string
-            "Require Export GeoCoq.Constructive.Prelude.Prelude." dummy_start
+            "Require Export GeoCoq.Constructive.Prelude.Prelude." Code_point.dummy
         in
         Ok [ Attach (prelude_node, LineAfter, last_require.id) ]
     | None ->
@@ -205,9 +202,24 @@ let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
           "Attach prelude: No Require node was found, check assumptions !"
   else Ok []
 
+let attach_node_after_pred_in_file (doc : Rocq_document.t)
+    (node : Syntax_node.t) (filename : string) ?(reverse = false)
+    (pred : Syntax_node.t -> bool) : (transformation_step list, Error.t) result
+    =
+  if Filename.basename doc.filename = filename then
+    let pred_node_opt =
+      if reverse then List_utils.find_last_opt pred doc.elements
+      else List.find_opt pred doc.elements
+    in
+    match pred_node_opt with
+    | Some pred_node -> Ok [ Attach (node, LineAfter, pred_node.id) ]
+    | None ->
+        Error.string_to_or_error
+          "No node found to attach to with provided predicate"
+  else Ok []
+
 let attach_congrc_to_file (doc : Rocq_document.t) (filename : string) :
     (transformation_step list, Error.t) result =
-  let dummy_start : Code_point.t = { line = 0; character = 0 } in
   if Filename.basename doc.filename = filename then
     let congr_node_opt =
       List.find_opt
@@ -219,9 +231,8 @@ let attach_congrc_to_file (doc : Rocq_document.t) (filename : string) :
     | Some congr_node ->
         let* congrc_node =
           Syntax_node.syntax_node_of_string
-            "Ltac CongRC := solve [CongR | Cong | eCong ]." dummy_start
+            "Ltac CongRC := solve [CongR | Cong | eCong ]." Code_point.dummy
         in
-        Logs.debug (fun m -> m "HI from here!");
         Ok [ Attach (congrc_node, LineAfter, congr_node.id) ]
     | None ->
         Error.string_to_or_error
@@ -683,7 +694,6 @@ let rec update_replaces (l : transformation_step list) =
 
 let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
     (transformation_step list, Error.t) result =
-  let dummy_start : Code_point.t = { line = 0; character = 0 } in
   let raw_tactic_expr = Syntax_node.get_node_raw_tactic_expr x in
   let raw_atomic_expr =
     Option.map Ltac.get_raw_atomic_tactic_expr raw_tactic_expr
@@ -715,8 +725,7 @@ let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
       in
 
       let assert_generated_name =
-        if Syntax_node.is_syntax_node_assert_by x then
-          List.nth new_vars 0 |> List.hd
+        if Syntax_node.is_assert_by x then List.nth new_vars 0 |> List.hd
         else List.nth new_vars 1 |> List.hd
       in
 
@@ -730,11 +739,11 @@ let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
         Syntax_node.syntax_node_of_string stab_assert_node_str x.range.start
       in
 
-      let* unNNnode = Syntax_node.syntax_node_of_string "unNN." dummy_start in
+      let* unNNnode = Syntax_node.syntax_node_of_string "unNN." Code_point.dummy in
       match by_content with
       | Some (Some expr) ->
           let* tac_node =
-            Syntax_node.raw_tactic_expr_to_syntax_node expr dummy_start
+            Syntax_node.raw_tactic_expr_to_syntax_node expr Code_point.dummy
           in
           Ok
             [
@@ -798,7 +807,6 @@ let remove_named_sections (section_names : string list) (doc : Rocq_document.t)
 let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   let ( let* ) = Result.bind in
-  let dummy_start : Code_point.t = { line = 0; character = 0 } in
   let remove_all_steps_except_qed =
     List.filter_map
       (fun (step : Syntax_node.t) ->
@@ -808,7 +816,7 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
   in
 
   let* solve_dec_node =
-    Syntax_node.syntax_node_of_string "solve_dec." dummy_start
+    Syntax_node.syntax_node_of_string "solve_dec." Code_point.dummy
   in
 
   Ok
@@ -845,7 +853,7 @@ let get_proofs_named (proofs : Proof.t list) (names : string list) =
     proofs
 
 let definitions_of (d : Rocq_document.t) : Syntax_node.t list =
-  List.filter Syntax_node.is_syntax_node_definition d.elements
+  List.filter Syntax_node.is_definition d.elements
 
 let map_raw_tactic_expr_steps
     (f :
@@ -872,11 +880,10 @@ let constructivise_doc (doc : Rocq_document.t) :
   let open Pipeline in
   let token = Coq.Limits.Token.create () in
 
-  let dummy_start : Code_point.t = { line = 0; character = 0 } in
 
   let* require_prelude_node =
     Syntax_node.syntax_node_of_string
-      "Require Import GeoCoq.Constructive.Prelude.Prelude." dummy_start
+      "Require Import GeoCoq.Constructive.Prelude.Prelude." Code_point.dummy
   in
 
   let* _preload_prelude =
@@ -1031,6 +1038,7 @@ let constructivise_doc (doc : Rocq_document.t) :
               ("right", "stab_right");
               ("tauto", "tautoC");
               ("CongR", "CongRC");
+              ("contradiction", "contradictionC");
             ]
             doc
         in

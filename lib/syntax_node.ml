@@ -485,8 +485,7 @@ let get_node_tacdef_bodies (x : t) : Ltac_plugin.Tacexpr.tacdef_body list option
 let string_to_raw_tactic_expr (str : string) :
     (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
   let ( let* ) = Result.bind in
-  let dummy_point : Code_point.t = { line = 0; character = 0 } in
-  let* node = syntax_node_of_string str dummy_point in
+  let* node = syntax_node_of_string str Code_point.dummy in
   match get_node_raw_tactic_expr node with
   | Some e -> Ok e
   | None ->

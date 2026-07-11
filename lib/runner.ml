@@ -123,10 +123,9 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
 let run_raw_tactic_expr (token : Coq.Limits.Token.t)
     ?(selector : Goal_select.t option) (state : Coq.State.t)
     (expr : Ltac_plugin.Tacexpr.raw_tactic_expr) =
-  let dummy_start : Code_point.t = { line = 0; character = 0 } in
   let selector = Option.map Goal_select_view.make selector in
   match
-    Syntax_node.raw_tactic_expr_to_syntax_node ?selector expr dummy_start
+    Syntax_node.raw_tactic_expr_to_syntax_node ?selector expr Code_point.dummy
   with
   | Error _ ->
       Error.format_to_or_error

@@ -33,7 +33,7 @@ let get_proofs (doc : t) : (Proof.t list, Error.t) result =
     match nodes with
     | [] -> proofs_acc
     | x :: tail -> (
-        if Syntax_node.node_can_open_proof x then
+        if Syntax_node.can_open_proof x then
           aux tail [ x ] proofs_acc ProofOpened
         else if Syntax_node.node_can_close_proof x then
           if List.is_empty cur_proof_acc then
@@ -325,8 +325,7 @@ let get_ltac_outside_proofs (doc : t) : (Syntax_node.t list, Error.t) result =
   let proof_steps_node = List.concat_map (fun p -> p.proof_steps) proofs in
 
   let all_ltac_nodes_set =
-    Syntax_nodeSet.of_list
-      (List.filter Syntax_node.is_ltac doc.elements)
+    Syntax_nodeSet.of_list (List.filter Syntax_node.is_ltac doc.elements)
   in
 
   let proof_steps_set = Syntax_nodeSet.of_list proof_steps_node in
