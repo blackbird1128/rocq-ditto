@@ -184,24 +184,6 @@ let replace_contexts (doc : Rocq_document.t) :
   in
   aux doc.elements false []
 
-let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
-    (transformation_step list, Error.t) result =
-  if Filename.basename doc.filename = filename then
-    let last_require_opt =
-      List_utils.find_last_opt Syntax_node.is_require doc.elements
-    in
-    match last_require_opt with
-    | Some last_require ->
-        let* prelude_node =
-          Syntax_node.syntax_node_of_string
-            "Require Export GeoCoq.Constructive.Prelude.Prelude." Code_point.dummy
-        in
-        Ok [ Attach (prelude_node, LineAfter, last_require.id) ]
-    | None ->
-        Error.string_to_or_error
-          "Attach prelude: No Require node was found, check assumptions !"
-  else Ok []
-
 let attach_node_after_pred_in_file (doc : Rocq_document.t)
     (node : Syntax_node.t) (filename : string) ?(reverse = false)
     (pred : Syntax_node.t -> bool) : (transformation_step list, Error.t) result
@@ -218,26 +200,23 @@ let attach_node_after_pred_in_file (doc : Rocq_document.t)
           "No node found to attach to with provided predicate"
   else Ok []
 
+let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
+    (transformation_step list, Error.t) result =
+  let* prelude_node =
+    Syntax_node.syntax_node_of_string
+      "Require Export GeoCoq.Constructive.Prelude.Prelude." Code_point.dummy
+  in
+  attach_node_after_pred_in_file doc prelude_node filename ~reverse:true
+    Syntax_node.is_require
+
 let attach_congrc_to_file (doc : Rocq_document.t) (filename : string) :
     (transformation_step list, Error.t) result =
-  if Filename.basename doc.filename = filename then
-    let congr_node_opt =
-      List.find_opt
-        (fun node ->
-          String.starts_with ~prefix:"Ltac CongR" (Syntax_node.repr node))
-        doc.elements
-    in
-    match congr_node_opt with
-    | Some congr_node ->
-        let* congrc_node =
-          Syntax_node.syntax_node_of_string
-            "Ltac CongRC := solve [CongR | Cong | eCong ]." Code_point.dummy
-        in
-        Ok [ Attach (congrc_node, LineAfter, congr_node.id) ]
-    | None ->
-        Error.string_to_or_error
-          "Attach CongRC: No CongR node was found, check assumptions !"
-  else Ok []
+  let* congrc_node =
+    Syntax_node.syntax_node_of_string
+      "Ltac CongRC := solve [CongR | Cong | eCong ]." Code_point.dummy
+  in
+  attach_node_after_pred_in_file doc congrc_node filename (fun node ->
+      String.starts_with ~prefix:"Ltac CongR" (Syntax_node.repr node))
 
 let replace_notation_in_constrexpr (old_notation : string)
     (new_notation : string) (term : Constrexpr.constr_expr) :
