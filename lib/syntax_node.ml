@@ -45,6 +45,14 @@ let mk_vernac_control ?(loc : Loc.t option)
   let payload = { control; attrs; expr = ve } in
   CAst.make ?loc payload
 
+let inherit_metadata ~(from : t) (node : t) : t =
+  {
+    node with
+    id = from.id;
+    proof_id = from.proof_id;
+    diagnostics = from.diagnostics;
+  }
+
 (* as a code range is half_open (the end is open [a,b] and [b,c] are not colliding, this also mean that a node finishing on the character 0 of a line isn't included in this line  *)
 let line_span (r : Code_range.t) : int * int =
   let end_excl =
@@ -260,7 +268,8 @@ let reformat_node (x : t) : (t, Error.t) result =
   match x.ast with
   | Some ast ->
       let start_point = x.range.start in
-      Ok { (syntax_node_of_coq_ast ast.v start_point) with id = x.id }
+      let ast_node = syntax_node_of_coq_ast ast.v start_point in
+      Ok (inherit_metadata ~from:x ast_node)
       (* we return the same id, doesn't matter in the order of operation we do *)
   | None ->
       Error.string_to_or_error "The node need to have an AST to be reformatted"
@@ -268,102 +277,76 @@ let reformat_node (x : t) : (t, Error.t) result =
 let shift_node (n_line : int) (n_char : int) (x : t) : t =
   { x with range = Code_range.shift n_line n_char x.range }
 
+let vernac_expr (x : t) : synterp_vernac_expr vernac_expr_gen option =
+  Option.map (fun (ast : Doc.Node.Ast.t) -> (Coq.Ast.to_coq ast.v).v.expr) x.ast
+
+let synpure_expr (x : t) =
+  match vernac_expr x with
+  | Some (VernacSynPure expr) -> Some expr
+  | Some (VernacSynterp _) | None -> None
+
+let synterp_expr (x : t) =
+  match vernac_expr x with
+  | Some (VernacSynterp expr) -> Some expr
+  | Some (VernacSynPure _) | None -> None
+
 let is_syntax_node_command_allowed_in_proof (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with
-          (* Proof structuring *)
-          | VernacProof _ | VernacEndProof _ | VernacAbort | VernacAbortAll
-          | VernacRestart | VernacUndo _ | VernacUndoTo _ | VernacBack _
-          | VernacFocus _ | VernacUnfocus | VernacUnfocused | VernacBullet _
-          | VernacSubproof _ | VernacEndSubproof
-          (* Queries / utilities *)
-          | VernacShow _ | VernacCheckMayEval _ | VernacGlobalCheck _
-          | VernacPrint _ | VernacSearch _ | VernacLocate _
-          (* internal or rare ? *)
-          | VernacExactProof _ | VernacValidateProof | VernacCheckGuard ->
-              true
-          | _ -> false))
-  | None -> false
+  match synpure_expr x with
+  (* Proof structuring *)
+  | Some
+      ( VernacProof _ | VernacEndProof _ | VernacAbort | VernacAbortAll
+      | VernacRestart | VernacUndo _ | VernacUndoTo _ | VernacBack _
+      | VernacFocus _ | VernacUnfocus | VernacUnfocused | VernacBullet _
+      | VernacSubproof _ | VernacEndSubproof
+      (* Queries / utilities *)
+      | VernacShow _ | VernacCheckMayEval _ | VernacGlobalCheck _
+      | VernacPrint _ | VernacSearch _ | VernacLocate _
+      (* internal or rare ? *)
+      | VernacExactProof _ | VernacValidateProof | VernacCheckGuard ) ->
+      true
+  | Some _ | None -> false
 
 let get_vernac_expr_gen (x : t) : synterp_vernac_expr vernac_expr_gen option =
-  match x.ast with
-  | Some ast -> Some (Coq.Ast.to_coq ast.v).v.expr
-  | None -> None
+  vernac_expr x
 
 let is_syntax_node_ltac (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp synterp_expr -> (
-          match synterp_expr with
-          | VernacExtend (ext, _) ->
-              ext.ext_plugin = Rocq_version.ltac_ext_plugin_name
-          | _ -> false)
-      | VernacSynPure _ -> false)
-  | None -> false
+  match synterp_expr x with
+  | Some (VernacExtend (ext, _)) ->
+      ext.ext_plugin = Rocq_version.ltac_ext_plugin_name
+  | Some _ | None -> false
 
 let is_syntax_node_proof_command (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with Vernacexpr.VernacProof _ -> true | _ -> false))
-  | None -> false
+  match synpure_expr x with Some (VernacProof _) -> true | _ -> false
 
 let is_syntax_node_proof_with (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with
-          | Vernacexpr.VernacProof (Some _, _) -> true
-          | _ -> false))
-  | None -> false
+  match synpure_expr x with
+  | Some (VernacProof (Some _, _)) -> true
+  | _ -> false
 
 [%%if rocq_version <= (9, 0, 1)]
 
 let get_syntax_node_proof_with_tactic (x : t) : string option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> None
-      | VernacSynPure expr -> (
-          match expr with
-          | Vernacexpr.VernacProof (Some raw_arg, _) ->
-              let empty_env = Environ.empty_env in
-              let empty_evd = Evd.empty in
-
-              Some
-                (Pp.string_of_ppcmds
-                   (Pputils.pr_raw_generic empty_env empty_evd raw_arg))
-          | _ -> None))
-  | None -> None
+  match synpure_expr x with
+  | Some (VernacProof (Some raw_arg, _)) ->
+      let empty_env = Environ.empty_env in
+      let empty_evd = Evd.empty in
+      Some
+        (Pp.string_of_ppcmds
+           (Pputils.pr_raw_generic empty_env empty_evd raw_arg))
+  | _ -> None
 
 [%%else]
 
 let get_syntax_node_proof_with_tactic (x : t) : string option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> None
-      | VernacSynPure expr -> (
-          match expr with
-          | Vernacexpr.VernacProof (Some raw_arg, _) ->
-              let empty_env = Environ.empty_env in
-              let empty_evd = Evd.empty in
-
-              Some
-                (Pp.string_of_ppcmds
-                   (Pputils.pr_raw_generic empty_env empty_evd
-                      (Gentactic.to_raw_genarg raw_arg)))
-          | _ -> None))
-  | None -> None
+  match synpure_expr x with
+  | Some (VernacProof (Some raw_arg, _)) ->
+      let empty_env = Environ.empty_env in
+      let empty_evd = Evd.empty in
+      Some
+        (Pp.string_of_ppcmds
+           (Pputils.pr_raw_generic empty_env empty_evd
+              (Gentactic.to_raw_genarg raw_arg)))
+  | _ -> None
 
 [%%endif]
 
@@ -371,44 +354,20 @@ let is_syntax_node_ending_with_elipsis (x : t) : bool =
   String.ends_with ~suffix:"..." (repr x)
 
 let is_syntax_node_context (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with Vernacexpr.VernacContext _ -> true | _ -> false))
-  | None -> false
+  match synpure_expr x with Some (VernacContext _) -> true | _ -> false
 
 let is_syntax_node_require (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp synterp_expr -> (
-          match synterp_expr with VernacRequire _ -> true | _ -> false)
-      | VernacSynPure _ -> false)
-  | None -> false
+  match synterp_expr x with Some (VernacRequire _) -> true | _ -> false
 
 let is_syntax_node_function_start (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp synterp_expr -> (
-          match synterp_expr with
-          | VernacExtend (ext, _) ->
-              ext.ext_plugin = Rocq_version.ltac_funid_plugin_name
-              && ext.ext_entry = "Function"
-          | _ -> false)
-      | VernacSynPure _ -> false)
-  | None -> false
+  match synterp_expr x with
+  | Some (VernacExtend (ext, _)) ->
+      ext.ext_plugin = Rocq_version.ltac_funid_plugin_name
+      && ext.ext_entry = "Function"
+  | _ -> false
 
 let is_syntax_node_instance_start (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with Vernacexpr.VernacInstance _ -> true | _ -> false))
-  | None -> false
+  match synpure_expr x with Some (VernacInstance _) -> true | _ -> false
 
 let is_syntax_node_program_instance_start (x : t) : bool =
   match x.ast with
@@ -428,96 +387,45 @@ let is_syntax_node_program_instance_start (x : t) : bool =
   | None -> false
 
 let is_syntax_node_definition (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with Vernacexpr.VernacDefinition _ -> true | _ -> false))
-  | None -> false
+  match synpure_expr x with Some (VernacDefinition _) -> true | _ -> false
 
 let is_syntax_node_goal (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with
-          | Vernacexpr.VernacDefinition
-              ((NoDischarge, Decls.Definition), (lname, _), definition_expr) ->
-              if lname.v = Names.Anonymous then
-                match definition_expr with ProveBody _ -> true | _ -> false
-              else false
-          | _ -> false))
-  | None -> false
+  match synpure_expr x with
+  | Some
+      (VernacDefinition
+         ((NoDischarge, Decls.Definition), (lname, _), definition_expr)) -> (
+      lname.v = Names.Anonymous
+      && match definition_expr with ProveBody _ -> true | _ -> false)
+  | _ -> false
 
 let is_syntax_node_definition_with_proof (x : t) : bool =
   (* TODO: check if this include anonymous goals *)
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with
-          | Vernacexpr.VernacDefinition ((_, _), _, definition_expr) -> (
-              match definition_expr with ProveBody _ -> true | _ -> false)
-          | _ -> false))
-  | None -> false
+  match synpure_expr x with
+  | Some (VernacDefinition ((_, _), _, ProveBody _)) -> true
+  | _ -> false
 
 let get_definition_name (x : t) : string option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynPure (Vernacexpr.VernacDefinition (_, (name, _), _)) ->
-          Some (Pp.string_of_ppcmds (Names.Name.print name.v))
-      | _ -> None)
-  | None -> None
+  match synpure_expr x with
+  | Some (VernacDefinition (_, (name, _), _)) ->
+      Some (Pp.string_of_ppcmds (Names.Name.print name.v))
+  | _ -> None
 
 let get_definition_constrexpr (x : t) : Constrexpr.constr_expr option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynPure (Vernacexpr.VernacDefinition (_, _, expr)) -> (
-          match expr with
-          | ProveBody _ -> None
-          | DefineBody (_, _, expr, _) -> Some expr)
-      | _ -> None)
-  | None -> None
+  match synpure_expr x with
+  | Some (VernacDefinition (_, _, DefineBody (_, _, expr, _))) -> Some expr
+  | _ -> None
 
 let is_syntax_node_bullet (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with Vernacexpr.VernacBullet _ -> true | _ -> false))
-  | None -> false
+  match synpure_expr x with Some (VernacBullet _) -> true | _ -> false
 
 let is_syntax_node_opening_bracket (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with Vernacexpr.VernacSubproof _ -> true | _ -> false))
-  | None -> false
+  match synpure_expr x with Some (VernacSubproof _) -> true | _ -> false
 
 let is_syntax_node_closing_bracket (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with Vernacexpr.VernacEndSubproof -> true | _ -> false))
-  | None -> false
+  match synpure_expr x with Some VernacEndSubproof -> true | _ -> false
 
 let is_syntax_node_focus_command (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynPure (VernacFocus _) -> true
-      | _ -> false)
-  | None -> false
+  match synpure_expr x with Some (VernacFocus _) -> true | _ -> false
 
 let is_syntax_node_focusing_goal (x : t) : bool =
   is_syntax_node_bullet x
@@ -525,57 +433,30 @@ let is_syntax_node_focusing_goal (x : t) : bool =
   || is_syntax_node_opening_bracket x
 
 let is_syntax_node_proof_start (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with
-          | Vernacexpr.VernacStartTheoremProof _ -> true
-          | _ -> false))
-  | None -> false
+  match synpure_expr x with
+  | Some (VernacStartTheoremProof _) -> true
+  | _ -> false
 
 let is_syntax_node_proof_end (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with Vernacexpr.VernacEndProof _ -> true | _ -> false))
-  | None -> false
+  match synpure_expr x with Some (VernacEndProof _) -> true | _ -> false
 
 let is_syntax_node_proof_abort (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> false
-      | VernacSynPure expr -> (
-          match expr with
-          | Vernacexpr.VernacAbort -> true
-          | Vernacexpr.VernacAbortAll ->
-              true
-              (*not sure what is the fundamental difference between abort and abort all *)
-          | _ -> false))
-  | None -> false
+  match synpure_expr x with
+  | Some (VernacAbort | VernacAbortAll) -> true
+  | _ -> false
 
 let get_syntax_node_extend_name (x : t) : extend_name option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp (VernacExtend (ext, _)) -> Some ext
-      | _ -> None)
-  | None -> None
+  match synterp_expr x with
+  | Some (VernacExtend (ext, _)) -> Some ext
+  | _ -> None
 
 let get_tactic_raw_generic_arguments (x : t) :
     Genarg.raw_generic_argument list option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp (VernacExtend (ext, args))
-        when ext.ext_plugin = Rocq_version.ltac_ext_plugin_name ->
-          Some args
-      | _ -> None)
-  | None -> None
+  match synterp_expr x with
+  | Some (VernacExtend (ext, args))
+    when ext.ext_plugin = Rocq_version.ltac_ext_plugin_name ->
+      Some args
+  | _ -> None
 
 open Raw_gen_args_converter
 
@@ -776,9 +657,12 @@ let drop_goal_selector (x : t) : t =
   match get_tactic_raw_generic_arguments x with
   | Some [ _sel; a1; a2; a3 ] ->
       let args = raw_generic_argument_of_ltac_selector None :: [ a1; a2; a3 ] in
-      Option.default x
-        (tactic_raw_generic_arguments_to_syntax_node
-           Ltac.ltac_tactic_extend_name args x.range.start)
+      let syntax_node_from_raw_gen_args =
+        tactic_raw_generic_arguments_to_syntax_node Ltac.ltac_tactic_extend_name
+          args x.range.start
+        |> Option.map (inherit_metadata ~from:x)
+      in
+      Option.default x syntax_node_from_raw_gen_args
   | _ -> x
 
 let add_goal_selector (x : t) (selector : Goal_select_view.t) :
@@ -790,7 +674,9 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
         (Goal_select_view.to_string selector)
   | None -> (
       match get_node_raw_tactic_expr x with
-      | Some expr -> raw_tactic_expr_to_syntax_node expr ~selector x.range.start
+      | Some expr ->
+          raw_tactic_expr_to_syntax_node expr ~selector x.range.start
+          |> Result.map (inherit_metadata ~from:x)
       | None ->
           Error.format_to_or_error
             "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
