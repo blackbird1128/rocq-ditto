@@ -6,12 +6,6 @@ open Constrexpr_utils
 let ( let* ) = Result.bind
 let ( let+ ) = Option.bind
 
-module Syntax_nodeSet = Set.Make (struct
-  type t = Syntax_node.t
-
-  let compare = Syntax_node.compare
-end)
-
 module StringSet = Set.Make (String)
 
 let rewrite_qualid_prefix ~(old_prefix : string) ~(new_prefix : string)
@@ -21,6 +15,7 @@ let rewrite_qualid_prefix ~(old_prefix : string) ~(new_prefix : string)
   | Some (_, postfix) -> Some (Libnames.qualid_of_string (new_prefix ^ postfix))
   | None -> None
 
+(* each import command only import a single file in the target library *)
 let rewrite_first_import ~(rules : (string * string) list)
     (libnames_import_list : (Libnames.qualid * import_filter_expr) list) :
     (Libnames.qualid * import_filter_expr) list option =
@@ -335,6 +330,8 @@ type stab_kind =
   | Stab_destruct_with_args
   | Stab_destruct_no_args
   | Stab_elim_no_args
+  | ApplyC
+  | EapplyC
 
 let dummy_tactic_for_kind = function
   | Inner_pasch -> "stab_destruct (by_inner_pasch A B C D X X X) as [I []]."
@@ -344,6 +341,8 @@ let dummy_tactic_for_kind = function
   | Stab_destruct_no_args -> "stab_destruct H."
   | Stab_destruct_with_args -> "stab_destruct H as [HL|HR]."
   | Stab_elim_no_args -> "stab_elim H."
+  | ApplyC -> "applyC (lower_dim)."
+  | EapplyC -> "eapplyC (lower_dim)."
 
 let compute_alias_kername (k : stab_kind) : Names.KerName.t option =
   let s = dummy_tactic_for_kind k in
@@ -369,6 +368,12 @@ let stab_destruct_no_args_alias_kn : Names.KerName.t option Lazy.t =
 let stab_elim_no_args_alias_kn : Names.KerName.t option Lazy.t =
   lazy (compute_alias_kername Stab_elim_no_args)
 
+let apply_c_kn : Names.KerName.t option Lazy.t =
+  lazy (compute_alias_kername ApplyC)
+
+let eapply_c_kn : Names.KerName.t option Lazy.t =
+  lazy (compute_alias_kername EapplyC)
+
 let get_alias_kn = function
   | Inner_pasch -> Lazy.force inner_pasch_alias_kn
   | Segment_construction -> Lazy.force segment_construction_alias_kn
@@ -376,6 +381,16 @@ let get_alias_kn = function
   | Stab_destruct_with_args -> Lazy.force stab_destruct_with_args_alias_kn
   | Stab_destruct_no_args -> Lazy.force stab_destruct_no_args_alias_kn
   | Stab_elim_no_args -> Lazy.force stab_elim_no_args_alias_kn
+  | ApplyC -> Lazy.force apply_c_kn
+  | EapplyC -> Lazy.force eapply_c_kn
+
+let make_alias (kername : Names.KerName.t)
+    (args : Genarg.raw_generic_argument list) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let gen_tactic_args =
+    List.map (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x)) args
+  in
+  Ltac_plugin.Tacexpr.TacAlias (kername, gen_tactic_args) |> CAst.make
 
 let replace_elim_with_stab_elim (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -398,6 +413,40 @@ let replace_elim_with_stab_elim (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       Ltac_plugin.Tacexpr.TacAlias (kername, stab_elim_args) |> CAst.make
   | _ -> x
 
+let replace_apply_by_applyC (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  match x.v with
+  | TacAtom
+      (TacApply
+         (_advanced_flag, is_eapply, [ (_clear_flag, term_with_bindings) ], []))
+    ->
+      let term, _term_bindings = term_with_bindings in
+      let term_funname = get_fun_name_in_constrexpr term |> Option.get in
+      let funname_string = Libnames.string_of_qualid term_funname in
+
+      if
+        List.mem funname_string
+          [ "lower_dim"; "inner_pasch"; "segment_construction" ]
+      then
+        let kername =
+          (if is_eapply then get_alias_kn EapplyC else get_alias_kn ApplyC)
+          |> Option.get
+        in
+
+        let new_funname = String.cat "by_" funname_string in
+        let renamed_fun_constrexpr =
+          Constrexpr_utils.replace_fun_name_in_constrexpr funname_string
+            new_funname term
+        in
+
+        let open_constr_arg =
+          Raw_gen_args_converter.raw_generic_argument_of_open_constr
+            renamed_fun_constrexpr
+        in
+        make_alias kername [ open_constr_arg ]
+      else x
+  | _ -> x
+
 let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
   if is_constrexpr_c_app_named c "inner_pasch" then get_alias_kn Inner_pasch
   else if is_constrexpr_c_app_named c "segment_construction" then
@@ -414,13 +463,6 @@ let raw_genarg_from_intro_pattern
 
   Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
     intro_pattern_expr
-
-let make_alias (kername : Kername.t) (args : Genarg.raw_generic_argument list) :
-    Ltac_plugin.Tacexpr.raw_tactic_expr =
-  let gen_tactic_args =
-    List.map (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x)) args
-  in
-  Ltac_plugin.Tacexpr.TacAlias (kername, gen_tactic_args) |> CAst.make
 
 let replace_destruct_fun_with_stab_destruct
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
@@ -836,6 +878,17 @@ let constructivise_doc (doc : Rocq_document.t) :
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
+  let applyC_node_rawtac =
+    Syntax_node.string_to_raw_tactic_expr "applyC (by_lower_dim)."
+    |> Result.get_ok
+  in
+  let rawtac_sexp =
+    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr applyC_node_rawtac
+  in
+  Logs.debug (fun m ->
+      m "rawtac_sexp: %s"
+        (Sexplib.Sexp.to_string_hum (rawtac_sexp |> Sexp_utils.strip_loc)));
+
   let stage_0 : stage =
     make_stage "stage0" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in
@@ -1042,6 +1095,13 @@ let constructivise_doc (doc : Rocq_document.t) :
         Ok prolong_to_segment_cons_steps)
   in
 
+  let stage_5_bis : stage =
+    make_stage "stage5_bis" (fun doc ->
+        let steps = map_raw_tactic_expr_steps replace_apply_by_applyC doc in
+
+        Ok steps)
+  in
+
   let stage_6 : stage =
     make_stage "stage6" (fun doc ->
         let decompose_or_to_stab_version_steps =
@@ -1094,6 +1154,7 @@ let constructivise_doc (doc : Rocq_document.t) :
         stage_3;
         stage_4;
         stage_5;
+        stage_5_bis;
         stage_6;
         stage_7;
         stage_8;
