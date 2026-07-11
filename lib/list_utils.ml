@@ -1,3 +1,6 @@
+let[@inline] head_opt (l : 'a list) : 'a option =
+  match l with [] -> None | a :: _ -> Some a
+
 let take (n : int) (l : 'a list) =
   let[@tail_mod_cons] rec aux (n : int) (l : 'a list) =
     match (n, l) with 0, _ | _, [] -> [] | n, x :: l -> x :: aux (n - 1) l

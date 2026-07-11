@@ -97,7 +97,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
     (transformation_kind : transformation_kind) (proof_list : Proof.t list)
     (verbose : bool) (quiet : bool) : Rocq_document.t =
   let proof_total = List.length proof_list in
-  let first_proof = List.nth_opt proof_list 0 in
+  let first_proof = List_utils.head_opt proof_list in
   let token = Coq.Limits.Token.create () in
   let res, _, _, prev_proof =
     List.fold_left
@@ -321,7 +321,8 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                 print_info filename verbose;
                 let out = open_out filename in
 
-                let* doc_repr = Rocq_document.dump_to_string res in
+                (* new document repr was computed when applying transformation steps *)
+                let doc_repr = res.document_repr in
 
                 output_string out doc_repr;
                 flush_all ();

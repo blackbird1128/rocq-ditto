@@ -1,3 +1,4 @@
+val head_opt : 'a list -> 'a option
 val take : int -> 'a list -> 'a list
 val drop : int -> 'a list -> 'a list
 val take_while : ('a -> bool) -> 'a list -> 'a list
