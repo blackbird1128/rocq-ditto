@@ -194,12 +194,9 @@ let get_proof_state (start_result : (Coq.State.t, Loc.t) Coq.Protect.E.t) :
       Printf.eprintf "Error: %s\n" (Error.to_string_hum err);
       raise (Failure "Failed to start proof")
 
-let count_goals (token : Coq.Limits.Token.t) (st : Coq.State.t) : int =
-  let goals = goals ~token ~st in
-  match goals with
-  | Ok (Some reified_goals) -> List.length reified_goals.goals
-  | Ok None -> 0
-  | Error _ -> 0
+let count_goals (st : Coq.State.t) : int =
+  let goals = Fleche.Info.Goals.get_goals_unit ~st in
+  match goals with None -> 0 | Some goals -> List.length goals.goals
 
 let reified_goals_at_state (token : Coq.Limits.Token.t) (st : Coq.State.t) :
     string Coq.Goals.Reified_goal.t list =
@@ -216,15 +213,13 @@ let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
     match steps with
     | [] -> []
     | step :: tail ->
-        let before_count = count_goals token st in
-        if
-          is_focusing_goal step
-          || is_closing_bracket step
-        then (before_count, step, before_count) :: aux token st tail
+        let before_count = count_goals st in
+        if is_focusing_goal step || is_closing_bracket step then
+          (before_count, step, before_count) :: aux token st tail
         else
           let state = Fleche.Doc.run ~token ~st (repr step) in
           let agent_state = get_proof_state state in
-          let goal_count = count_goals token agent_state in
+          let goal_count = count_goals agent_state in
           (before_count, step, goal_count) :: aux token agent_state tail
   in
   aux token st steps
@@ -233,17 +228,17 @@ let can_reduce_to_zero_goals (init_state : Coq.State.t)
     (nodes : Syntax_node.t list) : bool =
   let token = Coq.Limits.Token.create () in
 
-  let rec aux state acc nodes =
+  let rec aux state nodes =
     match nodes with
-    | [] -> Ok acc
+    | [] -> Ok state
     | x :: tail -> (
         let state_node_res = run_node token state x in
         match state_node_res with
-        | Ok state_node -> aux state_node state_node tail
+        | Ok state_node -> aux state_node tail
         | Error _ -> Error ())
   in
-  match aux init_state init_state nodes with
-  | Ok state -> count_goals token state = 0
+  match aux init_state nodes with
+  | Ok state -> count_goals state = 0
   | Error _ -> false
 
 let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :

@@ -34,7 +34,7 @@ let simple_proof_repair (doc : Rocq_document.t)
                   let state_res = Runner.run_node token state_acc node in
                   match state_res with
                   | Ok new_state ->
-                      let num_goals = Runner.count_goals token new_state in
+                      let num_goals = Runner.count_goals new_state in
                       if
                         List.length children = 0
                         && (not (Syntax_node.is_proof_intro_or_end node))
@@ -61,7 +61,7 @@ let simple_proof_repair (doc : Rocq_document.t)
                         Runner.run_node token state_acc admit_node
                         |> Result.map_error Error.tag_with_debug_infos
                       in
-                      let num_goals = Runner.count_goals token admit_state in
+                      let num_goals = Runner.count_goals admit_state in
 
                       Ok
                         ( admit_state,
@@ -93,7 +93,7 @@ let fold_replace_assumption_with_apply (doc : Rocq_document.t)
           && not (String.contains (repr node) ';')
         then
           let goal_count_after_assumption =
-            Runner.count_goals token state_node
+            Runner.count_goals state_node
           in
 
           let curr_goal_err = Runner.get_current_goal token state in
@@ -124,7 +124,7 @@ let fold_replace_assumption_with_apply (doc : Rocq_document.t)
               let replacement =
                 List.find
                   (fun tuple_n_r ->
-                    Runner.count_goals token (snd tuple_n_r)
+                    Runner.count_goals (snd tuple_n_r)
                     = goal_count_after_assumption)
                   apply_states
               in
@@ -574,7 +574,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
                     Result.get_ok (Runner.run_node token prev_state node)
                   in
 
-                  let goal_count = Runner.count_goals token cur_state in
+                  let goal_count = Runner.count_goals cur_state in
                   if number_children = 0 then
                     if goal_count < prev_goal_count then
                       (node, cur_state, depth, number_children, goal_count, true)
@@ -723,7 +723,6 @@ let rename_definition (doc : Rocq_document.t) :
             "Please provide at least a renaming in the file"
       | Ok renames ->
           let token = Coq.Limits.Token.create () in
-
 
           let* fizz_def_node =
             Syntax_node.syntax_node_of_string "Ltac fizz t := unfold t in *."
@@ -922,12 +921,12 @@ let rename_definition (doc : Rocq_document.t) :
 
 let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
-
   let suffix_node_opt =
     proof.proof_steps
     |> List.find_map Syntax_node.get_syntax_node_proof_with_tactic
     |> Option.map (fun x ->
-        Syntax_node.syntax_node_of_string (x ^ ".") Code_point.dummy |> Result.get_ok)
+        Syntax_node.syntax_node_of_string (x ^ ".") Code_point.dummy
+        |> Result.get_ok)
   in
   match suffix_node_opt with
   | Some suffix_node ->
@@ -942,7 +941,8 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
                 node_repr_without_elipsis ^ ";" ^ Syntax_node.repr suffix_node
               in
               let new_node =
-                Syntax_node.syntax_node_of_string node_concat_repr Code_point.dummy
+                Syntax_node.syntax_node_of_string node_concat_repr
+                  Code_point.dummy
               in
               Some (Result.map (fun x -> Replace (node.id, x)) new_node)
             else None)
@@ -952,6 +952,7 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
       let proof_node_with =
         List.find Syntax_node.is_proof_command proof.proof_steps
       in
+
       let new_proof_node =
         Syntax_node.syntax_node_of_string "Proof." Code_point.dummy
       in
@@ -965,7 +966,6 @@ let turn_into_oneliner (_ : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
     (transformation_step list, Error.t) result =
   let* proof = Runner.tree_to_proof proof_tree in
-
 
   match Proof.get_proof_status proof with
   | None ->
