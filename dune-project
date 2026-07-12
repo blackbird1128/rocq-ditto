@@ -207,6 +207,14 @@
   coq-ditto))
 
 (package
+ (name rocq-ditto-benchmark)
+ (synopsis "Run the rocq-ditto benchmarks")
+ (depends
+  ocaml
+  bechamel
+  (coq-lsp (and (>= 0.2.4) (< 0.2.5)))))
+
+(package
  (name json-dump-plugin)
  (synopsis "Dump a Rocq-AST to JSON")
  (description "Plugin to explore Rocq internal ASTs by dumping them to JSON.")

@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (package rocq-ditto-benchmark)
+ (public_name rocq-ditto-benchmark)
+ (libraries coq-ditto bechamel))
