@@ -318,21 +318,16 @@ module Syntax_nodeSet = Set.Make (struct
 end)
 
 let get_ltac_outside_proofs (doc : t) : (Syntax_node.t list, Error.t) result =
-  let ( let* ) = Result.bind in
-
-  let* proofs = get_proofs doc in
-
-  let proof_steps_node = List.concat_map (fun p -> p.proof_steps) proofs in
-
-  let all_ltac_nodes_set =
-    Syntax_nodeSet.of_list (List.filter Syntax_node.is_ltac doc.elements)
+  let rec scan (in_proof : bool) (acc : Syntax_node.t list) = function
+    | [] -> List.rev acc
+    | node :: tail ->
+        if can_open_proof node then scan true acc tail
+        else if can_close_proof node then scan false acc tail
+        else if (not in_proof) && is_ltac node then
+          scan false (node :: acc) tail
+        else scan in_proof acc tail
   in
-
-  let proof_steps_set = Syntax_nodeSet.of_list proof_steps_node in
-
-  Ok
-    (Syntax_nodeSet.diff all_ltac_nodes_set proof_steps_set
-    |> Syntax_nodeSet.to_list)
+  Ok (scan false [] doc.elements)
 
 let split_at_id (target_id : Uuidm.t) (doc : t) :
     Syntax_node.t list * Syntax_node.t list =
