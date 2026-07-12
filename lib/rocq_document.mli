@@ -5,7 +5,7 @@ type t = {
   filename : string;
   elements : Syntax_node.t list;
   document_repr : string;
-  initial_state : Coq.State.t;
+  root_state : Coq.State.t;
 }
 
 type removeMethod = LeaveBlank | ShiftNode

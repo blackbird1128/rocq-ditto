@@ -8,7 +8,7 @@ type t = {
   filename : string;
   elements : Syntax_node.t list;
   document_repr : string;
-  initial_state : Coq.State.t;
+  root_state : Coq.State.t;
 }
 
 type removeMethod = LeaveBlank | ShiftNode
@@ -222,7 +222,7 @@ let parse_document (doc : Doc.t) : t =
     elements = all_nodes_with_growing_ids;
     document_repr;
     filename;
-    initial_state = doc.root;
+    root_state = doc.root;
   }
 
 let dump_sorted_elements_to_string (sorted : Syntax_node.t list) :

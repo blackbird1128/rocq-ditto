@@ -155,8 +155,8 @@ let get_state_after (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
 let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
     (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
   let nodes_before, _ = Rocq_document.split_at_id node.id doc in
-  let init_state = doc.initial_state in
-  get_state_after init_state token nodes_before
+  let root_state = doc.root_state in
+  get_state_after root_state token nodes_before
 
 let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
     =

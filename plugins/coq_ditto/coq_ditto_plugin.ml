@@ -341,7 +341,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                   | Some last ->
                       let* st = Runner.get_init_state res last token in
                       Runner.run_node token st last
-                  | None -> Ok res.initial_state
+                  | None -> Ok res.root_state
                 in
 
                 let res =

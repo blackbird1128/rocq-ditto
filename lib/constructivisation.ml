@@ -874,7 +874,7 @@ let constructivise_doc (doc : Rocq_document.t) :
   in
 
   let* _preload_prelude =
-    Runner.get_state_after doc.initial_state token [ require_prelude_node ]
+    Runner.get_state_after doc.root_state token [ require_prelude_node ]
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 

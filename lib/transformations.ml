@@ -92,9 +92,7 @@ let fold_replace_assumption_with_apply (doc : Rocq_document.t)
           String.starts_with ~prefix:"assumption" (repr node)
           && not (String.contains (repr node) ';')
         then
-          let goal_count_after_assumption =
-            Runner.count_goals state_node
-          in
+          let goal_count_after_assumption = Runner.count_goals state_node in
 
           let curr_goal_err = Runner.get_current_goal token state in
           match curr_goal_err with
@@ -736,7 +734,7 @@ let rename_definition (doc : Rocq_document.t) :
 
           let _preload_fizz =
             ignore
-              (Runner.get_state_after doc.initial_state token
+              (Runner.get_state_after doc.root_state token
                  [ fizz_def_node; foo_def_node ])
           in
 

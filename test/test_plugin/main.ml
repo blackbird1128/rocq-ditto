@@ -1398,7 +1398,7 @@ let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
   let token = Coq.Limits.Token.create () in
 
   let steps_with_goalcount =
-    Runner.proof_steps_with_goalcount token doc.initial_state doc.elements
+    Runner.proof_steps_with_goalcount token doc.root_state doc.elements
   in
   let repr_with_goalcount =
     List.map
@@ -1430,7 +1430,7 @@ let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
   let token = Coq.Limits.Token.create () in
 
   let steps_with_goalcount =
-    Runner.proof_steps_with_goalcount token doc.initial_state doc.elements
+    Runner.proof_steps_with_goalcount token doc.root_state doc.elements
   in
   let repr_with_goalcount =
     List.map
