@@ -59,7 +59,7 @@ val get_names : t -> string list
 (** Get the names of a node. A node can have multiple names (i.e., mutual
     recursive definitions) *)
 
-val validate_syntax_node : t -> (t, Error.t) result
+val validate : t -> (t, Error.t) result
 
 val mk_vernac_control :
   ?loc:Loc.t -> synterp_vernac_expr vernac_expr_gen -> vernac_control

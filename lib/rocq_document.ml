@@ -416,7 +416,7 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
 let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
   let ( let* ) = Result.bind in
-  let* new_node = validate_syntax_node new_node in
+  let* new_node = validate new_node in
 
   let sorted = doc.elements in
   let before, after =
@@ -520,7 +520,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
       Error.format_to_or_error "The target node with id: %s doesn't exist"
         (Uuidm.to_string target_id)
   | Some target ->
-      let* replacement = validate_syntax_node replacement in
+      let* replacement = validate replacement in
       let replacement =
         {
           replacement with
@@ -529,7 +529,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
               (Syntax_node.repr replacement);
         }
       in
-      let* replacement = validate_syntax_node replacement in
+      let* replacement = validate replacement in
 
       let* doc_removed =
         remove_node_with_id ~remove_method:LeaveBlank target.id doc

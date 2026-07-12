@@ -107,7 +107,7 @@ let count_newlines_and_last_line_len (s : string) : int * int =
   in
   loop 0 0 0
 
-let validate_syntax_node (x : t) : (t, Error.t) result =
+let validate (x : t) : (t, Error.t) result =
   let r = x.range in
   if r.end_.line < r.start.line then
     Error.string_to_or_error
