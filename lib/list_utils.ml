@@ -1,14 +1,14 @@
 let[@inline] head_opt (l : 'a list) : 'a option =
   match l with [] -> None | a :: _ -> Some a
 
-let take (n : int) (l : 'a list) =
+let take (n : int) (l : 'a list) : 'a list =
   let[@tail_mod_cons] rec aux (n : int) (l : 'a list) =
     match (n, l) with 0, _ | _, [] -> [] | n, x :: l -> x :: aux (n - 1) l
   in
   if n < 0 then invalid_arg "List.take";
   aux n l
 
-let drop (n : int) (l : 'a list) =
+let drop (n : int) (l : 'a list) : 'a list =
   let rec aux (i : int) = function
     | _x :: l when i < n -> aux (i + 1) l
     | rest -> rest
@@ -16,7 +16,7 @@ let drop (n : int) (l : 'a list) =
   if n < 0 then invalid_arg "List.drop";
   aux 0 l
 
-let take_while (p : 'a -> bool) (l : 'a list) =
+let take_while (p : 'a -> bool) (l : 'a list) : 'a list =
   let[@tail_mod_cons] rec aux = function
     | x :: l when p x -> x :: aux l
     | _rest -> []
@@ -26,6 +26,14 @@ let take_while (p : 'a -> bool) (l : 'a list) =
 let rec drop_while (p : 'a -> bool) = function
   | x :: l when p x -> drop_while p l
   | rest -> rest
+
+let split_while (p : 'a -> bool) (l : 'a list) : 'a list * 'a list =
+  let rec aux acc_before = function
+    | [] -> (l, [])
+    | x :: l when p x -> aux (x :: acc_before) l
+    | _ :: _ -> (acc_before, l)
+  in
+  aux [] l
 
 let rec last (l : 'a list) : 'a option =
   match l with
@@ -40,7 +48,7 @@ let last_and_len (lst : 'a list) : 'a option * int =
   in
   aux None 0 lst
 
-let find_index (f : 'a -> bool) (xs : 'a list) =
+let find_index (f : 'a -> bool) (xs : 'a list) : int option =
   let rec aux i = function
     | [] -> None
     | x :: rest -> if f x then Some i else aux (i + 1) rest
