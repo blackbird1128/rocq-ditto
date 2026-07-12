@@ -515,9 +515,12 @@ let print_transformation (kind, description) =
 let list_transformations () =
   List.iter print_transformation transformations_help
 
-(* let list_transformations () = *)
-(*   Printf.printf "Available transformations:\n\n%s%!" *)
-(*     (help_to_string transformations_help) *)
+let transformation_man =
+  [ `S "TRANSFORMATIONS" ]
+  @ List.map
+      (fun (kind, description) ->
+        `I (transformation_kind_to_string kind, description))
+      transformations_help
 
 let list_cmd =
   let doc = "List the available transformations." in
@@ -527,13 +530,12 @@ let default_term = Term.(const main $ cli_options_t)
 
 let cmd =
   let doc = "Apply transformations to Rocq projects or files" in
-  let info = Cmd.info "rocq-ditto" ~doc in
+  let info = Cmd.info "rocq-ditto" ~man:transformation_man ~doc in
   Cmd.group ~default:default_term info [ list_cmd ]
 
 let () =
   let exit_code = Cmd.eval cmd in
   Option.iter
-    (fun suggestion ->
-      Printf.eprintf "Hint: did you mean '%s'?\n%!" suggestion)
+    (fun suggestion -> Printf.eprintf "Hint: did you mean '%s'?\n%!" suggestion)
     !transformation_suggestion;
   exit exit_code

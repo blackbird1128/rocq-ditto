@@ -113,6 +113,14 @@ let help_to_string (transformation_help : (transformation_kind * string) list) :
       acc ^ transformation_kind_to_string kind ^ ": " ^ help ^ "\n")
     "" transformation_help
 
+let suggest_transformation (from : string) : string option =
+  let spellchecked =
+    String.spellcheck (fun yield -> List.iter yield transformations_list) from
+  in
+  match spellchecked with
+  | [] -> None
+  | possible_spell :: _ -> Some possible_spell
+
 let arg_to_transformation_kind arg =
   let normalized = String.lowercase_ascii arg in
   match
@@ -122,17 +130,12 @@ let arg_to_transformation_kind arg =
   with
   | Some k -> Ok k
   | None -> (
-      let spellchecked =
-        String.spellcheck
-          (fun yield -> List.iter yield transformations_list)
-          normalized
-      in
-      match spellchecked with
-      | [] ->
+      match suggest_transformation normalized with
+      | None ->
           Error.string_to_or_error
             (Printf.sprintf "unknown transformation %S; expected one of: %s" arg
                (String.concat ", " transformations_list))
-      | possible_spell :: _ ->
+      | Some possible_spell ->
           Error.string_to_or_error
             (Printf.sprintf
                "unknown transformation %S; expected one of: %s\n\n\
