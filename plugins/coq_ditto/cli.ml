@@ -1,7 +1,6 @@
 open Ditto
 
 type transformation_kind =
-  | Help
   | RenameDefinition
   | ExplicitFreshVariables
   | TurnIntoOneliner
@@ -63,7 +62,6 @@ let transformation_help_fun (kind : transformation_kind) :
     transformation_kind * string =
   let help_text =
     match kind with
-    | Help -> "Display what all the transformations do"
     | RenameDefinition ->
         "Rename a Definition, updating the code in the file to match the new \
          name"

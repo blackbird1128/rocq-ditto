@@ -53,7 +53,7 @@ To run `rocq-ditto` on a project needing Rocq libraries, install them in the sam
 To first know what transformations are available, you can run the following command:
 
 ``` shell
-dune exec --profile=release rocq-ditto -- -i _ -o _ -t help
+dune exec --profile=release rocq-ditto list
 ```
 
 Then, to run the plugin on a single file, run the following command:

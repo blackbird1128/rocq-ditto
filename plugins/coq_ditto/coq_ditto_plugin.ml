@@ -16,7 +16,6 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
     scoped_function =
   let ( let* ) = Result.bind in
   match kind with
-  | Help -> DocScope (fun _ -> Ok [])
   | RenameDefinition -> DocScope Transformations.rename_definition
   | ExplicitFreshVariables ->
       ProofScope Transformations.explicit_fresh_variables
@@ -246,9 +245,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
         | None ->
             Error.string_to_or_error
               "Please specify the wanted transformation using the environment \
-               variable: DITTO_TRANSFORMATION\n\
-               If you want help about the different transformation, specify \
-               DITTO_TRANSFORMATION=HELP"
+               variable: DITTO_TRANSFORMATION\n"
         | Some steps when List.exists Result.is_error steps ->
             let not_recognized =
               String.concat "\n"
@@ -262,9 +259,6 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
                Recognized transformations: %s"
               not_recognized
               (String.concat "\n" transformations_list)
-        | Some steps when List.mem (Ok Help) steps ->
-            Printf.printf "%s\n" (help_to_string transformations_help);
-            Ok ()
         | Some steps -> (
             let transformations_steps = List.map Result.get_ok steps in
             let parsed_document = Rocq_document.parse_document doc in
