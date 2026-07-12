@@ -357,7 +357,7 @@ let get_syntax_node_proof_with_tactic (x : t) : string option =
 
 [%%endif]
 
-let is_ending_with_elipsis (x : t) : bool =
+let is_ending_with_ellipsis (x : t) : bool =
   String.ends_with ~suffix:"..." (repr x)
 
 let is_context (x : t) : bool =

@@ -640,7 +640,7 @@ let rec get_oneliner (suffix : Syntax_node.t option)
   match tree with
   | Node (x, childrens) -> (
       let* new_x_raw_expr =
-        if Syntax_node.is_ending_with_elipsis x then
+        if Syntax_node.is_ending_with_ellipsis x then
           match suffix with
           | None ->
               Error.format_to_or_error
@@ -931,12 +931,12 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
       let steps =
         List.filter_map
           (fun node ->
-            if Syntax_node.is_ending_with_elipsis node then
-              let node_repr_without_elipsis =
+            if Syntax_node.is_ending_with_ellipsis node then
+              let node_repr_without_ellipsis =
                 String_utils.remove_suffix (Syntax_node.repr node) "..."
               in
               let node_concat_repr =
-                node_repr_without_elipsis ^ ";" ^ Syntax_node.repr suffix_node
+                node_repr_without_ellipsis ^ ";" ^ Syntax_node.repr suffix_node
               in
               let new_node =
                 Syntax_node.syntax_node_of_string node_concat_repr

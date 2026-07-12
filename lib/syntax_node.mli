@@ -74,7 +74,7 @@ val is_command_allowed_in_proof : t -> bool
 
 val is_proof_with : t -> bool
 val get_syntax_node_proof_with_tactic : t -> string option
-val is_ending_with_elipsis : t -> bool
+val is_ending_with_ellipsis : t -> bool
 val get_vernac_expr_gen : t -> synterp_vernac_expr vernac_expr_gen option
 
 val is_ltac : t -> bool
