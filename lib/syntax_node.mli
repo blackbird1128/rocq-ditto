@@ -137,9 +137,9 @@ val can_open_proof : t -> bool
     - an Instance with a proof
     - a Function with a proof *)
 
-val node_can_close_proof : t -> bool
-(** [node_can_close_proof x] check if [x] can close a proof, meaning it's either
-    Qed, Admitted, Abort or Abort all *)
+val can_close_proof : t -> bool
+(** [can_close_proof x] check if [x] can close a proof, meaning it's either Qed,
+    Admitted, Abort or Abort all *)
 
 open Raw_gen_args_converter
 

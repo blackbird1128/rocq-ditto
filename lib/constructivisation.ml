@@ -798,8 +798,7 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
   let remove_all_steps_except_qed =
     List.filter_map
       (fun (step : Syntax_node.t) ->
-        if Syntax_node.node_can_close_proof step then None
-        else Some (Remove step.id))
+        if Syntax_node.can_close_proof step then None else Some (Remove step.id))
       proof.proof_steps
   in
 

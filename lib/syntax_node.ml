@@ -817,7 +817,7 @@ let can_open_proof (x : t) : bool =
   in
   res
 
-let node_can_close_proof (x : t) : bool = is_proof_abort x || is_proof_end x
+let can_close_proof (x : t) : bool = is_proof_abort x || is_proof_end x
 
 let is_proof_intro_or_end (x : t) : bool =
   is_proof_start x || is_proof_command x || is_proof_end x

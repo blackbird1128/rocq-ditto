@@ -983,7 +983,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
         Nary_tree.filter
           (fun node ->
             (not (is_command_allowed_in_proof node))
-            && ((not (can_open_proof node)) && not (node_can_close_proof node))
+            && ((not (can_open_proof node)) && not (can_close_proof node))
             && Option.has_some node.ast)
           proof_tree
       in
@@ -1002,7 +1002,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
             List.filter_map
               (fun node ->
                 if
-                  can_open_proof node || node_can_close_proof node
+                  can_open_proof node || can_close_proof node
                   || is_proof_command node
                 then None
                 else Some (Remove node.id))

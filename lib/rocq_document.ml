@@ -35,7 +35,7 @@ let get_proofs (doc : t) : (Proof.t list, Error.t) result =
     | x :: tail -> (
         if Syntax_node.can_open_proof x then
           aux tail [ x ] proofs_acc ProofOpened
-        else if Syntax_node.node_can_close_proof x then
+        else if Syntax_node.can_close_proof x then
           if List.is_empty cur_proof_acc then
             aux tail [] proofs_acc
               NoProof (* TODO: proper handling of Program and Obligation *)
