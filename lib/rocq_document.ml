@@ -151,14 +151,9 @@ let get_comments (content : string) :
          (str, range))
        res)
 
-let compare_code_point (p1 : Code_point.t) (p2 : Code_point.t) : int =
-  match Int.compare p1.line p2.line with
-  | 0 -> Int.compare p1.character p2.character
-  | c -> c
-
 let second_node_included_in (a : Syntax_node.t) (b : Syntax_node.t) : bool =
-  compare_code_point a.range.start b.range.start <= 0
-  && compare_code_point b.range.end_ a.range.end_ <= 0
+  Code_point.compare a.range.start b.range.start <= 0
+  && Code_point.compare b.range.end_ a.range.end_ <= 0
 
 let merge_nodes (nodes : Syntax_node.t list) : Syntax_node.t list =
   let rec merge_aux (acc : Syntax_node.t list) (nodes : Syntax_node.t list) =

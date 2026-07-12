@@ -9,7 +9,7 @@ let pp (fmt : Format.formatter) (x : t) : unit =
 
 let compare (a : t) (b : t) : int =
   let c = compare a.line b.line in
-  if c <> 0 then c else compare a.character b.character
+  if c = 0 then compare a.character b.character else c
 
 let leq (a : t) (b : t) : bool = compare a b <= 0
 let to_string (x : t) : string = Format.asprintf "%a" pp x

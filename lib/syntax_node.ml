@@ -54,25 +54,18 @@ let inherit_metadata ~(from : t) (node : t) : t =
     diagnostics = from.diagnostics;
   }
 
-(* as a code range is half_open (the end is open [a,b] and [b,c] are not colliding, this also mean that a node finishing on the character 0 of a line isn't included in this line  *)
-let line_span (r : Code_range.t) : int * int =
-  let end_excl =
-    if r.end_.character = 0 then r.end_.line else r.end_.line + 1
-  in
-  (r.start.line, end_excl)
-
 let char_span_on_line (r : Code_range.t) (line : int) : int * int =
   (* half-open char span [start_char, end_char) of r on a particular line that r touches *)
   let start_char = if r.start.line < line then 0 else r.start.character in
-  let _, end_line_excl = line_span r in
+  let _, end_line_excl = Code_range.line_span r in
   let end_char =
     if end_line_excl > line + 1 then max_int else r.end_.character
   in
   (start_char, end_char)
 
 let are_colliding (a : t) (b : t) : bool =
-  let a_ls, a_le = line_span a.range in
-  let b_ls, b_le = line_span b.range in
+  let a_ls, a_le = Code_range.line_span a.range in
+  let b_ls, b_le = Code_range.line_span b.range in
   (* common line span [cs, ce) *)
   let cs = max a_ls b_ls in
   let ce = min a_le b_le in
