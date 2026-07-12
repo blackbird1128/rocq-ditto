@@ -43,19 +43,6 @@ type t = {
 }
 (* proposition can also be a type, better name ? *)
 
-(* A node can have multiple names (ie mutual recursive defs) *)
-let get_names (node : Syntax_node.t) : string list =
-  match node.ast with
-  | Some ast -> (
-      match ast.ast_info with
-      | Some infos ->
-          List.concat_map
-            (fun (info : Lang.Ast.Info.t) ->
-              match info.name.v with None -> [] | Some s -> [ s ])
-            infos
-      | None -> [])
-  | None -> []
-
 let get_theorem_kind (x : t) : Decls.theorem_kind option =
   let coq_ast =
     Option.map

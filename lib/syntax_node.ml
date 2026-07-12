@@ -275,6 +275,19 @@ let reformat_node (x : t) : (t, Error.t) result =
   | None ->
       Error.string_to_or_error "The node need to have an AST to be reformatted"
 
+(* A node can have multiple names (ie mutual recursive defs) *)
+let get_names (node : t) : string list =
+  match node.ast with
+  | Some ast -> (
+      match ast.ast_info with
+      | Some infos ->
+          List.concat_map
+            (fun (info : Lang.Ast.Info.t) ->
+              match info.name.v with None -> [] | Some s -> [ s ])
+            infos
+      | None -> [])
+  | None -> []
+
 let shift_node (n_line : int) (n_char : int) (x : t) : t =
   { x with range = Code_range.shift n_line n_char x.range }
 

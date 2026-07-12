@@ -23,10 +23,6 @@ type t = {
 (** Represents a proof in a Coq document. [proof] contains the initial
     proposition and a list of proof steps. *)
 
-val get_names : Syntax_node.t -> string list
-(** Get the names of a node. A node can have multiple names (i.e., mutual
-    recursive definitions) *)
-
 val get_theorem_kind : t -> Decls.theorem_kind option
 (** Get the theorem kind of a proof. If the proof isn't a basic assertion
     command ie: Theorem, Lemma, Fact, Remark, Property, Proposition or
