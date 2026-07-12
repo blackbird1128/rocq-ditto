@@ -382,14 +382,35 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
 
 (* --- Cmdliner definitions ------------------------------------------- *)
 
+let transformation_suggestion = ref None
+
 let transformation_kind_conv =
-  let parse s =
-    match arg_to_transformation_kind s with
-    | Ok v -> Ok v
-    | Error e -> Error (`Msg (Error.to_string_hum e))
+  let transformations =
+    all_transformation_kinds
+    |> List.map (fun kind -> (transformation_kind_to_string kind, kind))
   in
-  let print fmt k = Format.fprintf fmt "%s" (transformation_kind_to_string k) in
-  Cmdliner.Arg.conv (parse, print)
+  let enum = Cmdliner.Arg.enum transformations in
+  let enum_parser = Cmdliner.Arg.Conv.parser enum in
+  let parse arg =
+    match enum_parser arg with
+    | Ok _ as result -> result
+    | Error _ -> (
+        let message =
+          Printf.sprintf "invalid transformation %S, expected one of %s" arg
+            (String.concat ", " transformations_list)
+        in
+        let suggestions =
+          String.spellcheck
+            (fun yield -> List.iter yield transformations_list)
+            (String.lowercase_ascii arg)
+        in
+        match suggestions with
+        | suggestion :: _ ->
+            transformation_suggestion := Some suggestion;
+            Error message
+        | [] -> Error message)
+  in
+  Cmdliner.Arg.Conv.of_conv ~parser:parse enum
 
 let dependencies_action_conv =
   let parse s =
@@ -509,4 +530,10 @@ let cmd =
   let info = Cmd.info "rocq-ditto" ~doc in
   Cmd.group ~default:default_term info [ list_cmd ]
 
-let () = exit (Cmd.eval cmd)
+let () =
+  let exit_code = Cmd.eval cmd in
+  Option.iter
+    (fun suggestion ->
+      Printf.eprintf "Hint: did you mean '%s'?\n%!" suggestion)
+    !transformation_suggestion;
+  exit exit_code

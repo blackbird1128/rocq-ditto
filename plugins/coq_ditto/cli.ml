@@ -121,10 +121,25 @@ let arg_to_transformation_kind arg =
       all_transformation_kinds
   with
   | Some k -> Ok k
-  | None ->
-      Error.string_to_or_error
-        ("unknown transformation: " ^ arg ^ "\nValid transformations:\n"
-        ^ String.concat "\n" transformations_list)
+  | None -> (
+      let spellchecked =
+        String.spellcheck
+          (fun yield -> List.iter yield transformations_list)
+          normalized
+      in
+      match spellchecked with
+      | [] ->
+          Error.string_to_or_error
+            (Printf.sprintf "unknown transformation %S; expected one of: %s" arg
+               (String.concat ", " transformations_list))
+      | possible_spell :: _ ->
+          Error.string_to_or_error
+            (Printf.sprintf
+               "unknown transformation %S; expected one of: %s\n\n\
+                Did you mean %s ?"
+               arg
+               (String.concat ", " transformations_list)
+               possible_spell))
 
 let arg_to_dependencies_action arg =
   let normalized = String.lowercase_ascii arg in
