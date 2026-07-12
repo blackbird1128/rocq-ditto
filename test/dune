@@ -9,6 +9,11 @@
  (libraries ditto alcotest))
 
 (test
+ (name test_list_utils)
+ (package coq-ditto)
+ (libraries ditto alcotest))
+
+(test
  (name test_coq_document)
  (package coq-ditto)
  (libraries ditto alcotest))
