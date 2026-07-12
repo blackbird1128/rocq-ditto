@@ -31,12 +31,13 @@ val proof_with_name_opt : string -> t -> Proof.t option
     match the ident_decl of a command in \{Theorem, Lemma, Fact, Remark,
     Corollary, Proposition, Property\} for example. *)
 
-val split_at_id : Uuidm.t -> t -> Syntax_node.t list * Syntax_node.t list
+val split_at_id :
+  Uuidm.t -> t -> (Syntax_node.t list * Syntax_node.t list, Error.t) result
 (** Split a document in two list of nodes, between and after the target id.
     [split_at_id target_id doc] split [doc.elements] into two list, one with the
     elements positioned before [target_id] and one with the elements after
-    [target_id]. [target_id] node is excluded, and if not found, return
-    [(doc.elements,[])] *)
+    [target_id]. [target_id] node is excluded, and if not found, return an Error
+*)
 
 val remove_node_with_id :
   Uuidm.t -> ?remove_method:removeMethod -> t -> (t, Error.t) result

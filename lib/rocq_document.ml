@@ -176,6 +176,7 @@ let parse_document (doc : Doc.t) : t =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
 
+  let dummy_id = Unique_id.uuid () in
   let ast_nodes =
     List.map
       (fun (node : Doc.Node.t) ->
@@ -183,7 +184,7 @@ let parse_document (doc : Doc.t) : t =
           ast = node.ast;
           range = Code_range.code_range_from_lang_range node.range;
           repr = lazy (node_representation node document_repr);
-          id = Unique_id.uuid ();
+          id = dummy_id;
           proof_id = None;
           diagnostics = node.diags;
         })
@@ -199,7 +200,7 @@ let parse_document (doc : Doc.t) : t =
           ast = None;
           range = snd comment;
           repr = lazy (fst comment);
-          id = Unique_id.uuid ();
+          id = dummy_id;
           proof_id = None;
           diagnostics = [];
         })
@@ -325,12 +326,14 @@ let get_ltac_outside_proofs (doc : t) : (Syntax_node.t list, Error.t) result =
   Ok (scan false [] doc.elements)
 
 let split_at_id (target_id : Uuidm.t) (doc : t) :
-    Syntax_node.t list * Syntax_node.t list =
+    (Syntax_node.t list * Syntax_node.t list, Error.t) result =
   let rec aux (elements : Syntax_node.t list) (acc : Syntax_node.t list) =
     match elements with
-    | [] -> (acc, [])
+    | [] ->
+        Error.string_to_or_error
+          "Error: target to split at not found in the document"
     | x :: tail ->
-        if x.id = target_id then (List.rev acc, tail) else aux tail (x :: acc)
+        if x.id = target_id then Ok (List.rev acc, tail) else aux tail (x :: acc)
   in
   aux doc.elements []
 
@@ -359,7 +362,7 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
         "The element with id: %s wasn't found in the document"
         (Uuidm.to_string target_id)
   | Some removed_node ->
-      let before, after = split_at_id target_id doc in
+      let* before, after = split_at_id target_id doc in
       let* shifted_after =
         match remove_method with
         | LeaveBlank -> Ok after
