@@ -1,4 +1,8 @@
 (env
- (dev (flags :standard -w))
+ (dev
+  (flags
+   (:standard
+     -w +26+27+32+33+34+35+37+38+39+56+60
+     -warn-error +26+27+32+33+34+35+37+38+39+56+60)))
  (release
   (ocamlopt_flags (:standard -O3))))
