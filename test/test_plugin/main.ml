@@ -505,7 +505,7 @@ let test_get_goal_select_all (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string "all:simpl." point |> Result.get_ok
   in
 
-  let goal_selector = Syntax_node.get_node_goal_selector_opt node in
+  let goal_selector = Syntax_node.get_goal_selector_opt node in
 
   let expected : Goal_select_view.t option = Some Goal_select_view.SelectAll in
 
@@ -519,7 +519,7 @@ let test_goal_select_nth_selector (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string "1:simpl." point |> Result.get_ok
   in
 
-  let goal_selector = Syntax_node.get_node_goal_selector_opt node in
+  let goal_selector = Syntax_node.get_goal_selector_opt node in
 
   let expected : Goal_select_view.t option =
     Some (Goal_select_view.SelectList [ Goal_select_view.NthSelector 1 ])
@@ -536,7 +536,7 @@ let test_goal_select_single_range (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string "1-2:simpl." point |> Result.get_ok
   in
 
-  let goal_selector = Syntax_node.get_node_goal_selector_opt node in
+  let goal_selector = Syntax_node.get_goal_selector_opt node in
 
   let expected : Goal_select_view.t option =
     Some (Goal_select_view.SelectList [ Goal_select_view.RangeSelector (1, 2) ])
@@ -553,7 +553,7 @@ let test_goal_select_multiple_selector (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string "1-2,3-4:simpl." point |> Result.get_ok
   in
 
-  let goal_selector = Syntax_node.get_node_goal_selector_opt node in
+  let goal_selector = Syntax_node.get_goal_selector_opt node in
 
   let expected : Goal_select_view.t option =
     Some
@@ -578,8 +578,7 @@ let test_drop_goal_selector_nth (_ : Doc.t) () : unit =
   let node_without_selector = Syntax_node.drop_goal_selector node in
 
   let has_goal_selector =
-    Syntax_node.get_node_goal_selector_opt node_without_selector
-    |> Option.is_empty
+    Syntax_node.get_goal_selector_opt node_without_selector |> Option.is_empty
   in
 
   Alcotest.(

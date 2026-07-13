@@ -170,18 +170,18 @@ val raw_tactic_expr_to_syntax_node_in_state :
   Code_point.t ->
   (t, Error.t) result
 
-val get_node_goal_selector_opt : t -> Goal_select_view.t option
+val get_goal_selector_opt : t -> Goal_select_view.t option
 val get_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
 val get_node_raw_atomic_tactic_expr :
   t -> Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option
 
-val get_node_tacdef_bodies : t -> Ltac_plugin.Tacexpr.tacdef_body list option
+val get_tacdef_bodies : t -> Ltac_plugin.Tacexpr.tacdef_body list option
 
 val string_to_raw_tactic_expr :
   string -> (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result
 
-val get_node_ltac_elements : t -> ltac_elements option
+val get_ltac_elements : t -> ltac_elements option
 val drop_goal_selector : t -> t
 val add_goal_selector : t -> Goal_select_view.t -> (t, Error.t) result
 val is_intros : t -> bool

@@ -21,7 +21,7 @@ let map_raw_tactic_expr_in_node
   let raw_expr_mapped = Tacexpr_map.tacexpr_map f raw_tac_expr in
   if raw_tac_expr = raw_expr_mapped then None
   else
-    let selector = get_node_goal_selector_opt node in
+    let selector = get_goal_selector_opt node in
     let+ new_node =
       Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
         node.range.start
@@ -121,7 +121,7 @@ let map_tacdef_bodies_in_node
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
     (g : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (node : Syntax_node.t) : transformation_step option =
-  let+ tacdef_bodies = Syntax_node.get_node_tacdef_bodies node in
+  let+ tacdef_bodies = Syntax_node.get_tacdef_bodies node in
   let tacdef_bodies_mapped =
     List.map
       (fun (body : Ltac_plugin.Tacexpr.tacdef_body) ->

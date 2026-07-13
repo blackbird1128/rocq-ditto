@@ -464,12 +464,12 @@ let get_tactic_raw_generic_arguments (x : t) :
 
 open Raw_gen_args_converter
 
-let get_node_ltac_elements (x : t) : ltac_elements option =
+let get_ltac_elements (x : t) : ltac_elements option =
   get_tactic_raw_generic_arguments x
   |> Option.map raw_arguments_to_ltac_elements
   |> Option.flatten
 
-let get_node_goal_selector_opt (x : t) : Goal_select_view.t option =
+let get_goal_selector_opt (x : t) : Goal_select_view.t option =
   get_tactic_raw_generic_arguments x
   |> Option.map raw_arguments_to_goal_selector
   |> Option.flatten
@@ -479,8 +479,7 @@ let get_raw_tactic_expr (x : t) : Ltac_plugin.Tacexpr.raw_tactic_expr option =
   |> Option.map raw_arguments_to_raw_tactic_expr
   |> Option.flatten
 
-let get_node_tacdef_bodies (x : t) : Ltac_plugin.Tacexpr.tacdef_body list option
-    =
+let get_tacdef_bodies (x : t) : Ltac_plugin.Tacexpr.tacdef_body list option =
   get_tactic_raw_generic_arguments x
   |> Option.map raw_arguments_to_tacdef_bodies
   |> Option.flatten
@@ -669,7 +668,7 @@ let drop_goal_selector (x : t) : t =
 
 let add_goal_selector (x : t) (selector : Goal_select_view.t) :
     (t, Error.t) result =
-  match get_node_goal_selector_opt x with
+  match get_goal_selector_opt x with
   | Some selector ->
       Error.format_to_or_error "%s already contains a goal selector: %s"
         (repr x)

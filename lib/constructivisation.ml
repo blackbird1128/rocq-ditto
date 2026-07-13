@@ -680,7 +680,7 @@ let rec update_replaces (l : transformation_step list) =
 
 let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
     (transformation_step list, Error.t) result =
-  let raw_tactic_expr = Syntax_node.get_node_raw_tactic_expr x in
+  let raw_tactic_expr = Syntax_node.get_raw_tactic_expr x in
   let raw_atomic_expr =
     Option.map Ltac.get_raw_atomic_tactic_expr raw_tactic_expr
   in

@@ -260,7 +260,7 @@ let flatten_goal_selectors (doc : Rocq_document.t) (proof : Proof.t) :
         let* new_state = Runner.run_node token state node in
         let node_without_selector = Syntax_node.drop_goal_selector node in
         let* new_step_acc =
-          match Syntax_node.get_node_goal_selector_opt node with
+          match Syntax_node.get_goal_selector_opt node with
           | Some goal_selector ->
               Logs.debug (fun m -> m "found a goal selector: %s" (repr node));
 
@@ -1359,7 +1359,7 @@ let rewrite_node_tacexpr (token : Coq.Limits.Token.t)
   match Syntax_node.get_raw_tactic_expr node with
   | None -> Ok node
   | Some tacexpr ->
-      let selector_view = Syntax_node.get_node_goal_selector_opt node in
+      let selector_view = Syntax_node.get_goal_selector_opt node in
       let selector = Option.map Goal_select_view.to_goal_select selector_view in
       let* new_tacexpr =
         Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
