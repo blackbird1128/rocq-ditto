@@ -108,7 +108,6 @@ let make_dummy_node (start_line : int) (start_char : int) (end_line : int)
     ast = None;
     repr = lazy "dummy";
     id = Unique_id.uuid ();
-    proof_id = None;
     diagnostics = [];
     range =
       {
@@ -127,7 +126,6 @@ let make_dummy_node_from_repr (start_line : int) (start_char : int)
     ast = None;
     repr = lazy repr;
     id = Unique_id.uuid ();
-    proof_id = None;
     diagnostics = [];
     range;
   }

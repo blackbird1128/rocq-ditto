@@ -77,12 +77,12 @@ let mark_string_regions (s : string) : bool array =
       if in_string then
         let acc' = true :: acc in
         if escape then loop (i + 1) true false acc'
-        else begin
-          match c with
+        else
+          begin match c with
           | '\\' -> loop (i + 1) true true acc'
           | '"' -> loop (i + 1) false false acc'
           | _ -> loop (i + 1) true false acc'
-        end
+          end
       else
         (* Outside a string *)
         let acc' = false :: acc in
@@ -185,7 +185,6 @@ let parse_document (doc : Doc.t) : t =
           range = Code_range.code_range_from_lang_range node.range;
           repr = lazy (node_representation node document_repr);
           id = dummy_id;
-          proof_id = None;
           diagnostics = node.diags;
         })
       nodes_with_ast
@@ -201,7 +200,6 @@ let parse_document (doc : Doc.t) : t =
           range = snd comment;
           repr = lazy (fst comment);
           id = dummy_id;
-          proof_id = None;
           diagnostics = [];
         })
       comments
@@ -306,12 +304,6 @@ let proof_with_name_opt (proof_name : string) (doc : t) : Proof.t option =
           | None -> false)
         proofs
   | Error _ -> None
-
-module Syntax_nodeSet = Set.Make (struct
-  type t = Syntax_node.t
-
-  let compare = Syntax_node.compare
-end)
 
 let get_ltac_outside_proofs (doc : t) : (Syntax_node.t list, Error.t) result =
   let rec scan (in_proof : bool) (acc : Syntax_node.t list) = function

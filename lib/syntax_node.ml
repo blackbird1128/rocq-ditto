@@ -13,8 +13,6 @@ type t = {
   range : Code_range.t;
   repr : string Lazy.t;
   id : Uuidm.t;
-  proof_id : int option;
-      (* the id of the proof associated with the node if there is one *)
   diagnostics : Lang.Diagnostic.t list;
 }
 
@@ -46,12 +44,7 @@ let mk_vernac_control ?(loc : Loc.t option)
   CAst.make ?loc payload
 
 let inherit_metadata ~(from : t) (node : t) : t =
-  {
-    node with
-    id = from.id;
-    proof_id = from.proof_id;
-    diagnostics = from.diagnostics;
-  }
+  { node with id = from.id; diagnostics = from.diagnostics }
 
 let char_span_on_line (r : Code_range.t) (line : int) : int * int =
   (* half-open char span [start_char, end_char) of r on a particular line that r touches *)
@@ -139,24 +132,14 @@ let comment_syntax_node_of_string (content : string)
     Code_range.range_from_starting_point_and_repr start_point content
   in
 
-  if
-    range.start.line = range.end_.line
-    && String.length content > range.end_.character - range.start.character
-  then
-    Error
-      (Error.of_string
-         "Incorrect range: range end character minus range start character \
-          smaller than node character size")
-  else
-    Ok
-      {
-        ast = None;
-        repr = lazy content;
-        range;
-        id = Unique_id.uuid ();
-        proof_id = None;
-        diagnostics = [];
-      }
+  Ok
+    {
+      ast = None;
+      repr = lazy content;
+      range;
+      id = Unique_id.uuid ();
+      diagnostics = [];
+    }
 
 let syntax_node_of_string (code : string) (start_point : Code_point.t) :
     (t, Error.t) result =
@@ -185,7 +168,6 @@ let syntax_node_of_string (code : string) (start_point : Code_point.t) :
             id = Unique_id.uuid ();
             (*id is set during insertion in a document*)
             repr = lazy code;
-            proof_id = None;
             diagnostics = [];
           }
     | Ok (_ :: _ :: _) ->
@@ -213,7 +195,6 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
     id = Unique_id.uuid ();
     (* id is set during document insertion *)
     repr = lazy repr;
-    proof_id = None;
     diagnostics = [];
   }
 
@@ -240,7 +221,6 @@ let syntax_node_of_coq_ast_in_state ~(token : Coq.Limits.Token.t)
       id = Unique_id.uuid ();
       (* id is set during document insertion *)
       repr = lazy repr;
-      proof_id = None;
       diagnostics = [];
     }
 

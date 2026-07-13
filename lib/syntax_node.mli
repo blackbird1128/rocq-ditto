@@ -6,7 +6,6 @@ type t = {
   range : Code_range.t;
   repr : string Lazy.t;
   id : Uuidm.t;
-  proof_id : int option;
   diagnostics : Lang.Diagnostic.t list;
 }
 
