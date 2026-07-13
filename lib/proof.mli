@@ -15,11 +15,7 @@ type transformation_step =
 val pp_transformation_step : Format.formatter -> transformation_step -> unit
 val transformation_step_to_string : transformation_step -> string
 
-type t = {
-  proposition : Syntax_node.t;
-  proof_steps : Syntax_node.t list;
-  status : proof_status;
-}
+type t = { proposition : Syntax_node.t; proof_steps : Syntax_node.t list }
 (** Represents a proof in a Coq document. [proof] contains the initial
     proposition and a list of proof steps. *)
 

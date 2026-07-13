@@ -182,8 +182,9 @@ let test_proof_parsing_ex2 (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  Alcotest.(check proof_status_testable)
-    "The proof should be proved." Proof.Proved proof.status
+  let status = Proof.get_proof_status proof in
+  Alcotest.(check (option proof_status_testable))
+    "The proof should be proved." (Some Proof.Proved) status
 
 let test_parsing_admit (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -191,8 +192,9 @@ let test_parsing_admit (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  Alcotest.check proof_status_testable "The proof should be admitted."
-    Proof.Admitted proof.status
+  let status = Proof.get_proof_status proof in
+  Alcotest.(check (option proof_status_testable))
+    "The proof should be admitted." (Some Proof.Admitted) status
 
 let test_parsing_defined (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -200,8 +202,9 @@ let test_parsing_defined (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  Alcotest.check proof_status_testable "The proof should be proved."
-    Proof.Proved proof.status
+  let status = Proof.get_proof_status proof in
+  Alcotest.(check (option proof_status_testable))
+    "The proof should be proved." (Some Proof.Proved) status
 
 let test_parsing_function (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -210,8 +213,9 @@ let test_parsing_function (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  Alcotest.check proof_status_testable "The proof should be proved."
-    Proof.Proved proof.status
+  let status = Proof.get_proof_status proof in
+  Alcotest.(check (option proof_status_testable))
+    "The proof should be proved." (Some Proof.Proved) status
 
 let test_parsing_abort1 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -219,8 +223,9 @@ let test_parsing_abort1 (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  Alcotest.check proof_status_testable "The proof should be aborted."
-    Proof.Aborted proof.status
+  let status = Proof.get_proof_status proof in
+  Alcotest.(check (option proof_status_testable))
+    "The proof should be aborted." (Some Proof.Aborted) status
 
 let test_parsing_abort2 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -228,11 +233,13 @@ let test_parsing_abort2 (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 2 (List.length proofs);
   let first_proof = List.hd proofs in
+  let status_first_proof = Proof.get_proof_status first_proof in
   let second_proof = List.nth proofs 1 in
-  Alcotest.check proof_status_testable "The first proof should be aborted"
-    Proof.Aborted first_proof.status;
-  Alcotest.check proof_status_testable "The second proof is proved" Proof.Proved
-    second_proof.status
+  let status_second_proof = Proof.get_proof_status second_proof in
+  Alcotest.(check (option proof_status_testable))
+    "The first proof should be aborted" (Some Proof.Aborted) status_first_proof;
+  Alcotest.(check (option proof_status_testable))
+    "The second proof is proved" (Some Proof.Proved) status_second_proof
 
 let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -346,8 +353,9 @@ let test_parsing_instance (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let first_proof = List.hd proofs in
-  Alcotest.check proof_status_testable "The proof should be proved" Proof.Proved
-    first_proof.status
+  let first_proof_status = Proof.get_proof_status first_proof in
+  Alcotest.(check (option proof_status_testable))
+    "The proof should be proved" (Some Proof.Proved) first_proof_status
 
 let test_parsing_unicode (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -355,10 +363,10 @@ let test_parsing_unicode (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let first_proof = List.hd proofs in
-
+  let first_proof_status = Proof.get_proof_status first_proof in
   let proof_prop = first_proof.proposition in
-  Alcotest.check proof_status_testable "The proof should be proved" Proof.Proved
-    first_proof.status;
+  Alcotest.(check (option proof_status_testable))
+    "The proof should be proved" (Some Proof.Proved) first_proof_status;
 
   Alcotest.(check string)
     "The proof prop should be the following: "

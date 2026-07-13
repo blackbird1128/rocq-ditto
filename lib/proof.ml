@@ -19,10 +19,7 @@ let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
   match step with
   | Remove id -> Format.fprintf fmt "Remove(%s)." (Uuidm.to_string id)
   | Replace (id, new_node) ->
-      if new_node.range.start.line != new_node.range.end_.line then
-        Format.fprintf fmt "Replace(%s, %s) at %s" (Uuidm.to_string id)
-          (repr new_node)
-          (Code_range.to_string new_node.range)
+      Format.fprintf fmt "Replace(%s, %s)" (Uuidm.to_string id) (repr new_node)
   | Add new_node ->
       Format.fprintf fmt "Add(%s) at %s" (repr new_node)
         (Code_range.to_string new_node.range)
@@ -36,11 +33,7 @@ let transformation_step_to_string (step : transformation_step) : string =
 
 (* TODO add precisions *)
 
-type t = {
-  proposition : Syntax_node.t;
-  proof_steps : Syntax_node.t list;
-  status : proof_status;
-}
+type t = { proposition : Syntax_node.t; proof_steps : Syntax_node.t list }
 (* proposition can also be a type, better name ? *)
 
 let get_theorem_kind (x : t) : Decls.theorem_kind option =
@@ -238,13 +231,4 @@ let proof_from_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
                (fun node ->
                  repr node ^ " range:" ^ Code_range.to_string node.range)
                nodes))
-  | _ -> (
-      let last_node =
-        List_utils.last nodes
-        |> Option.get (* there is always a last node in this path *)
-      in
-      match proof_status_from_last_node last_node with
-      | Ok status ->
-          Ok
-            { proposition = List.hd nodes; proof_steps = List.tl nodes; status }
-      | Error err -> Error err)
+  | _ -> Ok { proposition = List.hd nodes; proof_steps = List.tl nodes }

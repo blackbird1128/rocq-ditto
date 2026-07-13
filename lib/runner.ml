@@ -341,23 +341,9 @@ let rec proof_tree_to_node_list (Node (value, children)) : Syntax_node.t list =
   value :: List.concat (List.map proof_tree_to_node_list children)
 
 let tree_to_proof (tree : Syntax_node.t nary_tree) : (Proof.t, Error.t) result =
-  let ( let* ) = Result.bind in
   let nodes = proof_tree_to_node_list tree in
-  let* nodes_head =
-    List_utils.last nodes
-    |> Option.cata Result.ok
-         (Error.format_to_or_error
-            "proof_tree_to_node_list returned an empty list")
-  in
 
-  let* last_node_status = nodes_head |> proof_status_from_last_node in
-
-  Ok
-    {
-      proposition = List.hd nodes;
-      proof_steps = List.tl nodes;
-      status = last_node_status;
-    }
+  Ok { proposition = List.hd nodes; proof_steps = List.tl nodes }
 
 (* take a full tree and return an acc *)
 (* fold over the proof while running the expr each time to get a new state *)
