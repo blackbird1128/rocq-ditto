@@ -647,15 +647,14 @@ let rec get_oneliner (suffix : Syntax_node.t option)
                 "Error applying then between %s and None." (repr x)
           | Some s -> (
               match Syntax_node.apply_tac_then x s () with
-              | Ok r ->
-                  Ok (r |> Syntax_node.get_node_raw_tactic_expr |> Option.get)
+              | Ok r -> Ok (r |> Syntax_node.get_raw_tactic_expr |> Option.get)
               | Error _ ->
                   let suffix_repr = repr s in
                   Error.format_to_or_error
                     "Error applying then between %s and %s." (repr x)
                     suffix_repr)
         else
-          Syntax_node.get_node_raw_tactic_expr x
+          Syntax_node.get_raw_tactic_expr x
           |> Option_utils.to_result
                ~none:
                  (Error.format_to_or_error
@@ -921,7 +920,7 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
     (transformation_step list, Error.t) result =
   let suffix_node_opt =
     proof.proof_steps
-    |> List.find_map Syntax_node.get_syntax_node_proof_with_tactic
+    |> List.find_map Syntax_node.get_proof_with_tactic
     |> Option.map (fun x ->
         Syntax_node.syntax_node_of_string (x ^ ".") Code_point.dummy
         |> Result.get_ok)
@@ -973,7 +972,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
   | Some Proof.Proved -> (
       let suffix_node =
         proof.proof_steps
-        |> List.find_map Syntax_node.get_syntax_node_proof_with_tactic
+        |> List.find_map Syntax_node.get_proof_with_tactic
         |> Option.map (fun x ->
             Syntax_node.syntax_node_of_string (x ^ ".") Code_point.dummy
             |> Result.get_ok)
@@ -1357,7 +1356,7 @@ let rewrite_node_tacexpr (token : Coq.Limits.Token.t)
        Ltac_plugin.Tacexpr.raw_tactic_expr ->
        Ltac_plugin.Tacexpr.raw_tactic_expr) (node : Syntax_node.t) :
     (Syntax_node.t, Error.t) result =
-  match Syntax_node.get_node_raw_tactic_expr node with
+  match Syntax_node.get_raw_tactic_expr node with
   | None -> Ok node
   | Some tacexpr ->
       let selector_view = Syntax_node.get_node_goal_selector_opt node in

@@ -73,7 +73,7 @@ val is_command_allowed_in_proof : t -> bool
     proof block context *)
 
 val is_proof_with : t -> bool
-val get_syntax_node_proof_with_tactic : t -> string option
+val get_proof_with_tactic : t -> string option
 val is_ending_with_ellipsis : t -> bool
 val get_vernac_expr_gen : t -> synterp_vernac_expr vernac_expr_gen option
 
@@ -143,7 +143,7 @@ val can_close_proof : t -> bool
 
 open Raw_gen_args_converter
 
-val get_syntax_node_extend_name : t -> extend_name option
+val get_extend_name : t -> extend_name option
 
 val get_tactic_raw_generic_arguments :
   t -> Genarg.raw_generic_argument list option
@@ -171,7 +171,7 @@ val raw_tactic_expr_to_syntax_node_in_state :
   (t, Error.t) result
 
 val get_node_goal_selector_opt : t -> Goal_select_view.t option
-val get_node_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
+val get_raw_tactic_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
 val get_node_raw_atomic_tactic_expr :
   t -> Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option
@@ -186,11 +186,9 @@ val drop_goal_selector : t -> t
 val add_goal_selector : t -> Goal_select_view.t -> (t, Error.t) result
 val is_intros : t -> bool
 val is_assert : t -> bool
-val get_syntax_node_assert_expr : t -> Constrexpr.constr_expr option
+val get_assert_expr : t -> Constrexpr.constr_expr option
 val is_assert_by : t -> bool
-
-val get_syntax_node_assert_by_raw_tac_expr :
-  t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
+val get_assert_by_raw_tac_expr : t -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
 val apply_tac_then :
   t -> t -> ?start_point:Code_point.t -> unit -> (t, Error.t) result

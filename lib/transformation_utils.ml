@@ -4,8 +4,7 @@ open Vernacexpr
 
 let ( let+ ) = Option.bind
 
-let constr_expr_opt_eq
-    (x : Constrexpr.constr_expr option)
+let constr_expr_opt_eq (x : Constrexpr.constr_expr option)
     (y : Constrexpr.constr_expr option) : bool =
   match (x, y) with
   | None, None -> true
@@ -18,7 +17,7 @@ let map_raw_tactic_expr_in_node
     (node : Syntax_node.t) : Proof.transformation_step option =
   let ( let+ ) = Option.bind in
   let open Proof in
-  let+ raw_tac_expr = get_node_raw_tactic_expr node in
+  let+ raw_tac_expr = get_raw_tactic_expr node in
   let raw_expr_mapped = Tacexpr_map.tacexpr_map f raw_tac_expr in
   if raw_tac_expr = raw_expr_mapped then None
   else
@@ -50,8 +49,7 @@ let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
                 || not (constr_expr_opt_eq opt_expr new_opt_expr)
               then
                 let new_define_body =
-                  DefineBody
-                    (binders, raw_red_expr_opt, new_expr, new_opt_expr)
+                  DefineBody (binders, raw_red_expr_opt, new_expr, new_opt_expr)
                 in
                 let new_vernacexpr =
                   VernacSynPure
@@ -97,8 +95,7 @@ let map_definition_body_in_state
               then Ok None
               else
                 let new_define_body =
-                  DefineBody
-                    (binders, raw_red_expr_opt, new_expr, new_opt_expr)
+                  DefineBody (binders, raw_red_expr_opt, new_expr, new_opt_expr)
                 in
                 let new_vernacexpr =
                   VernacSynPure

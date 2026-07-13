@@ -1,6 +1,5 @@
 open Fleche
 open Vernacexpr
-module Lsp = Fleche_lsp
 
 [%%import "rocq_version_optcomp.mlh"]
 [%%if rocq_major_version < 9]
@@ -332,7 +331,7 @@ let is_proof_with (x : t) : bool =
 
 [%%if rocq_version <= (9, 0, 1)]
 
-let get_syntax_node_proof_with_tactic (x : t) : string option =
+let get_proof_with_tactic (x : t) : string option =
   match synpure_expr x with
   | Some (VernacProof (Some raw_arg, _)) ->
       let empty_env = Environ.empty_env in
@@ -344,7 +343,7 @@ let get_syntax_node_proof_with_tactic (x : t) : string option =
 
 [%%else]
 
-let get_syntax_node_proof_with_tactic (x : t) : string option =
+let get_proof_with_tactic (x : t) : string option =
   match synpure_expr x with
   | Some (VernacProof (Some raw_arg, _)) ->
       let empty_env = Environ.empty_env in
@@ -450,7 +449,7 @@ let is_proof_abort (x : t) : bool =
   | Some (VernacAbort | VernacAbortAll) -> true
   | _ -> false
 
-let get_syntax_node_extend_name (x : t) : extend_name option =
+let get_extend_name (x : t) : extend_name option =
   match synterp_expr x with
   | Some (VernacExtend (ext, _)) -> Some ext
   | _ -> None
@@ -475,8 +474,7 @@ let get_node_goal_selector_opt (x : t) : Goal_select_view.t option =
   |> Option.map raw_arguments_to_goal_selector
   |> Option.flatten
 
-let get_node_raw_tactic_expr (x : t) :
-    Ltac_plugin.Tacexpr.raw_tactic_expr option =
+let get_raw_tactic_expr (x : t) : Ltac_plugin.Tacexpr.raw_tactic_expr option =
   get_tactic_raw_generic_arguments x
   |> Option.map raw_arguments_to_raw_tactic_expr
   |> Option.flatten
@@ -491,7 +489,7 @@ let string_to_raw_tactic_expr (str : string) :
     (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
   let ( let* ) = Result.bind in
   let* node = syntax_node_of_string str Code_point.dummy in
-  match get_node_raw_tactic_expr node with
+  match get_raw_tactic_expr node with
   | Some e -> Ok e
   | None ->
       Error.format_to_or_error
@@ -501,7 +499,7 @@ let string_to_raw_tactic_expr (str : string) :
 
 let get_node_raw_atomic_tactic_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option =
-  let raw_expr = get_node_raw_tactic_expr x in
+  let raw_expr = get_raw_tactic_expr x in
   Option.map Ltac.get_raw_atomic_tactic_expr raw_expr |> Option.flatten
 
 let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
@@ -677,7 +675,7 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
         (repr x)
         (Goal_select_view.to_string selector)
   | None -> (
-      match get_node_raw_tactic_expr x with
+      match get_raw_tactic_expr x with
       | Some expr ->
           raw_tactic_expr_to_syntax_node expr ~selector x.range.start
           |> Result.map (inherit_metadata ~from:x)
@@ -702,12 +700,12 @@ let is_assert_by (x : t) : bool =
       true
   | _ -> false
 
-let get_syntax_node_assert_expr (x : t) : Constrexpr.constr_expr option =
+let get_assert_expr (x : t) : Constrexpr.constr_expr option =
   match get_node_raw_atomic_tactic_expr x with
   | Some (TacAssert (false, true, _, _, expr)) -> Some expr
   | _ -> None
 
-let get_syntax_node_assert_by_raw_tac_expr (x : t) :
+let get_assert_by_raw_tac_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_tactic_expr option =
   match get_node_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacAssert (false, true, Some (Some expr), _, _))
@@ -721,7 +719,7 @@ let l_to_raw_tactics (l : t list) =
     function
     | [] -> Ok (List.rev acc)
     | x :: xs -> (
-        match get_node_raw_tactic_expr x with
+        match get_raw_tactic_expr x with
         | Some raw -> aux (raw :: acc) (i + 1) xs
         | None ->
             Error.format_to_or_error
@@ -735,7 +733,7 @@ let apply_tac_thens (a : t) (l : t list)
     ?(start_point : Code_point.t = a.range.start) () : (t, Error.t) result =
   let ( let* ) = Result.bind in
   let* raw_a =
-    match get_node_raw_tactic_expr a with
+    match get_raw_tactic_expr a with
     | Some r -> Ok r
     | None ->
         Error.format_to_or_error
@@ -770,7 +768,7 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
   let ( let* ) = Result.bind in
 
   let* raw_a =
-    match get_node_raw_tactic_expr a with
+    match get_raw_tactic_expr a with
     | Some r -> Ok r
     | None ->
         Error.format_to_or_error
@@ -778,7 +776,7 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
           (repr a)
   in
   let* raw_b =
-    match get_node_raw_tactic_expr b with
+    match get_raw_tactic_expr b with
     | Some r -> Ok r
     | None ->
         Error.format_to_or_error
