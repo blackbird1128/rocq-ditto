@@ -157,10 +157,10 @@ let replace_contexts (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
   let new_context_str : string =
     "Context {Pred : predicates}\n\
-    \        {ITn : independent_Tarski_neutral_dimensionless Pred}\n\
-    \        {ES : Eq_stability Pred ITn}\n\
-    \        {Dim : dimension}\n\
-    \        {ITnD : @independent_Tarski_nD Pred ITn (incr (incr Dim))}."
+    \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
+    \        {ES   : Eq_stability Pred ITn}\n\
+    \        {Dim  : dimension}\n\
+    \        {ITnD : independent_Tarski_nD Pred ITn (incr (incr Dim))}."
   in
   let rec aux (nodes : Syntax_node.t list) (prev_was_context : bool)
       (acc : transformation_step list) :
@@ -194,6 +194,26 @@ let attach_node_after_pred_in_file (doc : Rocq_document.t)
         Error.string_to_or_error
           "No node found to attach to with provided predicate"
   else Ok []
+
+let attach_upper_dim_import_to_file (doc : Rocq_document.t) (filename : string)
+    : (transformation_step list, Error.t) result =
+  let* lower_dim_import_node =
+    Syntax_node.syntax_node_of_string
+      "Require Export GeoCoq.Constructive.Prelude.Upper_dim." Code_point.dummy
+  in
+
+  attach_node_after_pred_in_file doc lower_dim_import_node filename
+    ~reverse:true Syntax_node.is_require
+
+let attach_euclid_import_to_file (doc : Rocq_document.t) (filename : string) :
+    (transformation_step list, Error.t) result =
+  let* euclid_import_node =
+    Syntax_node.syntax_node_of_string
+      "Require Export GeoCoq.Constructive.Prelude.Euclid." Code_point.dummy
+  in
+
+  attach_node_after_pred_in_file doc euclid_import_node filename ~reverse:true
+    Syntax_node.is_require
 
 let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
     (transformation_step list, Error.t) result =
@@ -424,10 +444,7 @@ let replace_apply_by_applyC (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       let term_funname = get_fun_name_in_constrexpr term |> Option.get in
       let funname_string = Libnames.string_of_qualid term_funname in
 
-      if
-        List.mem funname_string
-          [ "lower_dim"; "inner_pasch"; "segment_construction" ]
-      then
+      if List.mem funname_string [ "inner_pasch"; "segment_construction" ] then
         let kername =
           (if is_eapply then get_alias_kn EapplyC else get_alias_kn ApplyC)
           |> Option.get
@@ -624,8 +641,8 @@ let collect_definitions_containing_exists (nodes : Syntax_node.t list) :
   let rec aux nodes (acc_list : string list) (acc_set : StringSet.t) =
     match nodes with
     | [] -> List.rev acc_list
-    | x :: tail -> begin
-        match
+    | x :: tail ->
+        begin match
           ( Syntax_node.get_definition_constrexpr x,
             Syntax_node.get_definition_name x )
         with
@@ -639,7 +656,7 @@ let collect_definitions_containing_exists (nodes : Syntax_node.t list) :
               aux tail (name :: acc_list) (StringSet.add name acc_set)
             else aux tail acc_list acc_set
         | _ -> aux tail acc_list acc_set
-      end
+        end
   in
   aux nodes [] StringSet.empty
 
@@ -765,8 +782,8 @@ let collect_named_section_ids (section_names : string list)
   let rec aux nodes (current : string option) acc =
     match nodes with
     | [] -> Ok (current, List.rev acc)
-    | node :: tail -> begin
-        match current with
+    | node :: tail ->
+        begin match current with
         | None -> (
             match section_marker node with
             | Some (`Begin name) when is_target name ->
@@ -779,7 +796,7 @@ let collect_named_section_ids (section_names : string list)
                 aux tail None acc'
             | _ -> aux tail (Some name) acc'
             end
-      end
+        end
   in
   let* open_section, ids = aux doc.elements None [] in
   match open_section with
@@ -877,17 +894,6 @@ let constructivise_doc (doc : Rocq_document.t) :
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
   in
 
-  let applyC_node_rawtac =
-    Syntax_node.string_to_raw_tactic_expr "applyC (by_lower_dim)."
-    |> Result.get_ok
-  in
-  let rawtac_sexp =
-    Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr applyC_node_rawtac
-  in
-  Logs.debug (fun m ->
-      m "rawtac_sexp: %s"
-        (Sexplib.Sexp.to_string_hum (rawtac_sexp |> Sexp_utils.strip_loc)));
-
   let stage_0 : stage =
     make_stage "stage0" (fun doc ->
         let* proofs = Rocq_document.get_proofs doc in
@@ -924,6 +930,14 @@ let constructivise_doc (doc : Rocq_document.t) :
 
         let* attach_congrc_to_file_steps =
           attach_congrc_to_file doc "Ch04_cong_bet.v"
+        in
+
+        let* attach_upper_dim_import_to_ch10_line_refl_2_steps =
+          attach_upper_dim_import_to_file doc "Ch10_line_reflexivity_2.v"
+        in
+
+        let* attach_euclid_import_to_ch12_parallel_inter_dec_steps =
+          attach_euclid_import_to_file doc "Ch12_parallel_inter_dec.v"
         in
 
         let* replace_cong_theory_steps = replace_cong_theory doc in
@@ -966,6 +980,8 @@ let constructivise_doc (doc : Rocq_document.t) :
                replace_cong_theory_steps;
                replace_congr_steps;
                attach_congrc_to_file_steps;
+               attach_upper_dim_import_to_ch10_line_refl_2_steps;
+               attach_euclid_import_to_ch12_parallel_inter_dec_steps;
                attach_prelude_to_chapter_two_steps;
                attach_prelude_to_chapter_twelwe_inted_dec_steps;
                attach_prelude_to_chapter_13_5_steps;
