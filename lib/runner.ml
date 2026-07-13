@@ -378,8 +378,8 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
     (* Update state and accumulator for the current node *)
   in
 
-  let* proof = tree_to_proof tree in
-  match get_init_state doc proof.proposition token with
+  let proposition = match tree with Node (node, _) -> node in
+  match get_init_state doc proposition token with
   | Ok state ->
       let* _, acc = aux f state acc tree in
       Ok acc
