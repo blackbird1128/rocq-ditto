@@ -8,8 +8,8 @@ type t = {
   root_state : Coq.State.t;
 }
 
-type removeMethod = LeaveBlank | ShiftNode
-type shiftMethod = ShiftVertically | ShiftHorizontally
+type remove_method = LeaveBlank | ShiftNode
+type shift_method = ShiftVertically | ShiftHorizontally
 
 val pp_coq_document : Format.formatter -> t -> unit
 val parse_document : Doc.t -> t
@@ -40,7 +40,7 @@ val split_at_id :
 *)
 
 val remove_node_with_id :
-  Uuidm.t -> ?remove_method:removeMethod -> t -> (t, Error.t) result
+  Uuidm.t -> ?remove_method:remove_method -> t -> (t, Error.t) result
 (** Remove a node with a specific ID from the document.
     [remove_node_with_id ?remove_method target_id doc] removes the element with
     the given [target_id] from the document [doc]. If the element is found, it
@@ -50,7 +50,7 @@ val remove_node_with_id :
     found, it returns an [Error] indicating that the element wasn't found. *)
 
 val insert_node :
-  Syntax_node.t -> ?shift_method:shiftMethod -> t -> (t, Error.t) result
+  Syntax_node.t -> ?shift_method:shift_method -> t -> (t, Error.t) result
 (** Insert a new node into the document.
     [insert_node new_node ?shift_method doc] attempt to insert [new_node] into
     the document by shifting the other nodes further to make space. Can fail if
