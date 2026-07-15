@@ -5,8 +5,8 @@ open Ditto.Proof
 
 type scoped_function =
   | ProofScope of
-      (Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result)
-  | DocScope of (Rocq_document.t -> (transformation_step list, Error.t) result)
+      (Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result)
+  | DocScope of (Rocq_document.t -> (Transforming_step.t list, Error.t) result)
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :
     (Syntax_node.t Nary_tree.nary_tree, Error.t) result =
@@ -42,7 +42,7 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   | IdDocTransformation -> DocScope (fun _ -> Ok [])
 
 let local_apply_doc_transformation (doc_acc : Rocq_document.t)
-    (trans : Rocq_document.t -> (transformation_step list, Error.t) result)
+    (trans : Rocq_document.t -> (Transforming_step.t list, Error.t) result)
     (_transformation_kind : transformation_kind) (_verbose : bool)
     (_quiet : bool) : (Rocq_document.t, Error.t) result =
   Transformations.apply_doc_transformation trans doc_acc
@@ -61,7 +61,7 @@ let print_current_running (proof_count : int) (proof_total : int)
   else ()
 
 let apply_steps
-    (transformation_steps : (transformation_step list, Error.t) result)
+    (transformation_steps : (Transforming_step.t list, Error.t) result)
     (curr_doc : Rocq_document.t) (proof_count : int) (proof : 'a) =
   match transformation_steps with
   | Ok steps ->
@@ -92,7 +92,7 @@ let display_transformation_error (prev_proof : Proof.t option)
 
 let local_apply_proof_transformation (doc_acc : Rocq_document.t)
     (transformation :
-      Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result)
+      Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result)
     (transformation_kind : transformation_kind) (proof_list : Proof.t list)
     (verbose : bool) (quiet : bool) : Rocq_document.t =
   let proof_total = List.length proof_list in

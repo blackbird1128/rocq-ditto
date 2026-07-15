@@ -1,10 +1,10 @@
 open Nary_tree
 open Syntax_node
-open Proof
+open Transforming_step
 
 type proof_tree = Syntax_node.t nary_tree
 
-let apply_transformation_step (step : transformation_step)
+let apply_transformation_step (step : Transforming_step.t)
     (proof_tree : proof_tree) : (proof_tree, Error.t) result =
   match step with
   | Remove node_to_remove_id ->

@@ -1,4 +1,4 @@
-open Proof
+open Transforming_step
 
 let split_prefix (prefix : string) (s : string) =
   let plen = String.length prefix in
@@ -7,7 +7,7 @@ let split_prefix (prefix : string) (s : string) =
   else None
 
 let rocq_to_lean (doc : Rocq_document.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   (* let proofs = Rocq_document.get_proofs doc in *)
   let require_nodes =
     List.filter Syntax_node.is_require doc.elements
@@ -55,7 +55,7 @@ let rocq_to_lean (doc : Rocq_document.t) :
   let comment_nodes =
     List.filter (fun (x : Syntax_node.t) -> Option.is_empty x.ast) doc.elements
   in
-  let (replace_comments : transformation_step list) =
+  let (replace_comments : Transforming_step.t list) =
     List.map
       (fun (x : Syntax_node.t) ->
         let lean_comment_node =

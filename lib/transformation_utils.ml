@@ -1,6 +1,6 @@
 open Syntax_node
-open Proof
 open Vernacexpr
+open Transforming_step
 
 let ( let+ ) = Option.bind
 
@@ -13,10 +13,9 @@ let constr_expr_opt_eq (x : Constrexpr.constr_expr option)
 
 let map_raw_tactic_expr_in_node
     (f :
-      Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
-    (node : Syntax_node.t) : Proof.transformation_step option =
+  Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
+    (node : Syntax_node.t) : Transforming_step.t option =
   let ( let+ ) = Option.bind in
-  let open Proof in
   let+ raw_tac_expr = get_raw_tactic_expr node in
   let raw_expr_mapped = Tacexpr_map.tacexpr_map f raw_tac_expr in
   if raw_tac_expr = raw_expr_mapped then None
@@ -30,7 +29,7 @@ let map_raw_tactic_expr_in_node
     Some (Replace (node.id, new_node))
 
 let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (x : Syntax_node.t) : transformation_step option =
+    (x : Syntax_node.t) : Transforming_step.t option =
   match x.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
@@ -74,7 +73,7 @@ let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
 let map_definition_body_in_state
     (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (x : Syntax_node.t) :
-    (transformation_step option, Error.t) result =
+    (Transforming_step.t option, Error.t) result =
   let ( let* ) = Result.bind in
   match x.ast with
   | Some ast -> (
@@ -120,7 +119,7 @@ let map_tacdef_bodies_in_node
     (f :
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
     (g : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (node : Syntax_node.t) : transformation_step option =
+    (node : Syntax_node.t) : Transforming_step.t option =
   let+ tacdef_bodies = Syntax_node.get_tacdef_bodies node in
   let tacdef_bodies_mapped =
     List.map
@@ -146,13 +145,13 @@ let map_tacdef_bodies_in_node
   else None
 
 let map_syntax_node (f : Syntax_node.t -> Syntax_node.t) (x : Syntax_node.t) :
-    transformation_step option =
+    Transforming_step.t option =
   let fx = f x in
   if x == fx then None else Some (Replace (x.id, fx))
 
 let map_vernacexpr_in_node
     (f : Vernacexpr.vernac_expr -> Vernacexpr.vernac_expr) (x : Syntax_node.t) :
-    transformation_step option =
+    Transforming_step.t option =
   match x.ast with
   | Some ast ->
       let vernacexpr = (Coq.Ast.to_coq ast.v).v.expr in
@@ -168,7 +167,7 @@ let map_vernacexpr_in_node
 let map_vernacexpr_in_node_in_state
     (f : Vernacexpr.vernac_expr -> Vernacexpr.vernac_expr)
     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (x : Syntax_node.t) :
-    (transformation_step option, Error.t) result =
+    (Transforming_step.t option, Error.t) result =
   let ( let* ) = Result.bind in
   match x.ast with
   | Some ast ->

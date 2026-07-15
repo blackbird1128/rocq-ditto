@@ -3,18 +3,6 @@ type proof_status = Admitted | Proved | Aborted
 
 val pp_proof_status : Format.formatter -> proof_status -> unit
 
-type attach_position = LineAfter | LineBefore | SameLine
-[@@deriving show { with_path = false }]
-
-type transformation_step =
-  | Remove of Uuidm.t
-  | Replace of Uuidm.t * Syntax_node.t
-  | Add of Syntax_node.t
-  | Attach of Syntax_node.t * attach_position * Uuidm.t
-
-val pp_transformation_step : Format.formatter -> transformation_step -> unit
-val transformation_step_to_string : transformation_step -> string
-
 type t = private {
   proposition : Syntax_node.t;
   proof_steps : Syntax_node.t list;
@@ -67,14 +55,14 @@ val get_proof_conclusion : t -> Constrexpr.constr_expr option
 val map_proof_proposition :
   (Constrexpr.constr_expr -> Constrexpr.constr_expr) ->
   t ->
-  transformation_step option
+  Transforming_step.t option
 
 val map_proof_proposition_in_state :
   (Constrexpr.constr_expr -> Constrexpr.constr_expr) ->
   token:Coq.Limits.Token.t ->
   st:Coq.State.t ->
   t ->
-  (transformation_step option, Error.t) result
+  (Transforming_step.t option, Error.t) result
 
 val proof_nodes : t -> Syntax_node.t list
 (** Extracts the nodes from a proof. [proof_nodes p] returns a list containing

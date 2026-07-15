@@ -1,6 +1,7 @@
 open Nary_tree
 open Proof
 open Syntax_node
+open Transforming_step
 open Runner
 open Sexplib.Conv
 open Re
@@ -8,7 +9,7 @@ module Tacexpr = Ltac_plugin.Tacexpr
 
 let simple_proof_repair (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
   let admit_creator =
@@ -81,7 +82,7 @@ let simple_proof_repair (doc : Rocq_document.t)
 
 let fold_replace_assumption_with_apply (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
   let res =
@@ -136,11 +137,11 @@ let fold_replace_assumption_with_apply (doc : Rocq_document.t)
   res
 
 let id_transform (_ : Rocq_document.t) (_ : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   Ok []
 
 let admit_proof (_ : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let ( let* ) = Result.bind in
   let proof_close_node_opt =
     List.find_opt Syntax_node.is_proof_end proof.proof_steps
@@ -159,7 +160,7 @@ let int_in_range ~min ~max =
   min + Random.int (max - min + 1)
 
 let remove_random_step (_ : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let num_steps = List.length proof.proof_steps in
   if num_steps <= 2 then Ok []
   else
@@ -172,7 +173,7 @@ let remove_random_step (_ : Rocq_document.t) (proof : Proof.t) :
     Ok [ Replace (rand_node.id, incorrect_node) ]
 
 let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
-    (proof : Proof.t) : (transformation_step list, Error.t) result =
+    (proof : Proof.t) : (Transforming_step.t list, Error.t) result =
   let ( let* ) = Result.bind in
 
   let remove_all_steps =
@@ -220,12 +221,12 @@ let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
       ])
 
 let remove_unecessary_steps (doc : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let token_reduce = Coq.Limits.Token.create () in
 
   let rec aux (state : Coq.State.t)
-      (acc : (transformation_step list, Error.t) result)
-      (nodes : Syntax_node.t list) : (transformation_step list, Error.t) result
+      (acc : (Transforming_step.t list, Error.t) result)
+      (nodes : Syntax_node.t list) : (Transforming_step.t list, Error.t) result
       =
     let ( let* ) = Result.bind in
     match nodes with
@@ -247,7 +248,7 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : Proof.t) :
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let flatten_goal_selectors (doc : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
@@ -312,7 +313,7 @@ let flatten_goal_selectors (doc : Rocq_document.t) (proof : Proof.t) :
   Ok (List.rev steps)
 
 let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let rec aux state (acc_intro, acc_steps) nodes =
     match nodes with
@@ -348,7 +349,7 @@ let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
 
   Runner.fold_proof_with_state doc token
@@ -391,7 +392,7 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
     [] proof
 
 let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
   let re =
@@ -703,7 +704,7 @@ let read_renames (filepath : string) : (rename list, Error.t) result =
   with Sys_error msg -> Error.string_to_or_error msg
 
 let rename_definition (doc : Rocq_document.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let open Pipeline in
   let original_doc = doc in
   let error_path =
@@ -917,7 +918,7 @@ let rename_definition (doc : Rocq_document.t) :
   | None -> error_path
 
 let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let suffix_node_opt =
     proof.proof_steps
     |> List.find_map Syntax_node.get_proof_with_tactic
@@ -961,7 +962,7 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
 
 let turn_into_oneliner (_ : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let* proof = Runner.tree_to_proof proof_tree in
 
   match Proof.status proof with
@@ -1112,7 +1113,7 @@ let string_to_intro_pattern_expr (x : string) :
     (string_to_intro_pattern_naming_expr x)
 
 let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   let ( let* ) = Result.bind in
 
@@ -1373,7 +1374,7 @@ let rewrite_proof_nodes (doc : Rocq_document.t) (proof : Proof.t)
        Coq.State.t ->
        Syntax_node.t ->
        (Syntax_node.t, Error.t) result) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
@@ -1463,7 +1464,7 @@ let find_alias_kername (t : Ltac_plugin.Tacexpr.raw_tactic_expr) :
   | _ -> None
 
 let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
-    (proof : Proof.t) : (transformation_step list, Error.t) result =
+    (proof : Proof.t) : (Transforming_step.t list, Error.t) result =
   rewrite_proof_nodes doc proof ~rewrite:replace_induction_by_destruct_in_node
 
 let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
@@ -1527,7 +1528,7 @@ let name_indentifier_in_intro_in_node (token : Coq.Limits.Token.t)
     ~f:map_intro_to_explicit_intro_in_tacexpr
 
 let name_identifier_in_intro (doc : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   rewrite_proof_nodes doc proof ~rewrite:name_indentifier_in_intro_in_node
 
 (** filled args contains the value, hole contains the name of the variable*)
@@ -1723,12 +1724,12 @@ let explicit_apply_in_node (token : Coq.Limits.Token.t)
     ~f:map_apply_to_explicit_apply_in_tacexpr
 
 let explicit_apply (doc : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   rewrite_proof_nodes doc proof ~rewrite:explicit_apply_in_node
 
 let apply_doc_transformation
     (transformation :
-      Rocq_document.t -> (transformation_step list, Error.t) result)
+      Rocq_document.t -> (Transforming_step.t list, Error.t) result)
     (doc : Rocq_document.t) : (Rocq_document.t, Error.t) result =
   let* steps = transformation doc in
 
@@ -1736,7 +1737,7 @@ let apply_doc_transformation
 
 let apply_proof_transformation
     (transformation :
-      Rocq_document.t -> Proof.t -> (transformation_step list, Error.t) result)
+      Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result)
     (doc : Rocq_document.t) : (Rocq_document.t, Error.t) result =
   let* proofs = Rocq_document.get_proofs doc in
 
@@ -1753,7 +1754,7 @@ let apply_proof_tree_transformation
     (transformation :
       Rocq_document.t ->
       Syntax_node.t nary_tree ->
-      (transformation_step list, Error.t) result) (doc : Rocq_document.t) :
+      (Transforming_step.t list, Error.t) result) (doc : Rocq_document.t) :
     (Rocq_document.t, Error.t) result =
   let* proofs = Rocq_document.get_proofs doc in
   let proof_trees =
@@ -1772,7 +1773,7 @@ let apply_proof_tree_transformation
     (Ok doc) proof_trees
 
 let add_proof_node_if_missing (_ : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   match proof.proof_steps with
   | first_node :: _ -> (
       if Syntax_node.is_proof_command first_node then Ok []

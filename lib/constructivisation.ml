@@ -2,6 +2,7 @@ open Proof
 open Vernacexpr
 open Constructivisation_data
 open Constrexpr_utils
+open Transforming_step
 
 let ( let* ) = Result.bind
 let ( let+ ) = Option.bind
@@ -47,7 +48,7 @@ let rebuild_require_node (x : Syntax_node.t)
        x.range.start)
 
 let replace_require (x : Syntax_node.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let require_prefix_rules : (string * string) list =
     [
       ("GeoCoq.Main.Tarski_dev", "GeoCoq.Constructive");
@@ -91,7 +92,7 @@ let replace_require (x : Syntax_node.t) :
       | _ -> Ok [])
 
 let replace_congr (doc : Rocq_document.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   if Filename.basename doc.filename = "Ch04_cong_bet.v" then
     Ok
       (List.filter_map
@@ -118,7 +119,7 @@ let replace_congr (doc : Rocq_document.t) :
   else Ok []
 
 let replace_cong_theory (doc : Rocq_document.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   if Filename.basename doc.filename = "tarski_to_cong_theory.v" then
     Ok
       (List.filter_map
@@ -178,7 +179,7 @@ let get_context_names (x : Syntax_node.t) : (string list, Error.t) result =
         (Syntax_node.repr x)
 
 let replace_group_with_new_node (l : Syntax_node.t list)
-    (new_node : Syntax_node.t) : transformation_step list =
+    (new_node : Syntax_node.t) : Transforming_step.t list =
   let length_l = List.length l in
   List.mapi
     (fun i (node : Syntax_node.t) ->
@@ -186,7 +187,7 @@ let replace_group_with_new_node (l : Syntax_node.t list)
     l
 
 let replace_contexts (doc : Rocq_document.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let* context_neutral_dimensionless_node =
     Syntax_node.syntax_node_of_string
       "Context {Pred : predicates}\n\
@@ -287,7 +288,7 @@ let replace_contexts (doc : Rocq_document.t) :
 
 let attach_node_after_pred_in_file (doc : Rocq_document.t)
     (node : Syntax_node.t) (filename : string) ?(reverse = false)
-    (pred : Syntax_node.t -> bool) : (transformation_step list, Error.t) result
+    (pred : Syntax_node.t -> bool) : (Transforming_step.t list, Error.t) result
     =
   if Filename.basename doc.filename = filename then
     let pred_node_opt =
@@ -302,7 +303,7 @@ let attach_node_after_pred_in_file (doc : Rocq_document.t)
   else Ok []
 
 let attach_upper_dim_import_to_file (doc : Rocq_document.t) (filename : string)
-    : (transformation_step list, Error.t) result =
+    : (Transforming_step.t list, Error.t) result =
   let* lower_dim_import_node =
     Syntax_node.syntax_node_of_string
       "Require Export GeoCoq.Constructive.Prelude.Upper_dim." Code_point.dummy
@@ -312,7 +313,7 @@ let attach_upper_dim_import_to_file (doc : Rocq_document.t) (filename : string)
     ~reverse:true Syntax_node.is_require
 
 let attach_euclid_import_to_file (doc : Rocq_document.t) (filename : string) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let* euclid_import_node =
     Syntax_node.syntax_node_of_string
       "Require Export GeoCoq.Constructive.Prelude.Euclid." Code_point.dummy
@@ -322,7 +323,7 @@ let attach_euclid_import_to_file (doc : Rocq_document.t) (filename : string) :
     Syntax_node.is_require
 
 let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let* prelude_node =
     Syntax_node.syntax_node_of_string
       "Require Export GeoCoq.Constructive.Prelude.Prelude." Code_point.dummy
@@ -331,7 +332,7 @@ let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
     Syntax_node.is_require
 
 let attach_congrc_to_file (doc : Rocq_document.t) (filename : string) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let* congrc_node =
     Syntax_node.syntax_node_of_string
       "Ltac CongRC := solve [CongR | Cong | eCong ]." Code_point.dummy
@@ -357,7 +358,7 @@ let replace_bet_and_cong_in_constrexpr (term : Constrexpr.constr_expr) :
   |> replace_fun_name_in_constrexpr "Cong" "CongC"
 
 let replace_notation_in_proof_proposition (old_notation : string)
-    (new_notation : string) (x : Proof.t) : transformation_step option =
+    (new_notation : string) (x : Proof.t) : Transforming_step.t option =
   map_proof_proposition
     (replace_notation_in_constrexpr old_notation new_notation)
     x
@@ -777,7 +778,7 @@ let is_proof_about_exists (p : Proof.t) : bool =
             let s = Libnames.string_of_qualid q in
             List.mem s definitions_with_exists)
 
-let rec update_replaces (l : transformation_step list) =
+let rec update_replaces (l : Transforming_step.t list) =
   match l with
   | [] -> []
   | x :: tl -> (
@@ -802,7 +803,7 @@ let rec update_replaces (l : transformation_step list) =
       | Add _ | Remove _ | Attach _ -> x :: update_replaces tl)
 
 let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let raw_tactic_expr = Syntax_node.get_raw_tactic_expr x in
   let raw_atomic_expr =
     Option.map Ltac.get_raw_atomic_tactic_expr raw_tactic_expr
@@ -911,12 +912,12 @@ let collect_named_section_ids (section_names : string list)
       Error.format_to_or_error "Unclosed section while removing: %s" name
 
 let remove_named_sections (section_names : string list) (doc : Rocq_document.t)
-    : (transformation_step list, Error.t) result =
+    : (Transforming_step.t list, Error.t) result =
   let* ids = collect_named_section_ids section_names doc in
   Ok (List.map (fun id -> Remove id) ids)
 
 let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let ( let* ) = Result.bind in
   let remove_all_steps_except_qed =
     List.filter_map
@@ -934,7 +935,7 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     @ [ Attach (solve_dec_node, LineAfter, proof.proposition.id) ])
 
 let get_percentage_admitted (doc : Rocq_document.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let* proofs = Rocq_document.get_proofs doc in
   let proofs_with_exists = List.filter is_proof_about_exists proofs in
   let proofs_length = List.length proofs in
@@ -968,7 +969,7 @@ let definitions_of (d : Rocq_document.t) : Syntax_node.t list =
 let map_raw_tactic_expr_steps
     (f :
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
-    (doc : Rocq_document.t) : transformation_step list =
+    (doc : Rocq_document.t) : Transforming_step.t list =
   List.filter_map
     (Transformation_utils.map_raw_tactic_expr_in_node f)
     doc.elements
@@ -982,11 +983,11 @@ let replace_taccalls_in_tacexpr (renames : (string * string) list)
     tacexpr renames
 
 let replace_taccalls_steps (renames : (string * string) list)
-    (doc : Rocq_document.t) : transformation_step list =
+    (doc : Rocq_document.t) : Transforming_step.t list =
   map_raw_tactic_expr_steps (replace_taccalls_in_tacexpr renames) doc
 
 let constructivise_doc (doc : Rocq_document.t) :
-    (transformation_step list, Error.t) result =
+    (Transforming_step.t list, Error.t) result =
   let open Pipeline in
   let token = Coq.Limits.Token.create () in
 
@@ -1068,7 +1069,7 @@ let constructivise_doc (doc : Rocq_document.t) :
                (new_notation : string)
                (x : Syntax_node.t)
                :
-               transformation_step option
+               Transforming_step.t option
              ->
                Transformation_utils.map_definition_body
                  (replace_notation_in_constrexpr old_notation new_notation)

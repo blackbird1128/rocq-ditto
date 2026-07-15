@@ -1,37 +1,10 @@
 open Fleche
 open Syntax_node
 open Vernacexpr
+open Transforming_step
 
 type proof_status = Admitted | Proved | Aborted
 [@@deriving show { with_path = false }]
-
-type attach_position = LineAfter | LineBefore | SameLine
-[@@deriving show { with_path = false }]
-
-type transformation_step =
-  | Remove of Uuidm.t
-  | Replace of Uuidm.t * Syntax_node.t
-  | Add of Syntax_node.t
-  | Attach of Syntax_node.t * attach_position * Uuidm.t
-
-let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
-    : unit =
-  match step with
-  | Remove id -> Format.fprintf fmt "Remove(%s)." (Uuidm.to_string id)
-  | Replace (id, new_node) ->
-      Format.fprintf fmt "Replace(%s, %s)" (Uuidm.to_string id) (repr new_node)
-  | Add new_node ->
-      Format.fprintf fmt "Add(%s) at %s" (repr new_node)
-        (Code_range.to_string new_node.range)
-  | Attach (attached_node, attach_position, anchor_id) ->
-      Format.fprintf fmt "Attach(%s, %s, %s)" (repr attached_node)
-        (show_attach_position attach_position)
-        (Uuidm.to_string anchor_id)
-
-let transformation_step_to_string (step : transformation_step) : string =
-  Format.asprintf "%a" pp_transformation_step step
-
-(* TODO add precisions *)
 
 type t = { proposition : Syntax_node.t; proof_steps : Syntax_node.t list }
 (* proposition can also be a type, better name ? *)
@@ -184,7 +157,7 @@ let get_proof_conclusion (p : t) : Constrexpr.constr_expr option =
   | None -> None
 
 let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
-    (x : t) : transformation_step option =
+    (x : t) : Transforming_step.t option =
   let ( let+ ) = Option.bind in
   let x_start = x.proposition.range.start in
   let+ components = get_theorem_components x in
@@ -201,7 +174,7 @@ let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
 let map_proof_proposition_in_state
     (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (x : t) :
-    (transformation_step option, Error.t) result =
+    (Transforming_step.t option, Error.t) result =
   let ( let* ) = Result.bind in
   let x_start = x.proposition.range.start in
   let components_opt = get_theorem_components x in

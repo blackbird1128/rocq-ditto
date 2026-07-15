@@ -1,4 +1,3 @@
-open Proof
 open Fleche
 
 type t = {
@@ -63,7 +62,7 @@ val replace_node : Uuidm.t -> Syntax_node.t -> t -> (t, Error.t) result
     replace the node with id [target_id] by [new_node]. Fail and return [Error]
     if a node with [target_id] isn't found in the document. *)
 
-val replace_proof : Uuidm.t -> Proof.t -> t -> transformation_step list option
+val replace_proof : Uuidm.t -> Proof.t -> t -> Transforming_step.t list option
 (** Get the transformation steps needed to replace a proof inside the document.
     [replace_proof target_id new_proof doc] return either a list of
     transformation steps to replace a proof wrapped in [Some] if a proof
@@ -88,7 +87,7 @@ val dump_to_string : t -> (string, Error.t) result
     their positions and characters in the document. If the document is
     malformed, return [Error] *)
 
-val apply_transformation_step : transformation_step -> t -> (t, Error.t) result
+val apply_transformation_step : Transforming_step.t -> t -> (t, Error.t) result
 (** Apply a transformation step to a document.
     [apply_transformation_step step doc] returns a [Rocq_document] wrapped in
     with the following function applied:
@@ -100,7 +99,7 @@ val apply_transformation_step : transformation_step -> t -> (t, Error.t) result
       [anchor_id], fail with error if the anchor isn't found. *)
 
 val apply_transformations_steps :
-  transformation_step list -> t -> (t, Error.t) result
+  Transforming_step.t list -> t -> (t, Error.t) result
 (** Repeatably apply [apply_transformation_step].
     [apply_transformation_steps steps doc] fold [doc] until one step return an
     [Error] or the resulting document is returned wrapped in [Ok] *)

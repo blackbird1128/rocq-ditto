@@ -1,6 +1,7 @@
 open Proof
 open Fleche
 open Syntax_node
+open Transforming_step
 
 type proof_state = NoProof | ProofOpened
 
@@ -602,7 +603,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         Ok { doc with elements; document_repr }
 
 let replace_proof (target_id : Uuidm.t) (new_proof : Proof.t) (doc : t) :
-    transformation_step list option =
+    Transforming_step.t list option =
   match proof_with_id_opt target_id doc with
   | Some target ->
       let replacement_node =
@@ -624,7 +625,7 @@ let replace_proof (target_id : Uuidm.t) (new_proof : Proof.t) (doc : t) :
       Some (remove_nodes @ (replacement_node :: attached_nodes))
   | None -> None
 
-let apply_transformation_step (step : transformation_step) (doc : t) :
+let apply_transformation_step (step : Transforming_step.t) (doc : t) :
     (t, Error.t) result =
   let ( let* ) = Result.bind in
   match step with
@@ -682,7 +683,7 @@ let apply_transformation_step (step : transformation_step) (doc : t) :
           | LineAfter | LineBefore ->
               insert_node ~shift_method:ShiftVertically new_node doc))
 
-let rec apply_transformations_steps (steps : transformation_step list) (doc : t)
+let rec apply_transformations_steps (steps : Transforming_step.t list) (doc : t)
     : (t, Error.t) result =
   let ( let* ) = Result.bind in
   match steps with
