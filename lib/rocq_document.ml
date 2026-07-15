@@ -663,7 +663,7 @@ let apply_transformation_step (step : Transforming_step.t) (doc : t) :
                 Ok { node with id = attached_node.id }
             | None ->
                 let* node =
-                  Syntax_node.comment_syntax_node_of_string (repr attached_node)
+                  Syntax_node.comment_of_string (repr attached_node)
                     new_node_range.start
                 in
                 Ok { node with id = attached_node.id }

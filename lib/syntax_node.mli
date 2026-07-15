@@ -20,31 +20,29 @@ val colliding_nodes : t -> t list -> t list
 (** [colliding_nodes target nodes_list] return the nodes in [nodes_lists]
     colliding with [target] *)
 
-val syntax_node_of_coq_ast : Coq.Ast.t -> Code_point.t -> t
-(** [syntax_node_of_coq_ast ast starting_point] create a syntax node from a Coq
-    AST element and a point to start the node. *)
+val of_coq_ast : Coq.Ast.t -> Code_point.t -> t
+(** [of_coq_ast ast starting_point] create a syntax node from a Coq AST element
+    and a point to start the node. *)
 
-val syntax_node_of_coq_ast_in_state :
+val of_coq_ast_in_state :
   token:Coq.Limits.Token.t ->
   st:Coq.State.t ->
   Coq.Ast.t ->
   Code_point.t ->
   (t, Error.t) result
 
-val syntax_node_of_vernacexpr : Vernacexpr.vernac_expr -> Code_point.t -> t
+val of_vernacexpr : Vernacexpr.vernac_expr -> Code_point.t -> t
 
-val syntax_node_of_vernacexpr_in_state :
+val of_vernacexpr_in_state :
   token:Coq.Limits.Token.t ->
   st:Coq.State.t ->
   Vernacexpr.vernac_expr ->
   Code_point.t ->
   (t, Error.t) result
 
-val comment_syntax_node_of_string :
-  string -> Code_point.t -> (t, Error.t) result
-(** [comment_syntax_node_of_string content range] create a syntax node
-    representing a comment containing the string content starting at the
-    specified point *)
+val comment_of_string : string -> Code_point.t -> (t, Error.t) result
+(** [comment_of_string content range] create a syntax node representing a
+    comment containing the string content starting at the specified point *)
 
 val syntax_node_of_string : string -> Code_point.t -> (t, Error.t) result
 (** [syntax_node_of_string code start_point] returns a result [Ok Syntax_node]

@@ -429,7 +429,31 @@ let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
          (Error.of_string "'.' expected after [lconstr] (in [query_command])"))
       node_repr)
 
-let test_syntax_node_of_coq_ast_in_state (doc : Doc.t) () =
+let test_creating_valid_comment_from_string (_ : Doc.t) () : unit =
+  let node =
+    Syntax_node.comment_of_string "(* hello world *)" Code_point.dummy
+  in
+  let node_repr = Result.map Syntax_node.repr node in
+
+  Alcotest.(
+    check
+      (result string error_testable)
+      "The node should be created without error" (Ok "(* hello world *)")
+      node_repr)
+
+let test_creating_invalid_comment_from_string (_ : Doc.t) () : unit =
+  let node = Syntax_node.comment_of_string "hello world *)" Code_point.dummy in
+  let node_repr = Result.map Syntax_node.repr node in
+
+  Alcotest.(
+    check
+      (result string error_testable)
+      "The node creation should not succeed"
+      (Error.format_to_or_error
+         "Content \"hello world *)\" should start with (*")
+      node_repr)
+
+let test_of_coq_ast_in_state (doc : Doc.t) () =
   let parsed_doc = Rocq_document.parse_document doc in
   let token = Coq.Limits.Token.create () in
   let lemma_node =
@@ -442,8 +466,7 @@ let test_syntax_node_of_coq_ast_in_state (doc : Doc.t) () =
   let ast = Option.get lemma_node.ast in
   let st = Runner.get_init_state parsed_doc lemma_node token |> Result.get_ok in
   let new_node =
-    Syntax_node.syntax_node_of_coq_ast_in_state ~token ~st ast.v
-      lemma_node.range.start
+    Syntax_node.of_coq_ast_in_state ~token ~st ast.v lemma_node.range.start
     |> Result.get_ok
   in
   Alcotest.(check string)
@@ -733,8 +756,7 @@ let test_reformat_comment_node (_ : Doc.t) () : unit =
   let starting_point : Code_point.t = { line = 0; character = 0 } in
 
   let comment_node =
-    comment_syntax_node_of_string "(* a comment *)" starting_point
-    |> Result.get_ok
+    comment_of_string "(* a comment *)" starting_point |> Result.get_ok
   in
 
   let reformatted_node = Syntax_node.reformat_node comment_node in
@@ -1727,9 +1749,15 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating an invalid node"
        test_creating_invalid_syntax_node_from_string doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating a valid comment node"
+       test_creating_valid_comment_from_string doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating an invalid comment node"
+       test_creating_invalid_comment_from_string doc);
   Hashtbl.add table "ex_rename_definition_notation_state.v"
     (create_fixed_test "test creating a syntax node that depends on the state"
-       test_syntax_node_of_coq_ast_in_state doc);
+       test_of_coq_ast_in_state doc);
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a then b from AST (a;b)"
        test_creating_simple_a_then_b doc);

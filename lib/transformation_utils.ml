@@ -13,7 +13,7 @@ let constr_expr_opt_eq (x : Constrexpr.constr_expr option)
 
 let map_raw_tactic_expr_in_node
     (f :
-  Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
+      Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
     (node : Syntax_node.t) : Transforming_step.t option =
   let ( let+ ) = Option.bind in
   let+ raw_tac_expr = get_raw_tactic_expr node in
@@ -61,7 +61,7 @@ let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
                   Syntax_node.mk_vernac_control new_vernacexpr
                 in
                 let new_node =
-                  Syntax_node.syntax_node_of_coq_ast
+                  Syntax_node.of_coq_ast
                     (Coq.Ast.of_coq new_vernac_control)
                     x.range.start
                 in
@@ -108,8 +108,7 @@ let map_definition_body_in_state
                 in
                 let ast = Coq.Ast.of_coq new_vernac_control in
                 let* new_node =
-                  Syntax_node.syntax_node_of_coq_ast_in_state ~token ~st ast
-                    x.range.start
+                  Syntax_node.of_coq_ast_in_state ~token ~st ast x.range.start
                 in
                 Ok (Some (Replace (x.id, new_node))))
       | _ -> Ok None)
@@ -159,7 +158,7 @@ let map_vernacexpr_in_node
       if vernacexpr = mapped_vernacexpr then None
       else
         let new_node =
-          Syntax_node.syntax_node_of_vernacexpr mapped_vernacexpr x.range.start
+          Syntax_node.of_vernacexpr mapped_vernacexpr x.range.start
         in
         Some (Replace (x.id, new_node))
   | None -> None
@@ -176,8 +175,8 @@ let map_vernacexpr_in_node_in_state
       if vernacexpr = mapped_vernacexpr then Ok None
       else
         let* new_node =
-          Syntax_node.syntax_node_of_vernacexpr_in_state ~token ~st
-            mapped_vernacexpr x.range.start
+          Syntax_node.of_vernacexpr_in_state ~token ~st mapped_vernacexpr
+            x.range.start
         in
         Ok (Some (Replace (x.id, new_node)))
   | None -> Ok None

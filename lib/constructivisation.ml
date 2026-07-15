@@ -42,10 +42,7 @@ let rebuild_require_node (x : Syntax_node.t)
       (VernacRequire (option_libname, export_with_cats_opt, libnames_import_list))
   in
   let new_vernac_control = Syntax_node.mk_vernac_control new_expr in
-  Ok
-    (Syntax_node.syntax_node_of_coq_ast
-       (Coq.Ast.of_coq new_vernac_control)
-       x.range.start)
+  Ok (Syntax_node.of_coq_ast (Coq.Ast.of_coq new_vernac_control) x.range.start)
 
 let replace_require (x : Syntax_node.t) :
     (Transforming_step.t list, Error.t) result =

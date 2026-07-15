@@ -77,7 +77,7 @@ let syntax_node_of_theorem_components (c : theorem_components)
   let synpure_expr = VernacSynPure expr_syn in
   let control = Syntax_node.mk_vernac_control synpure_expr in
   let coq_ast = Coq.Ast.of_coq control in
-  Syntax_node.syntax_node_of_coq_ast coq_ast start_point
+  Syntax_node.of_coq_ast coq_ast start_point
 
 let syntax_node_of_theorem_components_in_state ~(token : Coq.Limits.Token.t)
     ~(st : Coq.State.t) (c : theorem_components) (start_point : Code_point.t) :
@@ -89,7 +89,7 @@ let syntax_node_of_theorem_components_in_state ~(token : Coq.Limits.Token.t)
   let synpure_expr = VernacSynPure expr_syn in
   let control = Syntax_node.mk_vernac_control synpure_expr in
   let coq_ast = Coq.Ast.of_coq control in
-  Syntax_node.syntax_node_of_coq_ast_in_state ~token ~st coq_ast start_point
+  Syntax_node.of_coq_ast_in_state ~token ~st coq_ast start_point
 
 let proof_status_of_vernacexpr (expr : Vernacexpr.synpure_vernac_expr) :
     (proof_status, Error.t) result =

@@ -9,9 +9,7 @@ let split_prefix (prefix : string) (s : string) =
 let rocq_to_lean (doc : Rocq_document.t) :
     (Transforming_step.t list, Error.t) result =
   (* let proofs = Rocq_document.get_proofs doc in *)
-  let require_nodes =
-    List.filter Syntax_node.is_require doc.elements
-  in
+  let require_nodes = List.filter Syntax_node.is_require doc.elements in
   let steps =
     List.map
       (fun (x : Syntax_node.t) ->
@@ -39,8 +37,8 @@ let rocq_to_lean (doc : Rocq_document.t) :
                           "import GeoLean.theories." ^ postfix
                         in
                         let node =
-                          Syntax_node.comment_syntax_node_of_string
-                            lean_require_str x.range.start
+                          Syntax_node.comment_of_string lean_require_str
+                            x.range.start
                           |> Result.get_ok
                         in
                         Replace (x.id, node))
@@ -59,7 +57,7 @@ let rocq_to_lean (doc : Rocq_document.t) :
     List.map
       (fun (x : Syntax_node.t) ->
         let lean_comment_node =
-          Syntax_node.comment_syntax_node_of_string
+          Syntax_node.comment_of_string
             ("/-" ^ Syntax_node.repr x ^ "-/")
             x.range.start
           |> Result.get_ok

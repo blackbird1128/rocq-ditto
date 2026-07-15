@@ -126,16 +126,16 @@ let validate (x : t) : (t, Error.t) result =
     else Ok x
 
 (* TODO, is this even necessary ? *)
-let comment_syntax_node_of_string (content : string)
-    (start_point : Code_point.t) : (t, Error.t) result =
+let comment_of_string (content : string) (start_point : Code_point.t) :
+    (t, Error.t) result =
   let range =
     Code_range.range_from_starting_point_and_repr start_point content
   in
 
   if not (String.starts_with ~prefix:"(*" content) then
-    Error.format_to_or_error "Content (%s) should start with (*" content
+    Error.format_to_or_error "Content \"%s\" should start with (*" content
   else if not (String.ends_with ~suffix:"*)" content) then
-    Error.format_to_or_error "Content (%s) should end with *)" content
+    Error.format_to_or_error "Content \"%s\" should end with *)" content
   else
     Ok
       {
@@ -185,7 +185,7 @@ let remove_outer_parentheses s =
     String.sub s 1 (len - 3) ^ "."
   else s
 
-let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
+let of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
   let coq_ast = Coq.Ast.to_coq ast in
 
   let repr =
@@ -203,9 +203,8 @@ let syntax_node_of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
     diagnostics = [];
   }
 
-let syntax_node_of_coq_ast_in_state ~(token : Coq.Limits.Token.t)
-    ~(st : Coq.State.t) (ast : Coq.Ast.t) (start_point : Code_point.t) :
-    (t, Error.t) result =
+let of_coq_ast_in_state ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
+    (ast : Coq.Ast.t) (start_point : Code_point.t) : (t, Error.t) result =
   let ( let* ) = Result.bind in
   let coq_ast = Coq.Ast.to_coq ast in
 
@@ -229,24 +228,24 @@ let syntax_node_of_coq_ast_in_state ~(token : Coq.Limits.Token.t)
       diagnostics = [];
     }
 
-let syntax_node_of_vernacexpr (expr : Vernacexpr.vernac_expr)
-    (start_point : Code_point.t) : t =
+let of_vernacexpr (expr : Vernacexpr.vernac_expr) (start_point : Code_point.t) :
+    t =
   let vernac_control = mk_vernac_control expr in
   let ast = Coq.Ast.of_coq vernac_control in
-  syntax_node_of_coq_ast ast start_point
+  of_coq_ast ast start_point
 
-let syntax_node_of_vernacexpr_in_state ~(token : Coq.Limits.Token.t)
-    ~(st : Coq.State.t) (expr : Vernacexpr.vernac_expr)
-    (start_point : Code_point.t) : (t, Error.t) result =
+let of_vernacexpr_in_state ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
+    (expr : Vernacexpr.vernac_expr) (start_point : Code_point.t) :
+    (t, Error.t) result =
   let vernac_control = mk_vernac_control expr in
   let ast = Coq.Ast.of_coq vernac_control in
-  syntax_node_of_coq_ast_in_state ~token ~st ast start_point
+  of_coq_ast_in_state ~token ~st ast start_point
 
 let reformat_node (x : t) : (t, Error.t) result =
   match x.ast with
   | Some ast ->
       let start_point = x.range.start in
-      let ast_node = syntax_node_of_coq_ast ast.v start_point in
+      let ast_node = of_coq_ast ast.v start_point in
       Ok (inherit_metadata ~from:x ast_node)
       (* we return the same id, doesn't matter in the order of operation we do *)
   | None ->
@@ -492,7 +491,7 @@ let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
       let synterp_expr = Vernacexpr.VernacSynterp expr_syn in
       let control = mk_vernac_control synterp_expr in
       let ast_node = Coq.Ast.of_coq control in
-      Some (syntax_node_of_coq_ast ast_node starting_point)
+      Some (of_coq_ast ast_node starting_point)
   | _ -> None
 
 let tactic_raw_generic_arguments_to_syntax_node_in_state
@@ -506,9 +505,7 @@ let tactic_raw_generic_arguments_to_syntax_node_in_state
       let synterp_expr = Vernacexpr.VernacSynterp expr_syn in
       let control = mk_vernac_control synterp_expr in
       let ast_node = Coq.Ast.of_coq control in
-      let* new_node =
-        syntax_node_of_coq_ast_in_state ~token ~st ast_node starting_point
-      in
+      let* new_node = of_coq_ast_in_state ~token ~st ast_node starting_point in
       Ok (Some new_node)
   | _ -> Ok None
 
@@ -523,7 +520,7 @@ let tacdef_body_raw_generic_argument_to_syntax_node
       let synterpr_expr = Vernacexpr.VernacSynterp expr_syn in
       let control = mk_vernac_control synterpr_expr in
       let ast_node = Coq.Ast.of_coq control in
-      Some (syntax_node_of_coq_ast ast_node starting_point)
+      Some (of_coq_ast ast_node starting_point)
   | _ -> None
 
 (* let tacdef_body_raw_generic_argument_to_syntax_node_in_state *)
@@ -540,7 +537,7 @@ let tacdef_body_raw_generic_argument_to_syntax_node
 (*       let control = mk_vernac_control synterpr_expr in *)
 (*       let ast_node = Coq.Ast.of_coq control in *)
 (*       let* new_node = *)
-(*         syntax_node_of_coq_ast_in_state ~token ~st ast_node starting_point *)
+(*         of_coq_ast_in_state ~token ~st ast_node starting_point *)
 (*       in *)
 (*       Ok (Some new_node) *)
 (*   | _ -> Ok None *)
