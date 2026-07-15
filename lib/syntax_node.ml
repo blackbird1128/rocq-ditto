@@ -132,14 +132,19 @@ let comment_syntax_node_of_string (content : string)
     Code_range.range_from_starting_point_and_repr start_point content
   in
 
-  Ok
-    {
-      ast = None;
-      repr = lazy content;
-      range;
-      id = Unique_id.uuid ();
-      diagnostics = [];
-    }
+  if not (String.starts_with ~prefix:"(*" content) then
+    Error.format_to_or_error "Content (%s) should start with (*" content
+  else if not (String.ends_with ~suffix:"*)" content) then
+    Error.format_to_or_error "Content (%s) should end with *)" content
+  else
+    Ok
+      {
+        ast = None;
+        repr = lazy content;
+        range;
+        id = Unique_id.uuid ();
+        diagnostics = [];
+      }
 
 let syntax_node_of_string (code : string) (start_point : Code_point.t) :
     (t, Error.t) result =
