@@ -208,7 +208,15 @@ constructivisation-print-destruct-target: build
 
 test: $(V_TARGET_GEN)
 	dune build
-	find test/fixtures/unit_test_fixtures/ -not -name "*_target.v"  -not -path '*/ignore/*'  -name "$(PATTERN)" -name '*.v' -exec  dune exec fcc -- --plugin=ditto-test-plugin {} 2>/dev/null \;
+	@set -e; \
+	for file in $$(find test/fixtures/unit_test_fixtures \
+		-not -name '*_target.v' \
+		-not -path '*/ignore/*' \
+		-name '*.v' | sort); do \
+		echo "TEST $$file"; \
+		dune exec --profile=release fcc -- \
+			--display=quiet --plugin=ditto-test-plugin "$$file" || exit $$?; \
+		done
 	dune runtest
 
 PREFIX := $(HOME)/.local
