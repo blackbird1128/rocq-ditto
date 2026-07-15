@@ -2,7 +2,7 @@ open Proof
 open Fleche
 open Syntax_node
 
-type proofState = NoProof | ProofOpened
+type proof_state = NoProof | ProofOpened
 
 type t = {
   filename : string;
@@ -11,8 +11,8 @@ type t = {
   root_state : Coq.State.t;
 }
 
-type removeMethod = LeaveBlank | ShiftNode
-type shiftMethod = ShiftVertically | ShiftHorizontally
+type remove_method = LeaveBlank | ShiftNode
+type shift_method = ShiftVertically | ShiftHorizontally
 
 let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
   Format.fprintf fmt "filename: %s@ " doc.filename;
@@ -28,7 +28,7 @@ let pp_coq_document (fmt : Format.formatter) (doc : t) : unit =
 
 let get_proofs (doc : t) : (Proof.t list, Error.t) result =
   let rec aux (nodes : Syntax_node.t list) (cur_proof_acc : Syntax_node.t list)
-      (proofs_acc : (Proof.t, Error.t) result list) (cur_state : proofState) :
+      (proofs_acc : (Proof.t, Error.t) result list) (cur_state : proof_state) :
       (Proof.t, Error.t) result list =
     match nodes with
     | [] -> proofs_acc
@@ -77,12 +77,12 @@ let mark_string_regions (s : string) : bool array =
       if in_string then
         let acc' = true :: acc in
         if escape then loop (i + 1) true false acc'
-        else
-          begin match c with
+        else begin
+          match c with
           | '\\' -> loop (i + 1) true true acc'
           | '"' -> loop (i + 1) false false acc'
           | _ -> loop (i + 1) true false acc'
-          end
+        end
       else
         (* Outside a string *)
         let acc' = false :: acc in
