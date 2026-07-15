@@ -130,6 +130,30 @@ let make_dummy_node_from_repr (start_line : int) (start_char : int)
     range;
   }
 
+let check_list_unique ~(eq : 'a -> 'a -> bool) ~(pp : 'a Fmt.t) (lst : 'a list)
+    =
+  let rec find_duplicate idx = function
+    | [] -> None
+    | x :: rest -> (
+        let rec find_in_rest duplicate_idx = function
+          | [] -> None
+          | y :: ys ->
+              if eq x y then Some (idx, duplicate_idx, x)
+              else find_in_rest (duplicate_idx + 1) ys
+        in
+        match find_in_rest (idx + 1) rest with
+        | Some _ as duplicate -> duplicate
+        | None -> find_duplicate (idx + 1) rest)
+  in
+  match find_duplicate 0 lst with
+  | None -> ()
+  | Some (first_idx, duplicate_idx, value) ->
+      let pp_list = Fmt.Dump.list pp in
+      let list_str = Format.asprintf "@[<v>Full list:@ %a@]" pp_list lst in
+      Alcotest.failf
+        "List contains duplicate elements at indices %d and %d: %a\n%s"
+        first_idx duplicate_idx pp value list_str
+
 let check_list_sorted ~(cmp : 'a -> 'a -> int) ~(pp : 'a Fmt.t) (lst : 'a list)
     =
   let rec find_failure idx = function
@@ -737,7 +761,7 @@ let test_reformat_keep_id (_ : Doc.t) () : unit =
 let test_id_assign_document (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
   let nodes_ids = List.map (fun x -> x.id) doc.elements in
-  check_list_sorted ~cmp:Uuidm.compare ~pp:Uuidm.pp nodes_ids
+  check_list_unique ~eq:Uuidm.equal ~pp:Uuidm.pp nodes_ids
 
 let test_sorting_nodes (_ : Doc.t) () : unit =
   let node1 = make_dummy_node 0 0 0 12 in
@@ -1829,13 +1853,16 @@ let setup_test_table table (doc : Doc.t) =
        test_reconstructing_stuck_together doc);
 
   Hashtbl.add table "ex_id_assign1.v"
-    (create_fixed_test "test the initial ordering of nodes in the document"
+    (create_fixed_test
+       "test that node are uniquely assigned an ID in the document"
        test_id_assign_document doc);
   Hashtbl.add table "ex_id_assign2.v"
-    (create_fixed_test "test the initial ordering of nodes in a simple proof"
+    (create_fixed_test
+       "test that node are uniquely assigned an ID in a simple proof"
        test_id_assign_document doc);
   Hashtbl.add table "ex_id_assign3.v"
-    (create_fixed_test "test the initial ordering of nodes with comments"
+    (create_fixed_test
+       "test that node are uniquely assigned an ID with comments"
        test_id_assign_document doc);
 
   Hashtbl.add table "ex_removing1.v"

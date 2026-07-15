@@ -177,7 +177,6 @@ let parse_document (doc : Doc.t) : t =
     List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
   in
 
-  let dummy_id = Unique_id.uuid () in
   let ast_nodes =
     List.map
       (fun (node : Doc.Node.t) ->
@@ -185,7 +184,7 @@ let parse_document (doc : Doc.t) : t =
           ast = node.ast;
           range = Code_range.code_range_from_lang_range node.range;
           repr = lazy (node_representation node document_repr);
-          id = dummy_id;
+          id = Unique_id.uuid ();
           diagnostics = node.diags;
         })
       nodes_with_ast
@@ -200,7 +199,7 @@ let parse_document (doc : Doc.t) : t =
           ast = None;
           range = snd comment;
           repr = lazy (fst comment);
-          id = dummy_id;
+          id = Unique_id.uuid ();
           diagnostics = [];
         })
       comments
@@ -209,16 +208,8 @@ let parse_document (doc : Doc.t) : t =
   let all_nodes =
     merge_nodes (List.sort Syntax_node.compare (ast_nodes @ comments_nodes))
   in
-  let all_nodes_with_growing_ids =
-    List.map (fun node -> { node with id = Unique_id.uuid () }) all_nodes
-  in
 
-  {
-    elements = all_nodes_with_growing_ids;
-    document_repr;
-    filename;
-    root_state = doc.root;
-  }
+  { elements = all_nodes; document_repr; filename; root_state = doc.root }
 
 let dump_sorted_elements_to_string (sorted : Syntax_node.t list) :
     (string, Error.t) result =
