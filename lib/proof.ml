@@ -25,8 +25,8 @@ let pp_transformation_step (fmt : Format.formatter) (step : transformation_step)
         (Code_range.to_string new_node.range)
   | Attach (attached_node, attach_position, anchor_id) ->
       Format.fprintf fmt "Attach(%s, %s, %s)" (repr attached_node)
-        (Uuidm.to_string anchor_id)
         (show_attach_position attach_position)
+        (Uuidm.to_string anchor_id)
 
 let transformation_step_to_string (step : transformation_step) : string =
   Format.asprintf "%a" pp_transformation_step step
@@ -226,9 +226,17 @@ let proof_from_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
   | [] | [ _ ] ->
       Error.string_to_or_error
         ("Not enough elements to create a proof from the nodes.\nnodes: "
-        ^ String.concat ""
-            (List.map
-               (fun node ->
-                 repr node ^ " range:" ^ Code_range.to_string node.range)
-               nodes))
-  | _ -> Ok { proposition = List.hd nodes; proof_steps = List.tl nodes }
+        ^ String.concat " " (List.map (fun node -> repr node) nodes))
+  | proposition :: tail as nodes ->
+      if not (Syntax_node.can_open_proof proposition) then
+        Error.format_to_or_error
+          "The provided first node (%s) can't open a proof"
+          (Syntax_node.repr proposition)
+      else
+        (* there is a last node as there is more than one node in the list, that last node might end the proof or  *)
+        let last_node = List_utils.last tail |> Option.get in
+        if not (Syntax_node.can_close_proof last_node) then
+          Error.format_to_or_error
+            "The provided last node (%s) can't close a proof"
+            (Syntax_node.repr last_node)
+        else Ok { proposition = List.hd nodes; proof_steps = List.tl nodes }

@@ -92,5 +92,5 @@ val proof_from_nodes : Syntax_node.t list -> (t, Error.t) result
 (** Create a proof from a list of annotated AST nodes. [proof_from_nodes nodes]
     takes a list of nodes and returns a proof where the first node in the list
     is used as the proposition, and the remaining nodes are the proof steps. If
-    the list made of less than three nodes or the last node isn't a valid proof
-    end, return an error. *)
+    the list made of less than two nodes, the first node can't open a proof or
+    the last node isn't a valid proof end, return an error. *)
