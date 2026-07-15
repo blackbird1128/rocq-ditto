@@ -131,9 +131,13 @@ let proof_status_from_last_node (node : Syntax_node.t) :
   match node.ast with
   | Some ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> Error.string_to_or_error "not a valid closing node"
+      | VernacSynterp _ ->
+          Error.format_to_or_error "(%s) is not a valid closing node"
+            (Syntax_node.repr node)
       | VernacSynPure expr -> proof_status_of_vernacexpr expr)
-  | None -> Error.string_to_or_error "not a valid closing node (no ast)"
+  | None ->
+      Error.format_to_or_error "(%s) is not a valid closing node (no ast)"
+        (Syntax_node.repr node)
 
 let get_proof_name (p : t) : string option =
   match p.proposition.ast with
@@ -147,16 +151,13 @@ let get_proof_name (p : t) : string option =
           | _ -> None))
   | None -> None
 
-let get_proof_status (p : t) : proof_status option =
-  match p.proof_steps with
-  | [] -> None
-  | steps ->
-      let rec last = function
-        | [ x ] -> x
-        | _ :: xs -> last xs
-        | [] -> assert false
-      in
-      proof_status_from_last_node (last steps) |> Result.to_option
+let status (p : t) : proof_status =
+  match List_utils.last p.proof_steps with
+  | Some last -> (
+      match proof_status_from_last_node last with
+      | Ok status -> status
+      | Error _ -> assert false (* impossible by proof_from_nodes invariant *))
+  | None -> assert false (* a proof always has a last closing proof steps *)
 
 let get_proof_conclusion (p : t) : Constrexpr.constr_expr option =
   let rec get_conclusion (expr : Constrexpr.constr_expr) =

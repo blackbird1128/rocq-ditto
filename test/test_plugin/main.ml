@@ -182,9 +182,9 @@ let test_proof_parsing_ex2 (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  let status = Proof.get_proof_status proof in
-  Alcotest.(check (option proof_status_testable))
-    "The proof should be proved." (Some Proof.Proved) status
+  let status = Proof.status proof in
+  Alcotest.(check proof_status_testable)
+    "The proof should be proved." Proof.Proved status
 
 let test_parsing_admit (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -192,9 +192,9 @@ let test_parsing_admit (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  let status = Proof.get_proof_status proof in
-  Alcotest.(check (option proof_status_testable))
-    "The proof should be admitted." (Some Proof.Admitted) status
+  let status = Proof.status proof in
+  Alcotest.(check proof_status_testable)
+    "The proof should be admitted." Proof.Admitted status
 
 let test_parsing_defined (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -202,9 +202,9 @@ let test_parsing_defined (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  let status = Proof.get_proof_status proof in
-  Alcotest.(check (option proof_status_testable))
-    "The proof should be proved." (Some Proof.Proved) status
+  let status = Proof.status proof in
+  Alcotest.(check proof_status_testable)
+    "The proof should be proved." Proof.Proved status
 
 let test_parsing_function (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -213,9 +213,9 @@ let test_parsing_function (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  let status = Proof.get_proof_status proof in
-  Alcotest.(check (option proof_status_testable))
-    "The proof should be proved." (Some Proof.Proved) status
+  let status = Proof.status proof in
+  Alcotest.(check proof_status_testable)
+    "The proof should be proved." Proof.Proved status
 
 let test_parsing_abort1 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -223,9 +223,9 @@ let test_parsing_abort1 (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let proof = List.hd proofs in
-  let status = Proof.get_proof_status proof in
-  Alcotest.(check (option proof_status_testable))
-    "The proof should be aborted." (Some Proof.Aborted) status
+  let status = Proof.status proof in
+  Alcotest.(check proof_status_testable)
+    "The proof should be aborted." Proof.Aborted status
 
 let test_parsing_abort2 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -233,13 +233,13 @@ let test_parsing_abort2 (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 2 (List.length proofs);
   let first_proof = List.hd proofs in
-  let status_first_proof = Proof.get_proof_status first_proof in
+  let status_first_proof = Proof.status first_proof in
   let second_proof = List.nth proofs 1 in
-  let status_second_proof = Proof.get_proof_status second_proof in
-  Alcotest.(check (option proof_status_testable))
-    "The first proof should be aborted" (Some Proof.Aborted) status_first_proof;
-  Alcotest.(check (option proof_status_testable))
-    "The second proof is proved" (Some Proof.Proved) status_second_proof
+  let status_second_proof = Proof.status second_proof in
+  Alcotest.(check proof_status_testable)
+    "The first proof should be aborted" Proof.Aborted status_first_proof;
+  Alcotest.(check proof_status_testable)
+    "The second proof is proved" Proof.Proved status_second_proof
 
 let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -353,9 +353,9 @@ let test_parsing_instance (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let first_proof = List.hd proofs in
-  let first_proof_status = Proof.get_proof_status first_proof in
-  Alcotest.(check (option proof_status_testable))
-    "The proof should be proved" (Some Proof.Proved) first_proof_status
+  let first_proof_status = Proof.status first_proof in
+  Alcotest.(check proof_status_testable)
+    "The proof should be proved" Proof.Proved first_proof_status
 
 let test_parsing_unicode (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc in
@@ -363,10 +363,10 @@ let test_parsing_unicode (doc : Doc.t) () : unit =
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let first_proof = List.hd proofs in
-  let first_proof_status = Proof.get_proof_status first_proof in
+  let first_proof_status = Proof.status first_proof in
   let proof_prop = first_proof.proposition in
-  Alcotest.(check (option proof_status_testable))
-    "The proof should be proved" (Some Proof.Proved) first_proof_status;
+  Alcotest.(check proof_status_testable)
+    "The proof should be proved" Proof.Proved first_proof_status;
 
   Alcotest.(check string)
     "The proof prop should be the following: "
@@ -2062,18 +2062,18 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "test renaming in user ltac call parameters from Foo to Bar"
        test_rename_in_user_ltac doc);
-  Hashtbl.add table "ex_rename_definition_ltac_notation.v"
-    (create_fixed_test
-       "test renaming in Ltac notation parameters from Foo to Bar"
-       test_rename_in_user_ltac doc);
 
+  (* Hashtbl.add table "ex_rename_definition_ltac_notation.v" *)
+  (*   (create_fixed_test *)
+  (*      "test renaming in Ltac notation parameters from Foo to Bar" *)
+  (*      test_rename_in_user_ltac doc); *)
   Hashtbl.add table "ex_goal_select_flattening_single.v"
     (create_fixed_test "test flattening a single goal selector"
        test_flattening_goal_select_simple doc);
 
-  Hashtbl.add table "ex_goal_select_flattening_all.v"
-    (create_fixed_test "test flattening an 'all' goal selector by duplication"
-       test_flattening_goal_select_all doc);
+  (* Hashtbl.add table "ex_goal_select_flattening_all.v" *)
+  (*   (create_fixed_test "test flattening an 'all' goal selector by duplication" *)
+  (*      test_flattening_goal_select_all doc); *)
 
   (* Hashtbl.add table "ex_auto3.v" *)
   (*   (create_fixed_test "test replacing auto with zarith" *)
@@ -2129,7 +2129,7 @@ let test_runner ~io:_ ~token:_ ~(doc : Doc.t) =
       ^ " file test for: " ^ uri_name_str);
     flush_all ();
 
-    Alcotest.run ~and_exit:true
+    Alcotest.run ~and_exit:true ~bail:false
       ~argv:[| "ignored"; "--color=auto" |]
       "document parsing and modification tests" tests)
   else

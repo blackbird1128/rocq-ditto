@@ -964,12 +964,9 @@ let turn_into_oneliner (_ : Rocq_document.t)
     (transformation_step list, Error.t) result =
   let* proof = Runner.tree_to_proof proof_tree in
 
-  match Proof.get_proof_status proof with
-  | None ->
-      Error.string_to_or_error
-        "Can't find the proof status of the proof: invalid proof"
-  | Some (Proof.Aborted | Proof.Admitted) -> Ok []
-  | Some Proof.Proved -> (
+  match Proof.status proof with
+  | Proof.Aborted | Proof.Admitted -> Ok []
+  | Proof.Proved -> (
       let suffix_node =
         proof.proof_steps
         |> List.find_map Syntax_node.get_proof_with_tactic
