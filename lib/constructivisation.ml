@@ -153,31 +153,137 @@ let replace_cong_theory (doc : Rocq_document.t) :
          doc.elements)
   else Ok []
 
+let get_context_names (x : Syntax_node.t) : (string list, Error.t) result =
+  match Syntax_node.synpure_expr x with
+  | Some (VernacContext binder_expr_list) ->
+      let* fun_names =
+        List.map
+          (fun x ->
+            match x with
+            | Constrexpr.CLocalAssum (_, _, _, constrexpr) ->
+                Ok
+                  (Constrexpr_utils.get_fun_name_in_constrexpr constrexpr
+                  |> Option_utils.to_list)
+            | Constrexpr.CLocalDef _ ->
+                Error.string_to_or_error "Context should not contain CLocalDef"
+            | Constrexpr.CLocalPattern _ ->
+                Error.string_to_or_error
+                  "Context should not contain CLocalPattern")
+          binder_expr_list
+        |> List_utils.concat_result
+      in
+      Ok (List.map Libnames.string_of_qualid fun_names)
+  | _ ->
+      Error.format_to_or_error "The provided node %s isn't a Context"
+        (Syntax_node.repr x)
+
+let replace_group_with_new_node (l : Syntax_node.t list)
+    (new_node : Syntax_node.t) : transformation_step list =
+  let length_l = List.length l in
+  List.mapi
+    (fun i (node : Syntax_node.t) ->
+      if i < length_l - 1 then Remove node.id else Replace (node.id, new_node))
+    l
+
 let replace_contexts (doc : Rocq_document.t) :
     (transformation_step list, Error.t) result =
-  let new_context_str : string =
-    "Context {Pred : predicates}\n\
-    \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
-    \        {ES   : Eq_stability Pred ITn}\n\
-    \        {Dim  : dimension}\n\
-    \        {ITnD : independent_Tarski_nD Pred ITn (incr (incr Dim))}."
+  let* context_neutral_dimensionless_node =
+    Syntax_node.syntax_node_of_string
+      "Context {Pred : predicates}\n\
+      \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
+      \        {ES   : Eq_stability Pred ITn}\n\
+      \        {Dim  : dimension}\n\
+      \        {ITnD : independent_Tarski_nD Pred ITn (incr (incr Dim))}."
+      Code_point.dummy
   in
+  (* and with dec_eq_point *)
+
+  let* context_tarski_2d_node =
+    Syntax_node.syntax_node_of_string
+      "Context {Pred : predicates}\n\
+      \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
+      \        {ES   : Eq_stability Pred ITn}\n\
+      \        {IT2D : independent_Tarski_nD Pred ITn (incr (incr Dim0))}."
+      Code_point.dummy
+  in
+
+  let* context_tarski_euclidean =
+    Syntax_node.syntax_node_of_string
+      "Context {Pred : predicates}\n\
+      \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
+      \        {ES   : Eq_stability Pred ITn}\n\
+      \        {Dim  : dimension}\n\
+      \        {ITnD : independent_Tarski_nD Pred ITn (incr (incr Dim))}\n\
+      \        {TE   : independent_Tarski_euclidean Pred ITn}."
+      Code_point.dummy
+  in
+
+  let* context_tarski_2d_euclidean =
+    Syntax_node.syntax_node_of_string
+      "Context {Pred : predicates}\n\
+      \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
+      \        {ES   : Eq_stability Pred ITn}\n\
+      \        {IT2D : independent_Tarski_nD Pred ITn (incr (incr Dim0))}\n\
+      \        {TE   : independent_Tarski_euclidean Pred ITn}."
+      Code_point.dummy
+  in
+
   let rec aux (nodes : Syntax_node.t list) (prev_was_context : bool)
-      (acc : transformation_step list) :
-      (transformation_step list, Error.t) result =
+      (group_acc : Syntax_node.t list) (acc : Syntax_node.t list list) :
+      Syntax_node.t list list =
     match nodes with
-    | [] -> Ok (List.rev acc)
-    | node :: tail ->
+    | [] -> List.rev acc
+    | node :: tail -> (
         if Syntax_node.is_context node then
-          if prev_was_context then aux tail true (Remove node.id :: acc)
-          else
-            let* new_context_node =
-              Syntax_node.syntax_node_of_string new_context_str node.range.start
-            in
-            aux tail true (Replace (node.id, new_context_node) :: acc)
-        else aux tail false acc
+          if prev_was_context then aux tail true (node :: group_acc) acc
+          else aux tail true [ node ] acc
+        else
+          match group_acc with
+          | [] -> aux tail false [] acc
+          | x :: rest -> aux tail false [] ((x :: rest) :: acc))
   in
-  aux doc.elements false []
+
+  let context_groups = aux doc.elements false [] [] in
+  let* context_groups_names =
+    List.map
+      (fun l -> List_utils.concat_map_result get_context_names l)
+      context_groups
+    |> List_utils.result_all
+  in
+  let res = List.map2 (fun a b -> (a, b)) context_groups_names context_groups in
+  let a =
+    List.map
+      (fun group ->
+        match group with
+        | [ "Tarski_neutral_dimensionless" ], nodes
+        | ( [ "Tarski_neutral_dimensionless_with_decidable_point_equality" ],
+            nodes )
+        | ( [
+              "Tarski_neutral_dimensionless";
+              "Tarski_neutral_dimensionless_with_decidable_point_equality";
+            ],
+            nodes )
+        | ( [
+              "Tarski_neutral_dimensionless_with_decidable_point_equality";
+              "Tarski_neutral_dimensionless";
+            ],
+            nodes ) ->
+            Ok
+              (replace_group_with_new_node nodes
+                 context_neutral_dimensionless_node)
+        | [ "Tarski_2D" ], nodes ->
+            Ok (replace_group_with_new_node nodes context_tarski_2d_node)
+        | [ "Tarski_euclidean" ], nodes ->
+            Ok (replace_group_with_new_node nodes context_tarski_euclidean)
+        | [ "Tarski_2D"; "Tarski_euclidean" ], nodes
+        | [ "Tarski_euclidean"; "Tarski_2D" ], nodes ->
+            Ok (replace_group_with_new_node nodes context_tarski_2d_euclidean)
+        | context, _ ->
+            Error.format_to_or_error "Found an unknown context %s"
+              (String.concat " " context))
+      res
+  in
+  List_utils.concat_result a
 
 let attach_node_after_pred_in_file (doc : Rocq_document.t)
     (node : Syntax_node.t) (filename : string) ?(reverse = false)
@@ -641,8 +747,8 @@ let collect_definitions_containing_exists (nodes : Syntax_node.t list) :
   let rec aux nodes (acc_list : string list) (acc_set : StringSet.t) =
     match nodes with
     | [] -> List.rev acc_list
-    | x :: tail ->
-        begin match
+    | x :: tail -> begin
+        match
           ( Syntax_node.get_definition_constrexpr x,
             Syntax_node.get_definition_name x )
         with
@@ -656,7 +762,7 @@ let collect_definitions_containing_exists (nodes : Syntax_node.t list) :
               aux tail (name :: acc_list) (StringSet.add name acc_set)
             else aux tail acc_list acc_set
         | _ -> aux tail acc_list acc_set
-        end
+      end
   in
   aux nodes [] StringSet.empty
 
@@ -782,8 +888,8 @@ let collect_named_section_ids (section_names : string list)
   let rec aux nodes (current : string option) acc =
     match nodes with
     | [] -> Ok (current, List.rev acc)
-    | node :: tail ->
-        begin match current with
+    | node :: tail -> begin
+        match current with
         | None -> (
             match section_marker node with
             | Some (`Begin name) when is_target name ->
@@ -796,7 +902,7 @@ let collect_named_section_ids (section_names : string list)
                 aux tail None acc'
             | _ -> aux tail (Some name) acc'
             end
-        end
+      end
   in
   let* open_section, ids = aux doc.elements None [] in
   match open_section with
@@ -948,8 +1054,6 @@ let constructivise_doc (doc : Rocq_document.t) :
           List_utils.concat_map_result replace_require doc.elements
         in
 
-        let* replace_context_steps = replace_contexts doc in
-
         let definitions = definitions_of doc in
 
         let replace_or_by_constructive_or_in_proofs_steps =
@@ -988,7 +1092,6 @@ let constructivise_doc (doc : Rocq_document.t) :
                attach_prelude_to_project_steps;
                attach_prelude_to_playfair_existential_playfair_steps;
                replace_require_steps;
-               replace_context_steps;
                replace_or_by_constructive_or_in_proofs_steps;
                replace_or_by_constructive_or_in_definitions_steps;
              ]))
@@ -999,6 +1102,10 @@ let constructivise_doc (doc : Rocq_document.t) :
         if String.ends_with ~suffix:"/Ch03_bet.v" doc.filename then
           remove_named_sections [ "Beeson_1"; "Beeson_2" ] doc
         else Ok [])
+  in
+
+  let stage_replace_context : stage =
+    make_stage "stage replace context" (fun doc -> replace_contexts doc)
   in
 
   (* let stage_1 : stage = *)
@@ -1164,6 +1271,7 @@ let constructivise_doc (doc : Rocq_document.t) :
       [
         stage_0;
         stage_beeson_ch03;
+        stage_replace_context;
         stage_1;
         stage_2;
         stage_3;
