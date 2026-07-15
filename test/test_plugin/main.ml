@@ -2084,6 +2084,24 @@ let setup_test_table table (doc : Doc.t) =
   (* TODO commit files *)
   ()
 
+let check_test_files_exist
+    (test_table : (string, unit Alcotest.test_case) Hashtbl.t) :
+    (unit, Error.t) result =
+  let file_keys = Hashtbl.to_seq_keys test_table in
+  let rec aux = function
+    | [] -> Ok ()
+    | x :: rest ->
+        if
+          not
+            (Sys.file_exists
+               (Filename.concat "test/fixtures/unit_test_fixtures" x))
+        then
+          Error.format_to_or_error
+            "File %s is associate with a test but doesn't exists" x
+        else aux rest
+  in
+  List.of_seq file_keys |> aux
+
 let test_runner ~io:_ ~token:_ ~(doc : Doc.t) =
   let test_hash_table = Hashtbl.create 100 in
 
@@ -2096,17 +2114,30 @@ let test_runner ~io:_ ~token:_ ~(doc : Doc.t) =
 
   setup_test_table test_hash_table doc;
   let file_tests = Hashtbl.find_all test_hash_table uri_name_str in
+  let _ =
+    match check_test_files_exist test_hash_table with
+    | Ok _ -> ()
+    | Error err ->
+        Printf.eprintf "%s" (Error.to_string_hum err);
+        exit 1
+  in
   let tests = [ ("parsing tests", file_tests) ] in
-  print_endline
-    ("Running "
-    ^ string_of_int (List.length file_tests)
-    ^ " file test for: " ^ uri_name_str);
-  flush_all ();
-  if List.length file_tests > 0 then
+  if List.length file_tests > 0 then (
+    print_endline
+      ("Running "
+      ^ string_of_int (List.length file_tests)
+      ^ " file test for: " ^ uri_name_str);
+    flush_all ();
+
     Alcotest.run ~and_exit:true
-      ~argv:[| "ignored"; "--color=always" |]
-      "document parsing and modification tests" tests
-  else ()
+      ~argv:[| "ignored"; "--color=auto" |]
+      "document parsing and modification tests" tests)
+  else
+    Printf.eprintf
+      "File %s doesn't have any associated tests, associate at least a test \
+       with it or remove it from test/fixtures/unit_test_fixtures."
+      uri_name_str;
+  exit 1
 
 let main () = Theory.Register.Completed.add test_runner
 let () = main ()
