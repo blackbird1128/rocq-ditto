@@ -875,7 +875,7 @@ let collect_named_section_ids (section_names : string list)
     (doc : Rocq_document.t) : (Uuidm.t list, Error.t) result =
   let section_marker (node : Syntax_node.t) :
       [ `Begin of string | `End of string ] option =
-    match Syntax_node.get_vernac_expr_gen node with
+    match Syntax_node.vernac_expr node with
     | Some (Vernacexpr.VernacSynterp expr) -> (
         match expr with
         | Vernacexpr.VernacBeginSection ident ->

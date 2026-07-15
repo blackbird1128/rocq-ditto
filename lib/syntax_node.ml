@@ -292,9 +292,6 @@ let is_command_allowed_in_proof (x : t) : bool =
       true
   | Some _ | None -> false
 
-let get_vernac_expr_gen (x : t) : synterp_vernac_expr vernac_expr_gen option =
-  vernac_expr x
-
 let is_ltac (x : t) : bool =
   match synterp_expr x with
   | Some (VernacExtend (ext, _)) ->

@@ -762,7 +762,7 @@ let rename_definition (doc : Rocq_document.t) :
           (*   |> Result.get_ok *)
           (* in *)
           (* let class_vernacexpr = *)
-          (*   Syntax_node.get_vernac_expr_gen class_syntax_node |> Option.get *)
+          (*   Syntax_node.vernac_expr class_syntax_node |> Option.get *)
           (* in *)
 
           (* let class_sexp = *)
