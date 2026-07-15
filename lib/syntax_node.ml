@@ -263,7 +263,7 @@ let get_names (node : t) : string list =
 let shift_node (n_line : int) (n_char : int) (x : t) : t =
   { x with range = Code_range.shift n_line n_char x.range }
 
-let vernac_expr (x : t) : synterp_vernac_expr vernac_expr_gen option =
+let vernac_expr (x : t) =
   Option.map (fun (ast : Doc.Node.Ast.t) -> (Coq.Ast.to_coq ast.v).v.expr) x.ast
 
 let synpure_expr (x : t) =

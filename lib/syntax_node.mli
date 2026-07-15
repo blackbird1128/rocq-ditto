@@ -12,6 +12,9 @@ type t = {
 val repr : t -> string
 val compare : t -> t -> int
 val are_colliding : t -> t -> bool
+val vernac_expr : t -> synterp_vernac_expr vernac_expr_gen option
+val synpure_expr : t -> synpure_vernac_expr option
+val synterp_expr : t -> synterp_vernac_expr option
 
 val colliding_nodes : t -> t list -> t list
 (** [colliding_nodes target nodes_list] return the nodes in [nodes_lists]
