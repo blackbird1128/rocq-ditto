@@ -74,11 +74,7 @@ let colliding_nodes (target : t) (nodes_list : t list) : t list =
 
 let compare (a : t) (b : t) : int =
   let c = Code_point.compare a.range.start b.range.start in
-  if c <> 0 then c
-  else
-    let c = Code_point.compare a.range.end_ b.range.end_ in
-    if c <> 0 then c
-    else Uuidm.compare a.id b.id (* deterministic tie-breaker *)
+  if c <> 0 then c else Code_point.compare a.range.end_ b.range.end_
 
 let count_newlines_and_last_line_len (s : string) : int * int =
   (* returns (number_of_newlines, length_of_last_line_after_last_newline) *)
@@ -255,19 +251,6 @@ let reformat_node (x : t) : (t, Error.t) result =
       (* we return the same id, doesn't matter in the order of operation we do *)
   | None ->
       Error.string_to_or_error "The node need to have an AST to be reformatted"
-
-(* A node can have multiple names (ie mutual recursive defs) *)
-let get_names (node : t) : string list =
-  match node.ast with
-  | Some ast -> (
-      match ast.ast_info with
-      | Some infos ->
-          List.concat_map
-            (fun (info : Lang.Ast.Info.t) ->
-              match info.name.v with None -> [] | Some s -> [ s ])
-            infos
-      | None -> [])
-  | None -> []
 
 let shift_node (n_line : int) (n_char : int) (x : t) : t =
   { x with range = Code_range.shift n_line n_char x.range }

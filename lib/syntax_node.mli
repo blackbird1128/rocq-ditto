@@ -57,10 +57,6 @@ val reformat_node : t -> (t, Error.t) result
     it into a coq_ast and then using pr_vernac to reformat the string. Return
     [Error] if [node.ast] is none. *)
 
-val get_names : t -> string list
-(** Get the names of a node. A node can have multiple names (i.e., mutual
-    recursive definitions) *)
-
 val validate : t -> (t, Error.t) result
 
 val mk_vernac_control :
