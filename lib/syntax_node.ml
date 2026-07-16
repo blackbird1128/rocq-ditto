@@ -150,34 +150,26 @@ let syntax_node_of_string (code : string) (start_point : Code_point.t) :
     (t, Error.t) result =
   let range = Code_range.range_from_starting_point_and_repr start_point code in
   (*offset doesn't count the newline in*)
-  if
-    range.start.line = range.end_.line
-    && String.length code > range.end_.character - range.start.character
-  then
-    Error
-      (Error.of_string
-         "Incorrect range: range end character minus range start character \
-          smaller than node character size")
-  else
-    match generate_ast code with
-    | Ok [] -> Error (Error.of_string ("no node found in string " ^ code))
-    | Ok [ x ] ->
-        let node_ast : Doc.Node.Ast.t =
-          { v = Coq.Ast.of_coq x; ast_info = None }
-        in
 
-        Ok
-          {
-            ast = Some node_ast;
-            range;
-            id = Unique_id.uuid ();
-            (*id is set during insertion in a document*)
-            repr = lazy code;
-            diagnostics = [];
-          }
-    | Ok (_ :: _ :: _) ->
-        Error (Error.of_string ("more than one node found in string " ^ code))
-    | Error err -> Error err
+  match generate_ast code with
+  | Ok [] -> Error (Error.of_string ("no node found in string " ^ code))
+  | Ok [ x ] ->
+      let node_ast : Doc.Node.Ast.t =
+        { v = Coq.Ast.of_coq x; ast_info = None }
+      in
+
+      Ok
+        {
+          ast = Some node_ast;
+          range;
+          id = Unique_id.uuid ();
+          (*id is set during insertion in a document*)
+          repr = lazy code;
+          diagnostics = [];
+        }
+  | Ok (_ :: _ :: _) ->
+      Error (Error.of_string ("more than one node found in string " ^ code))
+  | Error err -> Error err
 
 let remove_outer_parentheses s =
   let len = String.length s in
@@ -536,25 +528,6 @@ let tacdef_body_raw_generic_argument_to_syntax_node
       Some (of_coq_ast ast_node starting_point)
   | _ -> None
 
-(* let tacdef_body_raw_generic_argument_to_syntax_node_in_state *)
-(*     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) *)
-(*     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) : *)
-(*     (t option, Error.t) result = *)
-(*   let ( let* ) = Result.bind in *)
-(*   match args with *)
-(*   | [ _ ] -> *)
-(*       let expr_syn = *)
-(*         Vernacexpr.VernacExtend (Ltac.ltac_definition_extend_name, args) *)
-(*       in *)
-(*       let synterpr_expr = Vernacexpr.VernacSynterp expr_syn in *)
-(*       let control = mk_vernac_control synterpr_expr in *)
-(*       let ast_node = Coq.Ast.of_coq control in *)
-(*       let* new_node = *)
-(*         of_coq_ast_in_state ~token ~st ast_node starting_point *)
-(*       in *)
-(*       Ok (Some new_node) *)
-(*   | _ -> Ok None *)
-
 let tacdef_body_list_to_syntax_node
     (td_list : Ltac_plugin.Tacexpr.tacdef_body list)
     (starting_point : Code_point.t) : (t, Error.t) result =
@@ -566,22 +539,6 @@ let tacdef_body_list_to_syntax_node
   | None ->
       Error.string_to_or_error
         "Error creating a syntax node from the provided tacdef_body list"
-
-(* let tacdef_body_list_to_syntax_node_in_state ~(token : Coq.Limits.Token.t) *)
-(*     ~(st : Coq.State.t) (td_list : Ltac_plugin.Tacexpr.tacdef_body list) *)
-(*     (starting_point : Code_point.t) : (t, Error.t) result = *)
-(*   let args = *)
-(*     [ Raw_gen_args_converter.raw_generic_argument_of_tacdef_bodies td_list ] *)
-(*   in *)
-(*   match *)
-(*     tacdef_body_raw_generic_argument_to_syntax_node_in_state ~token ~st args *)
-(*       starting_point *)
-(*   with *)
-(*   | Ok (Some tac) -> Ok tac *)
-(*   | Ok None -> *)
-(*       Error.string_to_or_error *)
-(*         "Error creating a syntax node from the provided tacdef_body list" *)
-(*   | Error err -> Error err *)
 
 let raw_tactic_expr_to_syntax_node
     (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
