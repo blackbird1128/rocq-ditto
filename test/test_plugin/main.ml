@@ -430,9 +430,8 @@ let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
       node_repr)
 
 let test_creating_valid_comment_from_string (_ : Doc.t) () : unit =
-  let node =
-    Syntax_node.comment_of_string "(* hello world *)" Code_point.dummy
-  in
+  let start : Code_point.t = { line = 0; character = 0 } in
+  let node = Syntax_node.comment_of_string "(* hello world *)" start in
   let node_repr = Result.map Syntax_node.repr node in
 
   Alcotest.(
@@ -452,6 +451,39 @@ let test_creating_invalid_comment_from_string (_ : Doc.t) () : unit =
       (Error.format_to_or_error
          "Content \"hello world *)\" should start with (*")
       node_repr)
+
+let test_creating_invalid_proof_not_enough_nodes_zero (_ : Doc.t) () : unit =
+  let proof = Proof.proof_from_nodes [] in
+  let proof_status = Result.map Proof.status proof in
+
+  Alcotest.(
+    check
+      (result proof_status_testable error_testable)
+      "Creating a proof with no nodes should not succeed"
+      (Error.string_to_or_error
+         "Not enough elements to create a proof from the nodes.\nnodes: []")
+      proof_status)
+
+let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
+  let invalid_start =
+    Syntax_node.syntax_node_of_string "Compute 1 + 1." Code_point.dummy
+    |> Result.get_ok
+  in
+  let valid_end =
+    Syntax_node.syntax_node_of_string "Qed." Code_point.dummy |> Result.get_ok
+  in
+  let proof = Proof.proof_from_nodes [ invalid_start; valid_end ] in
+
+  let proof_status = Result.map Proof.status proof in
+
+  Alcotest.(
+    check
+      (result proof_status_testable error_testable)
+      "Creating a proof with an invalid starting node should not succeed"
+      (Error.format_to_or_error
+         "The provided first node (%s) can't open a proof"
+         (Syntax_node.repr invalid_start))
+      proof_status)
 
 let test_of_coq_ast_in_state (doc : Doc.t) () =
   let parsed_doc = Rocq_document.parse_document doc in
@@ -553,9 +585,9 @@ let test_creating_a_thens_nothing (_ : Doc.t) () : unit =
       (Ok "reflexivity; [  ].") a_thens_nothing_repr)
 
 let test_get_goal_select_all (_ : Doc.t) () : unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
   let node =
-    Syntax_node.syntax_node_of_string "all:simpl." point |> Result.get_ok
+    Syntax_node.syntax_node_of_string "all:simpl." Code_point.dummy
+    |> Result.get_ok
   in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
@@ -567,9 +599,9 @@ let test_get_goal_select_all (_ : Doc.t) () : unit =
     goal_selector
 
 let test_goal_select_nth_selector (_ : Doc.t) () : unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
   let node =
-    Syntax_node.syntax_node_of_string "1:simpl." point |> Result.get_ok
+    Syntax_node.syntax_node_of_string "1:simpl." Code_point.dummy
+    |> Result.get_ok
   in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
@@ -583,10 +615,9 @@ let test_goal_select_nth_selector (_ : Doc.t) () : unit =
     expected goal_selector
 
 let test_goal_select_single_range (_ : Doc.t) () : unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
-
   let node =
-    Syntax_node.syntax_node_of_string "1-2:simpl." point |> Result.get_ok
+    Syntax_node.syntax_node_of_string "1-2:simpl." Code_point.dummy
+    |> Result.get_ok
   in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
@@ -601,9 +632,9 @@ let test_goal_select_single_range (_ : Doc.t) () : unit =
     expected goal_selector
 
 let test_goal_select_multiple_selector (_ : Doc.t) () : unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
   let node =
-    Syntax_node.syntax_node_of_string "1-2,3-4:simpl." point |> Result.get_ok
+    Syntax_node.syntax_node_of_string "1-2,3-4:simpl." Code_point.dummy
+    |> Result.get_ok
   in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
@@ -623,9 +654,9 @@ let test_goal_select_multiple_selector (_ : Doc.t) () : unit =
     expected goal_selector
 
 let test_drop_goal_selector_nth (_ : Doc.t) () : unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
   let node =
-    Syntax_node.syntax_node_of_string "1:simpl." point |> Result.get_ok
+    Syntax_node.syntax_node_of_string "1:simpl." Code_point.dummy
+    |> Result.get_ok
   in
 
   let node_without_selector = Syntax_node.drop_goal_selector node in
@@ -638,9 +669,9 @@ let test_drop_goal_selector_nth (_ : Doc.t) () : unit =
     check bool "The node selector should be None" true has_goal_selector)
 
 let test_creating_select_already_focused (_ : Doc.t) () : unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
   let node =
-    Syntax_node.syntax_node_of_string "reflexivity." point |> Result.get_ok
+    Syntax_node.syntax_node_of_string "reflexivity." Code_point.dummy
+    |> Result.get_ok
   in
 
   let node_with_select_already_focused_repr =
@@ -1045,7 +1076,6 @@ let test_adding_node_between (doc : Doc.t) () : unit =
     "The two list should be the same " (Ok parsed_target) new_doc_res
 
 let test_adding_collision_next_line (doc : Doc.t) () : unit =
-  (* TODO bugged for now, fix later *)
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Rocq_document.parse_document doc in
   let parsed_target = get_target uri_str in
@@ -1758,6 +1788,14 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_rename_definition_notation_state.v"
     (create_fixed_test "test creating a syntax node that depends on the state"
        test_of_coq_ast_in_state doc);
+
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating a proof with no nodes"
+       test_creating_invalid_proof_not_enough_nodes_zero doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating a proof with an invalid starting node"
+       test_creating_a_proof_invalid_starting_node doc);
+
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a then b from AST (a;b)"
        test_creating_simple_a_then_b doc);
