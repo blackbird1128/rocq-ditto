@@ -1394,6 +1394,10 @@ let test_replacing_induction_by_destruct_simple (doc : Doc.t) () : unit =
   test_proof_transformation doc
     Transformations.replace_induction_by_destruct_when_possible ()
 
+let test_replacing_induction_by_destruct_no_op (doc : Doc.t) () : unit =
+  test_proof_transformation doc
+    Transformations.replace_induction_by_destruct_when_possible ()
+
 let test_renaming_def_in_proof_steps (doc : Doc.t) () : unit =
   Unix.putenv "DITTO_ARG0"
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
@@ -1767,6 +1771,7 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "check if two nodes with multiple common lines are colliding"
        test_colliding_nodes_multiple_common_lines_collision doc);
+
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if reformat fail on comment"
        test_reformat_comment_node doc);
@@ -1776,6 +1781,7 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a simple node without error"
        test_creating_valid_syntax_node_from_string doc);
+
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating an invalid node"
        test_creating_invalid_syntax_node_from_string doc);
@@ -1808,6 +1814,7 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a thens nothing"
        test_creating_a_thens_nothing doc);
+
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test getting a Goal_select_view.t from all:tactic"
        test_get_goal_select_all doc);
@@ -1826,6 +1833,7 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test adding the goal selector: SelectAlreadyFocused"
        test_creating_select_already_focused doc);
+
   Hashtbl.add table "ex_goal_selecting_one.v"
     (create_fixed_test
        "test applying a single Goal_select_view to a list of goals"
@@ -2071,6 +2079,7 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_explicit_apply_comma1.v"
     (create_fixed_test "test explicit apply with multiple lemmas supplied"
        explicit_apply_with_comma_simple doc);
+
   Hashtbl.add table "ex_induction_to_destruct_simple.v"
     (create_fixed_test "test a simple replacement of induction by destruct"
        test_replacing_induction_by_destruct_simple doc);
@@ -2084,6 +2093,10 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test
        "test replacing induction by destruct with previous IH present"
        test_replacing_induction_by_destruct_simple doc);
+  Hashtbl.add table "ex_induction_to_destruct_no_op.v"
+    (create_fixed_test "test replacing induction by destruct keeping induction"
+       test_replacing_induction_by_destruct_no_op doc);
+
   Hashtbl.add table "ex_proof_with_remove.v"
     (create_fixed_test "test removing \"Proof with\" from a simple proof"
        test_remove_proof_with_simple doc);

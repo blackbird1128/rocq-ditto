@@ -199,8 +199,9 @@ let proof_from_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
   match nodes with
   | [] | [ _ ] ->
       Error.string_to_or_error
-        ("Not enough elements to create a proof from the nodes.\nnodes: "
-        ^ String.concat " " (List.map (fun node -> repr node) nodes))
+        ("Not enough elements to create a proof from the nodes.\nnodes: ["
+        ^ String.concat " " (List.map (fun node -> repr node) nodes)
+        ^ "]")
   | proposition :: tail as nodes ->
       if not (Syntax_node.can_open_proof proposition) then
         Error.format_to_or_error
