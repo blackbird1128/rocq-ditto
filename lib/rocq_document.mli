@@ -1,6 +1,6 @@
 open Fleche
 
-type t = {
+type t = private {
   filename : string;
   elements : Syntax_node.t list;
   document_repr : string;
