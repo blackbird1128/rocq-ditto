@@ -20,6 +20,8 @@ val colliding_nodes : t -> t list -> t list
 (** [colliding_nodes target nodes_list] return the nodes in [nodes_lists]
     colliding with [target] *)
 
+val of_doc_node : string -> Doc.Node.t -> t
+
 val of_coq_ast : Coq.Ast.t -> Code_point.t -> t
 (** [of_coq_ast ast starting_point] create a syntax node from a Coq AST element
     and a point to start the node. *)

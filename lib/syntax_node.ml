@@ -185,6 +185,19 @@ let remove_outer_parentheses s =
     String.sub s 1 (len - 3) ^ "."
   else s
 
+let node_representation (node : Doc.Node.t) (document : string) : string =
+  String.sub document node.range.start.offset
+    (node.range.end_.offset - node.range.start.offset)
+
+let of_doc_node (source : string) (node : Doc.Node.t) : t =
+  {
+    ast = node.ast;
+    range = Code_range.code_range_from_lang_range node.range;
+    repr = lazy (node_representation node source);
+    id = Unique_id.uuid ();
+    diagnostics = node.diags;
+  }
+
 let of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
   let coq_ast = Coq.Ast.to_coq ast in
 

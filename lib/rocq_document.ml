@@ -52,10 +52,6 @@ let get_proofs (doc : t) : (Proof.t list, Error.t) result =
   let res = aux doc.elements [] [] NoProof in
   List.rev res |> List_utils.result_all
 
-let node_representation (node : Doc.Node.t) (document : string) : string =
-  String.sub document node.range.start.offset
-    (node.range.end_.offset - node.range.start.offset)
-
 let get_line_col_positions text pos : Code_point.t =
   let rec aux line col index =
     if index = pos then (line, col, index)
@@ -179,14 +175,7 @@ let parse_document (doc : Doc.t) : t =
 
   let ast_nodes =
     List.map
-      (fun (node : Doc.Node.t) ->
-        {
-          ast = node.ast;
-          range = Code_range.code_range_from_lang_range node.range;
-          repr = lazy (node_representation node document_repr);
-          id = Unique_id.uuid ();
-          diagnostics = node.diags;
-        })
+      (fun (node : Doc.Node.t) -> Syntax_node.of_doc_node document_repr node)
       nodes_with_ast
   in
 
