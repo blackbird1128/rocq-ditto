@@ -89,10 +89,7 @@ let fold_replace_assumption_with_apply (doc : Rocq_document.t)
     Runner.depth_first_fold_with_state doc token
       (fun state acc node ->
         let* state_node = Runner.run_node token state node in
-        if
-          String.starts_with ~prefix:"assumption" (repr node)
-          && not (String.contains (repr node) ';')
-        then
+        if Syntax_node.is_assumption node then
           let goal_count_after_assumption = Runner.count_goals state_node in
 
           let curr_goal_err = Runner.get_current_goal token state in
@@ -1073,7 +1070,7 @@ let destruction_arg_to_string
   | Tactics.ElimOnAnonHyp _ -> "anonymous"
 
 let is_syntax_node_intros_without_set_var (x : Syntax_node.t) : bool =
-  match Syntax_node.get_node_raw_atomic_tactic_expr x with
+  match Syntax_node.get_raw_atomic_tactic_expr x with
   | Some (TacIntroPattern (_, intro_pattern)) -> (
       match intro_pattern with
       | [ { v; _ } ] -> (
@@ -1082,12 +1079,12 @@ let is_syntax_node_intros_without_set_var (x : Syntax_node.t) : bool =
   | _ -> false
 
 let is_syntax_node_assert_without_set_var (x : Syntax_node.t) : bool =
-  match Syntax_node.get_node_raw_atomic_tactic_expr x with
+  match Syntax_node.get_raw_atomic_tactic_expr x with
   | Some (TacAssert (false, true, _, None, _)) -> true
   | _ -> false
 
 let is_syntax_node_induction_without_set_var (x : Syntax_node.t) : bool =
-  match Syntax_node.get_node_raw_atomic_tactic_expr x with
+  match Syntax_node.get_raw_atomic_tactic_expr x with
   | Some (TacInductionDestruct (true, false, (induction_clause_l, _))) ->
       List.exists
         (fun x ->
@@ -1122,7 +1119,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
     match (old_goals_vars, new_goals_vars) with
     | Some old_goals_vars, Some new_goals_vars ->
         let raw_atomic_expr =
-          Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
+          Syntax_node.get_raw_atomic_tactic_expr x |> Option.get
         in
         let rflag, eflag, (induction_clause_l, with_bindings) =
           match raw_atomic_expr with
@@ -1237,7 +1234,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
     match new_vars with
     | Some new_vars ->
         let raw_atomic_expr =
-          Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
+          Syntax_node.get_raw_atomic_tactic_expr x |> Option.get
         in
 
         let eflag, b, tacexpr_opt_opt, _, term =
@@ -1275,7 +1272,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
     match new_vars with
     | Some new_vars ->
         let raw_atomic_expr =
-          Syntax_node.get_node_raw_atomic_tactic_expr x |> Option.get
+          Syntax_node.get_raw_atomic_tactic_expr x |> Option.get
         in
 
         let eflag =
@@ -1380,9 +1377,10 @@ let rewrite_proof_nodes (doc : Rocq_document.t) (proof : Proof.t)
       let* new_node = rewrite token state node in
       if new_node = node then Ok (new_state, acc)
       else
-        let new_state_after_node = Runner.run_node token state new_node in
-        match new_state_after_node with
-        | Ok _ -> Ok (new_state, Replace (node.id, new_node) :: acc)
+        let new_state_after_node_res = Runner.run_node token state new_node in
+        match new_state_after_node_res with
+        | Ok new_state_after_node ->
+            Ok (new_state_after_node, Replace (node.id, new_node) :: acc)
         | Error _ -> Ok (new_state, acc))
     [] proof
 

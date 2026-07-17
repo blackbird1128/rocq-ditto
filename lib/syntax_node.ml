@@ -448,6 +448,12 @@ let get_raw_tactic_expr (x : t) : Ltac_plugin.Tacexpr.raw_tactic_expr option =
   |> Option.map raw_arguments_to_raw_tactic_expr
   |> Option.flatten
 
+let get_raw_tactic_expr_view (x : t) :
+    Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_expr_r option
+    =
+  get_raw_tactic_expr x
+  |> Option.map (fun (expr : Ltac_plugin.Tacexpr.raw_tactic_expr) -> expr.v)
+
 let get_tacdef_bodies (x : t) : Ltac_plugin.Tacexpr.tacdef_body list option =
   get_tactic_raw_generic_arguments x
   |> Option.map raw_arguments_to_tacdef_bodies
@@ -465,7 +471,7 @@ let string_to_raw_tactic_expr (str : string) :
          Ltac)"
         str
 
-let get_node_raw_atomic_tactic_expr (x : t) :
+let get_raw_atomic_tactic_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option =
   let raw_expr = get_raw_tactic_expr x in
   Option.map Ltac.get_raw_atomic_tactic_expr raw_expr |> Option.flatten
@@ -615,30 +621,40 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
             "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
             (repr x))
 
+let is_assumption (x : t) : bool =
+  match get_raw_tactic_expr_view x with
+  | Some (Ltac_plugin.Tacexpr.TacArg (TacCall call)) ->
+      let qualid, args = call.v in
+      args = []
+      && Names.Id.equal
+           (Libnames.qualid_basename qualid)
+           (Names.Id.of_string "assumption")
+  | _ -> false
+
 let is_intros (x : t) : bool =
-  match get_node_raw_atomic_tactic_expr x with
+  match get_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacIntroPattern _) -> true
   | _ -> false
 
 let is_assert (x : t) : bool =
-  match get_node_raw_atomic_tactic_expr x with
+  match get_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacAssert _) -> true
   | _ -> false
 
 let is_assert_by (x : t) : bool =
-  match get_node_raw_atomic_tactic_expr x with
+  match get_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacAssert (false, true, Some (Some _), _, _)) ->
       true
   | _ -> false
 
 let get_assert_expr (x : t) : Constrexpr.constr_expr option =
-  match get_node_raw_atomic_tactic_expr x with
+  match get_raw_atomic_tactic_expr x with
   | Some (TacAssert (false, true, _, _, expr)) -> Some expr
   | _ -> None
 
 let get_assert_by_raw_tac_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_tactic_expr option =
-  match get_node_raw_atomic_tactic_expr x with
+  match get_raw_atomic_tactic_expr x with
   | Some (Ltac_plugin.Tacexpr.TacAssert (false, true, Some (Some expr), _, _))
     ->
       Some expr
