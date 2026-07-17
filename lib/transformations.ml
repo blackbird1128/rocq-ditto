@@ -430,10 +430,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
         else
           let* new_state = Runner.run_node token state node in
 
-          if
-            String.starts_with ~prefix:"auto" (repr node)
-            && not (String.contains (repr node) ';')
-          then (
+          if Syntax_node.is_auto node then (
             let node_args = extract (repr node) in
 
             let info_auto = "info_auto" ^ node_args ^ "." in

@@ -621,6 +621,20 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
             "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
             (repr x))
 
+let get_alias_kername (x : t) : Names.KerName.t option =
+  Option.bind (get_raw_tactic_expr x) Ltac.get_alias_kername
+
+let auto_alias_kername : Names.KerName.t option Lazy.t =
+  lazy
+    (match syntax_node_of_string "auto." Code_point.dummy with
+    | Ok node -> get_alias_kername node
+    | Error _ -> None)
+
+let is_auto (x : t) : bool =
+  match (get_alias_kername x, Lazy.force auto_alias_kername) with
+  | Some actual, Some expected -> Names.KerName.equal actual expected
+  | _ -> false
+
 let is_assumption (x : t) : bool =
   match get_raw_tactic_expr_view x with
   | Some (Ltac_plugin.Tacexpr.TacArg (TacCall call)) ->

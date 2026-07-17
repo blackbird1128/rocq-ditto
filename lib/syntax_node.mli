@@ -181,6 +181,7 @@ val string_to_raw_tactic_expr :
 val get_ltac_elements : t -> ltac_elements option
 val drop_goal_selector : t -> t
 val add_goal_selector : t -> Goal_select_view.t -> (t, Error.t) result
+val is_auto : t -> bool
 val is_assumption : t -> bool
 val is_intros : t -> bool
 val is_assert : t -> bool
