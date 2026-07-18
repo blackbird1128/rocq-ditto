@@ -261,7 +261,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
               (String.concat "\n" transformations_list)
         | Some steps -> (
             let transformations_steps = List.map Result.get_ok steps in
-            let parsed_document = Rocq_document.parse_document doc in
+            let* parsed_document = Rocq_document.parse_document doc in
             let scoped_transformations :
                 (transformation_kind * scoped_function) list =
               List.map

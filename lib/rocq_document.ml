@@ -74,12 +74,12 @@ let mark_string_regions (s : string) : bool array =
       if in_string then
         let acc' = true :: acc in
         if escape then loop (i + 1) true false acc'
-        else
-          begin match c with
+        else begin
+          match c with
           | '\\' -> loop (i + 1) true true acc'
           | '"' -> loop (i + 1) false false acc'
           | _ -> loop (i + 1) true false acc'
-          end
+        end
       else
         (* Outside a string *)
         let acc' = false :: acc in
@@ -90,7 +90,7 @@ let mark_string_regions (s : string) : bool array =
   loop 0 false false []
 
 let get_comments (content : string) :
-    ((string * Code_range.t) list, string) result =
+    ((string * Code_range.t) list, Error.t) result =
   let explode s =
     List.init (String.length s) (fun idx -> (idx, String.get s idx))
   in
@@ -126,7 +126,7 @@ let get_comments (content : string) :
                 | [] ->
                     acc
                     (* we might have encountered: try (rewrite IHn in *\) for example *)
-                | _ -> Error "unmatched ending comment")
+                | _ -> Error.string_to_or_error "unmatched ending comment")
             | _ -> acc)
         | Error err -> Error err)
       (Ok ([], []))
@@ -164,7 +164,8 @@ let merge_nodes (nodes : Syntax_node.t list) : Syntax_node.t list =
   in
   merge_aux [] nodes
 
-let parse_document (doc : Doc.t) : t =
+let parse_document (doc : Doc.t) : (t, Error.t) result =
+  let ( let* ) = Result.bind in
   let nodes = doc.nodes in
   let document_repr = doc.contents.raw in
   let filename = Lang.LUri.File.to_string_uri doc.uri in
@@ -179,7 +180,7 @@ let parse_document (doc : Doc.t) : t =
       nodes_with_ast
   in
 
-  let comments = get_comments document_repr |> Result.get_ok in
+  let* comments = get_comments document_repr in
 
   let comments_nodes =
     List.map
@@ -198,7 +199,7 @@ let parse_document (doc : Doc.t) : t =
     merge_nodes (List.sort Syntax_node.compare (ast_nodes @ comments_nodes))
   in
 
-  { elements = all_nodes; document_repr; filename; root_state = doc.root }
+  Ok { elements = all_nodes; document_repr; filename; root_state = doc.root }
 
 let dump_sorted_elements_to_string (sorted : Syntax_node.t list) :
     (string, Error.t) result =

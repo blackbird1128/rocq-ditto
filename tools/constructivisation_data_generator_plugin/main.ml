@@ -47,7 +47,7 @@ let generate_data_file ~io ~token:_ ~(doc : Doc.t) =
   Io.Report.msg ~io ~lvl "[constructivisation-data-generator] processing %s ..."
     uri_str;
 
-  let parsed_document = Rocq_document.parse_document doc in
+  let parsed_document = Rocq_document.parse_document doc |> Result.get_ok in
   let definitions =
     List.filter Syntax_node.is_definition parsed_document.elements
   in

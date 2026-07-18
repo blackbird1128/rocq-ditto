@@ -11,7 +11,7 @@ type remove_method = LeaveBlank | ShiftNode
 type shift_method = ShiftVertically | ShiftHorizontally
 
 val pp : Format.formatter -> t -> unit
-val parse_document : Doc.t -> t
+val parse_document : Doc.t -> (t, Error.t) result
 
 val element_with_id_opt : Uuidm.t -> t -> Syntax_node.t option
 (** Find an element with a specific ID in a document.

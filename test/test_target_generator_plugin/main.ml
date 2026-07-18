@@ -9,7 +9,8 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let lvl = Io.Level.Info in
   Io.Report.msg ~io ~lvl "[ast plugin] dumping ast for %s ..." uri_str;
 
-  let parsed_document = Rocq_document.parse_document doc in
+  let parsed_document = Rocq_document.parse_document doc |> Result.get_ok in
+  (* TODO remove Result.get_ok here *)
 
   let repr_and_ranges =
     List.map

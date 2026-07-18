@@ -63,9 +63,8 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
       else
         let ( let* ) = Result.bind in
 
-        let parsed_document = Rocq_document.parse_document doc in
-
         let final_res =
+          let* parsed_document = Rocq_document.parse_document doc in
           let* proofs = Rocq_document.get_proofs parsed_document in
 
           let steps =
