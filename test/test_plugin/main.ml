@@ -66,6 +66,9 @@ let get_target (uri_str : string) =
   let target_doc = Yojson.Safe.from_file target in
   parse_json_target target_doc
 
+let node (repr : string) : Syntax_node.t =
+  Syntax_node.syntax_node_of_string repr Code_point.dummy |> Result.get_ok
+
 let pp_int (fmt : Format.formatter) (x : int) = Format.fprintf fmt "%d" x
 let int_tree = testable_nary_tree pp_int ( = )
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
@@ -1308,6 +1311,31 @@ let test_doc_transformation (doc : Doc.t)
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same" (Ok parsed_target) new_doc_res
+
+let test_is_auto_simple_auto (_ : Doc.t) () : unit =
+  Alcotest.(check bool)
+    "auto. should be detected by is_auto" true
+    (Syntax_node.is_auto (node "auto."))
+
+let test_is_auto_auto_three (_ : Doc.t) () : unit =
+  Alcotest.(check bool)
+    "auto 3. should be detected by is_auto" true
+    (Syntax_node.is_auto (node "auto 3."))
+
+let test_not_is_auto_eauto (_ : Doc.t) () : unit =
+  Alcotest.(check bool)
+    "eauto should not be detected by is_auto" false
+    (Syntax_node.is_auto (node "eauto."))
+
+let test_not_is_auto_trivial (_ : Doc.t) () : unit =
+  Alcotest.(check bool)
+    "trivial should not be detected by is_auto" false
+    (Syntax_node.is_auto (node "trivial."))
+
+let test_not_is_auto_composed (_ : Doc.t) () : unit =
+  Alcotest.(check bool)
+    "auto composed with other nodes should not be detected by is_auto" false
+    (Syntax_node.is_auto (node "auto; easy."))
 
 let test_replacing_simple_auto_by_steps (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.replace_auto_with_steps ()
