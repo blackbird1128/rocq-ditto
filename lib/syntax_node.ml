@@ -242,7 +242,7 @@ let of_vernacexpr_in_state ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
   let ast = Coq.Ast.of_coq vernac_control in
   of_coq_ast_in_state ~token ~st ast start_point
 
-let reformat_node (x : t) : (t, Error.t) result =
+let reformat (x : t) : (t, Error.t) result =
   match x.ast with
   | Some ast ->
       let start_point = x.range.start in

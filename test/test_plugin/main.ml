@@ -817,7 +817,7 @@ let test_reformat_comment_node (_ : Doc.t) () : unit =
     comment_of_string "(* a comment *)" starting_point |> Result.get_ok
   in
 
-  let reformatted_node = Syntax_node.reformat_node comment_node in
+  let reformatted_node = Syntax_node.reformat comment_node in
   let reformat_id = Result.map (fun x -> x.id) reformatted_node in
 
   Alcotest.(check (result uuidm_testable error_testable))
@@ -832,7 +832,7 @@ let test_reformat_keep_id (_ : Doc.t) () : unit =
     syntax_node_of_string "Compute 1 + 1." starting_point |> Result.get_ok
   in
 
-  let reformatted_node = Syntax_node.reformat_node content_node in
+  let reformatted_node = Syntax_node.reformat content_node in
   let reformat_id = Result.map (fun x -> x.id) reformatted_node in
 
   Alcotest.(check (result uuidm_testable error_testable))
