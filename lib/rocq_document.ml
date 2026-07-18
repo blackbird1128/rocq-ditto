@@ -311,6 +311,17 @@ let split_at_id (target_id : Uuidm.t) (doc : t) :
   in
   aux doc.elements []
 
+let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
+    (Syntax_node.t list * Syntax_node.t * Syntax_node.t list) option =
+  let rec aux (elements : Syntax_node.t list) (acc : Syntax_node.t list) =
+    match elements with
+    | [] -> None
+    | x :: tail ->
+        if x.id = target_id then Some (List.rev acc, x, tail)
+        else aux tail (x :: acc)
+  in
+  aux node_list []
+
 let shift_block_checked (n_line : int) (n_char : int)
     (nodes : Syntax_node.t list) : (Syntax_node.t list, Error.t) result =
   if n_char = 0 then Ok (List.map (shift_node n_line n_char) nodes)
@@ -330,13 +341,12 @@ let shift_block_checked (n_line : int) (n_char : int)
 let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
     (doc : t) : (t, Error.t) result =
   let ( let* ) = Result.bind in
-  match element_with_id_opt target_id doc with
+  match split_around_id target_id doc.elements with
   | None ->
       Error.format_to_or_error
         "The element with id: %s wasn't found in the document"
         (Uuidm.to_string target_id)
-  | Some removed_node ->
-      let* before, after = split_at_id target_id doc in
+  | Some (before, removed_node, after) ->
       let* shifted_after =
         match remove_method with
         | LeaveBlank -> Ok after
@@ -394,11 +404,11 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
   let before, after =
     match shift_method with
     | ShiftVertically ->
-        List.partition
+        List_utils.split_while
           (fun node -> node.range.start.line < new_node.range.start.line)
           sorted
     | ShiftHorizontally ->
-        List.partition
+        List_utils.split_while
           (fun node ->
             Code_point.compare node.range.start new_node.range.start < 0)
           sorted
@@ -523,7 +533,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         in
         let sorted = doc_removed.elements in
         let before, after =
-          List.partition
+          List_utils.split_while
             (fun node ->
               Code_point.compare node.range.start replacement.range.start < 0)
             sorted
@@ -551,7 +561,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         let delta = new_width - old_width in
         let sorted = doc_removed.elements in
         let before, after =
-          List.partition
+          List_utils.split_while
             (fun node ->
               Code_point.compare node.range.start replacement.range.start < 0)
             sorted
