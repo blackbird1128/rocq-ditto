@@ -28,12 +28,12 @@ let rec drop_while (p : 'a -> bool) = function
   | rest -> rest
 
 let split_while (p : 'a -> bool) (l : 'a list) : 'a list * 'a list =
-  let rec aux acc_before = function
-    | [] -> (l, [])
-    | x :: l when p x -> aux (x :: acc_before) l
-    | _ :: _ -> (acc_before, l)
+  let rec aux acc_before acc_after = function
+    | [] -> (List.rev acc_before, acc_after)
+    | x :: tail when p x -> aux (x :: acc_before) tail tail
+    | _ :: _ -> (List.rev acc_before, acc_after)
   in
-  aux [] l
+  aux [] l l
 
 let rec last (l : 'a list) : 'a option =
   match l with
