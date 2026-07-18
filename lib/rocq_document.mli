@@ -5,6 +5,7 @@ type t = private {
   elements : Syntax_node.t list;
   document_repr : string;
   root_state : Coq.State.t;
+      (* the root state is the state before the execution of any node in the document, provided by Fleche during parsing *)
 }
 
 type remove_method = LeaveBlank | ShiftNode
@@ -61,12 +62,6 @@ val replace_node : Uuidm.t -> Syntax_node.t -> t -> (t, Error.t) result
 (** Replace a node inside the document. [replace_node target_id new_node doc]
     replace the node with id [target_id] by [new_node]. Fail and return [Error]
     if a node with [target_id] isn't found in the document. *)
-
-val replace_proof : Uuidm.t -> Proof.t -> t -> Transforming_step.t list option
-(** Get the transformation steps needed to replace a proof inside the document.
-    [replace_proof target_id new_proof doc] return either a list of
-    transformation steps to replace a proof wrapped in [Some] if a proof
-    proposition with the id [target_id] exists and [None] otherwise *)
 
 val get_proofs : t -> (Proof.t list, Error.t) result
 (** Extract proofs from a document. [get_proofs doc] takes a document [doc] of

@@ -583,29 +583,6 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         let* document_repr = dump_sorted_elements_to_string elements in
         Ok { doc with elements; document_repr }
 
-let replace_proof (target_id : Uuidm.t) (new_proof : Proof.t) (doc : t) :
-    Transforming_step.t list option =
-  match proof_with_id_opt target_id doc with
-  | Some target ->
-      let replacement_node =
-        Replace (target.proposition.id, new_proof.proposition)
-      in
-      let remove_nodes =
-        List.map (fun node -> Remove node.id) target.proof_steps
-      in
-
-      let attached_nodes =
-        List.mapi
-          (fun i node ->
-            if i = 0 then Attach (node, LineAfter, new_proof.proposition.id)
-            else
-              let prev_node = List.nth new_proof.proof_steps (i - 1) in
-              Attach (node, LineAfter, prev_node.id))
-          new_proof.proof_steps
-      in
-      Some (remove_nodes @ (replacement_node :: attached_nodes))
-  | None -> None
-
 let apply_transformation_step (step : Transforming_step.t) (doc : t) :
     (t, Error.t) result =
   let ( let* ) = Result.bind in
