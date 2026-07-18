@@ -375,28 +375,27 @@ let test_parsing_in_then_star_then_parenthesis (doc : Doc.t) () : unit =
 
 let test_parsing_glued_comment (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> Result.get_ok in
-
   let comment_nodes, other_nodes =
     List.partition (fun node -> Option.is_empty node.ast) doc.elements
   in
-  List.iter
-    (fun node ->
-      Logs.debug (fun m -> m "node repr: %s" (Syntax_node.repr node)))
-    comment_nodes;
 
-  Alcotest.(check int)
-    "The wrong number of comment nodes was parsed" 1
-    (List.length comment_nodes);
-  Alcotest.(check int)
-    "The wrong number of non-comment nodes was parsed" 1
-    (List.length other_nodes);
+  match (comment_nodes, other_nodes) with
+  | [ comment_node ], [ other_node ] ->
+      Alcotest.(check bool)
+        "The command ends where the comment starts" true
+        (Code_point.compare other_node.range.end_ comment_node.range.start = 0);
 
-  let other_node = List.hd comment_nodes in
-  let comment_node = List.hd comment_nodes in
+      Alcotest.(check bool)
+        "Touching half-open ranges do not collide" false
+        (Syntax_node.are_colliding other_node comment_node);
 
-  Alcotest.(check bool)
-    "The AST node and the comment node should not be colliding" false
-    (Syntax_node.are_colliding other_node comment_node)
+      Alcotest.(check (result uuidm_testable error_testable))
+        "The comment range agrees with its representation" (Ok comment_node.id)
+        (Syntax_node.validate comment_node |> Result.map (fun node -> node.id))
+  | _ ->
+      Alcotest.failf "Expected one comment and one command, got %d and %d"
+        (List.length comment_nodes)
+        (List.length other_nodes)
 
 let test_parsing_instance (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> Result.get_ok in
@@ -876,8 +875,8 @@ let test_colliding_nodes_no_common_lines (_ : Doc.t) () : unit =
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
 let test_colliding_nodes_common_line_no_collision (_ : Doc.t) () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 "hello" in
-  let other_node = make_dummy_node_from_repr 0 20 "world" in
+  let target_node = make_dummy_node_from_repr 0 0 "(*l*)" in
+  let other_node = make_dummy_node_from_repr 0 20 "(*r*)" in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]

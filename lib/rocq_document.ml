@@ -142,7 +142,8 @@ let get_comments (content : string) :
          let range : Code_range.t =
            {
              start = get_line_col_positions content a;
-             end_ = get_line_col_positions content d;
+             end_ = get_line_col_positions content (d + 1);
+             (* we are using half open ranges *)
            }
          in
          (str, range))
