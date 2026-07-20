@@ -1236,7 +1236,7 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+    "The two list should be the same" (Ok parsed_target) new_doc_res
 
 let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
@@ -1256,7 +1256,7 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
   let new_doc = Rocq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
-    "The two list should be the same " (Ok parsed_target) new_doc_res
+    "The two list should be the same" (Ok parsed_target) new_doc_res
 
 let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
@@ -1283,6 +1283,51 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
     "The two list should be the same " (Ok parsed_target) new_doc_res
+
+let test_attach_node_after_end_doc (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let parsed_target = get_target uri_str in
+
+  let node = node "Compute 1." in
+  let last_node = List_utils.last doc.elements |> Option.get in
+  let attach_step = Transforming_step.Attach (node, LineAfter, last_node.id) in
+
+  let new_doc = Rocq_document.apply_transformation_step attach_step doc in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
+    "The two list should be the same" (Ok parsed_target) new_doc_res
+
+let test_attach_node_before_node_end (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let parsed_target = get_target uri_str in
+
+  let node = node "Compute 1." in
+  let last_node = List_utils.last doc.elements |> Option.get in
+  let attach_step = Transforming_step.Attach (node, LineBefore, last_node.id) in
+
+  let new_doc = Rocq_document.apply_transformation_step attach_step doc in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
+    "The two list should be the same" (Ok parsed_target) new_doc_res
+
+let test_attach_node_same_line_node_end (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let parsed_target = get_target uri_str in
+
+  let node = node "Compute 1." in
+  let last_node = List_utils.last doc.elements |> Option.get in
+  let attach_step = Transforming_step.Attach (node, SameLine, last_node.id) in
+
+  let new_doc = Rocq_document.apply_transformation_step attach_step doc in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
+    "The two list should be the same" (Ok parsed_target) new_doc_res
 
 let test_tree_transformation (doc : Doc.t)
     (tree_transformation :
@@ -2071,10 +2116,21 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_replacing6.v"
     (create_fixed_test "test replacing a node with a smaller node"
        test_replacing_bigger_node_with_smaller_node doc);
+
   Hashtbl.add table "ex_replacing7.v"
     (create_fixed_test
        "test replacing a theorem block with another theorem block"
        test_replacing_block_by_other_block doc);
+
+  Hashtbl.add table "ex_attach_line_after_end.v"
+    (create_fixed_test "test attaching a node after the last node"
+       test_attach_node_after_end_doc doc);
+  Hashtbl.add table "ex_attach_line_before_end.v"
+    (create_fixed_test "test attaching a node before the last node"
+       test_attach_node_before_node_end doc);
+  Hashtbl.add table "ex_attach_same_line_end.v"
+    (create_fixed_test "test attaching a node on the last node's line"
+       test_attach_node_same_line_node_end doc);
 
   Hashtbl.add table "ex_auto1.v"
     (create_fixed_test "test replacing simple auto with all the taken steps"
