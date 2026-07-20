@@ -66,6 +66,9 @@ val shift_node : int -> int -> t -> t
 (** [shift_node n_line n_char node] shift the range of [node] by [n_line],
     [n_char] using [shift_range] *)
 
+val move_to : Code_point.t -> t -> t
+(** [move_to destination node] Shift node to [destination] point *)
+
 val is_command_allowed_in_proof : t -> bool
 (** [is_command_allowed_in_proof x] checks if [x] is a command allowed inside a
     proof block context *)

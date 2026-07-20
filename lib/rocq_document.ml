@@ -596,7 +596,6 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
 
 let apply_transformation_step (step : Transforming_step.t) (doc : t) :
     (t, Error.t) result =
-  let ( let* ) = Result.bind in
   match step with
   | Remove id -> remove_node_with_id id doc
   | Replace (id, new_node) -> replace_node id new_node doc
@@ -621,30 +620,8 @@ let apply_transformation_step (step : Transforming_step.t) (doc : t) :
             | SameLine -> Code_point.shift 0 1 target.range.end_
           in
 
-          let new_node_range =
-            Code_range.range_from_starting_point_and_repr
-              attached_node_start_point (repr attached_node)
-          in
-          let new_node_range : Code_range.t =
-            match attach_position with
-            | SameLine -> new_node_range
-            | LineAfter | LineBefore -> new_node_range
-          in
-
-          let* new_node =
-            match attached_node.ast with
-            | Some _ ->
-                let* node =
-                  Syntax_node.syntax_node_of_string (repr attached_node)
-                    new_node_range.start
-                in
-                Ok { node with id = attached_node.id }
-            | None ->
-                let* node =
-                  Syntax_node.comment_of_string (repr attached_node)
-                    new_node_range.start
-                in
-                Ok { node with id = attached_node.id }
+          let new_node =
+            Syntax_node.move_to attached_node_start_point attached_node
           in
 
           match attach_position with

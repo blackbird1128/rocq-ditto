@@ -255,6 +255,12 @@ let reformat (x : t) : (t, Error.t) result =
 let shift_node (n_line : int) (n_char : int) (x : t) : t =
   { x with range = Code_range.shift n_line n_char x.range }
 
+let move_to (destination : Code_point.t) (x : t) : t =
+  let new_range =
+    Code_range.range_from_starting_point_and_repr destination (repr x)
+  in
+  { x with range = new_range }
+
 let vernac_expr (x : t) =
   Option.map (fun (ast : Doc.Node.Ast.t) -> (Coq.Ast.to_coq ast.v).v.expr) x.ast
 
