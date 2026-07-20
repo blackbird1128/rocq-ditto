@@ -440,19 +440,19 @@ let get_tactic_raw_generic_arguments (x : t) :
 open Raw_gen_args_converter
 
 let get_ltac_elements (x : t) : ltac_elements option =
-  get_tactic_raw_generic_arguments x
-  |> Option.map raw_arguments_to_ltac_elements
-  |> Option.flatten
+  Option.bind
+    (get_tactic_raw_generic_arguments x)
+    raw_arguments_to_ltac_elements
 
 let get_goal_selector_opt (x : t) : Goal_select_view.t option =
-  get_tactic_raw_generic_arguments x
-  |> Option.map raw_arguments_to_goal_selector
-  |> Option.flatten
+  Option.bind
+    (get_tactic_raw_generic_arguments x)
+    raw_arguments_to_goal_selector
 
 let get_raw_tactic_expr (x : t) : Ltac_plugin.Tacexpr.raw_tactic_expr option =
-  get_tactic_raw_generic_arguments x
-  |> Option.map raw_arguments_to_raw_tactic_expr
-  |> Option.flatten
+  Option.bind
+    (get_tactic_raw_generic_arguments x)
+    raw_arguments_to_raw_tactic_expr
 
 let get_raw_tactic_expr_view (x : t) :
     Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_expr_r option
@@ -461,9 +461,9 @@ let get_raw_tactic_expr_view (x : t) :
   |> Option.map (fun (expr : Ltac_plugin.Tacexpr.raw_tactic_expr) -> expr.v)
 
 let get_tacdef_bodies (x : t) : Ltac_plugin.Tacexpr.tacdef_body list option =
-  get_tactic_raw_generic_arguments x
-  |> Option.map raw_arguments_to_tacdef_bodies
-  |> Option.flatten
+  Option.bind
+    (get_tactic_raw_generic_arguments x)
+    raw_arguments_to_tacdef_bodies
 
 let string_to_raw_tactic_expr (str : string) :
     (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
@@ -479,8 +479,7 @@ let string_to_raw_tactic_expr (str : string) :
 
 let get_raw_atomic_tactic_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option =
-  let raw_expr = get_raw_tactic_expr x in
-  Option.map Ltac.get_raw_atomic_tactic_expr raw_expr |> Option.flatten
+  Option.bind (get_raw_tactic_expr x) Ltac.get_raw_atomic_tactic_expr
 
 let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
