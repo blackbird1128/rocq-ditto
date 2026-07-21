@@ -77,12 +77,12 @@ let mark_string_regions (s : string) : bool array =
       if in_string then
         let acc' = true :: acc in
         if escape then loop (i + 1) true false acc'
-        else begin
-          match c with
+        else
+          begin match c with
           | '\\' -> loop (i + 1) true true acc'
           | '"' -> loop (i + 1) false false acc'
           | _ -> loop (i + 1) true false acc'
-        end
+          end
       else
         (* Outside a string *)
         let acc' = false :: acc in
