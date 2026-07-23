@@ -1,7 +1,7 @@
 open Fleche
 open Vernacexpr
 
-type t = {
+type t = private {
   ast : Doc.Node.Ast.t option;
   range : Code_range.t;
   repr : string Lazy.t;

@@ -90,7 +90,7 @@ let mark_string_regions (s : string) : bool array =
   loop 0 false false []
 
 let get_comments (content : string) :
-    ((string * Code_range.t) list, Error.t) result =
+    ((string * Code_point.t) list, Error.t) result =
   let explode s =
     List.init (String.length s) (fun idx -> (idx, String.get s idx))
   in
@@ -138,15 +138,9 @@ let get_comments (content : string) :
        (fun ((a, _), (_, d)) ->
          let len = d - a + 1 in
          let str = String.sub content a len in
+         let start = get_line_col_positions content a in
 
-         let range : Code_range.t =
-           {
-             start = get_line_col_positions content a;
-             end_ = get_line_col_positions content (d + 1);
-             (* we are using half open ranges *)
-           }
-         in
-         (str, range))
+         (str, start))
        res)
 
 let second_node_included_in (a : Syntax_node.t) (b : Syntax_node.t) : bool =
@@ -183,17 +177,11 @@ let parse_document (doc : Doc.t) : (t, Error.t) result =
 
   let* comments = get_comments document_repr in
 
-  let comments_nodes =
+  let* comments_nodes =
     List.map
-      (fun comment ->
-        {
-          ast = None;
-          range = snd comment;
-          repr = lazy (fst comment);
-          id = Unique_id.uuid ();
-          diagnostics = [];
-        })
+      (fun comment -> Syntax_node.comment_of_string (fst comment) (snd comment))
       comments
+    |> List_utils.result_all
   in
 
   let all_nodes =
@@ -513,14 +501,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         (Uuidm.to_string target_id)
   | Some target ->
       let* replacement = validate replacement in
-      let replacement =
-        {
-          replacement with
-          range =
-            Code_range.range_from_starting_point_and_repr target.range.start
-              (Syntax_node.repr replacement);
-        }
-      in
+      let replacement = Syntax_node.move_to target.range.start replacement in
       let* replacement = validate replacement in
 
       let* doc_removed =

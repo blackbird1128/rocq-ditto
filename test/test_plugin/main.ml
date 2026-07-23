@@ -105,33 +105,13 @@ let synterp_vernac_expr_testable =
       Sexplib.Sexp.pp_mach fmt s)
     ( = )
 
-let make_dummy_node (start_line : int) (start_char : int) (end_line : int)
-    (end_char : int) : Syntax_node.t =
-  {
-    ast = None;
-    repr = lazy "dummy";
-    id = Unique_id.uuid ();
-    diagnostics = [];
-    range =
-      {
-        start = { line = start_line; character = start_char };
-        end_ = { line = end_line; character = end_char };
-      };
-  }
-
 let make_dummy_node_from_repr (start_line : int) (start_char : int)
     (repr : string) : Syntax_node.t =
   let start_point : Code_point.t =
     { line = start_line; character = start_char }
   in
-  let range = Code_range.range_from_starting_point_and_repr start_point repr in
-  {
-    ast = None;
-    repr = lazy repr;
-    id = Unique_id.uuid ();
-    diagnostics = [];
-    range;
-  }
+  Syntax_node.comment_of_string repr start_point |> Result.get_ok
+(* TODO: Improve and remove get_ok *)
 
 let check_list_unique ~(eq : 'a -> 'a -> bool) ~(pp : 'a Fmt.t) (lst : 'a list)
     =
@@ -844,11 +824,11 @@ let test_id_assign_document (doc : Doc.t) () : unit =
   check_list_unique ~eq:Uuidm.equal ~pp:Uuidm.pp nodes_ids
 
 let test_sorting_nodes (_ : Doc.t) () : unit =
-  let node1 = make_dummy_node 0 0 0 12 in
+  let node1 = make_dummy_node_from_repr 0 0 "(* aaaaaa *)" in
   (* your example *)
-  let node2 = make_dummy_node 0 14 1 2 in
+  let node2 = make_dummy_node_from_repr 0 14 "(*\n*)" in
   (* overlaps with node1 *)
-  let node3 = make_dummy_node 2 0 2 10 in
+  let node3 = make_dummy_node_from_repr 2 0 "(* aaaa *)" in
   (* does not overlap *)
 
   let sorted = List.sort Syntax_node.compare [ node2; node3; node1 ] in
@@ -863,8 +843,8 @@ let test_sorting_nodes (_ : Doc.t) () : unit =
     "The nodes should be ordered correctly" expected ids
 
 let test_colliding_nodes_no_common_lines (_ : Doc.t) () : unit =
-  let target_node = make_dummy_node 0 0 0 12 in
-  let other_node = make_dummy_node 1 0 1 10 in
+  let target_node = make_dummy_node_from_repr 0 0 "(* aaaaaa *)" in
+  let other_node = make_dummy_node_from_repr 1 0 "(* aaaa *)" in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -887,8 +867,8 @@ let test_colliding_nodes_common_line_no_collision (_ : Doc.t) () : unit =
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
 let test_colliding_nodes_common_line_collision (_ : Doc.t) () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 "hello" in
-  let other_node = make_dummy_node_from_repr 0 3 "world" in
+  let target_node = make_dummy_node_from_repr 0 0 "(* hello *)" in
+  let other_node = make_dummy_node_from_repr 0 3 "(* world *)" in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -899,8 +879,8 @@ let test_colliding_nodes_common_line_collision (_ : Doc.t) () : unit =
     "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
 
 let test_colliding_nodes_one_common_line_no_collision (_ : Doc.t) () : unit =
-  let target_node = make_dummy_node 0 0 1 10 in
-  let other_node = make_dummy_node 1 12 1 20 in
+  let target_node = make_dummy_node_from_repr 0 0 "(* hi *)" in
+  let other_node = make_dummy_node_from_repr 1 12 "(* hello *)" in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -911,8 +891,14 @@ let test_colliding_nodes_one_common_line_no_collision (_ : Doc.t) () : unit =
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
 let test_colliding_nodes_multiple_common_lines_collision (_ : Doc.t) () : unit =
-  let target_node = make_dummy_node 0 0 2 20 in
-  let other_node = make_dummy_node 1 12 2 25 in
+  let target_node =
+    make_dummy_node_from_repr 0 0
+      "(*aaaaaaaaa\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa*)"
+  in
+  let other_node =
+    make_dummy_node_from_repr 1 12
+      "(*aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaaaaaaa*)"
+  in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
