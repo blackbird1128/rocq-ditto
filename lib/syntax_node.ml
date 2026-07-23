@@ -353,12 +353,13 @@ let is_instance_start (x : t) : bool =
 let is_program_instance_start (x : t) : bool =
   match x.ast with
   | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
+      let coq_ast = Coq.Ast.to_coq ast.v in
+      match coq_ast.v.expr with
       | VernacSynterp _ -> false
       | VernacSynPure expr -> (
           match expr with
           | Vernacexpr.VernacInstance _ ->
-              let flags = (Coq.Ast.to_coq ast.v).v.attrs in
+              let flags = coq_ast.v.attrs in
               List.exists
                 (fun (flag : Attributes.vernac_flag) ->
                   let str, _ = flag.v in
@@ -454,6 +455,21 @@ let get_raw_tactic_expr (x : t) : Ltac_plugin.Tacexpr.raw_tactic_expr option =
     (get_tactic_raw_generic_arguments x)
     raw_arguments_to_raw_tactic_expr
 
+let require_raw_tactic_expr (x : t) :
+    (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
+  match get_tactic_raw_generic_arguments x with
+  | Some args ->
+      Option_utils.to_result
+        (raw_arguments_to_raw_tactic_expr args)
+        ~none:
+          (Error.format_to_or_error
+             "Could extract raw arguments from %s but not convert them to Ltac"
+             (repr x))
+  | None ->
+      Error.format_to_or_error
+        "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
+        (repr x)
+
 let get_raw_tactic_expr_view (x : t) :
     Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_expr_r option
     =
@@ -469,13 +485,7 @@ let string_to_raw_tactic_expr (str : string) :
     (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
   let ( let* ) = Result.bind in
   let* node = syntax_node_of_string str Code_point.dummy in
-  match get_raw_tactic_expr node with
-  | Some e -> Ok e
-  | None ->
-      Error.format_to_or_error
-        "%s isn't convertible to a raw_tactic_expr (It probably isn't valid \
-         Ltac)"
-        str
+  require_raw_tactic_expr node
 
 let get_raw_atomic_tactic_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option =
@@ -617,14 +627,11 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
         (repr x)
         (Goal_select_view.to_string selector)
   | None -> (
-      match get_raw_tactic_expr x with
-      | Some expr ->
+      match require_raw_tactic_expr x with
+      | Ok expr ->
           raw_tactic_expr_to_syntax_node expr ~selector x.range.start
           |> Result.map (inherit_metadata ~from:x)
-      | None ->
-          Error.format_to_or_error
-            "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
-            (repr x))
+      | Error err -> Error err)
 
 let get_alias_kername (x : t) : Names.KerName.t option =
   Option.bind (get_raw_tactic_expr x) Ltac.get_alias_kername
@@ -698,14 +705,7 @@ let l_to_raw_tactics (l : t list) =
 let apply_tac_thens (a : t) (l : t list)
     ?(start_point : Code_point.t = a.range.start) () : (t, Error.t) result =
   let ( let* ) = Result.bind in
-  let* raw_a =
-    match get_raw_tactic_expr a with
-    | Some r -> Ok r
-    | None ->
-        Error.format_to_or_error
-          "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
-          (repr a)
-  in
+  let* raw_a = require_raw_tactic_expr a in
 
   let* raw_tactics_l = l_to_raw_tactics l in
 
@@ -733,22 +733,8 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
     () : (t, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let* raw_a =
-    match get_raw_tactic_expr a with
-    | Some r -> Ok r
-    | None ->
-        Error.format_to_or_error
-          "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
-          (repr a)
-  in
-  let* raw_b =
-    match get_raw_tactic_expr b with
-    | Some r -> Ok r
-    | None ->
-        Error.format_to_or_error
-          "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
-          (repr b)
-  in
+  let* raw_a = require_raw_tactic_expr a in
+  let* raw_b = require_raw_tactic_expr b in
 
   let args = get_tactic_raw_generic_arguments a |> Option.get in
   let extend = Ltac.ltac_tactic_extend_name in
@@ -766,13 +752,10 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
           (repr a) (repr b))
 
 let can_open_proof (x : t) : bool =
-  let res =
-    is_proof_start x || is_definition_with_proof x
-    || (is_instance_start x && not (is_program_instance_start x))
-       (* TODO actually treat Program and Obligation *)
-    || is_function_start x
-  in
-  res
+  is_proof_start x || is_definition_with_proof x
+  || (is_instance_start x && not (is_program_instance_start x))
+     (* TODO actually treat Program and Obligation *)
+  || is_function_start x
 
 let can_close_proof (x : t) : bool = is_proof_abort x || is_proof_end x
 
