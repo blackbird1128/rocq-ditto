@@ -1,5 +1,4 @@
 open Fleche
-open Syntax_node
 open Vernacexpr
 open Transforming_step
 
@@ -200,9 +199,9 @@ let proof_from_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
   | [] | [ _ ] ->
       Error.string_to_or_error
         ("Not enough elements to create a proof from the nodes.\nnodes: ["
-        ^ String.concat " " (List.map (fun node -> repr node) nodes)
+        ^ String.concat " " (List.map (fun node -> Syntax_node.repr node) nodes)
         ^ "]")
-  | proposition :: tail as nodes ->
+  | proposition :: tail ->
       if not (Syntax_node.can_open_proof proposition) then
         Error.format_to_or_error
           "The provided first node (%s) can't open a proof"
@@ -214,4 +213,4 @@ let proof_from_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
           Error.format_to_or_error
             "The provided last node (%s) can't close a proof"
             (Syntax_node.repr last_node)
-        else Ok { proposition = List.hd nodes; proof_steps = List.tl nodes }
+        else Ok { proposition; proof_steps = tail }
