@@ -8,39 +8,6 @@ type proof_status = Admitted | Proved | Aborted
 type t = { proposition : Syntax_node.t; proof_steps : Syntax_node.t list }
 (* proposition can also be a type, better name ? *)
 
-let get_theorem_kind (x : t) : Decls.theorem_kind option =
-  let coq_ast =
-    Option.map
-      (fun (x : Doc.Node.Ast.t) -> Coq.Ast.to_coq x.v)
-      x.proposition.ast
-  in
-  match coq_ast with
-  | Some ast -> (
-      match ast.v.expr with
-      | VernacSynterp _ -> None
-      | VernacSynPure expr_syn -> (
-          match expr_syn with
-          | VernacStartTheoremProof (kind, _) -> Some kind
-          | _ -> None))
-  | None -> None
-
-let get_constr_expr (x : t) : Constrexpr.constr_expr option =
-  let coq_ast =
-    Option.map
-      (fun (x : Doc.Node.Ast.t) -> Coq.Ast.to_coq x.v)
-      x.proposition.ast
-  in
-  match coq_ast with
-  | Some ast -> (
-      match ast.v.expr with
-      | VernacSynterp _ -> None
-      | VernacSynPure expr_syn -> (
-          match expr_syn with
-          | Vernacexpr.VernacStartTheoremProof (_, [ ((_, _), (_, expr)) ]) ->
-              Some expr
-          | _ -> None))
-  | None -> None
-
 type theorem_components = {
   kind : Decls.theorem_kind;
   name : Names.lident;
@@ -65,6 +32,21 @@ let get_theorem_components (x : t) : theorem_components option =
               (kind, [ ((name, universe), (binders, expr)) ]) ->
               Some { kind; name; universe; binders; expr }
           | _ -> None))
+  | None -> None
+
+let get_theorem_kind (x : t) : Decls.theorem_kind option =
+  match get_theorem_components x with
+  | Some { kind; _ } -> Some kind
+  | None -> None
+
+let get_constr_expr (x : t) : Constrexpr.constr_expr option =
+  match get_theorem_components x with
+  | Some { expr; _ } -> Some expr
+  | None -> None
+
+let get_proof_name (p : t) : string option =
+  match get_theorem_components p with
+  | Some { name; _ } -> Some (Names.Id.to_string name.v)
   | None -> None
 
 let syntax_node_of_theorem_components (c : theorem_components)
@@ -110,18 +92,6 @@ let proof_status_from_last_node (node : Syntax_node.t) :
   | None ->
       Error.format_to_or_error "(%s) is not a valid closing node (no ast)"
         (Syntax_node.repr node)
-
-let get_proof_name (p : t) : string option =
-  match p.proposition.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ -> None
-      | VernacSynPure expr_syn -> (
-          match expr_syn with
-          | Vernacexpr.VernacStartTheoremProof (_, [ ((name, _), _) ]) ->
-              Some (Names.Id.to_string name.v)
-          | _ -> None))
-  | None -> None
 
 let status (p : t) : proof_status =
   match List_utils.last p.proof_steps with
