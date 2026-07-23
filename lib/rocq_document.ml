@@ -324,20 +324,29 @@ let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
   aux node_list []
 
 let shift_block_checked (n_line : int) (n_char : int)
-    (nodes : Syntax_node.t list) : (Syntax_node.t list, Error.t) result =
-  if n_char = 0 then Ok (List.map (shift_node n_line n_char) nodes)
-  else
-    let min_char =
-      List.fold_left
-        (fun acc n ->
-          min acc (min n.range.start.character n.range.end_.character))
-        max_int nodes
-    in
-    if min_char + n_char < 0 then
-      Error.format_to_or_error
-        "Shift would create negative character positions (min_char=%d shift=%d)"
-        min_char n_char
-    else Ok (List.map (shift_node n_line n_char) nodes)
+    ?(pred : Syntax_node.t -> bool = fun _ -> true) (nodes : Syntax_node.t list)
+    : (Syntax_node.t list, Error.t) result =
+  let selected = List.filter pred nodes in
+  match selected with
+  | [] -> Ok nodes
+  | _ ->
+      let min_char =
+        List.fold_left
+          (fun acc n ->
+            min acc (min n.range.start.character n.range.end_.character))
+          max_int selected
+      in
+      if min_char + n_char < 0 then
+        Error.format_to_or_error
+          "Shift would create negative character positions (min_char=%d \
+           shift=%d)"
+          min_char n_char
+      else
+        Ok
+          (List.map
+             (fun node ->
+               if pred node then shift_node n_line n_char node else node)
+             nodes)
 
 let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
     (doc : t) : (t, Error.t) result =
@@ -572,23 +581,10 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         let predicate x =
           x.range.start.line = line && x.range.start.character >= insert_at
         in
+
         let* shifted_after =
           if delta = 0 then Ok after
-          else
-            let to_shift = List.filter predicate after in
-            if to_shift = [] then Ok after
-            else
-              let* shifted_to_shift = shift_block_checked 0 delta to_shift in
-              let shifted_queue = ref shifted_to_shift in
-              Ok
-                (List.map
-                   (fun x ->
-                     if predicate x then (
-                       let y = List.hd !shifted_queue in
-                       shifted_queue := List.tl !shifted_queue;
-                       y)
-                     else x)
-                   after)
+          else shift_block_checked ~pred:predicate 0 delta after
         in
         let elements = before @ (replacement :: shifted_after) in
         let* document_repr = dump_sorted_elements_to_string elements in
