@@ -27,10 +27,11 @@ let read_all ic =
 
 let coqproject_sorted_files (coqproject_file : string) :
     (string list, Error.t) result =
-  let cmd =
-    Rocq_version.dep_executable ^ Printf.sprintf " -f %s -sort" coqproject_file
+  let ic, _ =
+    Unix.open_process_args Rocq_version.dep_executable
+      [| Rocq_version.dep_executable; "-f"; coqproject_file; "-sort" |]
   in
-  let ic = Unix.open_process_in cmd in
+
   let lines = read_all ic in
   match Unix.close_process_in ic with
   | Unix.WEXITED 0 ->
@@ -45,12 +46,14 @@ let coqproject_sorted_files (coqproject_file : string) :
       Error.format_to_or_error "%s terminated abnormally"
         Rocq_version.dep_executable
 
+type dependency_graph = (string, string list) Hashtbl.t
+
 let coqproject_to_dep_graph (coqproject_file : string) :
-    ((string, string list) Hashtbl.t, Error.t) result =
-  let cmd =
-    Rocq_version.dep_executable ^ Printf.sprintf " -f %s" coqproject_file
+    (dependency_graph, Error.t) result =
+  let ic, _ =
+    Unix.open_process_args Rocq_version.dep_executable
+      [| Rocq_version.dep_executable; "-f"; coqproject_file |]
   in
-  let ic = Unix.open_process_in cmd in
   let lines = read_all ic in
   match Unix.close_process_in ic with
   | Unix.WEXITED 0 ->
