@@ -1,32 +1,6 @@
 open Fleche
 open Sexplib.Std
 
-type compilerArgs = {
-  io : Io.CallBack.t;
-  token : Coq.Limits.Token.t;
-  env : Doc.Env.t;
-}
-
-let rec find_coqproject_dir (dir : string) : string option =
-  let coqproject_filename = "_CoqProject" in
-  let rocqproject_filename = "_RocqProject" in
-  if
-    Sys.file_exists (Filename.concat dir coqproject_filename)
-    || Sys.file_exists (Filename.concat dir rocqproject_filename)
-  then Some dir
-  else if dir = "/" || dir = "." then None
-  else find_coqproject_dir (Filename.dirname dir)
-
-let rec find_coqproject_file (dir : string) : string option =
-  let coqproject_filename = "_CoqProject" in
-  let rocqproject_filename = "_RocqProject" in
-  if Sys.file_exists (Filename.concat dir coqproject_filename) then
-    Some (Filename.concat dir coqproject_filename)
-  else if Sys.file_exists (Filename.concat dir rocqproject_filename) then
-    Some (Filename.concat dir rocqproject_filename)
-  else if dir = "/" || dir = "." then None
-  else find_coqproject_file (Filename.dirname dir)
-
 let rec find_coqproject_dir_and_file (dir : string) : (string * string) option =
   let coqproject_filename = "_CoqProject" in
   let rocqproject_filename = "_RocqProject" in
@@ -36,6 +10,12 @@ let rec find_coqproject_dir_and_file (dir : string) : (string * string) option =
     Some (dir, rocqproject_filename)
   else if dir = "/" || dir = "." then None
   else find_coqproject_dir_and_file (Filename.dirname dir)
+
+let find_coqproject_dir (dir : string) : string option =
+  Option.map fst (find_coqproject_dir_and_file dir)
+
+let find_coqproject_file (dir : string) : string option =
+  Option.map snd (find_coqproject_dir_and_file dir)
 
 let read_all ic =
   let rec loop acc =
