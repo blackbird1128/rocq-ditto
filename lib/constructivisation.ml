@@ -526,15 +526,9 @@ let replace_elim_with_stab_elim (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       let open_constr_arg =
         Raw_gen_args_converter.raw_generic_argument_of_open_constr constrexpr
       in
-      let stab_elim_args =
-        List.map
-          (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
-          [ open_constr_arg ]
-      in
 
       let kername = get_alias_kn Stab_elim_no_args |> Option.get in
-
-      Ltac_plugin.Tacexpr.TacAlias (kername, stab_elim_args) |> CAst.make
+      make_alias kername [ open_constr_arg ]
   | _ -> x
 
 let replace_apply_by_applyC (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
@@ -660,17 +654,12 @@ let replace_destruct_fun_with_stab_destruct
                   make_alias kername
                     (fun_args_name_id_arg @ [ intro_pattern_arg ])
               | _, None ->
-                  let stab_destruct_args =
-                    List.map
-                      (fun x -> Ltac_plugin.Tacexpr.TacGeneric (None, x))
-                      [
-                        constrexpr
-                        |> Raw_gen_args_converter
-                           .raw_generic_argument_of_open_constr;
-                      ]
-                  in
-                  Ltac_plugin.Tacexpr.TacAlias (kername, stab_destruct_args)
-                  |> CAst.make
+                  make_alias kername
+                    [
+                      constrexpr
+                      |> Raw_gen_args_converter
+                         .raw_generic_argument_of_open_constr;
+                    ]
               | _ -> x)
           | None -> (
               match intro_pattern_naming_expr with
@@ -1097,7 +1086,7 @@ let constructivise_doc (doc : Rocq_document.t) :
 
   let stage_beeson_ch03 : stage =
     make_stage "stage_beeson_ch03" (fun doc ->
-        if String.ends_with ~suffix:"/Ch03_bet.v" doc.filename then
+        if String.equal (Filename.basename doc.filename) "/Ch03_bet.v" then
           remove_named_sections [ "Beeson_1"; "Beeson_2" ] doc
         else Ok [])
   in
