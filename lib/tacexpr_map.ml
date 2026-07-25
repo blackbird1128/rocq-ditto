@@ -522,7 +522,7 @@ let mk ?loc v : Tacexpr.raw_tactic_expr = CAst.make ?loc v
 let mk_idtac ?loc () : Tacexpr.raw_tactic_expr = mk ?loc (Tacexpr.TacId [])
 
 let is_idtac (e : Tacexpr.raw_tactic_expr) =
-  match e.v with Tacexpr.TacId _ -> true | _ -> false
+  match e.v with Tacexpr.TacId [] -> true | _ -> false
 
 let rec simplify (e : Tacexpr.raw_tactic_expr) : Tacexpr.raw_tactic_expr =
   match e.v with
