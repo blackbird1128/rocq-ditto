@@ -63,30 +63,27 @@ let replace_require (x : Syntax_node.t) :
         "GeoCoq.Constructive.Prelude.parallel_postulates" );
     ]
   in
-  match x.ast with
-  | None -> Ok []
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp
-          (VernacRequire
-             (option_libname, export_with_cats_opt, libnames_import_list)) -> (
-          match libnames_import_list with
-          | [] ->
-              Error.format_to_or_error
-                "Error getting libnames_import_list in %s" (Syntax_node.repr x)
-          | (_, _) :: _ -> (
-              match
-                rewrite_first_import ~rules:require_prefix_rules
-                  libnames_import_list
-              with
-              | None -> Ok []
-              | Some new_libnames_import_list ->
-                  let* new_node =
-                    rebuild_require_node x option_libname export_with_cats_opt
-                      new_libnames_import_list
-                  in
-                  Ok [ Replace (x.id, new_node) ]))
-      | _ -> Ok [])
+  match Syntax_node.synterp_expr x with
+  | Some
+      (VernacRequire (option_libname, export_with_cats_opt, libnames_import_list))
+    -> (
+      match libnames_import_list with
+      | [] ->
+          Error.format_to_or_error "Error getting libnames_import_list in %s"
+            (Syntax_node.repr x)
+      | (_, _) :: _ -> (
+          match
+            rewrite_first_import ~rules:require_prefix_rules
+              libnames_import_list
+          with
+          | None -> Ok []
+          | Some new_libnames_import_list ->
+              let* new_node =
+                rebuild_require_node x option_libname export_with_cats_opt
+                  new_libnames_import_list
+              in
+              Ok [ Replace (x.id, new_node) ]))
+  | _ -> Ok []
 
 let replace_congr (doc : Rocq_document.t) :
     (Transforming_step.t list, Error.t) result =

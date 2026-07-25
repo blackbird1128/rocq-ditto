@@ -104,28 +104,24 @@ let rename_in_vernac_assumption (old_name : string) (new_name : string)
 
 let rename_definition_node (old_name : string) (new_name : string)
     (x : Syntax_node.t) : Syntax_node.t =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynPure
-          (Vernacexpr.VernacDefinition (kind, (name, name_univ), expr)) ->
-          let name_mapped = rename_name old_name new_name name.v in
-          if Names.Name.equal name.v name_mapped then x
-          else
-            let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in
-            let vernac_mapped =
-              Vernacexpr.VernacSynPure
-                (VernacDefinition (kind, name_decl_mapped, expr))
-            in
-            let vernac_control_mapped =
-              Syntax_node.mk_vernac_control vernac_mapped
-            in
+  match Syntax_node.synpure_expr x with
+  | Some (Vernacexpr.VernacDefinition (kind, (name, name_univ), expr)) ->
+      let name_mapped = rename_name old_name new_name name.v in
+      if Names.Name.equal name.v name_mapped then x
+      else
+        let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in
+        let vernac_mapped =
+          Vernacexpr.VernacSynPure
+            (VernacDefinition (kind, name_decl_mapped, expr))
+        in
+        let vernac_control_mapped =
+          Syntax_node.mk_vernac_control vernac_mapped
+        in
 
-            Syntax_node.of_coq_ast
-              (Coq.Ast.of_coq vernac_control_mapped)
-              x.range.start
-      | _ -> x)
-  | None -> x
+        Syntax_node.of_coq_ast
+          (Coq.Ast.of_coq vernac_control_mapped)
+          x.range.start
+  | _ -> x
 
 let rename_in_glob_ref_flag (old_name : string) (new_name : string)
     (grf : Genredexpr.r_cst Genredexpr.glob_red_flag) :

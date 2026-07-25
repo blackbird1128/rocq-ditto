@@ -17,22 +17,12 @@ type theorem_components = {
 }
 
 let get_theorem_components (x : t) : theorem_components option =
-  let coq_ast =
-    Option.map
-      (fun (x : Doc.Node.Ast.t) -> Coq.Ast.to_coq x.v)
-      x.proposition.ast
-  in
-  match coq_ast with
-  | Some ast -> (
-      match ast.v.expr with
-      | VernacSynterp _ -> None
-      | VernacSynPure expr_syn -> (
-          match expr_syn with
-          | Vernacexpr.VernacStartTheoremProof
-              (kind, [ ((name, universe), (binders, expr)) ]) ->
-              Some { kind; name; universe; binders; expr }
-          | _ -> None))
-  | None -> None
+  match Syntax_node.synpure_expr x.proposition with
+  | Some
+      (Vernacexpr.VernacStartTheoremProof
+         (kind, [ ((name, universe), (binders, expr)) ])) ->
+      Some { kind; name; universe; binders; expr }
+  | _ -> None
 
 let get_theorem_kind (x : t) : Decls.theorem_kind option =
   match get_theorem_components x with

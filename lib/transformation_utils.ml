@@ -15,7 +15,6 @@ let map_raw_tactic_expr_in_node
     (f :
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
     (node : Syntax_node.t) : Transforming_step.t option =
-  let ( let+ ) = Option.bind in
   let+ raw_tac_expr = get_raw_tactic_expr node in
   let raw_expr_mapped = Tacexpr_map.tacexpr_map f raw_tac_expr in
   if raw_tac_expr = raw_expr_mapped then None
@@ -30,45 +29,42 @@ let map_raw_tactic_expr_in_node
 
 let map_definition_body (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (x : Syntax_node.t) : Transforming_step.t option =
-  match x.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynPure
-          (Vernacexpr.VernacDefinition
-             ((discharge, definition_object_kind), name_decl, expr)) -> (
-          match expr with
-          | ProveBody _ -> None
-          | DefineBody (binders, raw_red_expr_opt, expr1, opt_expr) ->
-              let new_expr = Constrexpr_map.constr_expr_map f expr1 in
-              let new_opt_expr =
-                Option.map (Constrexpr_map.constr_expr_map f) opt_expr
-              in
-              if
-                (not (Constrexpr_ops.constr_expr_eq expr1 new_expr))
-                || not (constr_expr_opt_eq opt_expr new_opt_expr)
-              then
-                let new_define_body =
-                  DefineBody (binders, raw_red_expr_opt, new_expr, new_opt_expr)
-                in
-                let new_vernacexpr =
-                  VernacSynPure
-                    (VernacDefinition
-                       ( (discharge, definition_object_kind),
-                         name_decl,
-                         new_define_body ))
-                in
-                let new_vernac_control =
-                  Syntax_node.mk_vernac_control new_vernacexpr
-                in
-                let new_node =
-                  Syntax_node.of_coq_ast
-                    (Coq.Ast.of_coq new_vernac_control)
-                    x.range.start
-                in
-                Some (Replace (x.id, new_node))
-              else None)
-      | _ -> None)
-  | None -> None
+  match Syntax_node.synpure_expr x with
+  | Some
+      (Vernacexpr.VernacDefinition
+         ((discharge, definition_object_kind), name_decl, expr)) -> (
+      match expr with
+      | ProveBody _ -> None
+      | DefineBody (binders, raw_red_expr_opt, expr1, opt_expr) ->
+          let new_expr = Constrexpr_map.constr_expr_map f expr1 in
+          let new_opt_expr =
+            Option.map (Constrexpr_map.constr_expr_map f) opt_expr
+          in
+          if
+            (not (Constrexpr_ops.constr_expr_eq expr1 new_expr))
+            || not (constr_expr_opt_eq opt_expr new_opt_expr)
+          then
+            let new_define_body =
+              DefineBody (binders, raw_red_expr_opt, new_expr, new_opt_expr)
+            in
+            let new_vernacexpr =
+              VernacSynPure
+                (VernacDefinition
+                   ( (discharge, definition_object_kind),
+                     name_decl,
+                     new_define_body ))
+            in
+            let new_vernac_control =
+              Syntax_node.mk_vernac_control new_vernacexpr
+            in
+            let new_node =
+              Syntax_node.of_coq_ast
+                (Coq.Ast.of_coq new_vernac_control)
+                x.range.start
+            in
+            Some (Replace (x.id, new_node))
+          else None)
+  | _ -> None
 
 let map_definition_body_in_state
     (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
@@ -151,9 +147,8 @@ let map_syntax_node (f : Syntax_node.t -> Syntax_node.t) (x : Syntax_node.t) :
 let map_vernacexpr_in_node
     (f : Vernacexpr.vernac_expr -> Vernacexpr.vernac_expr) (x : Syntax_node.t) :
     Transforming_step.t option =
-  match x.ast with
-  | Some ast ->
-      let vernacexpr = (Coq.Ast.to_coq ast.v).v.expr in
+  match Syntax_node.vernac_expr x with
+  | Some vernacexpr ->
       let mapped_vernacexpr = f vernacexpr in
       if vernacexpr = mapped_vernacexpr then None
       else
@@ -168,9 +163,8 @@ let map_vernacexpr_in_node_in_state
     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (x : Syntax_node.t) :
     (Transforming_step.t option, Error.t) result =
   let ( let* ) = Result.bind in
-  match x.ast with
-  | Some ast ->
-      let vernacexpr = (Coq.Ast.to_coq ast.v).v.expr in
+  match Syntax_node.vernac_expr x with
+  | Some vernacexpr ->
       let mapped_vernacexpr = f vernacexpr in
       if vernacexpr = mapped_vernacexpr then Ok None
       else
