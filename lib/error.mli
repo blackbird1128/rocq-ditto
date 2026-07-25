@@ -1,6 +1,6 @@
 open Sexplib
 
-type t =
+type t = private
   | String of string
   | Tag_sexp of string * Sexp.t * t
   | Tag_t of string * t
