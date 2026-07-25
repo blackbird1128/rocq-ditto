@@ -26,7 +26,7 @@ let generate_ast (code : string) :
   let init_parser = Procq.Parsable.make code_stream in
   let parse_one () =
     try Ok (Procq.Entry.parse entry init_parser)
-    with Gramlib.Grammar.Error exn -> Error (Error.of_string exn)
+    with Gramlib.Grammar.Error exn -> Error.string_to_or_error exn
   in
   let rec parse_all acc =
     match parse_one () with
@@ -148,7 +148,7 @@ let syntax_node_of_string (code : string) (start_point : Code_point.t) :
   (*offset doesn't count the newline in*)
 
   match generate_ast code with
-  | Ok [] -> Error (Error.of_string ("no node found in string " ^ code))
+  | Ok [] -> Error.format_to_or_error "No node found in string \"%s\"." code
   | Ok [ x ] ->
       let node_ast : Doc.Node.Ast.t =
         { v = Coq.Ast.of_coq x; ast_info = None }
@@ -164,7 +164,7 @@ let syntax_node_of_string (code : string) (start_point : Code_point.t) :
           diagnostics = [];
         }
   | Ok (_ :: _ :: _) ->
-      Error (Error.of_string ("more than one node found in string " ^ code))
+      Error.format_to_or_error "More than one node found in string \"%s\"." code
   | Error err -> Error err
 
 let remove_outer_parentheses s =

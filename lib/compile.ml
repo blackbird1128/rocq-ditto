@@ -120,7 +120,7 @@ let coqproject_to_project_args (coqproject_file : string) =
   in
   CoqProject_file.coqtop_args_from_project proj
 
-let depgraph_to_dot_format (graph : (string, string list) Hashtbl.t) : string =
+let depgraph_to_dot_format (graph : dependency_graph) : string =
   let buf = Buffer.create (Hashtbl.length graph * 16) in
   Buffer.add_string buf "digraph G {\n";
   Buffer.add_string buf
@@ -141,10 +141,10 @@ let depgraph_to_dot_format (graph : (string, string list) Hashtbl.t) : string =
         neighbors)
     graph;
   Buffer.add_string buf "}";
-  Buffer.to_bytes buf |> Bytes.to_string
+  Buffer.contents buf
 
-let get_file_dependencies (filename : string)
-    (dep_graph : (string, string list) Hashtbl.t) : string list =
+let get_file_dependencies (filename : string) (dep_graph : dependency_graph) :
+    string list =
   let rec aux filename : string list =
     let curr_deps =
       match Hashtbl.find_opt dep_graph filename with

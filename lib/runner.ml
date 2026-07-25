@@ -156,8 +156,7 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
     (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
   let ( let* ) = Result.bind in
   let* nodes_before, _ = Rocq_document.split_at_id node.id doc in
-  let root_state = doc.root_state in
-  get_state_after root_state token nodes_before
+  get_state_after doc.root_state token nodes_before
 
 let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
     =
@@ -393,7 +392,7 @@ let fold_nodes_with_state
       'acc ->
       Syntax_node.t ->
       (Coq.State.t * 'acc, Error.t) result) (init_state : Coq.State.t)
-    (acc : 'acc) (l : Syntax_node.t list) : ('acc, 'err) result =
+    (acc : 'acc) (l : Syntax_node.t list) : ('acc, Error.t) result =
   let ( let* ) = Result.bind in
   let rec aux (l : Syntax_node.t list) (state : Coq.State.t) (acc : 'acc) :
       (Coq.State.t * 'acc, Error.t) result =

@@ -143,17 +143,19 @@ let get_comments (content : string) :
          (str, start))
        res)
 
-let second_node_included_in (a : Syntax_node.t) (b : Syntax_node.t) : bool =
-  Code_point.compare a.range.start b.range.start <= 0
-  && Code_point.compare b.range.end_ a.range.end_ <= 0
+let range_contains_node (container : Syntax_node.t) (candidate : Syntax_node.t)
+    : bool =
+  Code_point.compare container.range.start candidate.range.start <= 0
+  && Code_point.compare candidate.range.end_ container.range.end_ <= 0
 
-let merge_nodes (nodes : Syntax_node.t list) : Syntax_node.t list =
+(** requires: [nodes] to be sorted *)
+let remove_contained_nodes (nodes : Syntax_node.t list) : Syntax_node.t list =
   let rec merge_aux (acc : Syntax_node.t list) (nodes : Syntax_node.t list) =
     match nodes with
     | [] -> List.rev acc
     | curr_node :: rest -> (
         match acc with
-        | acc_node :: _ when second_node_included_in acc_node curr_node ->
+        | acc_node :: _ when range_contains_node acc_node curr_node ->
             merge_aux acc rest
         | _ -> merge_aux (curr_node :: acc) rest)
   in
@@ -185,7 +187,8 @@ let parse_document (doc : Doc.t) : (t, Error.t) result =
   in
 
   let all_nodes =
-    merge_nodes (List.sort Syntax_node.compare (ast_nodes @ comments_nodes))
+    remove_contained_nodes
+      (List.sort Syntax_node.compare (ast_nodes @ comments_nodes))
   in
 
   Ok { elements = all_nodes; document_repr; filename; root_state = doc.root }
@@ -500,7 +503,6 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
       Error.format_to_or_error "The target node with id: %s doesn't exist"
         (Uuidm.to_string target_id)
   | Some target ->
-      let* replacement = validate replacement in
       let replacement = Syntax_node.move_to target.range.start replacement in
       let* replacement = validate replacement in
 

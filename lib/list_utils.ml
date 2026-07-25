@@ -10,7 +10,7 @@ let take (n : int) (l : 'a list) : 'a list =
 
 let drop (n : int) (l : 'a list) : 'a list =
   let rec aux (i : int) = function
-    | _x :: l when i < n -> aux (i + 1) l
+    | _ :: l when i < n -> aux (i + 1) l
     | rest -> rest
   in
   if n < 0 then invalid_arg "List.drop";
@@ -19,7 +19,7 @@ let drop (n : int) (l : 'a list) : 'a list =
 let take_while (p : 'a -> bool) (l : 'a list) : 'a list =
   let[@tail_mod_cons] rec aux = function
     | x :: l when p x -> x :: aux l
-    | _rest -> []
+    | _ -> []
   in
   aux l
 
@@ -51,7 +51,7 @@ let last_and_len (lst : 'a list) : 'a option * int =
 let find_index (f : 'a -> bool) (xs : 'a list) : int option =
   let rec aux i = function
     | [] -> None
-    | x :: rest -> if f x then Some i else aux (i + 1) rest
+    | x :: rest -> if f x then Some i else (aux [@tailcall]) (i + 1) rest
   in
   aux 0 xs
 
