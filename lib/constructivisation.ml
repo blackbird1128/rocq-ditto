@@ -453,6 +453,14 @@ type stab_kind =
   | Stab_elim_no_args
   | ApplyC
   | EapplyC
+[@@deriving enum]
+
+let all_stab_kinds =
+  List.init
+    (max_stab_kind - min_stab_kind + 1)
+    (fun i -> stab_kind_of_enum (i + min_stab_kind))
+  |> List.map Option.get
+(* TODO factor construction with cli.ml *)
 
 let dummy_tactic_for_kind = function
   | Inner_pasch -> "stab_destruct (by_inner_pasch A B C D X X X) as [I []]."
@@ -471,39 +479,15 @@ let compute_alias_kername (k : stab_kind) : Names.KerName.t option =
   | Error _ -> None
   | Ok raw -> Ltac.get_alias_kername raw
 
-let inner_pasch_alias_kn : Names.KerName.t option Lazy.t =
-  lazy (compute_alias_kername Inner_pasch)
+let alias_kername_cache : (stab_kind * Names.KerName.t option Lazy.t) list =
+  List.map
+    (fun kind -> (kind, lazy (compute_alias_kername kind)))
+    all_stab_kinds
 
-let segment_construction_alias_kn : Names.KerName.t option Lazy.t =
-  lazy (compute_alias_kername Segment_construction)
-
-let eq_dec_points_alias_kn : Names.KerName.t option Lazy.t =
-  lazy (compute_alias_kername Eq_Dec_Points)
-
-let stab_destruct_with_args_alias_kn : Names.KerName.t option Lazy.t =
-  lazy (compute_alias_kername Stab_destruct_with_args)
-
-let stab_destruct_no_args_alias_kn : Names.KerName.t option Lazy.t =
-  lazy (compute_alias_kername Stab_destruct_no_args)
-
-let stab_elim_no_args_alias_kn : Names.KerName.t option Lazy.t =
-  lazy (compute_alias_kername Stab_elim_no_args)
-
-let apply_c_kn : Names.KerName.t option Lazy.t =
-  lazy (compute_alias_kername ApplyC)
-
-let eapply_c_kn : Names.KerName.t option Lazy.t =
-  lazy (compute_alias_kername EapplyC)
-
-let get_alias_kn = function
-  | Inner_pasch -> Lazy.force inner_pasch_alias_kn
-  | Segment_construction -> Lazy.force segment_construction_alias_kn
-  | Eq_Dec_Points -> Lazy.force eq_dec_points_alias_kn
-  | Stab_destruct_with_args -> Lazy.force stab_destruct_with_args_alias_kn
-  | Stab_destruct_no_args -> Lazy.force stab_destruct_no_args_alias_kn
-  | Stab_elim_no_args -> Lazy.force stab_elim_no_args_alias_kn
-  | ApplyC -> Lazy.force apply_c_kn
-  | EapplyC -> Lazy.force eapply_c_kn
+let get_alias_kn (kind : stab_kind) : Names.KerName.t option =
+  match List.assoc_opt kind alias_kername_cache with
+  | Some cached -> Lazy.force cached
+  | None -> None
 
 let make_alias (kername : Names.KerName.t)
     (args : Genarg.raw_generic_argument list) :
