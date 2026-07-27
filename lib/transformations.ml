@@ -1593,11 +1593,6 @@ let fill_args (args : args list)
   | ImplicitBindings implicit_binds -> fill_implicit_holes args implicit_binds
   | ExplicitBindings _ -> args
 
-let string_of_raw_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : string =
-  let env = Global.env () in
-  let evd = Evd.from_env env in
-  Ltac_plugin.Pptactic.pr_raw_tactic env evd tac |> Pp.string_of_ppcmds
-
 let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
     (_state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -1616,7 +1611,9 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
                 |> CAst.make
               else Tacexpr.TacId [] |> CAst.make
             in
-            let apply_before_str = string_of_raw_tactic apply_before_tacexpr in
+            let apply_before_str =
+              Ltac.string_of_raw_tactic apply_before_tacexpr
+            in
 
             let clear_flag, with_bindings = binding in
             let lemma, lemma_bindings = with_bindings in
