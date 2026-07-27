@@ -1,9 +1,6 @@
-open Proof
 open Fleche
 open Syntax_node
 open Transforming_step
-
-type proof_state = NoProof | ProofOpened
 
 type t = {
   filename : string;
@@ -27,32 +24,38 @@ let pp (fmt : Format.formatter) (doc : t) : unit =
 
   Format.fprintf fmt "document repr: %s" doc.document_repr
 
+type proof_state = OutsideProof | InsideProof of Syntax_node.t list
+
 let get_proofs (doc : t) : (Proof.t list, Error.t) result =
-  let rec aux (nodes : Syntax_node.t list) (cur_proof_acc : Syntax_node.t list)
+  let rec aux (nodes : Syntax_node.t list)
       (proofs_acc : (Proof.t, Error.t) result list) (cur_state : proof_state) :
       (Proof.t, Error.t) result list =
     match nodes with
     | [] -> proofs_acc
     | x :: tail -> (
         if Syntax_node.can_open_proof x then
-          aux tail [ x ] proofs_acc ProofOpened
+          aux tail proofs_acc (InsideProof [ x ])
         else if Syntax_node.can_close_proof x then
-          if List.is_empty cur_proof_acc then
-            aux tail [] proofs_acc
-              NoProof (* TODO: proper handling of Program and Obligation *)
-          else
-            let proof = proof_from_nodes (List.rev (x :: cur_proof_acc)) in
-            aux tail [] (proof :: proofs_acc) NoProof
+          match cur_state with
+          | OutsideProof ->
+              aux tail proofs_acc OutsideProof
+              (* TODO: proper handling of Program and Obligation *)
+          | InsideProof cur_proof_acc ->
+              let proof =
+                Proof.proof_from_nodes (List.rev (x :: cur_proof_acc))
+              in
+              aux tail (proof :: proofs_acc) OutsideProof
         else
           match cur_state with
-          | NoProof -> aux tail [] proofs_acc NoProof
-          | ProofOpened -> aux tail (x :: cur_proof_acc) proofs_acc ProofOpened)
+          | OutsideProof -> aux tail proofs_acc OutsideProof
+          | InsideProof cur_proof_acc ->
+              aux tail proofs_acc (InsideProof (x :: cur_proof_acc)))
   in
 
-  let res = aux doc.elements [] [] NoProof in
+  let res = aux doc.elements [] OutsideProof in
   List.rev res |> List_utils.result_all
 
-let get_line_col_positions text pos : Code_point.t =
+let get_line_col_positions (text : string) (pos : int) : Code_point.t =
   let rec aux line col index =
     if index = pos then (line, col, index)
     else if index >= String.length text then (line, col, index)
@@ -163,25 +166,23 @@ let remove_contained_nodes (nodes : Syntax_node.t list) : Syntax_node.t list =
 
 let parse_document (doc : Doc.t) : (t, Error.t) result =
   let ( let* ) = Result.bind in
-  let nodes = doc.nodes in
   let document_repr = doc.contents.raw in
   let filename = Lang.LUri.File.to_string_uri doc.uri in
 
-  let nodes_with_ast =
-    List.filter (fun elem -> Option.has_some (Doc.Node.ast elem)) nodes
-  in
-
   let ast_nodes =
-    List.map
-      (fun (node : Doc.Node.t) -> Syntax_node.of_doc_node document_repr node)
-      nodes_with_ast
+    List.filter_map
+      (fun elem ->
+        if Option.has_some (Doc.Node.ast elem) then
+          Some (Syntax_node.of_doc_node document_repr elem)
+        else None)
+      doc.nodes
   in
 
   let* comments = get_comments document_repr in
 
   let* comments_nodes =
     List.map
-      (fun comment -> Syntax_node.comment_of_string (fst comment) (snd comment))
+      (fun (content, start) -> Syntax_node.comment_of_string content start)
       comments
     |> List_utils.result_all
   in
@@ -264,7 +265,9 @@ let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) : Proof.t option =
   let proofs_res = get_proofs doc in
   match proofs_res with
   | Ok proofs ->
-      List.find_opt (fun elem -> elem.proposition.id = proof_id) proofs
+      List.find_opt
+        (fun (elem : Proof.t) -> elem.proposition.id = proof_id)
+        proofs
   | Error _ -> None
 
 let proof_with_name_opt (proof_name : string) (doc : t) : Proof.t option =
@@ -273,7 +276,7 @@ let proof_with_name_opt (proof_name : string) (doc : t) : Proof.t option =
   | Ok proofs ->
       List.find_opt
         (fun proof ->
-          match get_proof_name proof with
+          match Proof.get_proof_name proof with
           | Some name -> name = proof_name
           | None -> false)
         proofs
