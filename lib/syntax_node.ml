@@ -491,30 +491,31 @@ let get_raw_atomic_tactic_expr (x : t) :
     Ltac_plugin.Tacexpr.raw_atomic_tactic_expr option =
   Option.bind (get_raw_tactic_expr x) Ltac.get_raw_atomic_tactic_expr
 
-let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
-    (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
-    t option =
+let coq_ast_of_ltac_raw_gen_args (ext : extend_name)
+    (args : Genarg.raw_generic_argument list) : Coq.Ast.t option =
   match args with
   | [ _; _; _; _ ] ->
       let expr_syn = Vernacexpr.VernacExtend (ext, args) in
       let synterp_expr = Vernacexpr.VernacSynterp expr_syn in
       let control = mk_vernac_control synterp_expr in
-      let ast_node = Coq.Ast.of_coq control in
-      Some (of_coq_ast ast_node starting_point)
+      Some (Coq.Ast.of_coq control)
   | _ -> None
+
+let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
+    (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
+    t option =
+  match coq_ast_of_ltac_raw_gen_args ext args with
+  | Some coq_ast -> Some (of_coq_ast coq_ast starting_point)
+  | None -> None
 
 let tactic_raw_generic_arguments_to_syntax_node_in_state
     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (ext : extend_name)
     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
     (t option, Error.t) result =
   let ( let* ) = Result.bind in
-  match args with
-  | [ _; _; _; _ ] ->
-      let expr_syn = Vernacexpr.VernacExtend (ext, args) in
-      let synterp_expr = Vernacexpr.VernacSynterp expr_syn in
-      let control = mk_vernac_control synterp_expr in
-      let ast_node = Coq.Ast.of_coq control in
-      let* new_node = of_coq_ast_in_state ~token ~st ast_node starting_point in
+  match coq_ast_of_ltac_raw_gen_args ext args with
+  | Some coq_ast ->
+      let* new_node = of_coq_ast_in_state ~token ~st coq_ast starting_point in
       Ok (Some new_node)
   | _ -> Ok None
 
@@ -709,25 +710,30 @@ let apply_tac_thens (a : t) (l : t list)
 
   let* raw_tactics_l = l_to_raw_tactics l in
 
-  let args = get_tactic_raw_generic_arguments a |> Option.get in
-  let extend = Ltac.ltac_tactic_extend_name in
+  let args = get_tactic_raw_generic_arguments a in
 
-  let a_thens_l : Ltac_plugin.Tacexpr.raw_tactic_expr =
-    CAst.make (Ltac_plugin.Tacexpr.TacThens (raw_a, raw_tactics_l))
-  in
+  match args with
+  | Some [ selector; info; _; use_default ] ->
+      let extend = Ltac.ltac_tactic_extend_name in
 
-  let raw_arg =
-    Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr a_thens_l
-  in
-  let new_args =
-    [ List.nth args 0; List.nth args 1; raw_arg; List.nth args 3 ]
-  in
+      let a_thens_l : Ltac_plugin.Tacexpr.raw_tactic_expr =
+        CAst.make (Ltac_plugin.Tacexpr.TacThens (raw_a, raw_tactics_l))
+      in
 
-  tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
-  |> Option.cata Result.ok
-       (Error.format_to_or_error "failed to create a thens between %s and [%s]"
-          (repr a)
-          (l |> List.map repr |> String.concat "; "))
+      let raw_arg =
+        Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr a_thens_l
+      in
+      let new_args = [ selector; info; raw_arg; use_default ] in
+
+      tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
+      |> Option.cata Result.ok
+           (Error.format_to_or_error
+              "failed to create a thens between %s and [%s]" (repr a)
+              (l |> List.map repr |> String.concat "; "))
+  | _ ->
+      Error.string_to_or_error
+        "Failed to extract the expected representation from raw generic \
+         arguments"
 
 let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
     () : (t, Error.t) result =
@@ -736,20 +742,24 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
   let* raw_a = require_raw_tactic_expr a in
   let* raw_b = require_raw_tactic_expr b in
 
-  let args = get_tactic_raw_generic_arguments a |> Option.get in
-  let extend = Ltac.ltac_tactic_extend_name in
+  let args = get_tactic_raw_generic_arguments a in
+  match args with
+  | Some [ selector; info; _; use_default ] ->
+      let extend = Ltac.ltac_tactic_extend_name in
 
-  let a_then_b = Ltac_plugin.Tacexpr.TacThen (raw_a, raw_b) |> CAst.make in
-  let raw_arg =
-    Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr a_then_b
-  in
-  let new_args =
-    [ List.nth args 0; List.nth args 1; raw_arg; List.nth args 3 ]
-  in
-  tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
-  |> Option.cata Result.ok
-       (Error.format_to_or_error "failed to create a then betwen %s and %s"
-          (repr a) (repr b))
+      let a_then_b = Ltac_plugin.Tacexpr.TacThen (raw_a, raw_b) |> CAst.make in
+      let raw_arg =
+        Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr a_then_b
+      in
+      let new_args = [ selector; info; raw_arg; use_default ] in
+      tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
+      |> Option.cata Result.ok
+           (Error.format_to_or_error "failed to create a then betwen %s and %s"
+              (repr a) (repr b))
+  | _ ->
+      Error.string_to_or_error
+        "Failed to extract the expected representation from raw generic \
+         arguments"
 
 let can_open_proof (x : t) : bool =
   is_proof_start x || is_definition_with_proof x
