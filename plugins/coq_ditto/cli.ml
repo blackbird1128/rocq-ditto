@@ -15,7 +15,6 @@ type transformation_kind =
   | IdProofTransformation
   | IdDocTransformation
   | ConstructiviseGeocoq
-  | ConstructivisationGetPercentageAdmitted
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
 
@@ -96,9 +95,6 @@ let transformation_help_fun (kind : transformation_kind) :
     | ConstructiviseGeocoq ->
         "Experimental Constructivisation: Transformation to use to \
          constructivise Geocoq"
-    | ConstructivisationGetPercentageAdmitted ->
-        "Experimental Constructivisation: Get the percentage of admitted \
-         proofs containing exists in a file"
     | RocqToLean -> "Experimental: Turn Rocq code to lean"
   in
   (kind, help_text)

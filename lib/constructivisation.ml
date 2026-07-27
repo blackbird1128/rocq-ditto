@@ -717,50 +717,6 @@ let replace_induction_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr)
       | _ -> x)
   | _ -> x
 
-let constrexpr_contains_exists (x : Constrexpr.constr_expr) : bool =
-  Constrexpr_fold.exists
-    (fun expr ->
-      match expr.v with
-      | Constrexpr.CNotation (_, (_, notation_key), _) ->
-          notation_key = "exists _ .. _ , _"
-      | _ -> false)
-    x
-
-let collect_definitions_containing_exists (nodes : Syntax_node.t list) :
-    string list =
-  let rec aux nodes (acc_list : string list) (acc_set : StringSet.t) =
-    match nodes with
-    | [] -> List.rev acc_list
-    | x :: tail -> begin
-        match
-          ( Syntax_node.get_definition_constrexpr x,
-            Syntax_node.get_definition_name x )
-        with
-        | Some expr, Some name ->
-            let references_prev =
-              get_fun_names_in_constrexpr expr
-              |> List.exists (fun q ->
-                  StringSet.mem (Libnames.string_of_qualid q) acc_set)
-            in
-            if constrexpr_contains_exists expr || references_prev then
-              aux tail (name :: acc_list) (StringSet.add name acc_set)
-            else aux tail acc_list acc_set
-        | _ -> aux tail acc_list acc_set
-      end
-  in
-  aux nodes [] StringSet.empty
-
-let is_proof_about_exists (p : Proof.t) : bool =
-  match Proof.get_proof_conclusion p with
-  | None -> false
-  | Some conclusion ->
-      if constrexpr_contains_exists conclusion then true
-      else
-        get_fun_names_in_constrexpr conclusion
-        |> List.exists (fun q ->
-            let s = Libnames.string_of_qualid q in
-            List.mem s definitions_with_exists)
-
 let rec update_replaces (l : Transforming_step.t list) =
   match l with
   | [] -> []
@@ -784,75 +740,6 @@ let rec update_replaces (l : Transforming_step.t list) =
           in
           x :: update_replaces new_tl
       | Add _ | Remove _ | Attach _ -> x :: update_replaces tl)
-
-let replace_assert_by_stab_assert (doc : Rocq_document.t) (x : Syntax_node.t) :
-    (Transforming_step.t list, Error.t) result =
-  let raw_tactic_expr = Syntax_node.get_raw_tactic_expr x in
-  let raw_atomic_expr =
-    Option.map Ltac.get_raw_atomic_tactic_expr raw_tactic_expr
-  in
-  match Option.flatten raw_atomic_expr with
-  | Some
-      (Ltac_plugin.Tacexpr.TacAssert (false, true, by_content, _, assert_expr))
-    -> (
-      let token = Coq.Limits.Token.create () in
-      let* state_assert_before = Runner.get_init_state doc x token in
-      let* state_assert_after = Runner.run_node token state_assert_before x in
-      let old_goals_vars =
-        Runner.reified_goals_at_state token state_assert_before
-        |> List.map Runner.get_hypothesis_names
-        |> Option.make
-      in
-
-      let new_goals_vars =
-        Runner.reified_goals_at_state token state_assert_after
-        |> List.map Runner.get_hypothesis_names
-        |> Option.make
-      in
-      let* new_vars =
-        Runner.get_new_vars old_goals_vars new_goals_vars
-        |> Option_utils.to_result
-             ~none:
-               (Error.format_to_or_error "Error getting new vars for node %s"
-                  (Syntax_node.repr x))
-      in
-
-      let assert_generated_name =
-        if Syntax_node.is_assert_by x then List.nth new_vars 0 |> List.hd
-        else List.nth new_vars 1 |> List.hd
-      in
-
-      let assert_expr_str = constrexpr_to_string assert_expr in
-      let stab_assert_node_str =
-        Printf.sprintf "stab_assert (%s: (%s))." assert_generated_name
-          assert_expr_str
-      in
-
-      let* stab_assert_node =
-        Syntax_node.syntax_node_of_string stab_assert_node_str x.range.start
-      in
-
-      let* unNNnode =
-        Syntax_node.syntax_node_of_string "unNN." Code_point.dummy
-      in
-      match by_content with
-      | Some (Some expr) ->
-          let* tac_node =
-            Syntax_node.raw_tactic_expr_to_syntax_node expr Code_point.dummy
-          in
-          Ok
-            [
-              Replace (x.id, stab_assert_node);
-              Attach (unNNnode, SameLine, stab_assert_node.id);
-              Attach (tac_node, LineAfter, unNNnode.id);
-            ]
-      | _ ->
-          Ok
-            [
-              Replace (x.id, stab_assert_node);
-              Attach (unNNnode, SameLine, stab_assert_node.id);
-            ])
-  | _ -> Ok []
 
 let collect_named_section_ids (section_names : string list)
     (doc : Rocq_document.t) : (Uuidm.t list, Error.t) result =
@@ -916,28 +803,6 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
   Ok
     (remove_all_steps_except_qed
     @ [ Attach (solve_dec_node, LineAfter, proof.proposition.id) ])
-
-let get_percentage_admitted (doc : Rocq_document.t) :
-    (Transforming_step.t list, Error.t) result =
-  let* proofs = Rocq_document.get_proofs doc in
-  let proofs_with_exists = List.filter is_proof_about_exists proofs in
-  let proofs_length = List.length proofs in
-  let proofs_with_exists_length = List.length proofs_with_exists in
-  let percentage =
-    if proofs_length = 0 then 0.0
-    else
-      Float.mul
-        (Float.div
-           (Float.of_int proofs_with_exists_length)
-           (Float.of_int proofs_length))
-        100.0
-  in
-  Printf.printf "%s\n%!" doc.filename;
-  Printf.printf "admitted proofs: %d\n%!" proofs_with_exists_length;
-  Printf.printf "total proofs: %d\n%!" proofs_length;
-  Printf.printf "percentage: %.2f\n%!" percentage;
-
-  Ok []
 
 let get_proofs_named (proofs : Proof.t list) (names : string list) =
   List.filter
@@ -1083,7 +948,7 @@ let constructivise_doc (doc : Rocq_document.t) :
 
   let stage_beeson_ch03 : stage =
     make_stage "stage_beeson_ch03" (fun doc ->
-        if String.equal (Filename.basename doc.filename) "/Ch03_bet.v" then
+        if String.equal (Filename.basename doc.filename) "Ch03_bet.v" then
           remove_named_sections [ "Beeson_1"; "Beeson_2" ] doc
         else Ok [])
   in
@@ -1092,21 +957,6 @@ let constructivise_doc (doc : Rocq_document.t) :
     make_stage "stage replace context" (fun doc -> replace_contexts doc)
   in
 
-  (* let stage_1 : stage = *)
-  (*   make_stage "stage1" (fun doc -> *)
-  (*       let* proofs = Rocq_document.get_proofs doc in *)
-
-  (*       let proofs_with_exists = List.filter is_proof_about_exists proofs in *)
-
-  (*       let* admit_exists_proofs_steps = *)
-  (*         List_utils.concat_map_result *)
-  (*           (Transformations.admit_and_comment_proof_steps *)
-  (*              ~msg:"existential predicate in conclusion" doc) *)
-  (*           proofs_with_exists *)
-  (*       in *)
-
-  (*       Ok admit_exists_proofs_steps) *)
-  (* in *)
   let stage_1 : stage =
     make_stage "rename Bet and Cong in exists" (fun doc ->
         Ok
@@ -1240,16 +1090,6 @@ let constructivise_doc (doc : Rocq_document.t) :
              ltac_nodes))
   in
 
-  (* let stage_11 : stage = *)
-  (*   { *)
-  (*     name = "stage11"; *)
-  (*     build_steps = *)
-  (*       (fun doc -> *)
-  (*         List_utils.concat_map_result *)
-  (*           (replace_assert_by_stab_assert doc) *)
-  (*           doc.elements); *)
-  (*   } *)
-  (* in *)
   let* _, steps =
     run_pipeline doc
       [
@@ -1265,7 +1105,6 @@ let constructivise_doc (doc : Rocq_document.t) :
         stage_6;
         stage_7;
         stage_8;
-        (* stage_11; *)
       ]
   in
   Ok (update_replaces steps)
