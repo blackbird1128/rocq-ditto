@@ -52,11 +52,63 @@ let document_to_range_representation_pairs (doc : Rocq_document.t) :
     (string * Code_range.t) list =
   List.map (fun node -> (Syntax_node.repr node, node.range)) doc.elements
 
+let pp_syntax_node fmt node =
+  Format.fprintf fmt "%S at %a" (Syntax_node.repr node) Code_range.pp node.range
+
+let expect_ok ~(context : string) ~(pp_error : 'e Fmt.t) : ('a, 'e) result -> 'a
+    = function
+  | Ok value -> value
+  | Error err ->
+      Alcotest.failf "%s: expected Ok, got Error: %a" context pp_error err
+
+let expect_some ~(context : string) : 'a option -> 'a = function
+  | Some value -> value
+  | None -> Alcotest.failf "%s: expected Some, got None" context
+
+let expect_single ~(context : string) ~(pp : 'a Fmt.t) : 'a list -> 'a =
+  function
+  | [ value ] -> value
+  | values ->
+      Alcotest.failf "%s: expected exactly one element, got %d: %a" context
+        (List.length values)
+        Fmt.(Dump.list pp)
+        values
+
+let expect_nth ~(context : string) ~(pp : 'a Fmt.t) (index : int)
+    (values : 'a list) : 'a =
+  match List.nth_opt values index with
+  | Some value -> value
+  | None ->
+      Alcotest.failf
+        "%s: expected an element at index %d, but list length is %d: %a" context
+        index (List.length values)
+        Fmt.(Dump.list pp)
+        values
+
+let expect_result_ok ?(context = "Expected Ok") (result : ('a, Error.t) result) =
+  expect_ok ~context ~pp_error:Error.pp result
+
+let expect_head ~(context : string) (values : 'a list) : 'a =
+  match values with
+  | value :: _ -> value
+  | [] -> Alcotest.failf "%s: expected a non-empty list" context
+
+let expect_nth_default (index : int) (values : 'a list) : 'a =
+  expect_nth ~context:"Expected an element at the requested index"
+    ~pp:(fun fmt _ -> Format.pp_print_string fmt "<value>") index values
+
+let expect_error ~(context : string) : ('a, 'e) result -> 'e = function
+  | Error err -> err
+  | Ok _ -> Alcotest.failf "%s: expected Error, got Ok" context
+
 let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
   json |> to_list
   |> List.map (fun elem ->
-      let range = Code_range.of_yojson (member "range" elem) |> Result.get_ok in
+      let range =
+        Code_range.of_yojson (member "range" elem)
+        |> expect_ok ~context:"Parsing target range" ~pp_error:Fmt.string
+      in
       let repr = to_string (member "repr" elem) in
       (repr, range))
 
@@ -67,7 +119,8 @@ let get_target (uri_str : string) =
   parse_json_target target_doc
 
 let node (repr : string) : Syntax_node.t =
-  Syntax_node.syntax_node_of_string repr Code_point.dummy |> Result.get_ok
+  Syntax_node.syntax_node_of_string repr Code_point.dummy
+  |> expect_result_ok ~context:(Printf.sprintf "Creating a node from %s" repr)
 
 let pp_int (fmt : Format.formatter) (x : int) = Format.fprintf fmt "%d" x
 let int_tree = testable_nary_tree pp_int ( = )
@@ -110,7 +163,8 @@ let make_dummy_node_from_repr (start_line : int) (start_char : int)
   let start_point : Code_point.t =
     { line = start_line; character = start_char }
   in
-  Syntax_node.comment_of_string repr start_point |> Result.get_ok
+  Syntax_node.comment_of_string repr start_point
+  |> expect_result_ok ~context:"Error creating a dummy node from representation"
 (* TODO: Improve and remove get_ok *)
 
 let check_list_unique ~(eq : 'a -> 'a -> bool) ~(pp : 'a Fmt.t) (lst : 'a list)
@@ -158,7 +212,10 @@ let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
   Alcotest.test_case test_text `Quick (f doc)
 
 let test_parsing_ex1 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc =
+    Rocq_document.parse_document doc
+    |> expect_result_ok ~context:"Error while parsing ex_parsing1.v"
+  in
   let nodes_repr = List.map (fun elem -> Syntax_node.repr elem) doc.elements in
   Alcotest.(check int)
     "More than one element was parsed." 1 (List.length nodes_repr);
@@ -166,7 +223,10 @@ let test_parsing_ex1 (doc : Doc.t) () : unit =
     "parsed element don't match" [ "Compute 1 + 1." ] nodes_repr
 
 let test_parsing_ex2 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc =
+    Rocq_document.parse_document doc
+    |> expect_result_ok ~context:"Error while parsing ex_parsing2.v"
+  in
   let nodes_repr = List.map (fun elem -> Syntax_node.repr elem) doc.elements in
   Alcotest.(check int)
     "The wrong number of elements was parsed" 7 (List.length nodes_repr);
@@ -184,64 +244,70 @@ let test_parsing_ex2 (doc : Doc.t) () : unit =
     nodes_repr
 
 let test_proof_parsing_ex2 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let doc =
+    Rocq_document.parse_document doc
+    |> expect_result_ok ~context:"Error while parsing ex_parsing2.v"
+  in
+  let proofs =
+    Rocq_document.get_proofs doc
+    |> expect_result_ok ~context:"Error parsing proofs from ex_parsing2.v"
+  in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
-  let proof = List.hd proofs in
+  let proof = expect_head ~context:"Expected non-empty list" proofs in
   let status = Proof.status proof in
   Alcotest.(check proof_status_testable)
     "The proof should be proved." Proof.Proved status
 
 let test_parsing_admit (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let proofs = expect_result_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
-  let proof = List.hd proofs in
+  let proof = expect_head ~context:"Expected non-empty list" proofs in
   let status = Proof.status proof in
   Alcotest.(check proof_status_testable)
     "The proof should be admitted." Proof.Admitted status
 
 let test_parsing_defined (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let proofs = expect_result_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
-  let proof = List.hd proofs in
+  let proof = expect_head ~context:"Expected non-empty list" proofs in
   let status = Proof.status proof in
   Alcotest.(check proof_status_testable)
     "The proof should be proved." Proof.Proved status
 
 let test_parsing_function (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let proofs = expect_result_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
-  let proof = List.hd proofs in
+  let proof = expect_head ~context:"Expected non-empty list" proofs in
   let status = Proof.status proof in
   Alcotest.(check proof_status_testable)
     "The proof should be proved." Proof.Proved status
 
 let test_parsing_abort1 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let proofs = expect_result_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
-  let proof = List.hd proofs in
+  let proof = expect_head ~context:"Expected non-empty list" proofs in
   let status = Proof.status proof in
   Alcotest.(check proof_status_testable)
     "The proof should be aborted." Proof.Aborted status
 
 let test_parsing_abort2 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let proofs = expect_result_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 2 (List.length proofs);
-  let first_proof = List.hd proofs in
+  let first_proof = expect_head ~context:"Expected non-empty list" proofs in
   let status_first_proof = Proof.status first_proof in
-  let second_proof = List.nth proofs 1 in
+  let second_proof = expect_nth_default 1 proofs in
   let status_second_proof = Proof.status second_proof in
   Alcotest.(check proof_status_testable)
     "The first proof should be aborted" Proof.Aborted status_first_proof;
@@ -249,11 +315,12 @@ let test_parsing_abort2 (doc : Doc.t) () : unit =
     "The second proof is proved" Proof.Proved status_second_proof
 
 let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
-  let proof = List.hd (Result.get_ok (Rocq_document.get_proofs doc)) in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let proof = expect_head ~context:"Expected non-empty list" (expect_result_ok (Rocq_document.get_proofs doc)) in
   Alcotest.(check string)
     "The proof name should be modus ponens" "modus_ponens"
-    (Option.default "got none" (Proof.get_proof_name proof));
+    (Proof.get_proof_name proof
+    |> expect_some ~context:"The proof should have a name");
   Alcotest.(check int)
     "The proof should have 6 steps (including Proof. and Qed.)" 6
     (List.length proof.proof_steps);
@@ -277,8 +344,8 @@ let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
     proof_steps_normalized
 
 let test_proof_parsing_multiple_proofs_ex3 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let proofs = expect_result_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed" 2 (List.length proofs);
   let proof_names = List.filter_map (fun p -> Proof.get_proof_name p) proofs in
@@ -289,17 +356,17 @@ let test_proof_parsing_multiple_proofs_ex3 (doc : Doc.t) () : unit =
   ()
 
 let test_parsing_comment_ex4 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   Alcotest.(check int)
     "The wrong number of nodes was parsed" 1 (List.length doc.elements);
-  let node = List.hd doc.elements in
+  let node = expect_head ~context:"Expected non-empty list" doc.elements in
   Alcotest.(check string)
     "Comment was badly parsed" "(* single comment *)" (repr node);
   Alcotest.(check bool)
     "Comment node should not have an AST" true (Option.is_empty node.ast)
 
 let test_parsing_multiples_comments_ex5 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
@@ -310,7 +377,7 @@ let test_parsing_multiples_comments_ex5 (doc : Doc.t) () : unit =
     "The wrong number of total nodes was parsed" 12 (List.length doc.elements)
 
 let test_parsing_embedded_comments_ex6 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
@@ -324,7 +391,7 @@ let test_parsing_embedded_comments_ex6 (doc : Doc.t) () : unit =
     comment_nodes_repr
 
 let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
@@ -339,7 +406,7 @@ let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
     comment_nodes_repr
 
 let test_parsing_in_then_star_then_parenthesis (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let comment_nodes =
     List.filter (fun node -> Option.is_empty node.ast) doc.elements
   in
@@ -354,7 +421,7 @@ let test_parsing_in_then_star_then_parenthesis (doc : Doc.t) () : unit =
     "The wrong number of other nodes was parsed" 8 (List.length other_nodes)
 
 let test_parsing_glued_comment (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let comment_nodes, other_nodes =
     List.partition (fun node -> Option.is_empty node.ast) doc.elements
   in
@@ -378,22 +445,22 @@ let test_parsing_glued_comment (doc : Doc.t) () : unit =
         (List.length other_nodes)
 
 let test_parsing_instance (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let proofs = expect_result_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
-  let first_proof = List.hd proofs in
+  let first_proof = expect_head ~context:"Expected non-empty list" proofs in
   let first_proof_status = Proof.status first_proof in
   Alcotest.(check proof_status_testable)
     "The proof should be proved" Proof.Proved first_proof_status
 
 let test_parsing_unicode (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
-  let proofs = Result.get_ok (Rocq_document.get_proofs doc) in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let proofs = expect_result_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed." 1 (List.length proofs);
-  let first_proof = List.hd proofs in
+  let first_proof = expect_head ~context:"Expected non-empty list" proofs in
   let first_proof_status = Proof.status first_proof in
   let proof_prop = first_proof.proposition in
   Alcotest.(check proof_status_testable)
@@ -404,7 +471,7 @@ let test_parsing_unicode (doc : Doc.t) () : unit =
     "Lemma demo : forall P Q: Prop, P ∧ Q → Q ∧ P." (repr proof_prop)
 
 let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let reconstructed = Rocq_document.dump_to_string doc in
   Alcotest.(check (result string error_testable))
     "The document should be correctly reconstructed"
@@ -474,10 +541,10 @@ let test_creating_invalid_proof_not_enough_nodes_zero (_ : Doc.t) () : unit =
 let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
   let invalid_start =
     Syntax_node.syntax_node_of_string "Compute 1 + 1." Code_point.dummy
-    |> Result.get_ok
+    |> expect_result_ok
   in
   let valid_end =
-    Syntax_node.syntax_node_of_string "Qed." Code_point.dummy |> Result.get_ok
+    Syntax_node.syntax_node_of_string "Qed." Code_point.dummy |> expect_result_ok
   in
   let proof = Proof.proof_from_nodes [ invalid_start; valid_end ] in
 
@@ -493,20 +560,23 @@ let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
       proof_status)
 
 let test_of_coq_ast_in_state (doc : Doc.t) () =
-  let parsed_doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let parsed_doc = Rocq_document.parse_document doc |> expect_result_ok in
   let token = Coq.Limits.Token.create () in
   let lemma_node =
-    List.find
+    List.find_opt
       (fun n ->
         String.starts_with ~prefix:"Lemma state_printer_notation"
           (Syntax_node.repr n))
       parsed_doc.elements
   in
-  let ast = Option.get lemma_node.ast in
-  let st = Runner.get_init_state parsed_doc lemma_node token |> Result.get_ok in
+  let lemma_node =
+    expect_some ~context:"The notation-state lemma should be present" lemma_node
+  in
+  let ast = expect_some ~context:"The lemma should have an AST" lemma_node.ast in
+  let st = Runner.get_init_state parsed_doc lemma_node token |> expect_result_ok in
   let new_node =
     Syntax_node.of_coq_ast_in_state ~token ~st ast.v lemma_node.range.start
-    |> Result.get_ok
+    |> expect_result_ok
   in
   Alcotest.(check string)
     "prints lemma in local notation state"
@@ -517,10 +587,10 @@ let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
   let code_point_a : Code_point.t = { line = 0; character = 0 } in
   let code_point_b : Code_point.t = { line = 1; character = 0 } in
   let a =
-    Syntax_node.syntax_node_of_string "idtac." code_point_a |> Result.get_ok
+    Syntax_node.syntax_node_of_string "idtac." code_point_a |> expect_result_ok
   in
   let b =
-    Syntax_node.syntax_node_of_string "idtac." code_point_b |> Result.get_ok
+    Syntax_node.syntax_node_of_string "idtac." code_point_b |> expect_result_ok
   in
   let a_then_b = Syntax_node.apply_tac_then a b () in
   let a_then_b_repr = Result.map Syntax_node.repr a_then_b in
@@ -538,11 +608,11 @@ let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string
       "assert (forall A : Prop, (A -> A) /\\ (A -> A)) by (split;auto)."
       code_point_a
-    |> Result.get_ok
+    |> expect_result_ok
   in
   let b =
     Syntax_node.syntax_node_of_string "reflexivity." code_point_b
-    |> Result.get_ok
+    |> expect_result_ok
   in
 
   let a_then_b = Syntax_node.apply_tac_then a b () in
@@ -562,11 +632,11 @@ let test_creating_simple_a_thens_b (_ : Doc.t) () : unit =
   let code_point_b : Code_point.t = { line = 1; character = 0 } in
   let a =
     Syntax_node.syntax_node_of_string "reflexivity." code_point_a
-    |> Result.get_ok
+    |> expect_result_ok
   in
   let b =
     Syntax_node.syntax_node_of_string "reflexivity." code_point_b
-    |> Result.get_ok
+    |> expect_result_ok
   in
   let a_thens_b = Syntax_node.apply_tac_thens a [ b ] () in
   let a_thens_b_repr = Result.map Syntax_node.repr a_thens_b in
@@ -581,7 +651,7 @@ let test_creating_a_thens_nothing (_ : Doc.t) () : unit =
   let code_point_a : Code_point.t = { line = 0; character = 0 } in
   let a =
     Syntax_node.syntax_node_of_string "reflexivity." code_point_a
-    |> Result.get_ok
+    |> expect_result_ok
   in
   let a_thens_nothing = Syntax_node.apply_tac_thens a [] () in
   let a_thens_nothing_repr = Result.map Syntax_node.repr a_thens_nothing in
@@ -594,7 +664,7 @@ let test_creating_a_thens_nothing (_ : Doc.t) () : unit =
 let test_get_goal_select_all (_ : Doc.t) () : unit =
   let node =
     Syntax_node.syntax_node_of_string "all:simpl." Code_point.dummy
-    |> Result.get_ok
+    |> expect_result_ok
   in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
@@ -608,7 +678,7 @@ let test_get_goal_select_all (_ : Doc.t) () : unit =
 let test_goal_select_nth_selector (_ : Doc.t) () : unit =
   let node =
     Syntax_node.syntax_node_of_string "1:simpl." Code_point.dummy
-    |> Result.get_ok
+    |> expect_result_ok
   in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
@@ -624,7 +694,7 @@ let test_goal_select_nth_selector (_ : Doc.t) () : unit =
 let test_goal_select_single_range (_ : Doc.t) () : unit =
   let node =
     Syntax_node.syntax_node_of_string "1-2:simpl." Code_point.dummy
-    |> Result.get_ok
+    |> expect_result_ok
   in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
@@ -641,7 +711,7 @@ let test_goal_select_single_range (_ : Doc.t) () : unit =
 let test_goal_select_multiple_selector (_ : Doc.t) () : unit =
   let node =
     Syntax_node.syntax_node_of_string "1-2,3-4:simpl." Code_point.dummy
-    |> Result.get_ok
+    |> expect_result_ok
   in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
@@ -663,7 +733,7 @@ let test_goal_select_multiple_selector (_ : Doc.t) () : unit =
 let test_drop_goal_selector_nth (_ : Doc.t) () : unit =
   let node =
     Syntax_node.syntax_node_of_string "1:simpl." Code_point.dummy
-    |> Result.get_ok
+    |> expect_result_ok
   in
 
   let node_without_selector = Syntax_node.drop_goal_selector node in
@@ -678,7 +748,7 @@ let test_drop_goal_selector_nth (_ : Doc.t) () : unit =
 let test_creating_select_already_focused (_ : Doc.t) () : unit =
   let node =
     Syntax_node.syntax_node_of_string "reflexivity." Code_point.dummy
-    |> Result.get_ok
+    |> expect_result_ok
   in
 
   let node_with_select_already_focused_repr =
@@ -695,11 +765,11 @@ let test_creating_select_already_focused (_ : Doc.t) () : unit =
 
 let test_selecting_first_goal_with_goal_select (doc : Doc.t) () : unit =
   let token = Coq.Limits.Token.create () in
-  let parsed_document = Rocq_document.parse_document doc |> Result.get_ok in
-  let third_node = List.nth parsed_document.elements 2 in
+  let parsed_document = Rocq_document.parse_document doc |> expect_result_ok in
+  let third_node = expect_nth_default 2 parsed_document.elements in
 
   let state =
-    Runner.get_init_state parsed_document third_node token |> Result.get_ok
+    Runner.get_init_state parsed_document third_node token |> expect_result_ok
   in
   let goals_at_state = Runner.reified_goals_at_state token state in
   let goal_selector : Goal_select_view.t =
@@ -710,9 +780,11 @@ let test_selecting_first_goal_with_goal_select (doc : Doc.t) () : unit =
     Goal_select_view.apply_goal_selector_view goal_selector goals_at_state
   in
   let selected_goals_len = Result.map List.length selected_goals in
-  let selected_goal_hd = Result.map List.hd selected_goals in
+  let selected_goal_hd =
+    Result.map (expect_head ~context:"Expected non-empty list") selected_goals
+  in
 
-  let expected_goal = List.nth goals_at_state 0 in
+  let expected_goal = expect_nth_default 0 goals_at_state in
   Alcotest.(
     check
       (result int error_testable)
@@ -725,11 +797,11 @@ let test_selecting_first_goal_with_goal_select (doc : Doc.t) () : unit =
 
 let test_selecting_all_goal_with_goal_select (doc : Doc.t) () : unit =
   let token = Coq.Limits.Token.create () in
-  let parsed_document = Rocq_document.parse_document doc |> Result.get_ok in
-  let fith_node = List.nth parsed_document.elements 4 in
+  let parsed_document = Rocq_document.parse_document doc |> expect_result_ok in
+  let fith_node = expect_nth_default 4 parsed_document.elements in
 
   let state =
-    Runner.get_init_state parsed_document fith_node token |> Result.get_ok
+    Runner.get_init_state parsed_document fith_node token |> expect_result_ok
   in
   let goals_at_state = Runner.reified_goals_at_state token state in
 
@@ -755,7 +827,7 @@ let test_selecting_all_goal_with_goal_select (doc : Doc.t) () : unit =
 let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
-    Syntax_node.syntax_node_of_string "Proof with easy." point |> Result.get_ok
+    Syntax_node.syntax_node_of_string "Proof with easy." point |> expect_result_ok
   in
 
   let is_node_proof_with = Syntax_node.is_proof_with node in
@@ -767,7 +839,7 @@ let test_not_detecting_simple_proof_command_with_proof_with (_ : Doc.t) () :
     unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
-    Syntax_node.syntax_node_of_string "Proof." point |> Result.get_ok
+    Syntax_node.syntax_node_of_string "Proof." point |> expect_result_ok
   in
 
   let is_node_proof_with = Syntax_node.is_proof_with node in
@@ -776,8 +848,8 @@ let test_not_detecting_simple_proof_command_with_proof_with (_ : Doc.t) () :
       false is_node_proof_with)
 
 let test_searching_node (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
-  let first_node_id = (List.hd doc.elements).id in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let first_node_id = (expect_head ~context:"Expected non-empty list" doc.elements).id in
   let node_compute = Rocq_document.element_with_id_opt first_node_id doc in
   let node_compute_id = Option.map (fun node -> node.id) node_compute in
   Alcotest.(check (option uuidm_testable))
@@ -794,7 +866,7 @@ let test_reformat_comment_node (_ : Doc.t) () : unit =
   let starting_point : Code_point.t = { line = 0; character = 0 } in
 
   let comment_node =
-    comment_of_string "(* a comment *)" starting_point |> Result.get_ok
+    comment_of_string "(* a comment *)" starting_point |> expect_result_ok
   in
 
   let reformatted_node = Syntax_node.reformat comment_node in
@@ -809,7 +881,7 @@ let test_reformat_keep_id (_ : Doc.t) () : unit =
   let starting_point : Code_point.t = { line = 0; character = 0 } in
 
   let content_node =
-    syntax_node_of_string "Compute 1 + 1." starting_point |> Result.get_ok
+    syntax_node_of_string "Compute 1 + 1." starting_point |> expect_result_ok
   in
 
   let reformatted_node = Syntax_node.reformat content_node in
@@ -819,7 +891,7 @@ let test_reformat_keep_id (_ : Doc.t) () : unit =
     "Should return the same id" (Ok content_node.id) reformat_id
 
 let test_id_assign_document (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let nodes_ids = List.map (fun x -> x.id) doc.elements in
   check_list_unique ~eq:Uuidm.equal ~pp:Uuidm.pp nodes_ids
 
@@ -910,13 +982,13 @@ let test_colliding_nodes_multiple_common_lines_collision (_ : Doc.t) () : unit =
 
 let test_removing_and_leaving_blank (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let second_node = List.nth doc.elements 3 in
+  let second_node = expect_nth_default 3 doc.elements in
   let parsed_target = get_target uri_str in
 
   let new_doc =
-    Result.get_ok
+    expect_result_ok
       (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank
          second_node.id doc)
   in
@@ -928,13 +1000,13 @@ let test_removing_and_leaving_blank (doc : Doc.t) () : unit =
 let test_removing_and_leaving_blank_multiple_line_nodes (doc : Doc.t) () : unit
     =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let second_node = List.nth doc.elements 1 in
+  let second_node = expect_nth_default 1 doc.elements in
   let parsed_target = get_target uri_str in
 
   let new_doc =
-    Result.get_ok
+    expect_result_ok
       (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank
          second_node.id doc)
   in
@@ -945,13 +1017,13 @@ let test_removing_and_leaving_blank_multiple_line_nodes (doc : Doc.t) () : unit
 
 let test_removing_and_leaving_blank_middle_of_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let fourth_node = List.nth doc.elements 4 in
+  let fourth_node = expect_nth_default 4 doc.elements in
   let parsed_target = get_target uri_str in
 
   let new_doc =
-    Result.get_ok
+    expect_result_ok
       (Rocq_document.remove_node_with_id ~remove_method:LeaveBlank
          fourth_node.id doc)
   in
@@ -962,14 +1034,14 @@ let test_removing_and_leaving_blank_middle_of_line (doc : Doc.t) () : unit =
 
 let test_removing_only_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
   let parsed_target = get_target uri_str in
 
-  let first_node_id = (List.hd doc.elements).id in
+  let first_node_id = (expect_head ~context:"Expected non-empty list" doc.elements).id in
 
   let new_doc =
-    Result.get_ok (Rocq_document.remove_node_with_id first_node_id doc)
+    expect_result_ok (Rocq_document.remove_node_with_id first_node_id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
@@ -978,13 +1050,13 @@ let test_removing_only_node_on_line (doc : Doc.t) () : unit =
 
 let test_removing_multiple_line_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let second_node = List.nth doc.elements 1 in
+  let second_node = expect_nth_default 1 doc.elements in
   let parsed_target = get_target uri_str in
 
   let new_doc =
-    Result.get_ok (Rocq_document.remove_node_with_id second_node.id doc)
+    expect_result_ok (Rocq_document.remove_node_with_id second_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
 
@@ -993,12 +1065,12 @@ let test_removing_multiple_line_node (doc : Doc.t) () : unit =
 
 let test_removing_node_middle_of_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let second_node = List.nth doc.elements 1 in
+  let second_node = expect_nth_default 1 doc.elements in
   let new_doc =
-    Result.get_ok (Rocq_document.remove_node_with_id second_node.id doc)
+    expect_result_ok (Rocq_document.remove_node_with_id second_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
   Alcotest.(check (list (pair string range_testable)))
@@ -1006,12 +1078,12 @@ let test_removing_node_middle_of_line (doc : Doc.t) () : unit =
 
 let test_removing_node_with_one_node_left_same_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let removed_node = List.nth doc.elements 4 in
+  let removed_node = expect_nth_default 4 doc.elements in
   let new_doc =
-    Result.get_ok (Rocq_document.remove_node_with_id removed_node.id doc)
+    expect_result_ok (Rocq_document.remove_node_with_id removed_node.id doc)
   in
   let new_doc_res = document_to_range_representation_pairs new_doc in
   Alcotest.(check (list (pair string range_testable)))
@@ -1019,13 +1091,13 @@ let test_removing_node_with_one_node_left_same_line (doc : Doc.t) () : unit =
 
 let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
+    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
   let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1035,13 +1107,13 @@ let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
 
 let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
+    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
 
   let new_doc = Rocq_document.insert_node node doc in
@@ -1052,13 +1124,13 @@ let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
 
 let test_adding_multiple_line_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
-    Result.get_ok
+    expect_result_ok
       (Syntax_node.syntax_node_of_string "Compute 1\n        +\n        1."
          start_point)
   in
@@ -1071,13 +1143,13 @@ let test_adding_multiple_line_node (doc : Doc.t) () : unit =
 
 let test_adding_node_between (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 11 } in
 
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
+    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
 
   let new_doc =
@@ -1090,13 +1162,13 @@ let test_adding_node_between (doc : Doc.t) () : unit =
 
 let test_adding_collision_next_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
-    Result.get_ok
+    expect_result_ok
       (Syntax_node.syntax_node_of_string "Compute 1\n+\n1." start_point)
   in
 
@@ -1108,13 +1180,13 @@ let test_adding_collision_next_line (doc : Doc.t) () : unit =
 
 let test_adding_node_colliding_many (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 6; character = 2 } in
 
   let node =
-    Result.get_ok
+    expect_result_ok
       (Syntax_node.syntax_node_of_string "Compute 1 +\n  2 + 3 + 4\n  + 5 + 6."
          start_point)
   in
@@ -1127,16 +1199,16 @@ let test_adding_node_colliding_many (doc : Doc.t) () : unit =
 
 let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 42." start_point)
+    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 42." start_point)
   in
 
-  let second_node_id = (List.nth doc.elements 1).id in
+  let second_node_id = (expect_nth_default 1 doc.elements).id in
 
   let new_doc = Rocq_document.replace_node second_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1146,16 +1218,16 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
 
 let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
-    Result.get_ok (Syntax_node.syntax_node_of_string "Compute 123." start_point)
+    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 123." start_point)
   in
 
-  let second_node_id = (List.nth doc.elements 1).id in
+  let second_node_id = (expect_nth_default 1 doc.elements).id in
 
   let new_doc = Rocq_document.replace_node second_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1165,17 +1237,17 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
 
 let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 11 } in
 
   let node =
-    Result.get_ok
+    expect_result_ok
       (Syntax_node.syntax_node_of_string "Compute 123456." start_point)
   in
 
-  let third_node_id = (List.nth doc.elements 2).id in
+  let third_node_id = (expect_nth_default 2 doc.elements).id in
 
   let new_doc = Rocq_document.replace_node third_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1185,17 +1257,17 @@ let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
 
 let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 2; character = 22 } in
 
   let node =
-    Result.get_ok
+    expect_result_ok
       (Syntax_node.syntax_node_of_string "Compute 12345." start_point)
   in
 
-  let fourth_node_id = (List.nth doc.elements 3).id in
+  let fourth_node_id = (expect_nth_default 3 doc.elements).id in
 
   let new_doc = Rocq_document.replace_node fourth_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1205,18 +1277,18 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
 
 let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
-    Result.get_ok
+    expect_result_ok
       (Syntax_node.syntax_node_of_string
          "Theorem th : forall n : nat,\nn + 0 = n." start_point)
   in
 
-  let first_node_id = (List.hd doc.elements).id in
+  let first_node_id = (expect_head ~context:"Expected non-empty list" doc.elements).id in
 
   let new_doc = Rocq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1226,18 +1298,18 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
 
 let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
-    Result.get_ok
+    expect_result_ok
       (Syntax_node.syntax_node_of_string
          "Theorem th : forall n : nat, n + 0 = n." start_point)
   in
 
-  let first_node_id = (List.hd doc.elements).id in
+  let first_node_id = (expect_head ~context:"Expected non-empty list" doc.elements).id in
 
   let new_doc = Rocq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1246,13 +1318,13 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
 
 let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let start_point : Code_point.t = { line = 16; character = 0 } in
 
   let node =
-    Result.get_ok
+    expect_result_ok
       (Syntax_node.syntax_node_of_string
          "Lemma l4_19_stdlib :\n\
          \  forall A B C C' : Point,\n\
@@ -1261,7 +1333,7 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
          start_point)
   in
 
-  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
   let thm_id = first_proof.proposition.id in
 
   let new_doc = Rocq_document.replace_node thm_id node doc in
@@ -1272,11 +1344,11 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
 
 let test_attach_node_after_end_doc (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let node = node "Compute 1." in
-  let last_node = List_utils.last doc.elements |> Option.get in
+  let last_node = List_utils.last doc.elements |> expect_some ~context:"Expected Some" in
   let attach_step = Transforming_step.Attach (node, LineAfter, last_node.id) in
 
   let new_doc = Rocq_document.apply_transformation_step attach_step doc in
@@ -1287,11 +1359,11 @@ let test_attach_node_after_end_doc (doc : Doc.t) () : unit =
 
 let test_attach_node_before_node_end (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let node = node "Compute 1." in
-  let last_node = List_utils.last doc.elements |> Option.get in
+  let last_node = List_utils.last doc.elements |> expect_some ~context:"Expected Some" in
   let attach_step = Transforming_step.Attach (node, LineBefore, last_node.id) in
 
   let new_doc = Rocq_document.apply_transformation_step attach_step doc in
@@ -1302,11 +1374,11 @@ let test_attach_node_before_node_end (doc : Doc.t) () : unit =
 
 let test_attach_node_same_line_node_end (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
   let node = node "Compute 1." in
-  let last_node = List_utils.last doc.elements |> Option.get in
+  let last_node = List_utils.last doc.elements |> expect_some ~context:"Expected Some" in
   let attach_step = Transforming_step.Attach (node, SameLine, last_node.id) in
 
   let new_doc = Rocq_document.apply_transformation_step attach_step doc in
@@ -1321,7 +1393,7 @@ let test_tree_transformation (doc : Doc.t)
       t nary_tree ->
       (Transforming_step.t list, Error.t) result) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
   let parsed_target = get_target uri_str in
 
@@ -1338,7 +1410,7 @@ let test_proof_transformation (doc : Doc.t)
       Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result)
     () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
   let parsed_target = get_target uri_str in
 
@@ -1354,7 +1426,7 @@ let test_doc_transformation (doc : Doc.t)
     (doc_transformation :
       Rocq_document.t -> (Transforming_step.t list, Error.t) result) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
   let parsed_target = get_target uri_str in
 
@@ -1562,7 +1634,7 @@ let test_rename_in_ltac_notation (doc : Doc.t) () : unit =
   test_doc_transformation doc Transformations.rename_definition ()
 
 let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let token = Coq.Limits.Token.create () in
 
   let steps_with_goalcount =
@@ -1594,7 +1666,7 @@ let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
       "The two lists should be the same" expected repr_with_goalcount)
 
 let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let token = Coq.Limits.Token.create () in
 
   let steps_with_goalcount =
@@ -1628,12 +1700,12 @@ let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
       "The two lists should be the same" expected repr_with_goalcount)
 
 let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let token = Coq.Limits.Token.create () in
-  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
 
   let state =
-    Runner.get_init_state doc first_proof.proposition token |> Result.get_ok
+    Runner.get_init_state doc first_proof.proposition token |> expect_result_ok
   in
 
   let steps_with_goalcount =
@@ -1670,12 +1742,12 @@ let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
 
 let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
     unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let token = Coq.Limits.Token.create () in
-  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
 
   let state =
-    Runner.get_init_state doc first_proof.proposition token |> Result.get_ok
+    Runner.get_init_state doc first_proof.proposition token |> expect_result_ok
   in
 
   let steps_with_goalcount =
@@ -1711,12 +1783,12 @@ let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
 
 let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
     : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let token = Coq.Limits.Token.create () in
-  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
 
   let state =
-    Runner.get_init_state doc first_proof.proposition token |> Result.get_ok
+    Runner.get_init_state doc first_proof.proposition token |> expect_result_ok
   in
 
   let steps_with_goalcount =
@@ -1753,9 +1825,9 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
       "The two lists should be the same" expected repr_with_goalcount)
 
 let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
 
   let proof_tree = Runner.treeify_proof doc first_proof in
 
@@ -1791,9 +1863,9 @@ let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
       "Tree should match the expected tree" (Ok expected_tree) proof_tree_sexp)
 
 let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> Result.get_ok in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let first_proof = Rocq_document.get_proofs doc |> Result.get_ok |> List.hd in
+  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
 
   let proof_tree = Runner.treeify_proof doc first_proof in
 
@@ -1981,7 +2053,7 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test parsing ex 2" test_parsing_ex2 doc);
   Hashtbl.add table "ex_parsing2.v"
     (create_fixed_test "test parsing basic proof properties ex 2"
-       test_parsing_ex2 doc);
+       test_proof_parsing_ex2 doc);
   Hashtbl.add table "ex_admit.v"
     (create_fixed_test "test parsing admitted proof" test_parsing_admit doc);
   Hashtbl.add table "ex_definition1.v"
