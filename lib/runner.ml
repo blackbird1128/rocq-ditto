@@ -87,14 +87,8 @@ let run_with_diagnostics ~(token : Coq.Limits.Token.t) ?(loc : Loc.t option)
 
 let run_node (token : Coq.Limits.Token.t) (prev_state : Coq.State.t)
     (node : Syntax_node.t) : (Coq.State.t, Error.t) result =
-  let execution =
-    let st =
-      Fleche.Doc.run ~token ~memo:true ?loc:None ~st:prev_state (repr node)
-    in
-    st
-  in
-
-  Error.protect_to_result execution
+  Fleche.Doc.run ~token ~memo:true ~st:prev_state (repr node)
+  |> Error.protect_to_result
 
 let run_node_with_diagnostics (token : Coq.Limits.Token.t)
     (prev_state : Coq.State.t) (node : Syntax_node.t) :
@@ -103,16 +97,14 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
     result =
   let execution =
     let st =
-      run_with_diagnostics ~token ~memo:true ?loc:None ~st:prev_state
-        (repr node)
+      run_with_diagnostics ~token ~memo:true ~st:prev_state (repr node)
     in
     st
   in
 
   let res = Error.protect_to_result_with_feedback execution in
   match res with
-  | Ok x ->
-      let state_msgs, messages = x in
+  | Ok (state_msgs, messages) ->
       let state = fst state_msgs in
       let all_msgs = snd state_msgs @ messages in
       Ok (state, List.map (message_to_diagnostic node.range) all_msgs)
@@ -224,7 +216,7 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
   let goals_err_opt = goals ~token ~st:state in
   match goals_err_opt with
   | Ok (Some goals) -> (
-      match List.nth_opt goals.goals 0 with
+      match List_utils.head_opt goals.goals with
       | Some goal -> Ok goal
       | None -> Error.string_to_or_error "zero goal at this state")
   | Ok None -> Error.string_to_or_error "zero goal at this state"
@@ -355,13 +347,8 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
     (tree : Syntax_node.t nary_tree) : ('acc, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let rec aux
-      (f :
-        Coq.State.t ->
-        'acc ->
-        Syntax_node.t ->
-        (Coq.State.t * 'acc, Error.t) result) (state : Coq.State.t) (acc : 'acc)
-      (tree : 'a nary_tree) : (Coq.State.t * 'acc, Error.t) result =
+  let rec aux (state : Coq.State.t) (acc : 'acc) (tree : 'a nary_tree) :
+      (Coq.State.t * 'acc, Error.t) result =
     match tree with
     | Node (x, children) ->
         let* state, acc = f state acc x in
@@ -369,7 +356,7 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
         List.fold_left
           (fun res_acc child ->
             let* state, acc = res_acc in
-            aux f state acc child)
+            aux state acc child)
           (Ok (state, acc))
           children
     (* Fold over the children, threading the state and updating acc *)
@@ -379,7 +366,7 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
   let proposition = match tree with Node (node, _) -> node in
   match get_init_state doc proposition token with
   | Ok state ->
-      let* _, acc = aux f state acc tree in
+      let* _, acc = aux state acc tree in
       Ok acc
   | Error err ->
       Error

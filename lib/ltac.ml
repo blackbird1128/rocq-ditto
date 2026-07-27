@@ -14,26 +14,32 @@ let ltac_definition_extend_name : Vernacexpr.extend_name =
     ext_index = 0;
   }
 
+let corelib_init_ltac_dirpath =
+  Names.DirPath.make
+    [
+      Names.Id.of_string "Corelib";
+      Names.Id.of_string "Init";
+      Names.Id.of_string "Ltac";
+    ]
+
+let corelib_init_ltac_modpath = Names.ModPath.MPfile corelib_init_ltac_dirpath
+
 let get_raw_atomic_tactic_expr (t : Tacexpr.raw_tactic_expr) :
     Tacexpr.raw_atomic_tactic_expr option =
   match t.v with TacAtom expr -> Some expr | _ -> None
 
 let get_alias_kername (t : Tacexpr.raw_tactic_expr) : Names.KerName.t option =
-  match t.v with
-  | Ltac_plugin.Tacexpr.TacAlias (kn, _args) -> Some kn
-  | _ -> None
+  match t.v with TacAlias (kn, _args) -> Some kn | _ -> None
 
 let string_of_raw_tactic (tac : Ltac_plugin.Tacexpr.raw_tactic_expr) : string =
   let env = Global.env () in
   let evd = Evd.from_env env in
-  Ltac_plugin.Pptactic.pr_raw_tactic env evd tac |> Pp.string_of_ppcmds
+  Pptactic.pr_raw_tactic env evd tac |> Pp.string_of_ppcmds
 
 let get_tac_generic_genarg
     (x : Ltac_plugin.Tacexpr.r_dispatch Ltac_plugin.Tacexpr.gen_tactic_arg) :
     Genarg.rlevel Genarg.generic_argument option =
-  match x with
-  | Ltac_plugin.Tacexpr.TacGeneric (_, genarg) -> Some genarg
-  | _ -> None
+  match x with Tacexpr.TacGeneric (_, genarg) -> Some genarg | _ -> None
 
 let map_assert_constr_expr
     (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
@@ -44,7 +50,9 @@ let map_assert_constr_expr
   | TacAtom (TacAssert (a, b, c, d, asrt)) ->
       let asrt_mapped = Constrexpr_map.constr_expr_map f asrt in
       if Constrexpr_ops.constr_expr_eq asrt asrt_mapped then tacexpr
-      else TacAtom (TacAssert (a, b, c, d, asrt_mapped)) |> CAst.make
+      else
+        CAst.make ?loc:tacexpr.loc
+          (TacAtom (TacAssert (a, b, c, d, asrt_mapped)))
   | _ -> tacexpr
 
 let map_bindings (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
@@ -88,19 +96,14 @@ let map_exists_constr_expr
   let open Ltac_plugin.Tacexpr in
   match tacexpr.v with
   | TacAlias (kername, args) ->
-      let corelib_id = Names.Id.of_string "Corelib" in
-      let init_id = Names.Id.of_string "Init" in
-      let ltac_id = Names.Id.of_string "Ltac" in
-      let ltac_dirpath = Names.DirPath.make [ ltac_id; init_id; corelib_id ] in
-      let ltac_modpath = Names.ModPath.MPfile ltac_dirpath in
-
       let modpath, label = Names.KerName.repr kername in
       let label_string = Names.Label.to_string label in
 
       if
-        Names.ModPath.equal modpath ltac_modpath
+        Names.ModPath.equal modpath corelib_init_ltac_modpath
         && String.starts_with ~prefix:"exists" label_string
       then
-        TacAlias (kername, List.map (map_bindings_list_arg f) args) |> CAst.make
+        TacAlias (kername, List.map (map_bindings_list_arg f) args)
+        |> CAst.make ?loc:tacexpr.loc
       else tacexpr
   | _ -> tacexpr
