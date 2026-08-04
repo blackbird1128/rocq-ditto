@@ -1,6 +1,7 @@
 _build/
 _opam/
 _ignore/
+_install/
 .direnv/
 vendor/
 **.diags
