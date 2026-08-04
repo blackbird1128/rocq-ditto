@@ -5,9 +5,6 @@ open Constrexpr_utils
 open Transforming_step
 
 let ( let* ) = Result.bind
-let ( let+ ) = Option.bind
-
-module StringSet = Set.Make (String)
 
 let rewrite_qualid_prefix ~(old_prefix : string) ~(new_prefix : string)
     (qualid : Libnames.qualid) : Libnames.qualid option =
@@ -32,6 +29,23 @@ let rewrite_first_import ~(rules : (string * string) list)
       in
       try_rules rules
 
+let require_prefix_rules : (string * string) list =
+  [
+    ("GeoCoq.Main.Tarski_dev", "GeoCoq.Constructive");
+    ("GeoCoq.Main.Annexes", "GeoCoq.Constructive.Annexes");
+    ("GeoCoq.Main.Meta_theory.Models", "GeoCoq.Constructive.Tactic_instances");
+    ( "GeoCoq.Main.Meta_theory.Dimension_axioms",
+      "GeoCoq.Constructive.Dimension_axioms" );
+    ( "GeoCoq.Main.Meta_theory.Parallel_postulates",
+      "GeoCoq.Constructive.Parallel_postulates" );
+    ("GeoCoq.Main.Tactics", "GeoCoq.Constructive.Tactics");
+    ("GeoCoq.Axioms.Definitions", "GeoCoq.Constructive.Prelude.Definitions");
+    ( "GeoCoq.Axioms.continuity_axioms",
+      "GeoCoq.Constructive.Prelude.continuity_axioms" );
+    ( "GeoCoq.Axioms.parallel_postulates",
+      "GeoCoq.Constructive.Prelude.parallel_postulates" );
+  ]
+
 let rebuild_require_node (x : Syntax_node.t)
     (option_libname : Libnames.qualid option)
     (export_with_cats_opt : export_with_cats option)
@@ -44,25 +58,10 @@ let rebuild_require_node (x : Syntax_node.t)
   let new_vernac_control = Syntax_node.mk_vernac_control new_expr in
   Ok (Syntax_node.of_coq_ast (Coq.Ast.of_coq new_vernac_control) x.range.start)
 
+(** replace require: Only replaces the first import as the target repository
+    only has this shape*)
 let replace_require (x : Syntax_node.t) :
     (Transforming_step.t list, Error.t) result =
-  let require_prefix_rules : (string * string) list =
-    [
-      ("GeoCoq.Main.Tarski_dev", "GeoCoq.Constructive");
-      ("GeoCoq.Main.Annexes", "GeoCoq.Constructive.Annexes");
-      ("GeoCoq.Main.Meta_theory.Models", "GeoCoq.Constructive.Tactic_instances");
-      ( "GeoCoq.Main.Meta_theory.Dimension_axioms",
-        "GeoCoq.Constructive.Dimension_axioms" );
-      ( "GeoCoq.Main.Meta_theory.Parallel_postulates",
-        "GeoCoq.Constructive.Parallel_postulates" );
-      ("GeoCoq.Main.Tactics", "GeoCoq.Constructive.Tactics");
-      ("GeoCoq.Axioms.Definitions", "GeoCoq.Constructive.Prelude.Definitions");
-      ( "GeoCoq.Axioms.continuity_axioms",
-        "GeoCoq.Constructive.Prelude.continuity_axioms" );
-      ( "GeoCoq.Axioms.parallel_postulates",
-        "GeoCoq.Constructive.Prelude.parallel_postulates" );
-    ]
-  in
   match Syntax_node.synterp_expr x with
   | Some
       (VernacRequire (option_libname, export_with_cats_opt, libnames_import_list))
@@ -296,34 +295,19 @@ let attach_node_after_pred_in_file (doc : Rocq_document.t)
           "No node found to attach to with provided predicate"
   else Ok []
 
-let attach_upper_dim_import_to_file (doc : Rocq_document.t) (filename : string)
-    : (Transforming_step.t list, Error.t) result =
-  let* lower_dim_import_node =
-    Syntax_node.syntax_node_of_string
-      "Require Export GeoCoq.Constructive.Prelude.Upper_dim." Code_point.dummy
+let attach_require_to_file (doc : Rocq_document.t) ~(require_text : string)
+    (filename : string) : (Transforming_step.t list, Error.t) result =
+  let* require_node =
+    Syntax_node.syntax_node_of_string require_text Code_point.dummy
   in
-
-  attach_node_after_pred_in_file doc lower_dim_import_node filename
-    ~reverse:true Syntax_node.is_require
-
-let attach_euclid_import_to_file (doc : Rocq_document.t) (filename : string) :
-    (Transforming_step.t list, Error.t) result =
-  let* euclid_import_node =
-    Syntax_node.syntax_node_of_string
-      "Require Export GeoCoq.Constructive.Prelude.Euclid." Code_point.dummy
-  in
-
-  attach_node_after_pred_in_file doc euclid_import_node filename ~reverse:true
+  attach_node_after_pred_in_file doc require_node filename ~reverse:true
     Syntax_node.is_require
 
+(* shorthand notation for now *)
 let attach_prelude_to_file (doc : Rocq_document.t) (filename : string) :
     (Transforming_step.t list, Error.t) result =
-  let* prelude_node =
-    Syntax_node.syntax_node_of_string
-      "Require Export GeoCoq.Constructive.Prelude.Prelude." Code_point.dummy
-  in
-  attach_node_after_pred_in_file doc prelude_node filename ~reverse:true
-    Syntax_node.is_require
+  attach_require_to_file doc
+    ~require_text:"Require Export GeoCoq.Constructive.Prelude.Prelude." filename
 
 let attach_congrc_to_file (doc : Rocq_document.t) (filename : string) :
     (Transforming_step.t list, Error.t) result =
@@ -772,7 +756,6 @@ let remove_named_sections (section_names : string list) (doc : Rocq_document.t)
 
 let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
-  let ( let* ) = Result.bind in
   let remove_all_steps_except_qed =
     List.filter_map
       (fun (step : Syntax_node.t) ->
@@ -872,11 +855,16 @@ let constructivise_doc (doc : Rocq_document.t) :
         in
 
         let* attach_upper_dim_import_to_ch10_line_refl_2_steps =
-          attach_upper_dim_import_to_file doc "Ch10_line_reflexivity_2.v"
+          attach_require_to_file doc
+            ~require_text:
+              "Require Export GeoCoq.Constructive.Prelude.Upper_dim."
+            "Ch10_line_reflexivity_2.v"
         in
 
         let* attach_euclid_import_to_ch12_parallel_inter_dec_steps =
-          attach_euclid_import_to_file doc "Ch12_parallel_inter_dec.v"
+          attach_require_to_file doc
+            ~require_text:"Require Export GeoCoq.Constructive.Prelude.Euclid."
+            "Ch12_parallel_inter_dec.v"
         in
 
         let* replace_cong_theory_steps = replace_cong_theory doc in
