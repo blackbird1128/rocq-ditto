@@ -16,6 +16,7 @@ type t = {
   diagnostics : Lang.Diagnostic.t list;
 }
 
+let ( let* ) = Result.bind
 let repr (x : t) : string = Lazy.force x.repr
 
 let generate_ast (code : string) :
@@ -206,7 +207,6 @@ let of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
 
 let of_coq_ast_in_state ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
     (ast : Coq.Ast.t) (start_point : Code_point.t) : (t, Error.t) result =
-  let ( let* ) = Result.bind in
   let coq_ast = Coq.Ast.to_coq ast in
 
   let* repr =
@@ -306,30 +306,26 @@ let is_proof_with (x : t) : bool =
 
 [%%if rocq_version <= (9, 0, 1)]
 
-let get_proof_with_tactic (x : t) : string option =
-  match synpure_expr x with
-  | Some (VernacProof (Some raw_arg, _)) ->
-      let empty_env = Environ.empty_env in
-      let empty_evd = Evd.empty in
-      Some
-        (Pp.string_of_ppcmds
-           (Pputils.pr_raw_generic empty_env empty_evd raw_arg))
-  | _ -> None
+let proof_with_tactic_of_raw_generic_tactic (env : Environ.env)
+    (evd : Evd.evar_map) (raw_gen_tac : Gentactic.raw_generic_tactic) : string =
+  Pp.string_of_ppcmds (Pputils.pr_raw_generic env evd raw_gen_tac)
 
 [%%else]
 
+let proof_with_tactic_of_raw_generic_tactic (env : Environ.env)
+    (evd : Evd.evar_map) (raw_gen_tac : Gentactic.raw_generic_tactic) : string =
+  Pp.string_of_ppcmds
+    (Pputils.pr_raw_generic env evd (Gentactic.to_raw_genarg raw_gen_tac))
+
+[%%endif]
+
 let get_proof_with_tactic (x : t) : string option =
   match synpure_expr x with
   | Some (VernacProof (Some raw_arg, _)) ->
       let empty_env = Environ.empty_env in
       let empty_evd = Evd.empty in
-      Some
-        (Pp.string_of_ppcmds
-           (Pputils.pr_raw_generic empty_env empty_evd
-              (Gentactic.to_raw_genarg raw_arg)))
+      Some (proof_with_tactic_of_raw_generic_tactic empty_env empty_evd raw_arg)
   | _ -> None
-
-[%%endif]
 
 let is_ending_with_ellipsis (x : t) : bool =
   String.ends_with ~suffix:"..." (repr x)
@@ -455,6 +451,11 @@ let get_raw_tactic_expr (x : t) : Ltac_plugin.Tacexpr.raw_tactic_expr option =
     (get_tactic_raw_generic_arguments x)
     raw_arguments_to_raw_tactic_expr
 
+let get_tacdef_bodies (x : t) : Ltac_plugin.Tacexpr.tacdef_body list option =
+  Option.bind
+    (get_tactic_raw_generic_arguments x)
+    raw_arguments_to_tacdef_bodies
+
 let require_raw_tactic_expr (x : t) :
     (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
   match get_tactic_raw_generic_arguments x with
@@ -476,14 +477,8 @@ let get_raw_tactic_expr_view (x : t) :
   get_raw_tactic_expr x
   |> Option.map (fun (expr : Ltac_plugin.Tacexpr.raw_tactic_expr) -> expr.v)
 
-let get_tacdef_bodies (x : t) : Ltac_plugin.Tacexpr.tacdef_body list option =
-  Option.bind
-    (get_tactic_raw_generic_arguments x)
-    raw_arguments_to_tacdef_bodies
-
 let string_to_raw_tactic_expr (str : string) :
     (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
-  let ( let* ) = Result.bind in
   let* node = syntax_node_of_string str Code_point.dummy in
   require_raw_tactic_expr node
 
@@ -512,7 +507,6 @@ let tactic_raw_generic_arguments_to_syntax_node_in_state
     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (ext : extend_name)
     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
     (t option, Error.t) result =
-  let ( let* ) = Result.bind in
   match coq_ast_of_ltac_raw_gen_args ext args with
   | Some coq_ast ->
       let* new_node = of_coq_ast_in_state ~token ~st coq_ast starting_point in
@@ -568,17 +562,17 @@ let raw_tactic_expr_to_syntax_node
       let env = Global.env () in
       let evd = Evd.from_env env in
 
-      let pp_str =
+      let raw_expr_repr =
         Ltac_plugin.Pptactic.pr_raw_tactic env evd raw_expr
         |> Pp.string_of_ppcmds
       in
-      Error.format_to_or_error "Error creating a syntax node from %s" pp_str
+      Error.format_to_or_error "Error creating a syntax node from %s"
+        raw_expr_repr
 
 let raw_tactic_expr_to_syntax_node_in_state ~(token : Coq.Limits.Token.t)
     ~(st : Coq.State.t) (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     ?(selector : Goal_select_view.t option) ?(use_default = false)
     (starting_point : Code_point.t) : (t, Error.t) result =
-  let ( let* ) = Result.bind in
   let args =
     [
       Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector;
@@ -688,7 +682,8 @@ let get_assert_by_raw_tac_expr (x : t) :
   | _ -> None
 
 (* single-pass validation + conversion *)
-let l_to_raw_tactics (l : t list) =
+let syntax_node_list_to_raw_tactics (l : t list) :
+    (Ltac_plugin.Tacexpr.raw_tactic_expr list, Error.t) result =
   let rec aux (acc : Ltac_plugin.Tacexpr.raw_tactic_expr list) (i : int) =
     function
     | [] -> Ok (List.rev acc)
@@ -705,10 +700,9 @@ let l_to_raw_tactics (l : t list) =
 
 let apply_tac_thens (a : t) (l : t list)
     ?(start_point : Code_point.t = a.range.start) () : (t, Error.t) result =
-  let ( let* ) = Result.bind in
   let* raw_a = require_raw_tactic_expr a in
 
-  let* raw_tactics_l = l_to_raw_tactics l in
+  let* raw_tactics_l = syntax_node_list_to_raw_tactics l in
 
   let args = get_tactic_raw_generic_arguments a in
 
@@ -737,8 +731,6 @@ let apply_tac_thens (a : t) (l : t list)
 
 let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
     () : (t, Error.t) result =
-  let ( let* ) = Result.bind in
-
   let* raw_a = require_raw_tactic_expr a in
   let* raw_b = require_raw_tactic_expr b in
 
