@@ -1381,6 +1381,15 @@ let rewrite_proof_nodes (doc : Rocq_document.t) (proof : Proof.t)
         | Error _ -> Ok (new_state, acc))
     [] proof
 
+let introduced_induction_hypothesis ~(old_goals_vars : string list list)
+    ~(new_goals_vars : string list list) : bool =
+  match Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars) with
+  | None -> true (* if we fail, we don't want to rewrite *)
+  | Some new_vars_per_goal ->
+      List.exists
+        (List.exists (fun vars -> String.starts_with ~prefix:"IH" vars))
+        new_vars_per_goal
+
 let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
     (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -1392,56 +1401,13 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
          (true, false, (induction_clause_l, with_bindings))) ->
       let old_goals_vars = Runner.goal_hyps_at_state state_before token in
       let new_goals_vars = Runner.goal_hyps_at_state state_after token in
-      let has_any_new_ih =
-        match
-          Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars)
-        with
-        | None -> false
-        | Some new_vars_per_goal ->
-            List.exists
-              (List.exists (fun vars -> String.starts_with ~prefix:"IH" vars))
-              new_vars_per_goal
-      in
-
-      let clamp_take n xs =
-        let n = max 0 (min n (List.length xs)) in
-        List_utils.take n xs
-      in
-
-      (* heuristic: focus on the "new" goals introduced by the tactic *)
-      let relevant_new_goals_vars =
-        let delta = List.length new_goals_vars - List.length old_goals_vars in
-        clamp_take (delta + 1) new_goals_vars
-      in
-
-      let has_ih_other_than ~destruct_arg_str vars =
-        String.starts_with ~prefix:"IH" vars
-        && not (String.equal vars destruct_arg_str)
-      in
-
-      let clause_introduces_induction_hyps (destruction_arg, (_, _), _) =
-        let destruct_arg_str = destruction_arg_to_string destruction_arg in
-        match
-          Runner.get_new_vars ~keep:[ destruct_arg_str ] (Some old_goals_vars)
-            (Some relevant_new_goals_vars)
-        with
-        | None -> false
-        | Some new_vars_per_goal ->
-            List.exists
-              (fun vars ->
-                List.exists (has_ih_other_than ~destruct_arg_str) vars)
-              new_vars_per_goal
-      in
-
-      let has_induction_vars =
-        List.exists clause_introduces_induction_hyps induction_clause_l
-      in
-      if has_induction_vars || has_any_new_ih then tacexpr
+      if introduced_induction_hypothesis ~old_goals_vars ~new_goals_vars then
+        tacexpr
       else
-        Tacexpr.TacAtom
-          (Tacexpr.TacInductionDestruct
-             (false, false, (induction_clause_l, with_bindings)))
-        |> CAst.make
+        CAst.make
+          (Tacexpr.TacAtom
+             (Tacexpr.TacInductionDestruct
+                (false, false, (induction_clause_l, with_bindings))))
   | _ -> tacexpr
 
 let replace_induction_by_destruct_in_node (token : Coq.Limits.Token.t)
