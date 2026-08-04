@@ -1,6 +1,7 @@
-open Fleche
 open Syntax_node
 open Transforming_step
+
+let ( let* ) = Result.bind
 
 type t = {
   filename : string;
@@ -57,13 +58,13 @@ let get_proofs (doc : t) : (Proof.t list, Error.t) result =
 
 let get_line_col_positions (text : string) (pos : int) : Code_point.t =
   let rec aux line col index =
-    if index = pos then (line, col, index)
-    else if index >= String.length text then (line, col, index)
+    if index = pos then (line, col)
+    else if index >= String.length text then (line, col)
     else if text.[index] = '\n' then aux (line + 1) 0 (index + 1)
     else aux line (col + 1) (index + 1)
   in
 
-  let line, character, _ = aux 0 0 0 in
+  let line, character = aux 0 0 0 in
   (* Start from line 0, column 0, character 0 *)
   { line; character }
 
@@ -98,8 +99,6 @@ let get_comments (content : string) :
     List.init (String.length s) (fun idx -> (idx, String.get s idx))
   in
   let repr = explode content in
-
-  let ( let* ) = Result.bind in
 
   let pairwise lst =
     let rec aux acc = function
@@ -403,7 +402,6 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
 
 let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
-  let ( let* ) = Result.bind in
   let* new_node = validate new_node in
 
   let sorted = doc.elements in
@@ -503,7 +501,6 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
 
 let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
     (t, Error.t) result =
-  let ( let* ) = Result.bind in
   match element_with_id_opt target_id doc with
   | None ->
       Error.format_to_or_error "The target node with id: %s doesn't exist"
@@ -617,7 +614,6 @@ let apply_transformation_step (step : Transforming_step.t) (doc : t) :
 
 let rec apply_transformations_steps (steps : Transforming_step.t list) (doc : t)
     : (t, Error.t) result =
-  let ( let* ) = Result.bind in
   match steps with
   | [] -> Ok doc
   | step :: tail ->

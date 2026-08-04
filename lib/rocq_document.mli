@@ -65,11 +65,13 @@ val replace_node : Uuidm.t -> Syntax_node.t -> t -> (t, Error.t) result
 
 val get_proofs : t -> (Proof.t list, Error.t) result
 (** Extract proofs from a document. [get_proofs doc] takes a document [doc] of
-    type [t] and returns a list of proofs. Each proof is constructed by
-    aggregating elements of the document that share the same proof identifier.
-*)
+    type [t] and returns a list of proofs. Each proof is a contiguous
+    sub-sequence of the document that start at a node making the interpreter
+    goes into proof mode and end by a node making the interpreter exit proof
+    mode*)
 
 val get_ltac_outside_proofs : t -> (Syntax_node.t list, Error.t) result
+(** Extract Ltac1 nodes outside of proof blocks*)
 
 val dump_elements_to_string : Syntax_node.t list -> (string, Error.t) result
 (** Convert a list of [Syntax_node.t] to a string representation as they would

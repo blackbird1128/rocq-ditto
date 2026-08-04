@@ -1524,7 +1524,7 @@ let parse_diagnostic_into_apply_args (lemma_name : string)
   | _ -> None
 
 let build_ltac_node (apply_prefix : string) (lemma_name : string) :
-    Syntax_node.t =
+    (Syntax_node.t, Error.t) result =
   let ltac =
     Printf.sprintf
       "%s;[..| lazymatch goal with\n\
@@ -1536,7 +1536,7 @@ let build_ltac_node (apply_prefix : string) (lemma_name : string) :
        end]."
       apply_prefix lemma_name
   in
-  Syntax_node.syntax_node_of_string ltac Code_point.dummy |> Result.get_ok
+  Syntax_node.syntax_node_of_string ltac Code_point.dummy
 
 let rec fill_implicit_holes (args : args list)
     (implicit : Constrexpr.constr_expr list) =
@@ -1600,6 +1600,7 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
                     m "lemma with args str: %s" lemma_with_args_str);
                 let ltac_node =
                   build_ltac_node apply_before_str lemma_with_args_str
+                  |> Result.get_ok
                 in
                 let ltac_state =
                   Runner.run_node_with_diagnostics token state_before ltac_node
@@ -1635,16 +1636,19 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
                             (fun x ->
                               let x_qualid =
                                 try Ok (Libnames.qualid_of_string x)
-                                with _ -> Error.string_to_or_error "() "
+                                with Invalid_argument _ ->
+                                  Error.format_to_or_error
+                                    "Error converting \"%s\" to a qualified \
+                                     identifier"
+                                    x
                               in
-
                               match x_qualid with
                               | Ok x_qualid ->
                                   Ok
                                     ( Constrexpr.CRef (x_qualid, None)
                                       |> CAst.make,
                                       None )
-                              | Error _ -> Error.string_to_or_error "()")
+                              | Error err -> Error err)
                             filled_args_str
                         in
                         let new_apply_args =
