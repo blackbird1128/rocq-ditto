@@ -164,17 +164,16 @@ let remove_contained_nodes (nodes : Syntax_node.t list) : Syntax_node.t list =
   in
   merge_aux [] nodes
 
-let parse_document (doc : Doc.t) : (t, Error.t) result =
-  let ( let* ) = Result.bind in
+let parse_document (doc : Fleche.Doc.t) : (t, Error.t) result =
   let document_repr = doc.contents.raw in
   let filename = Lang.LUri.File.to_string_uri doc.uri in
 
   let ast_nodes =
     List.filter_map
       (fun elem ->
-        if Option.has_some (Doc.Node.ast elem) then
-          Some (Syntax_node.of_doc_node document_repr elem)
-        else None)
+        match Fleche.Doc.Node.ast elem with
+        | Some _ -> Some (Syntax_node.of_doc_node document_repr elem)
+        | None -> None)
       doc.nodes
   in
 
@@ -317,6 +316,9 @@ let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
   in
   aux node_list []
 
+let move_node_by ~(lines : int) ~(chars : int) (node : Syntax_node.t) =
+  Syntax_node.move_to (Code_point.shift lines chars node.range.start) node
+
 let shift_block_checked (n_line : int) (n_char : int)
     ?(pred : Syntax_node.t -> bool = fun _ -> true) (nodes : Syntax_node.t list)
     : (Syntax_node.t list, Error.t) result =
@@ -339,12 +341,12 @@ let shift_block_checked (n_line : int) (n_char : int)
         Ok
           (List.map
              (fun node ->
-               if pred node then shift_node n_line n_char node else node)
+               if pred node then move_node_by ~lines:n_line ~chars:n_char node
+               else node)
              nodes)
 
 let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
     (doc : t) : (t, Error.t) result =
-  let ( let* ) = Result.bind in
   match split_around_id target_id doc.elements with
   | None ->
       Error.format_to_or_error
@@ -387,13 +389,13 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
                         (List.map
                            (fun x ->
                              if x.range.start.line = removed_start.line then
-                               shift_node 0 dc x
+                               move_node_by ~lines:0 ~chars:dc x
                              else x)
                            after)
                 else
                   let dl = removed_start.line - first_after.range.start.line in
                   if dl = 0 then Ok after
-                  else Ok (List.map (shift_node dl 0) after))
+                  else Ok (List.map (move_node_by ~lines:dl ~chars:0) after))
       in
       let elements = before @ shifted_after in
       let* document_repr = dump_sorted_elements_to_string elements in
@@ -419,6 +421,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
   in
 
   (* Ensure new node doesn't start before previous ends. If it does, it's an overlap. *)
+  (* this shouldn't happen tho ? *)
   let prev_opt = List_utils.last before in
   let overlaps_prev =
     match prev_opt with
@@ -468,7 +471,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
                   if
                     x.range.start.line = line
                     && x.range.start.character >= insert_at
-                  then Syntax_node.shift_node 0 total_shift x
+                  then move_node_by ~lines:0 ~chars:total_shift x
                   else x)
                 after
           in
@@ -538,9 +541,9 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
           List.map
             (fun node ->
               if node.range.start.line = target.range.end_.line then
-                Syntax_node.shift_node delta_lines end_char_delta node
+                move_node_by ~lines:delta_lines ~chars:end_char_delta node
               else if node.range.start.line > target.range.end_.line then
-                Syntax_node.shift_node delta_lines 0 node
+                move_node_by ~lines:delta_lines ~chars:0 node
               else node)
             after
         in
@@ -548,13 +551,6 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         let* document_repr = dump_sorted_elements_to_string elements in
         Ok { doc with elements; document_repr }
       else
-        let old_width =
-          target.range.end_.character - target.range.start.character
-        in
-        let new_width =
-          replacement.range.end_.character - replacement.range.start.character
-        in
-        let delta = new_width - old_width in
         let sorted = doc_removed.elements in
         let before, after =
           List_utils.split_while
@@ -562,6 +558,14 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
               Code_point.compare node.range.start replacement.range.start < 0)
             sorted
         in
+        let old_width =
+          target.range.end_.character - target.range.start.character
+        in
+        let new_width =
+          replacement.range.end_.character - replacement.range.start.character
+        in
+        let delta = new_width - old_width in
+
         let line = replacement.range.start.line in
         let insert_at = replacement.range.start.character in
         let predicate x =
