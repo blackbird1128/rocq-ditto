@@ -67,7 +67,9 @@ let run_process_loud ~(env : string array) ~(args : string array)
 let run_process_silent ~(env : string array) ~(args : string array)
     (prog : string) =
   let devnull = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0o666 in
-  run_process ~env ~args prog devnull devnull devnull
+  Fun.protect
+    ~finally:(fun () -> try Unix.close devnull with Unix.Unix_error _ -> ())
+    (fun () -> run_process ~env ~args prog devnull devnull devnull)
 
 let make_args_transform_files (prog : string) (root : string) (verbose : bool)
     (save_vo : bool) (input_file : string) =
@@ -84,9 +86,12 @@ let make_args_compile_files (root : string) (input_file : string) =
   [| "fcc"; "--root=" ^ root; input_file |]
 
 let kill_all_running (running : (int, 'a) Hashtbl.t) =
-  Hashtbl.iter
-    (fun pid _ -> try Unix.kill pid Sys.sigterm with _ -> ())
-    running
+  let pids = Hashtbl.to_seq_keys running |> List.of_seq in
+
+  (* ask children to terminate *)
+  List.iter (fun pid -> try Unix.kill pid Sys.sigterm with _ -> ()) pids;
+  (* cleanup possible zombies *)
+  List.iter (fun pid -> try ignore (Unix.waitpid [] pid) with _ -> ()) pids
 
 let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
     ~(root : string) ~(verbose : bool) ~(save_vo : bool)
@@ -97,7 +102,6 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
 
   let total_nodes = Hashtbl.length indegree in
   let completed = ref 0 in
-  let failed = ref None in
 
   Hashtbl.iter
     (fun file degree -> if degree = 0 then Queue.add file ready else ())
@@ -133,30 +137,25 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
   in
 
   let rec loop () =
-    match !failed with
-    | Some failure -> Error.string_to_or_error failure
-    | None -> (
-        fill_slots ();
-        if !completed = total_nodes then Ok ()
-        else if Hashtbl.length running = 0 then
-          Error.string_to_or_error
-            "something went wrong: no runnable jobs, but build not complete"
-        else
-          let pid, status = wait_for_one () in
-          match Hashtbl.find_opt running pid with
-          | None ->
-              Error.format_to_or_error "Unknown child process finished: pid: %d"
-                pid
-          | Some job -> (
-              Hashtbl.remove running pid;
-              match status with
-              | Success ->
-                  mark_done job.target;
-                  loop ()
-              | Failure msg ->
-                  failed := Some (Printf.sprintf "%s failed: %s" job.target msg);
-                  kill_all_running running;
-                  Error.format_to_or_error "%s failed: %s" job.target msg))
+    fill_slots ();
+    if !completed = total_nodes then Ok ()
+    else if Hashtbl.length running = 0 then
+      Error.string_to_or_error
+        "something went wrong: no runnable jobs, but build not complete"
+    else
+      let pid, status = wait_for_one () in
+      match Hashtbl.find_opt running pid with
+      | None ->
+          Error.format_to_or_error "Unknown child process finished: pid: %d" pid
+      | Some job -> (
+          Hashtbl.remove running pid;
+          match status with
+          | Success ->
+              mark_done job.target;
+              loop ()
+          | Failure msg ->
+              kill_all_running running;
+              Error.format_to_or_error "%s failed: %s" job.target msg)
   in
 
   loop ()
@@ -227,7 +226,7 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
 
   let pathkind = Filesystem.get_pathkind input in
 
-  let _ = validate_opts opts pathkind in
+  let* _ = validate_opts opts pathkind in
 
   let base_env =
     Array.append (Unix.environment ())
@@ -356,8 +355,12 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
             else Ok ()
           in
 
-          let coqproject_dir_out, coqproject_file_out =
-            Compile.find_coqproject_dir_and_file output |> Option.get
+          let* coqproject_dir_out, coqproject_file_out =
+            Compile.find_coqproject_dir_and_file output
+            |> Option_utils.to_result
+                 ~none:
+                   (Error.string_to_or_error
+                      "Can't find the newly created _CoqProject")
           in
           let coqproject_out_path =
             Filename.concat coqproject_dir_out coqproject_file_out
