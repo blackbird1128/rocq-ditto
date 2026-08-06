@@ -17,3 +17,14 @@ let remove_suffix (str : string) (suffix : string) =
   if str_len >= suffix_len && String.ends_with ~suffix str then
     String.sub str 0 (str_len - suffix_len)
   else str
+
+let contains ~(substring : string) (container : string) =
+  let sublength = String.length substring in
+  let container_length = String.length container in
+  let rec loop idx =
+    if sublength + idx > container_length then false
+    else
+      let curr_sub = String.sub container idx sublength in
+      if String.equal substring curr_sub then true else loop (idx + 1)
+  in
+  loop 0
