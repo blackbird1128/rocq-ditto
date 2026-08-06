@@ -14,13 +14,7 @@ type cli_options = {
   jobs : int option;
 }
 
-type process_status = Success | Failure of string
 type running_job = { target : string }
-
-let string_of_process_status = function
-  | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
-  | Unix.WSIGNALED signal -> Printf.sprintf "Killed by signal %d" signal
-  | Unix.WSTOPPED signal -> Printf.sprintf "Stopped by signal %d" signal
 
 let warn_if_exists (dir_state : Filesystem.newDirState) =
   match dir_state with
@@ -39,38 +33,6 @@ let validate_opts (opts : cli_options) (pathkind : Filesystem.path_kind) =
     Error.string_to_or_error "Cannot use both --verbose and --quiet"
   else Ok ()
 
-let spawn_process ~(env : string array) ~(args : string array) (prog : string) =
-  let pid =
-    Unix.create_process_env prog args env Unix.stdin Unix.stdout Unix.stderr
-  in
-  pid
-
-let wait_for_one () : int * process_status =
-  let pid, status = Unix.wait () in
-  match status with
-  | WEXITED 0 -> (pid, Success)
-  | _ -> (pid, Failure (string_of_process_status status))
-
-let run_process ~(env : string array) ~(args : string array) (prog : string)
-    (stdin : Unix.file_descr) (stdout : Unix.file_descr)
-    (stderr : Unix.file_descr) =
-  let pid = Unix.create_process_env prog args env stdin stdout stderr in
-  let _, status = Unix.waitpid [] pid in
-  match status with
-  | WEXITED 0 -> Ok ()
-  | _ -> Error.string_to_or_error (string_of_process_status status)
-
-let run_process_loud ~(env : string array) ~(args : string array)
-    (prog : string) =
-  run_process ~env ~args prog Unix.stdin Unix.stdout Unix.stderr
-
-let run_process_silent ~(env : string array) ~(args : string array)
-    (prog : string) =
-  let devnull = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0o666 in
-  Fun.protect
-    ~finally:(fun () -> try Unix.close devnull with Unix.Unix_error _ -> ())
-    (fun () -> run_process ~env ~args prog devnull devnull devnull)
-
 let make_args_transform_files (prog : string) (root : string) (verbose : bool)
     (save_vo : bool) (input_file : string) =
   let base =
@@ -84,14 +46,6 @@ let make_args_transform_files (prog : string) (root : string) (verbose : bool)
 
 let make_args_compile_files (root : string) (input_file : string) =
   [| "fcc"; "--root=" ^ root; input_file |]
-
-let kill_all_running (running : (int, 'a) Hashtbl.t) =
-  let pids = Hashtbl.to_seq_keys running |> List.of_seq in
-
-  (* ask children to terminate *)
-  List.iter (fun pid -> try Unix.kill pid Sys.sigterm with _ -> ()) pids;
-  (* cleanup possible zombies *)
-  List.iter (fun pid -> try ignore (Unix.waitpid [] pid) with _ -> ()) pids
 
 let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
     ~(root : string) ~(verbose : bool) ~(save_vo : bool)
@@ -110,7 +64,7 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
   let spawn_for_file (file : string) =
     let curr_args = make_args_transform_files prog root verbose save_vo file in
     let curr_env = Array.append env [| "OUTPUT_FILENAME=" ^ file |] in
-    let pid = spawn_process ~env:curr_env ~args:curr_args prog in
+    let pid = Process_runner.spawn_process ~env:curr_env ~args:curr_args prog in
     let running_job = { target = file } in
     Hashtbl.add running pid running_job
   in
@@ -143,7 +97,7 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
       Error.string_to_or_error
         "something went wrong: no runnable jobs, but build not complete"
     else
-      let pid, status = wait_for_one () in
+      let pid, status = Process_runner.wait_for_one () in
       match Hashtbl.find_opt running pid with
       | None ->
           Error.format_to_or_error "Unknown child process finished: pid: %d" pid
@@ -154,7 +108,7 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
               mark_done job.target;
               loop ()
           | Failure msg ->
-              kill_all_running running;
+              Process_runner.kill_all_running running;
               Error.format_to_or_error "%s failed: %s" job.target msg)
   in
 
@@ -178,7 +132,9 @@ let transform_files (root : string) (dep_files : string list) (prog : string)
                 "TOTAL_FILE_COUNT=" ^ string_of_int total_file_count;
               |]
           in
-          let status = run_process_loud ~env:curr_env ~args:curr_args prog in
+          let status =
+            Process_runner.run_process_loud ~env:curr_env ~args:curr_args prog
+          in
           Printf.printf "\n%!";
           (status, curr_file_count + 1)
       | err -> (err, curr_file_count + 1))
@@ -192,7 +148,9 @@ let compile_files (files : string list) (root : string) =
       | Ok () ->
           Printf.printf "compiling file %s\n%!" curr_file;
           let curr_args = make_args_compile_files root curr_file in
-          let status = run_process_silent ~env:[||] ~args:curr_args prog in
+          let status =
+            Process_runner.run_process_silent ~env:[||] ~args:curr_args prog
+          in
           (status, curr_file_count + 1)
       | err -> (err, curr_file_count + 1))
     (Ok (), 1) files
@@ -305,7 +263,7 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
         let args =
           make_args_transform_files prog input_dir verbose save_vo input
         in
-        run_process_loud ~env ~args prog
+        Process_runner.run_process_loud ~env ~args prog
   | Dir -> (
       match Compile.find_coqproject_dir_and_file input with
       | None ->

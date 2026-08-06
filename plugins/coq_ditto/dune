@@ -28,7 +28,7 @@
  (name coq_ditto_wrapper)
  (package coq-ditto)
  (public_name coq-ditto)
- (modules coq_ditto_wrapper)
+ (modules coq_ditto_wrapper process_runner)
  (preprocess (pps ppx_deriving.show ppx_deriving.enum))
  (libraries unix logs logs.fmt coq-ditto ditto-cli-lib coq-lsp.serlib.ltac coq-lsp.coq coq-lsp.fleche)
 )
