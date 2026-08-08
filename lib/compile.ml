@@ -17,6 +17,22 @@ let find_coqproject_dir (dir : string) : string option =
 let find_coqproject_file (dir : string) : string option =
   Option.map snd (find_coqproject_dir_and_file dir)
 
+let resolve_project_path (path : string) : (string * string, Error.t) result =
+  if not (Sys.file_exists path) then
+    Error.string_to_or_error
+      "Please provide a path to an existing file or directory"
+  else if Filesystem.is_directory path then
+    match find_coqproject_dir_and_file path with
+    | None -> Error.string_to_or_error "No _CoqProject or _RocqProject found"
+    | Some (dir, filename) -> Ok (dir, filename)
+  else
+    match Filename.basename path with
+    | "_CoqProject" | "_RocqProject" ->
+        Ok (Filename.dirname path, Filename.basename path)
+    | _ ->
+        Error.string_to_or_error
+          "Please provide a directory or a project file path "
+
 let read_all ic =
   let rec loop acc =
     match input_line ic with
@@ -156,7 +172,7 @@ let get_file_dependencies (filename : string) (dep_graph : dependency_graph) :
   in
   aux filename |> List_utils.dedup
 
-let build_indegrees (deps : ('a, 'a list) Hashtbl.t) : ('a, int) Hashtbl.t =
+let build_outdegrees (deps : ('a, 'a list) Hashtbl.t) : ('a, int) Hashtbl.t =
   let indeg = Hashtbl.create 128 in
   Hashtbl.iter
     (fun a prereqs ->
@@ -167,7 +183,7 @@ let build_indegrees (deps : ('a, 'a list) Hashtbl.t) : ('a, int) Hashtbl.t =
     deps;
   indeg
 
-let build_dependents (deps : ('a, 'b list) Hashtbl.t) : ('b, 'a list) Hashtbl.t
+let build_dependents (deps : ('a, 'a list) Hashtbl.t) : ('a, 'a list) Hashtbl.t
     =
   let rev = Hashtbl.create 128 in
   Hashtbl.iter
@@ -177,6 +193,9 @@ let build_dependents (deps : ('a, 'b list) Hashtbl.t) : ('b, 'a list) Hashtbl.t
           let lst = Hashtbl.find_opt rev b |> Option.default [] in
           Hashtbl.replace rev b (a :: lst))
         prereqs)
+    deps;
+  Hashtbl.iter
+    (fun a _ -> if Hashtbl.mem rev a then () else Hashtbl.add rev a [])
     deps;
   rev
 

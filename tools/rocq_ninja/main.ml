@@ -116,26 +116,10 @@ let parse_args () : (cli_args, Error.t) result =
 let get_project_ninja () : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let* { normalize; path } = parse_args () in
-  if not (Sys.file_exists path) then
-    Error.string_to_or_error
-      "Please provide a path to an existing file or directory"
-  else if Filesystem.is_directory path then
-    match Compile.find_coqproject_dir_and_file path with
-    | None ->
-        Error.string_to_or_error
-          "No _CoqProject or _RocqProject found in the directory provided"
-    | Some (dir, filename) -> output_ninja_of_coqproject ~normalize dir filename
-  else if
-    Filename.basename path <> "_CoqProject"
-    && Filename.basename path <> "_RocqProject"
-  then
-    Error.string_to_or_error
-      "Please provide a path to a directory or to a _CoqProject or \
-       _RocqProject file"
-  else
-    let path_dir = Filename.dirname path in
-    let path_name = Filename.basename path in
-    output_ninja_of_coqproject ~normalize path_dir path_name
+
+  let* project_dir, project_filename = Compile.resolve_project_path path in
+
+  output_ninja_of_coqproject ~normalize project_dir project_filename
 
 let main =
   match get_project_ninja () with

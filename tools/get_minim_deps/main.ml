@@ -61,35 +61,19 @@ let print_minim_deps (project_dir : string) (project_filename : string)
 
 (** The subset of files need to be relative to the _CoqProject folder *)
 let get_minim_deps () =
+  let ( let* ) = Result.bind in
   if Array.length Sys.argv != 3 then
     Error.string_to_or_error "Usage: get-minim-deps path subset-file-path"
   else
-    let project_path = Sys.argv.(1) in
+    let path = Sys.argv.(1) in
     let subset_path = Sys.argv.(2) in
-    if not (Sys.file_exists project_path) then
-      Error.string_to_or_error
-        "Please provide a path to an existing file or directory for the \
-         _CoqProject or _RocqProject"
-    else if not (Sys.file_exists subset_path) then
+
+    if not (Sys.file_exists subset_path) then
       Error.string_to_or_error
         "Please provide a path to an existing file for the subset"
-    else if Filesystem.is_directory project_path then
-      match Compile.find_coqproject_dir_and_file project_path with
-      | None ->
-          Error.string_to_or_error
-            "No _CoqProject or _RocqProject found in the directory provided"
-      | Some (dir, filename) -> print_minim_deps dir filename subset_path
-    else if
-      Filename.basename project_path <> "_CoqProject"
-      && Filename.basename project_path <> "_RocqProject"
-    then
-      Error.string_to_or_error
-        "Please provide a path to a directory or to a _CoqProject or \
-         _RocqProject file"
     else
-      let path_dir = Filename.dirname project_path in
-      let path_name = Filename.basename project_path in
-      print_minim_deps path_dir path_name subset_path
+      let* project_dir, project_filename = Compile.resolve_project_path path in
+      print_minim_deps project_dir project_filename subset_path
 
 let main =
   match get_minim_deps () with

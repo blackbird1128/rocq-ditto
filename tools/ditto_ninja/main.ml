@@ -162,9 +162,6 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
               |> Ninja.Path.v)
             neighbors
         in
-        (* let normalized = *)
-        (*   Filesystem.normalize_path ~containing_dir:project_dir file *)
-        (* in *)
 
         let normalized_out =
           Filesystem.normalize_path ~containing_dir:output_folder
@@ -186,16 +183,6 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
     |> List.map Ninja.build |> Ninja.concat
   in
 
-  (* let unmapped = *)
-  (*   List.filter_map *)
-  (*     (fun file -> *)
-  (*       if not (List.mem_assoc file output_file_map) then *)
-  (*         Some *)
-  (*           (Ninja.Path.v *)
-  (*              (Filesystem.relocate_path project_dir output_folder file)) *)
-  (*       else None) *)
-  (*     depfiles *)
-  (* in *)
   let all_files =
     List.map
       (fun file ->
@@ -296,28 +283,9 @@ let get_project_ninja () : (unit, Error.t) result =
 
   if output_folder = "" then
     Error.string_to_or_error "Please provide an output folder"
-  else if not (Sys.file_exists path) then
-    Error.string_to_or_error
-      "Please provide a path to an existing file or directory"
-  else if Filesystem.is_directory path then
-    match Compile.find_coqproject_dir_and_file path with
-    | None ->
-        Error.string_to_or_error
-          "No _CoqProject or _RocqProject found in the directory provided"
-    | Some (dir, filename) ->
-        output_ditto_ninja_of_coqproject dir filename output_folder
-          ~transformed_file_list ~output_file_map ~ditto_flags
-  else if
-    Filename.basename path <> "_CoqProject"
-    && Filename.basename path <> "_RocqProject"
-  then
-    Error.string_to_or_error
-      "Please provide a path to a directory or to a _CoqProject or \
-       _RocqProject file"
   else
-    let path_dir = Filename.dirname path in
-    let path_name = Filename.basename path in
-    output_ditto_ninja_of_coqproject path_dir path_name output_folder
+    let* project_dir, project_filename = Compile.resolve_project_path path in
+    output_ditto_ninja_of_coqproject project_dir project_filename output_folder
       ~transformed_file_list ~output_file_map ~ditto_flags
 
 let main =
