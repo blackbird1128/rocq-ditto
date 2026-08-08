@@ -8,6 +8,50 @@ type scoped_function =
       (Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result)
   | DocScope of (Rocq_document.t -> (Transforming_step.t list, Error.t) result)
 
+type 'a scoped_statistic =
+  | ProofScope of (Rocq_document.t -> Proof.t -> ('a, Error.t) result)
+  | DocScope of (Rocq_document.t -> ('a, Error.t) result)
+
+type 'a statistic = {
+  name : string;
+  scope : 'a scoped_statistic;
+  empty : 'a;
+  combine : 'a -> 'a -> 'a;
+  pp : Format.formatter -> 'a -> unit;
+}
+
+let run_statistic (doc : Rocq_document.t) (statistic : 'a statistic) :
+    ('a, Error.t) result =
+  let ( let* ) = Result.bind in
+  match statistic.scope with
+  | ProofScope compute ->
+      let* proofs = Rocq_document.get_proofs doc in
+      List.fold_left
+        (fun (acc : ('a, Error.t) result) (x : Proof.t) ->
+          match acc with
+          | Ok acc -> (
+              let compute_res = compute doc x in
+              match compute_res with
+              | Ok value -> Ok (statistic.combine acc value)
+              | Error err -> Error err)
+          | Error _ -> acc)
+        (Ok statistic.empty) proofs
+  | DocScope compute -> compute doc
+
+let print_induction_count (formatter : Format.formatter) (count : int) =
+  Format.fprintf formatter "induction count: %s" (string_of_int count)
+
+let statistic_kind_to_statistic (kind : statistic_kind) : 'a statistic =
+  match kind with
+  | CountInduction ->
+      {
+        name = "count induction";
+        scope = DocScope Statistics.count_induction;
+        empty = 0;
+        combine = ( + );
+        pp = print_induction_count;
+      }
+
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :
     (Syntax_node.t Nary_tree.nary_tree, Error.t) result =
   Runner.treeify_proof doc x
@@ -149,12 +193,167 @@ let print_info (filename : string) (verbose : bool) : unit =
     Printf.printf "rocq-ditto %s\n" (Memo.GlobalCacheStats.stats ()))
   else ()
 
-let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
-    (unit, Error.t) result =
+let statistic_action (doc : Fleche.Doc.t) =
+  let ( let* ) = Result.bind in
+  let statistic_kind_opt =
+    Sys.getenv_opt "DITTO_STATISTIC" |> Option.map arg_to_statistic_kind
+  in
+
+  match statistic_kind_opt with
+  | None ->
+      Error.string_to_or_error
+        "Please specify the statistic wanted using the environement variable: \
+         DITTO_STATISTIC"
+  | Some (Error err) ->
+      let not_recognized = Error.to_string_hum err in
+
+      Error.format_to_or_error
+        "Statistic not recognized:\n%s\nRecognized statistics: %s "
+        not_recognized
+        (String.concat "\n" statistics_list)
+  | Some (Ok statistic_kind) ->
+      let* parsed_doc = Rocq_document.parse_document doc in
+
+      Printf.printf "applying statistic : %s\n"
+        (statistic_kind_to_string statistic_kind);
+
+      let statistic = statistic_kind_to_statistic statistic_kind in
+      let* value = run_statistic parsed_doc statistic in
+      Format.printf "%a@." statistic.pp value;
+      Ok ()
+
+let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
+    ~(verbose : bool) ~(quiet : bool) =
   let ( let* ) = Result.bind in
 
-  let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
 
+  let transformations_steps =
+    Sys.getenv_opt "DITTO_TRANSFORMATION"
+    |> Option.map (String.split_on_char ',')
+    |> Option.map (List.map arg_to_transformation_kind)
+  in
+
+  let reverse_order =
+    Option.default false
+      (Sys.getenv_opt "REVERSE_ORDER"
+      |> Option.map bool_of_string_opt
+      |> Option.flatten)
+  in
+
+  match transformations_steps with
+  | None ->
+      Error.string_to_or_error
+        "Please specify the wanted transformation using the environment \
+         variable: DITTO_TRANSFORMATION\n"
+  | Some steps when List.exists Result.is_error steps ->
+      let not_recognized =
+        String.concat "\n"
+          (List.map
+             (fun x -> Error.to_string_hum (Result.get_error x))
+             ((List.filter Result.is_error) steps))
+      in
+      Error.format_to_or_error
+        "Transformations not recognized:\n%s\nRecognized transformations: %s"
+        not_recognized
+        (String.concat "\n" transformations_list)
+  | Some steps -> (
+      let transformations_steps = List.map Result.get_ok steps in
+      let* parsed_document = Rocq_document.parse_document doc in
+      let scoped_transformations : (transformation_kind * scoped_function) list
+          =
+        List.map
+          (fun x -> (x, transformation_kind_to_scoped_function x))
+          transformations_steps
+      in
+
+      let res =
+        List.fold_left
+          (fun (doc_acc : (Rocq_document.t, Error.t) result)
+               (transformation_kind, transformation) ->
+            match (doc_acc, (transformation : scoped_function)) with
+            | Ok doc_acc, scoped_trans -> (
+                match scoped_trans with
+                | ProofScope trans ->
+                    Printf.printf "applying transformation : %s\n"
+                      (transformation_kind_to_string transformation_kind);
+
+                    let* proof_list =
+                      if reverse_order then
+                        Result.map List.rev (Rocq_document.get_proofs doc_acc)
+                      else Rocq_document.get_proofs doc_acc
+                    in
+
+                    Ok
+                      (local_apply_proof_transformation doc_acc trans
+                         transformation_kind proof_list verbose quiet)
+                | DocScope trans ->
+                    local_apply_doc_transformation doc_acc trans
+                      transformation_kind verbose quiet)
+            | Error err, _ -> Error err)
+          (Ok parsed_document) scoped_transformations
+      in
+
+      let filename =
+        Option.default
+          (Filename.remove_extension uri_str ^ "_bis.v")
+          (Sys.getenv_opt "OUTPUT_FILENAME")
+      in
+
+      let save_vo =
+        Option.default false
+          (Sys.getenv_opt "SAVE_VO"
+          |> Option.map bool_of_string_opt
+          |> Option.flatten)
+      in
+
+      match (res, save_vo) with
+      | Ok res, false ->
+          print_info filename verbose;
+          let out = open_out filename in
+
+          (* new document repr was computed when applying transformation steps *)
+          let doc_repr = res.document_repr in
+
+          output_string out doc_repr;
+          flush_all ();
+          Ok ()
+      | Ok res, true ->
+          print_info filename verbose;
+
+          let out = open_out filename in
+          let* doc_repr = Rocq_document.dump_to_string res in
+          output_string out doc_repr;
+          Printf.printf "Saving vo: ";
+          let* uri =
+            Lang.LUri.of_string filename
+            |> Lang.LUri.File.of_uri
+            |> Result.map_error Error.of_string
+          in
+
+          let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc.uri in
+          let in_file = Lang.LUri.File.to_string_file uri in
+          let* state =
+            match List_utils.last res.elements with
+            | Some last ->
+                let* st = Runner.get_init_state res last token in
+                Runner.run_node token st last
+            | None -> Ok res.root_state
+          in
+
+          let res =
+            Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
+            |> Error.protect_to_result
+          in
+          Result.iter (fun _ -> Printf.printf "vo saved successfully\n") res;
+          res
+      | Error err, _ ->
+          Printf.eprintf "%s\n%!" (Error.to_string_hum err);
+          exit 1)
+
+let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
+    (unit, Error.t) result =
+  let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
   let verbose = Option.default false (bool_of_string_opt verbose) in
 
   let quiet =
@@ -172,8 +371,8 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
   else Logs.set_level (Some Logs.Info);
 
   Printexc.record_backtrace true;
-  let uri = doc.uri in
-  let uri_str = Lang.LUri.File.to_string_uri uri in
+
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
   let errors = List.filter Lang.Diagnostic.is_error diags in
 
@@ -226,133 +425,14 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
           (String.concat "\n"
              (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
       else
-        let transformations_steps =
-          Sys.getenv_opt "DITTO_TRANSFORMATION"
-          |> Option.map (String.split_on_char ',')
-          |> Option.map (List.map arg_to_transformation_kind)
-        in
+        let action = Sys.getenv_opt "DITTO_ACTION" in
 
-        let reverse_order =
-          Option.default false
-            (Sys.getenv_opt "REVERSE_ORDER"
-            |> Option.map bool_of_string_opt
-            |> Option.flatten)
-        in
-
-        match transformations_steps with
-        | None ->
-            Error.string_to_or_error
-              "Please specify the wanted transformation using the environment \
-               variable: DITTO_TRANSFORMATION\n"
-        | Some steps when List.exists Result.is_error steps ->
-            let not_recognized =
-              String.concat "\n"
-                (List.map
-                   (fun x -> Error.to_string_hum (Result.get_error x))
-                   ((List.filter Result.is_error) steps))
-            in
-            Error.format_to_or_error
-              "Transformations not recognized:\n\
-               %s\n\
-               Recognized transformations: %s"
-              not_recognized
-              (String.concat "\n" transformations_list)
-        | Some steps -> (
-            let transformations_steps = List.map Result.get_ok steps in
-            let* parsed_document = Rocq_document.parse_document doc in
-            let scoped_transformations :
-                (transformation_kind * scoped_function) list =
-              List.map
-                (fun x -> (x, transformation_kind_to_scoped_function x))
-                transformations_steps
-            in
-
-            let res =
-              List.fold_left
-                (fun (doc_acc : (Rocq_document.t, Error.t) result)
-                     (transformation_kind, transformation) ->
-                  match (doc_acc, transformation) with
-                  | Ok doc_acc, scoped_trans -> (
-                      match scoped_trans with
-                      | ProofScope trans ->
-                          Printf.printf "applying transformation : %s\n"
-                            (transformation_kind_to_string transformation_kind);
-
-                          let* proof_list =
-                            if reverse_order then
-                              Result.map List.rev
-                                (Rocq_document.get_proofs doc_acc)
-                            else Rocq_document.get_proofs doc_acc
-                          in
-
-                          Ok
-                            (local_apply_proof_transformation doc_acc trans
-                               transformation_kind proof_list verbose quiet)
-                      | DocScope trans ->
-                          local_apply_doc_transformation doc_acc trans
-                            transformation_kind verbose quiet)
-                  | Error err, _ -> Error err)
-                (Ok parsed_document) scoped_transformations
-            in
-
-            let filename =
-              Option.default
-                (Filename.remove_extension uri_str ^ "_bis.v")
-                (Sys.getenv_opt "OUTPUT_FILENAME")
-            in
-
-            let save_vo =
-              Option.default false
-                (Sys.getenv_opt "SAVE_VO"
-                |> Option.map bool_of_string_opt
-                |> Option.flatten)
-            in
-
-            match (res, save_vo) with
-            | Ok res, false ->
-                print_info filename verbose;
-                let out = open_out filename in
-
-                (* new document repr was computed when applying transformation steps *)
-                let doc_repr = res.document_repr in
-
-                output_string out doc_repr;
-                flush_all ();
-                Ok ()
-            | Ok res, true ->
-                print_info filename verbose;
-
-                let out = open_out filename in
-                let* doc_repr = Rocq_document.dump_to_string res in
-                output_string out doc_repr;
-                Printf.printf "Saving vo: ";
-                let* uri =
-                  Lang.LUri.of_string filename
-                  |> Lang.LUri.File.of_uri
-                  |> Result.map_error Error.of_string
-                in
-
-                let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc.uri in
-                let in_file = Lang.LUri.File.to_string_file uri in
-                let* state =
-                  match List_utils.last res.elements with
-                  | Some last ->
-                      let* st = Runner.get_init_state res last token in
-                      Runner.run_node token st last
-                  | None -> Ok res.root_state
-                in
-
-                let res =
-                  Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
-                  |> Error.protect_to_result
-                in
-                Result.iter
-                  (fun _ -> Printf.printf "vo saved successfully\n")
-                  res;
-                res
-            | Error err, _ ->
-                Printf.eprintf "%s\n%!" (Error.to_string_hum err);
-                exit 1))
+        match action with
+        | Some "transform" -> transformation_action doc ~token ~verbose ~quiet
+        | Some "statistics" -> statistic_action doc
+        | Some other_action ->
+            Error.format_to_or_error "Unknown action %s" other_action
+        | None -> Error.string_to_or_error "Please provide an action")
 
 let ditto_plugin_hook ~io ~token ~(doc : Doc.t) : unit =
   match ditto_plugin ~io ~token ~doc with

@@ -2,7 +2,7 @@ open Ditto_cli_lib.Cli
 open Ditto
 open Cmdliner
 
-type cli_options = {
+type transformation_options = {
   input : string;
   output : string;
   transformation : transformation_kind;
@@ -14,6 +14,7 @@ type cli_options = {
   jobs : int option;
 }
 
+type stats_option = { input : string; statistic : statistic_kind }
 type running_job = { target : string }
 
 let warn_if_exists (dir_state : Filesystem.newDirState) =
@@ -23,7 +24,8 @@ let warn_if_exists (dir_state : Filesystem.newDirState) =
         "Warning: output directory already exists: replacing files\n%!"
   | _ -> ()
 
-let validate_opts (opts : cli_options) (pathkind : Filesystem.path_kind) =
+let validate_transformation_opts (opts : transformation_options)
+    (pathkind : Filesystem.path_kind) =
   if opts.dependencies_action != NoAction && pathkind = Filesystem.Dir then
     Error.string_to_or_error
       "Using a dependency action when targeting a folder doesn't make sense"
@@ -32,6 +34,13 @@ let validate_opts (opts : cli_options) (pathkind : Filesystem.path_kind) =
   else if opts.verbose && opts.quiet then
     Error.string_to_or_error "Cannot use both --verbose and --quiet"
   else Ok ()
+
+let extend_env (env : string array) (values : (string * string) list) :
+    string array =
+  List.fold_left
+    (fun env_acc (key, value) ->
+      Array.append env_acc [| Printf.sprintf "%s=%s" key value |])
+    env values
 
 let make_args_transform_files (prog : string) (root : string) (verbose : bool)
     (save_vo : bool) (input_file : string) =
@@ -63,7 +72,7 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
 
   let spawn_for_file (file : string) =
     let curr_args = make_args_transform_files prog root verbose save_vo file in
-    let curr_env = Array.append env [| "OUTPUT_FILENAME=" ^ file |] in
+    let curr_env = extend_env env [ ("OUTPUT_FILENAME", file) ] in
     let pid = Process_runner.spawn_process ~env:curr_env ~args:curr_args prog in
     let running_job = { target = file } in
     Hashtbl.add running pid running_job
@@ -125,12 +134,12 @@ let transform_files (root : string) (dep_files : string list) (prog : string)
             make_args_transform_files prog root verbose save_vo curr_file
           in
           let curr_env =
-            Array.append base_env
-              [|
-                "OUTPUT_FILENAME=" ^ curr_file;
-                "CURRENT_FILE_COUNT=" ^ string_of_int curr_file_count;
-                "TOTAL_FILE_COUNT=" ^ string_of_int total_file_count;
-              |]
+            extend_env base_env
+              [
+                ("OUTPUT_FILENAME", curr_file);
+                ("CURRENT_FILE_COUNT", string_of_int curr_file_count);
+                ("TOTAL_FILE_COUNT", string_of_int total_file_count);
+              ]
           in
           let status =
             Process_runner.run_process_loud ~env:curr_env ~args:curr_args prog
@@ -155,7 +164,28 @@ let compile_files (files : string list) (root : string) =
       | err -> (err, curr_file_count + 1))
     (Ok (), 1) files
 
-let transform_project (opts : cli_options) : (unit, Error.t) result =
+let run_stats (opts : stats_option) : (unit, Error.t) result =
+  let input = opts.input in
+  let input_dir = Filename.dirname opts.input in
+  let statistic = statistic_kind_to_string opts.statistic in
+
+  let env =
+    extend_env (Unix.environment ())
+      [ ("DITTO_ACTION", "statistics"); ("DITTO_STATISTIC", statistic) ]
+  in
+  let args =
+    [|
+      "fcc";
+      "--root=" ^ input_dir;
+      "--plugin=ditto-plugin";
+      input;
+      "--display=quiet";
+    |]
+  in
+
+  Process_runner.run_process_loud ~env ~args "fcc"
+
+let transform_project (opts : transformation_options) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let input = opts.input
   and output = opts.output
@@ -184,17 +214,18 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
 
   let pathkind = Filesystem.get_pathkind input in
 
-  let* _ = validate_opts opts pathkind in
+  let* _ = validate_transformation_opts opts pathkind in
 
   let base_env =
-    Array.append (Unix.environment ())
-      [|
-        "DITTO_TRANSFORMATION=" ^ transformation;
-        "DEBUG_LEVEL=" ^ string_of_bool verbose;
-        "SAVE_VO=" ^ string_of_bool save_vo;
-        "QUIET=" ^ string_of_bool quiet;
-        "REVERSE_ORDER=" ^ string_of_bool reverse_order;
-      |]
+    extend_env (Unix.environment ())
+      [
+        ("DITTO_ACTION", "transform");
+        ("DITTO_TRANSFORMATION", transformation);
+        ("DEBUG_LEVEL", string_of_bool verbose);
+        ("SAVE_VO", string_of_bool save_vo);
+        ("QUIET", string_of_bool quiet);
+        ("REVERSE_ORDER", string_of_bool reverse_order);
+      ]
   in
 
   let jobs = Option.default 1 jobs_opt in
@@ -258,7 +289,7 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
                   res)
         in
 
-        let env = Array.append base_env [| "OUTPUT_FILENAME=" ^ output |] in
+        let env = extend_env base_env [ ("OUTPUT_FILENAME", output) ] in
 
         let args =
           make_args_transform_files prog input_dir verbose save_vo input
@@ -283,17 +314,6 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
 
           let filenames =
             List.map (fun x -> Filename.basename x.thing) p.files
-          in
-
-          let* dep_files = Compile.coqproject_sorted_files coqproject_path in
-          let dep_files_out =
-            List.map
-              (fun file ->
-                let rel_file_path = String_utils.remove_prefix file input in
-                let out_path = Filename.concat output rel_file_path in
-
-                out_path)
-              dep_files
           in
 
           let makefile_path = Filename.concat coqproject_dir "Makefile" in
@@ -327,16 +347,10 @@ let transform_project (opts : cli_options) : (unit, Error.t) result =
           let* depgraph : (string, string list) Hashtbl.t =
             Compile.coqproject_to_dep_graph coqproject_out_path
           in
-          let _pad_depgraph =
-            List.iter
-              (fun x ->
-                if not (Hashtbl.mem depgraph x) then Hashtbl.add depgraph x [])
-              dep_files_out
-          in
 
           let dependents = Compile.build_dependents depgraph in
 
-          let indeg_graph = Compile.build_indegrees depgraph in
+          let indeg_graph = Compile.build_outdegrees depgraph in
 
           run_parallel ~jobs ~env:base_env ~prog ~root:output ~save_vo ~verbose
             ~dependents ~indegree:indeg_graph)
@@ -372,6 +386,15 @@ let transformation_kind_conv =
         | [] -> Error message)
   in
   Cmdliner.Arg.Conv.of_conv ~parser:parse enum
+
+let statistic_kind_conv =
+  let parse value =
+    match arg_to_statistic_kind value with
+    | Ok s -> Ok s
+    | Error e -> Error (`Msg (Error.to_string_hum e))
+  in
+  let print fmt k = Format.fprintf fmt "%s" (statistic_kind_to_string k) in
+  Cmdliner.Arg.conv (parse, print)
 
 let dependencies_action_conv =
   let parse s =
@@ -444,7 +467,7 @@ let jobs_t =
   Arg.(
     value & opt (some positive_int) None & info [ "j"; "jobs" ] ~docv:"N" ~doc)
 
-let cli_options_t =
+let transformation_options_t =
   let combine input output transformation verbose quiet save_vo reverse_order
       dependencies_action jobs =
     {
@@ -463,8 +486,25 @@ let cli_options_t =
     const combine $ input_t $ output_t $ transformation_t $ verbose_t $ quiet_t
     $ save_vo_t $ reverse_order_t $ dependencies_action_t $ jobs_t)
 
-let main (opts : cli_options) =
+let statistic_t =
+  Arg.(
+    required
+    & opt (some statistic_kind_conv) None
+    & info [ "s"; "statistic" ] ~docv:"KIND" ~doc:"statistic to compute")
+
+let stats_options_t =
+  let make input statistic = { input; statistic } in
+  Term.(const make $ input_t $ statistic_t)
+
+let main (opts : transformation_options) =
   match transform_project opts with
+  | Ok _ -> exit 0
+  | Error err ->
+      prerr_endline (Error.to_string_hum err);
+      exit 1
+
+let main_stats (opts : stats_option) =
+  match run_stats opts with
   | Ok _ -> exit 0
   | Error err ->
       prerr_endline (Error.to_string_hum err);
@@ -487,12 +527,16 @@ let list_cmd =
   let doc = "List the available transformations." in
   Cmd.v (Cmd.info "list" ~doc) Term.(const list_transformations $ const ())
 
-let default_term = Term.(const main $ cli_options_t)
+let stats_cmd =
+  let doc = "Compute statistics about a Rocq document." in
+  Cmd.v (Cmd.info "stats" ~doc) Term.(const main_stats $ stats_options_t)
+
+let default_term = Term.(const main $ transformation_options_t)
 
 let cmd =
-  let doc = "Apply transformations to Rocq projects or files" in
+  let doc = "Transform and analyses Rocq projects or files" in
   let info = Cmd.info "rocq-ditto" ~man:transformation_man ~doc in
-  Cmd.group ~default:default_term info [ list_cmd ]
+  Cmd.group ~default:default_term info [ list_cmd; stats_cmd ]
 
 let () =
   let exit_code = Cmd.eval cmd in

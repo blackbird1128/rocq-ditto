@@ -18,6 +18,9 @@ type transformation_kind =
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
 
+type statistic_kind = CountInduction
+[@@deriving show { with_path = false }, enum]
+
 type dependencies_action =
   | NoAction
   | CompileDependencies
@@ -38,6 +41,9 @@ let camel_to_snake (s : string) : string =
 let transformation_kind_to_string (kind : transformation_kind) : string =
   show_transformation_kind kind |> camel_to_snake
 
+let statistic_kind_to_string (kind : statistic_kind) : string =
+  show_statistic_kind kind |> camel_to_snake
+
 let dependencies_action_to_string (action : dependencies_action) : string =
   show_dependencies_action action |> camel_to_snake
 
@@ -45,6 +51,12 @@ let all_transformation_kinds =
   List.init
     (max_transformation_kind - min_transformation_kind + 1)
     (fun i -> transformation_kind_of_enum (i + min_transformation_kind))
+  |> List.map Option.get
+
+let all_statistic_kinds =
+  List.init
+    (max_statistic_kind - min_statistic_kind + 1)
+    (fun i -> statistic_kind_of_enum (i + min_statistic_kind))
   |> List.map Option.get
 
 let all_dependencies_action =
@@ -56,6 +68,10 @@ let all_dependencies_action =
 let transformations_list =
   all_transformation_kinds
   |> List.map (fun c -> show_transformation_kind c |> camel_to_snake)
+
+let statistics_list =
+  all_statistic_kinds
+  |> List.map (fun c -> show_statistic_kind c |> camel_to_snake)
 
 let transformation_help_fun (kind : transformation_kind) :
     transformation_kind * string =
@@ -102,22 +118,22 @@ let transformation_help_fun (kind : transformation_kind) :
 let transformations_help =
   List.map transformation_help_fun all_transformation_kinds
 
-let help_to_string (transformation_help : (transformation_kind * string) list) :
-    string =
+let transformation_help_to_string
+    (transformation_help : (transformation_kind * string) list) : string =
   List.fold_left
     (fun acc (kind, help) ->
       acc ^ transformation_kind_to_string kind ^ ": " ^ help ^ "\n")
     "" transformation_help
 
-let suggest_transformation (from : string) : string option =
+let suggest_spelling (from : string) (choices : string list) : string option =
   let spellchecked =
-    String.spellcheck (fun yield -> List.iter yield transformations_list) from
+    String.spellcheck (fun yield -> List.iter yield choices) from
   in
   match spellchecked with
   | [] -> None
   | possible_spell :: _ -> Some possible_spell
 
-let arg_to_transformation_kind arg =
+let arg_to_transformation_kind (arg : string) =
   let normalized = String.lowercase_ascii arg in
   match
     List.find_opt
@@ -126,7 +142,7 @@ let arg_to_transformation_kind arg =
   with
   | Some k -> Ok k
   | None -> (
-      match suggest_transformation normalized with
+      match suggest_spelling normalized transformations_list with
       | None ->
           Error.string_to_or_error
             (Printf.sprintf "unknown transformation %S; expected one of: %s" arg
@@ -140,7 +156,31 @@ let arg_to_transformation_kind arg =
                (String.concat ", " transformations_list)
                possible_spell))
 
-let arg_to_dependencies_action arg =
+let arg_to_statistic_kind (arg : string) =
+  let normalized = String.lowercase_ascii arg in
+  match
+    List.find_opt
+      (fun k -> statistic_kind_to_string k = normalized)
+      all_statistic_kinds
+  with
+  | Some k -> Ok k
+  | None -> (
+      match suggest_spelling normalized statistics_list with
+      | None ->
+          Error.string_to_or_error
+            (Printf.sprintf
+               "unknown statistic operation: %S; expected one of: %s" arg
+               (String.concat ", " statistics_list))
+      | Some possible_spell ->
+          Error.string_to_or_error
+            (Printf.sprintf
+               "unknown statistic operation %S; expected onf of : %s\n\n\
+                Did you mean %s?"
+               arg
+               (String.concat ", " statistics_list)
+               possible_spell))
+
+let arg_to_dependencies_action (arg : string) =
   let normalized = String.lowercase_ascii arg in
   match
     List.find_opt
@@ -157,7 +197,7 @@ let arg_to_dependencies_action arg =
 let pp_level_lowercase (fmt : Format.formatter) (level : Logs.level) : unit =
   Format.pp_print_string fmt (Logs.level_to_string (Some level))
 
-let pp_header_no_app fmt (level, _msg_header_opt) =
+let pp_header_no_app (fmt : Format.formatter) (level, _msg_header_opt) =
   match level with
   | Logs.App -> ()
   | _ -> Format.fprintf fmt "[%a] " pp_level_lowercase level
