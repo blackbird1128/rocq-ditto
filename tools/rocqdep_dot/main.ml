@@ -5,15 +5,9 @@ let output_dot_of_coqproject (project_dir : string) (project_filename : string)
   let ( let* ) = Result.bind in
 
   let project_path = Filename.concat project_dir project_filename in
-  let* dep_files = Compile.coqproject_sorted_files project_path in
 
   let* depgraph : (string, string list) Hashtbl.t =
     Compile.coqproject_to_dep_graph project_path
-  in
-  let _pad_depgraph =
-    List.iter
-      (fun x -> if not (Hashtbl.mem depgraph x) then Hashtbl.add depgraph x [])
-      dep_files
   in
   let dep_seq = Hashtbl.to_seq depgraph in
   let stripped_seq =
@@ -30,7 +24,7 @@ let output_dot_of_coqproject (project_dir : string) (project_filename : string)
 
   let dot_repr = Compile.depgraph_to_dot_format depgraph_stripped in
 
-  Printf.printf "%s" dot_repr;
+  Printf.printf "%s!" dot_repr;
   Ok ()
 
 let get_project_dot () =

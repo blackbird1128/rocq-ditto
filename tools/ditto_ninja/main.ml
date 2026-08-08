@@ -134,10 +134,6 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
       depfiles
   in
 
-  let detached = List.filter (fun x -> not (Hashtbl.mem depgraph x)) depfiles in
-
-  let _pad_depgraph = List.iter (fun x -> Hashtbl.add depgraph x []) detached in
-
   let ditto_var = Ninja.variable "ditto" "rocq-ditto" in
 
   let ditto_flags_var = Ninja.variable "dittoflags" ditto_flags in

@@ -33,9 +33,6 @@ let coqproject_to_ninja_file ~(normalize : bool) (coqproject_path : string) :
   let args =
     Compile.coqproject_to_project_args coqproject_path |> String.concat " "
   in
-  let detached = List.filter (fun x -> not (Hashtbl.mem depgraph x)) depfiles in
-
-  let _pad_depgraph = List.iter (fun x -> Hashtbl.add depgraph x []) detached in
 
   let flags_var = Ninja.variable flagname args in
 

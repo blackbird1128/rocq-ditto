@@ -118,8 +118,7 @@ let coqproject_to_dep_graph (coqproject_file : string) :
             |> List.filter (fun elem_tl -> not (String.equal elem_tl x))
             (* avoid making a recursive parent table *)
           in
-          if List.length matching_tail > 0 then
-            Hashtbl.add parents_table x matching_tail)
+          Hashtbl.add parents_table x matching_tail)
         filenames;
 
       Ok parents_table
@@ -148,13 +147,18 @@ let depgraph_to_dot_format (graph : dependency_graph) : string =
   Hashtbl.iter
     (fun file neighbors ->
       let file_without_leading_slash = String_utils.remove_prefix file "/" in
-      List.iter
-        (fun x ->
-          let x_without_leading_slash = String_utils.remove_prefix x "/" in
+      match neighbors with
+      | [] ->
           Buffer.add_string buf
-            (Printf.sprintf "\"%s\" -> \"%s\"\n" file_without_leading_slash
-               x_without_leading_slash))
-        neighbors)
+            (Printf.sprintf "\"%s\";\n" file_without_leading_slash)
+      | neighbors ->
+          List.iter
+            (fun x ->
+              let x_without_leading_slash = String_utils.remove_prefix x "/" in
+              Buffer.add_string buf
+                (Printf.sprintf "\"%s\" -> \"%s\";\n" file_without_leading_slash
+                   x_without_leading_slash))
+            neighbors)
     graph;
   Buffer.add_string buf "}";
   Buffer.contents buf
