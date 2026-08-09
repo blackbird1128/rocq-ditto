@@ -20,28 +20,6 @@ let get_id_ninja_rule () =
   let rule = Ninja.make_rule ~name:"id" ~command:"cp $in $out" () in
   Ninja.rule rule
 
-let split_words (line : string) : string list =
-  let rec skip_spaces i =
-    if i < String.length line then
-      match line.[i] with ' ' | '\t' -> skip_spaces (i + 1) | _ -> i
-    else i
-  in
-  let rec take_word i j =
-    if j < String.length line then
-      match line.[j] with
-      | ' ' | '\t' -> (String.sub line i (j - i), j)
-      | _ -> take_word i (j + 1)
-    else (String.sub line i (j - i), j)
-  in
-  let rec loop i acc =
-    let i = skip_spaces i in
-    if i >= String.length line then List.rev acc
-    else
-      let word, j = take_word i i in
-      loop j (word :: acc)
-  in
-  loop 0 []
-
 let read_output_file_map (map_path : string) :
     ((string * string) list, Error.t) result =
   let ( let* ) = Result.bind in
@@ -49,7 +27,7 @@ let read_output_file_map (map_path : string) :
   let rec loop acc = function
     | [] -> Ok (List.rev acc)
     | line :: rest -> (
-        match split_words line with
+        match String_utils.split_words line with
         | [ input_path; output_path ] ->
             if List.mem_assoc input_path acc then
               Error.format_to_or_error "Duplicate input in output file map: %S"

@@ -1508,7 +1508,7 @@ let parse_diagnostic_into_apply_args (lemma_name : string)
             let args_str =
               String.sub args 0 (String.length args - 1) |> String.trim
             in
-            let args_split = String.split_on_char ' ' args_str in
+            let args_split = String_utils.split_words args_str in
             let args =
               List.map
                 (fun x ->
@@ -1559,6 +1559,7 @@ let fill_args (args : args list)
   | ImplicitBindings implicit_binds -> fill_implicit_holes args implicit_binds
   | ExplicitBindings _ -> args
 
+(** map apply to explicit apply *)
 let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
     (_state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =

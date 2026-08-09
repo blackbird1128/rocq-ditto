@@ -28,3 +28,25 @@ let contains ~(substring : string) (container : string) =
       if String.equal substring curr_sub then true else loop (idx + 1)
   in
   loop 0
+
+let split_words (line : string) : string list =
+  let rec skip_spaces i =
+    if i < String.length line then
+      match line.[i] with ' ' | '\t' -> skip_spaces (i + 1) | _ -> i
+    else i
+  in
+  let rec take_word i j =
+    if j < String.length line then
+      match line.[j] with
+      | ' ' | '\t' -> (String.sub line i (j - i), j)
+      | _ -> take_word i (j + 1)
+    else (String.sub line i (j - i), j)
+  in
+  let rec loop i acc =
+    let i = skip_spaces i in
+    if i >= String.length line then List.rev acc
+    else
+      let word, j = take_word i i in
+      loop j (word :: acc)
+  in
+  loop 0 []

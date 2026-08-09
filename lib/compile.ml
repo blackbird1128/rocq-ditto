@@ -50,11 +50,12 @@ let coqproject_sorted_files (coqproject_file : string) :
 
   let lines = read_all ic in
   match Unix.close_process_in ic with
-  | Unix.WEXITED 0 ->
-      Ok
-        (List.filter
-           (fun x -> String.length x > 0)
-           (String.split_on_char ' ' (List.hd lines)))
+  | Unix.WEXITED 0 -> (
+      match List_utils.head_opt lines with
+      | Some first_line -> Ok (String_utils.split_words first_line)
+      | None ->
+          Error.format_to_or_error "Executing %s returned an empty output"
+            Rocq_version.dep_executable)
   | Unix.WEXITED n ->
       Error.format_to_or_error "%s exited with %d; output:\n%s"
         Rocq_version.dep_executable n (String.concat "\n" lines)
@@ -79,9 +80,7 @@ let coqproject_to_dep_graph (coqproject_file : string) :
         List.map
           (fun x ->
             let hd = List.hd x in
-            let filename_vo =
-              String.split_on_char ' ' hd |> List.hd |> String.trim
-            in
+            let filename_vo = String_utils.split_words hd |> List.hd in
             let filename =
               String.sub filename_vo 0 (String.length filename_vo - 1)
             in
@@ -92,7 +91,7 @@ let coqproject_to_dep_graph (coqproject_file : string) :
         List.map
           (fun x ->
             let tl = List.nth x 1 in
-            (String.split_on_char ' ') tl)
+            String_utils.split_words tl)
           split
       in
 
@@ -101,10 +100,9 @@ let coqproject_to_dep_graph (coqproject_file : string) :
           (fun l ->
             List.filter_map
               (fun x ->
-                let trimmed = String.trim x in
-                if String.ends_with ~suffix:".vo" trimmed then
-                  Some (String.sub trimmed 0 (String.length trimmed - 1))
-                else if String.ends_with ~suffix:".v" trimmed then Some trimmed
+                if String.ends_with ~suffix:".vo" x then
+                  Some (String.sub x 0 (String.length x - 1))
+                else if String.ends_with ~suffix:".v" x then Some x
                 else None)
               l)
           tails
