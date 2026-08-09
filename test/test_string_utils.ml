@@ -122,6 +122,30 @@ let test_zero_size_substring_contained_anywhere () =
   check bool "An empty substring should be found in any string" true
     (contains ~substring:"" "hello")
 
+let test_split_words_simple () =
+  check (list string) "Each word should be split correctly at the space"
+    [ "hello"; "world" ]
+    (split_words "hello world")
+
+let test_split_words_empty () =
+  check (list string) "An empty string should return no words" []
+    (split_words "")
+
+let test_split_words_multiple_spaces () =
+  check (list string) "Each word should be split correctly, normalizing spaces"
+    [ "hello"; "world" ]
+    (split_words "hello   world")
+
+let test_split_words_tab () =
+  check (list string) "Each word should be split correctly at the tab"
+    [ "hello"; "world" ]
+    (split_words "hello\tworld")
+
+let test_split_words_trimming () =
+  check (list string) "Each word should be trimmed correctly at both ends"
+    [ "hello"; "world" ]
+    (split_words "  hello  world  ")
+
 let () =
   run "String utils"
     [
@@ -139,27 +163,23 @@ let () =
             test_splitting_prefix_longer_than_container;
           test_case "test removing a simple prefix" `Quick
             test_remove_prefix_simple;
-          test_case
-            "test removing a prefix when it is the entire string" `Quick
+          test_case "test removing a prefix when it is the entire string" `Quick
             test_remove_prefix_prefix_is_whole_string;
           test_case "test removing a non-existing prefix" `Quick
             test_remove_prefix_not_existing_prefix;
           test_case "test removing an empty prefix" `Quick
             test_remove_prefix_empty_prefix;
-          test_case
-            "test removing a prefix longer than the string" `Quick
+          test_case "test removing a prefix longer than the string" `Quick
             test_remove_prefix_longer_than_container;
           test_case "test removing a simple suffix" `Quick
             test_remove_suffix_simple;
-          test_case
-            "test removing a suffix when it is the entire string" `Quick
+          test_case "test removing a suffix when it is the entire string" `Quick
             test_remove_suffix_suffix_is_whole_string;
           test_case "test removing a non-existing suffix" `Quick
             test_remove_suffix_not_existing_suffix;
           test_case "test removing an empty suffix" `Quick
             test_remove_suffix_empty_suffix;
-          test_case
-            "test removing a suffix longer than the string" `Quick
+          test_case "test removing a suffix longer than the string" `Quick
             test_remove_suffix_longer_than_container;
           test_case "test a simple string containing a simple substring" `Quick
             test_simple_contains;
@@ -172,5 +192,15 @@ let () =
             `Quick test_zero_size_container_substring;
           test_case "test that an empty substring is contained in any string"
             `Quick test_zero_size_substring_contained_anywhere;
+          test_case "test splitting a simple string of two words" `Quick
+            test_split_words_simple;
+          test_case "test splitting words in an empty string" `Quick
+            test_split_words_empty;
+          test_case "test splitting words separated by multiple spaces" `Quick
+            test_split_words_multiple_spaces;
+          test_case "test splitting words separated by a tab" `Quick
+            test_split_words_tab;
+          test_case "test splitting words correctly trim" `Quick
+            test_split_words_trimming;
         ] );
     ]
