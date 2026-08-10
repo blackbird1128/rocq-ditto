@@ -1,7 +1,7 @@
-open Ditto_cli_lib.Cli
 open Fleche
 open Ditto
 open Ditto.Proof
+open Ditto_cli_lib.Cli
 
 type scoped_function =
   | ProofScope of
@@ -18,6 +18,7 @@ type 'a statistic = {
   empty : 'a;
   combine : 'a -> 'a -> 'a;
   pp : Format.formatter -> 'a -> unit;
+  to_json : 'a -> Yojson.Safe.t;
 }
 
 let run_statistic (doc : Rocq_document.t) (statistic : 'a statistic) :
@@ -41,6 +42,9 @@ let run_statistic (doc : Rocq_document.t) (statistic : 'a statistic) :
 let print_induction_count (formatter : Format.formatter) (count : int) =
   Format.fprintf formatter "induction count: %s" (string_of_int count)
 
+let induction_count_to_json (count : int) : Yojson.Safe.t =
+  `Assoc [ ("count", `Int count) ]
+
 let statistic_kind_to_statistic (kind : statistic_kind) : 'a statistic =
   match kind with
   | CountInduction ->
@@ -50,6 +54,7 @@ let statistic_kind_to_statistic (kind : statistic_kind) : 'a statistic =
         empty = 0;
         combine = ( + );
         pp = print_induction_count;
+        to_json = induction_count_to_json;
       }
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :
@@ -199,6 +204,11 @@ let statistic_action (doc : Fleche.Doc.t) =
     Sys.getenv_opt "DITTO_STATISTIC" |> Option.map arg_to_statistic_kind
   in
 
+  let* output_format =
+    Sys.getenv_opt "DITTO_STAT_FORMAT"
+    |> Option.default "text" |> arg_to_output_format
+  in
+
   match statistic_kind_opt with
   | None ->
       Error.string_to_or_error
@@ -214,19 +224,91 @@ let statistic_action (doc : Fleche.Doc.t) =
   | Some (Ok statistic_kind) ->
       let* parsed_doc = Rocq_document.parse_document doc in
 
-      Printf.printf "applying statistic : %s\n"
-        (statistic_kind_to_string statistic_kind);
+      if output_format = Text then
+        Printf.printf "applying statistic : %s\n"
+          (statistic_kind_to_string statistic_kind);
 
       let statistic = statistic_kind_to_statistic statistic_kind in
       let* value = run_statistic parsed_doc statistic in
-      Format.printf "%a@." statistic.pp value;
+      (match output_format with
+      | Text -> Format.printf "%a@." statistic.pp value
+      | Json ->
+          Format.printf "%a@."
+            (Yojson.Safe.pretty_print ~std:false)
+            (statistic.to_json value));
       Ok ()
 
-let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
-    ~(verbose : bool) ~(quiet : bool) =
+let save_vo_to_file (filename : string) (doc : Rocq_document.t)
+    (doc_uri : Lang.LUri.File.t) (token : Coq.Limits.Token.t) :
+    (unit, Error.t) result =
+  let ( let* ) = Result.bind in
+  Printf.printf "Saving vo: ";
+  let* uri =
+    Lang.LUri.of_string filename
+    |> Lang.LUri.File.of_uri
+    |> Result.map_error Error.of_string
+  in
+
+  let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc_uri in
+  let in_file = Lang.LUri.File.to_string_file uri in
+  let* state =
+    match List_utils.last doc.elements with
+    | Some last ->
+        let* st = Runner.get_init_state doc last token in
+        Runner.run_node token st last
+    | None -> Ok doc.root_state
+  in
+
+  let res =
+    Coq.Save.save_vo ~token ~st:state ~ldir ~in_file |> Error.protect_to_result
+  in
+  Result.iter (fun _ -> Printf.printf "vo saved successfully\n") res;
+  res
+
+let write_file (filename : string) (contents : string) =
+  let out = open_out filename in
+  Fun.protect
+    ~finally:(fun () -> close_out_noerr out)
+    (fun () ->
+      output_string out contents;
+      flush out)
+
+let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t) =
   let ( let* ) = Result.bind in
 
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+
+  let total_files =
+    Sys.getenv_opt "TOTAL_FILE_COUNT"
+    |> Option.map int_of_string_opt
+    |> Option.flatten
+  in
+
+  let current_file_count =
+    Sys.getenv_opt "CURRENT_FILE_COUNT"
+    |> Option.map int_of_string_opt
+    |> Option.flatten
+  in
+
+  let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
+  let verbose = Option.default false (bool_of_string_opt verbose) in
+
+  if verbose then Logs.set_level (Some Logs.Debug)
+  else Logs.set_level (Some Logs.Info);
+
+  let quiet =
+    Option.default "false" (Sys.getenv_opt "QUIET")
+    |> bool_of_string_opt |> Option.default false
+  in
+
+  let _ =
+    match (current_file_count, total_files) with
+    | Some curr_count, Some total_files ->
+        Printf.printf
+          "Running rocq-ditto on %s (file %d/%d in the project) \n%!" uri_str
+          curr_count total_files
+    | _, _ -> Printf.printf "running rocq-ditto on %s\n%!" uri_str
+  in
 
   let transformations_steps =
     Sys.getenv_opt "DITTO_TRANSFORMATION"
@@ -310,94 +392,32 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
       match (res, save_vo) with
       | Ok res, false ->
           print_info filename verbose;
-          let out = open_out filename in
-
           (* new document repr was computed when applying transformation steps *)
           let doc_repr = res.document_repr in
-
-          output_string out doc_repr;
-          flush_all ();
+          write_file filename doc_repr;
           Ok ()
       | Ok res, true ->
           print_info filename verbose;
-
-          let out = open_out filename in
           let* doc_repr = Rocq_document.dump_to_string res in
-          output_string out doc_repr;
-          Printf.printf "Saving vo: ";
-          let* uri =
-            Lang.LUri.of_string filename
-            |> Lang.LUri.File.of_uri
-            |> Result.map_error Error.of_string
-          in
-
-          let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc.uri in
-          let in_file = Lang.LUri.File.to_string_file uri in
-          let* state =
-            match List_utils.last res.elements with
-            | Some last ->
-                let* st = Runner.get_init_state res last token in
-                Runner.run_node token st last
-            | None -> Ok res.root_state
-          in
-
-          let res =
-            Coq.Save.save_vo ~token ~st:state ~ldir ~in_file
-            |> Error.protect_to_result
-          in
-          Result.iter (fun _ -> Printf.printf "vo saved successfully\n") res;
-          res
-      | Error err, _ ->
-          Printf.eprintf "%s\n%!" (Error.to_string_hum err);
-          exit 1)
+          write_file filename doc_repr;
+          save_vo_to_file filename res doc.uri token
+      | Error err, _ -> Error err)
 
 let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
     (unit, Error.t) result =
-  let verbose = Option.default "false" (Sys.getenv_opt "DEBUG_LEVEL") in
-  let verbose = Option.default false (bool_of_string_opt verbose) in
-
-  let quiet =
-    Option.default "false" (Sys.getenv_opt "QUIET")
-    |> bool_of_string_opt |> Option.default false
-  in
-
   let out = Format.std_formatter in
   let reporter =
     Logs_fmt.reporter ~pp_header:pp_header_no_app ~app:out ~dst:out ()
   in
   Logs.set_reporter reporter;
 
-  if verbose then Logs.set_level (Some Logs.Debug)
-  else Logs.set_level (Some Logs.Info);
-
   Printexc.record_backtrace true;
 
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let diags = List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes in
   let errors = List.filter Lang.Diagnostic.is_error diags in
 
   let max_errors = 5 in
   let limited_errors = List.filteri (fun i _ -> i < max_errors) errors in
-
-  let total_files =
-    Sys.getenv_opt "TOTAL_FILE_COUNT"
-    |> Option.map int_of_string_opt
-    |> Option.flatten
-  in
-
-  let current_file_count =
-    Sys.getenv_opt "CURRENT_FILE_COUNT"
-    |> Option.map int_of_string_opt
-    |> Option.flatten
-  in
-  let _ =
-    match (current_file_count, total_files) with
-    | Some curr_count, Some total_files ->
-        Printf.printf
-          "Running rocq-ditto on %s (file %d/%d in the project) \n%!" uri_str
-          curr_count total_files
-    | _, _ -> Printf.printf "running rocq-ditto on %s\n%!" uri_str
-  in
 
   match doc.completed with
   | Doc.Completion.Stopped range_stop ->
@@ -428,7 +448,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
         let action = Sys.getenv_opt "DITTO_ACTION" in
 
         match action with
-        | Some "transform" -> transformation_action doc ~token ~verbose ~quiet
+        | Some "transform" -> transformation_action doc ~token
         | Some "statistics" -> statistic_action doc
         | Some other_action ->
             Error.format_to_or_error "Unknown action %s" other_action

@@ -14,7 +14,12 @@ type transformation_options = {
   jobs : int option;
 }
 
-type stats_option = { input : string; statistic : statistic_kind }
+type stats_option = {
+  input : string;
+  statistic : statistic_kind;
+  format : output_format;
+}
+
 type running_job = { target : string }
 
 let warn_if_exists (dir_state : Filesystem.newDirState) =
@@ -55,73 +60,6 @@ let make_args_transform_files (prog : string) (root : string) (verbose : bool)
 
 let make_args_compile_files (root : string) (input_file : string) =
   [| "fcc"; "--root=" ^ root; input_file |]
-
-let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
-    ~(root : string) ~(verbose : bool) ~(save_vo : bool)
-    ~(dependents : (string, string list) Hashtbl.t)
-    ~(indegree : (string, int) Hashtbl.t) : (unit, Error.t) result =
-  let ready = Queue.create () in
-  let running : (int, running_job) Hashtbl.t = Hashtbl.create 32 in
-
-  let total_nodes = Hashtbl.length indegree in
-  let completed = ref 0 in
-
-  Hashtbl.iter
-    (fun file degree -> if degree = 0 then Queue.add file ready else ())
-    indegree;
-
-  let spawn_for_file (file : string) =
-    let curr_args = make_args_transform_files prog root verbose save_vo file in
-    let curr_env = extend_env env [ ("OUTPUT_FILENAME", file) ] in
-    let pid = Process_runner.spawn_process ~env:curr_env ~args:curr_args prog in
-    let running_job = { target = file } in
-    Hashtbl.add running pid running_job
-  in
-
-  let fill_slots () =
-    while Hashtbl.length running < jobs && not (Queue.is_empty ready) do
-      let file = Queue.take ready in
-      spawn_for_file file
-    done
-  in
-
-  let mark_done (file : string) =
-    incr completed;
-    let dependents_on = Hashtbl.find_all dependents file |> List.concat in
-    List.iter
-      (fun dep ->
-        match Hashtbl.find_opt indegree dep with
-        | None -> ()
-        | Some degree ->
-            let d' = degree - 1 in
-            Hashtbl.replace indegree dep d';
-            if d' = 0 then Queue.add dep ready)
-      dependents_on
-  in
-
-  let rec loop () =
-    fill_slots ();
-    if !completed = total_nodes then Ok ()
-    else if Hashtbl.length running = 0 then
-      Error.string_to_or_error
-        "something went wrong: no runnable jobs, but build not complete"
-    else
-      let pid, status = Process_runner.wait_for_one () in
-      match Hashtbl.find_opt running pid with
-      | None ->
-          Error.format_to_or_error "Unknown child process finished: pid: %d" pid
-      | Some job -> (
-          Hashtbl.remove running pid;
-          match status with
-          | Success ->
-              mark_done job.target;
-              loop ()
-          | Failure msg ->
-              Process_runner.kill_all_running running;
-              Error.format_to_or_error "%s failed: %s" job.target msg)
-  in
-
-  loop ()
 
 let transform_files (root : string) (dep_files : string list) (prog : string)
     (total_file_count : int) (base_env : string array) (save_vo : bool)
@@ -168,10 +106,15 @@ let run_stats (opts : stats_option) : (unit, Error.t) result =
   let input = opts.input in
   let input_dir = Filename.dirname opts.input in
   let statistic = statistic_kind_to_string opts.statistic in
+  let format = opts.format in
 
   let env =
     extend_env (Unix.environment ())
-      [ ("DITTO_ACTION", "statistics"); ("DITTO_STATISTIC", statistic) ]
+      [
+        ("DITTO_ACTION", "statistics");
+        ("DITTO_STATISTIC", statistic);
+        ("DITTO_STAT_FORMAT", output_format_to_string format);
+      ]
   in
   let args =
     [|
@@ -184,6 +127,81 @@ let run_stats (opts : stats_option) : (unit, Error.t) result =
   in
 
   Process_runner.run_process_loud ~env ~args "fcc"
+
+let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
+    ~(root : string) ~(verbose : bool) ~(save_vo : bool)
+    ~(dependents : (string, string list) Hashtbl.t)
+    ~(indegree : (string, int) Hashtbl.t) : (unit, Error.t) result =
+  let running : (int, running_job) Hashtbl.t = Hashtbl.create 32 in
+
+  let total_nodes = Hashtbl.length indegree in
+  let completed = ref 0 in
+
+  let initial_ready =
+    Hashtbl.to_seq indegree
+    |> Seq.filter_map (fun (file, degree) ->
+        if degree = 0 then Some file else None)
+    |> List.of_seq |> List.sort String.compare
+  in
+
+  let ready = Queue.create () in
+  List.iter (fun file -> Queue.add file ready) initial_ready;
+
+  let spawn_for_file (file : string) =
+    let curr_args = make_args_transform_files prog root verbose save_vo file in
+    let curr_env = extend_env env [ ("OUTPUT_FILENAME", file) ] in
+    let pid = Process_runner.spawn_process ~env:curr_env ~args:curr_args prog in
+    let running_job = { target = file } in
+    Hashtbl.add running pid running_job
+  in
+
+  let fill_slots () =
+    while Hashtbl.length running < jobs && not (Queue.is_empty ready) do
+      let file = Queue.take ready in
+      spawn_for_file file
+    done
+  in
+
+  let mark_done (file : string) =
+    incr completed;
+    let dependents_on =
+      Hashtbl.find_all dependents file
+      |> List.concat |> List.sort String.compare
+    in
+    List.iter
+      (fun dep ->
+        match Hashtbl.find_opt indegree dep with
+        | None -> ()
+        | Some degree ->
+            let d' = degree - 1 in
+            Hashtbl.replace indegree dep d';
+            if d' = 0 then Queue.add dep ready)
+      dependents_on
+  in
+
+  let rec loop () =
+    fill_slots ();
+    if !completed = total_nodes then Ok ()
+    else if Hashtbl.length running = 0 then
+      Error.string_to_or_error
+        "something went wrong: no runnable jobs, but build not complete"
+    else
+      let pid, status = Process_runner.wait_for_one () in
+      match Hashtbl.find_opt running pid with
+      | None ->
+          Error.format_to_or_error "Unknown child process finished: pid: %d" pid
+      | Some job -> (
+          Hashtbl.remove running pid;
+          match status with
+          | Success ->
+              mark_done job.target;
+              loop ()
+          | Failure msg ->
+              Process_runner.kill_all_running running;
+              Error.format_to_or_error "%s failed: %s" job.target msg)
+  in
+
+  loop ()
 
 let transform_project (opts : transformation_options) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
@@ -405,6 +423,15 @@ let dependencies_action_conv =
   let print fmt k = Format.fprintf fmt "%s" (dependencies_action_to_string k) in
   Cmdliner.Arg.conv (parse, print)
 
+let output_format_conv =
+  let parse s =
+    match arg_to_output_format s with
+    | Ok v -> Ok v
+    | Error e -> Error (`Msg (Error.to_string_hum e))
+  in
+  let print fmt k = Format.fprintf fmt "%s" (output_format_to_string k) in
+  Cmdliner.Arg.conv (parse, print)
+
 let input_t =
   let doc = "Input folder or filename." in
   Arg.(
@@ -434,6 +461,11 @@ let dependencies_action_t =
     value
     & opt dependencies_action_conv NoAction
     & info [ "a"; "action" ] ~docv:"ACTION" ~doc)
+
+let output_format_t =
+  let doc = "Statistic output format." in
+  Arg.(
+    value & opt output_format_conv Text & info [ "f"; "format" ] ~docv:"F" ~doc)
 
 let verbose_t =
   Arg.(value & flag & info [ "v"; "verbose" ] ~doc:"Enable verbose output.")
@@ -493,8 +525,8 @@ let statistic_t =
     & info [ "s"; "statistic" ] ~docv:"KIND" ~doc:"statistic to compute")
 
 let stats_options_t =
-  let make input statistic = { input; statistic } in
-  Term.(const make $ input_t $ statistic_t)
+  let make input statistic format = { input; statistic; format } in
+  Term.(const make $ input_t $ statistic_t $ output_format_t)
 
 let main (opts : transformation_options) =
   match transform_project opts with

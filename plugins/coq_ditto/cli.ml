@@ -27,6 +27,8 @@ type dependencies_action =
   | TransformDependencies
 [@@deriving show { with_path = false }, enum]
 
+type output_format = Text | Json [@@deriving show { with_path = false }]
+
 let camel_to_snake (s : string) : string =
   let b = Buffer.create (String.length s * 2) in
   String.iteri
@@ -46,6 +48,9 @@ let statistic_kind_to_string (kind : statistic_kind) : string =
 
 let dependencies_action_to_string (action : dependencies_action) : string =
   show_dependencies_action action |> camel_to_snake
+
+let output_format_to_string (format : output_format) : string =
+  show_output_format format |> camel_to_snake
 
 let all_transformation_kinds =
   List.init
@@ -132,6 +137,15 @@ let suggest_spelling (from : string) (choices : string list) : string option =
   match spellchecked with
   | [] -> None
   | possible_spell :: _ -> Some possible_spell
+
+let arg_to_output_format (arg : string) : (output_format, Error.t) result =
+  let normalized = String.lowercase_ascii arg in
+  match arg with
+  | "text" -> Ok Text
+  | "json" -> Ok Json
+  | _ ->
+      Error.format_to_or_error
+        "Unknown output format: %s.\nExpected: (text|json)" normalized
 
 let arg_to_transformation_kind (arg : string) =
   let normalized = String.lowercase_ascii arg in
