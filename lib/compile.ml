@@ -1,6 +1,9 @@
 open Fleche
 open Sexplib.Std
 
+let dep_program, dep_fixed_args = Rocq_version.dep_command
+let dep_program_repr = String.concat " " (dep_program :: dep_fixed_args)
+
 let rec find_coqproject_dir_and_file (dir : string) : (string * string) option =
   let coqproject_filename = "_CoqProject" in
   let rocqproject_filename = "_RocqProject" in
@@ -41,12 +44,13 @@ let read_all ic =
   in
   loop []
 
+let open_dep_process (args : string list) =
+  Unix.open_process_args_in dep_program
+    (Array.of_list ((dep_program :: dep_fixed_args) @ args))
+
 let coqproject_sorted_files (coqproject_file : string) :
     (string list, Error.t) result =
-  let ic, _ =
-    Unix.open_process_args Rocq_version.dep_executable
-      [| Rocq_version.dep_executable; "-f"; coqproject_file; "-sort" |]
-  in
+  let ic = open_dep_process [ "-f"; coqproject_file; "-sort" ] in
 
   let lines = read_all ic in
   match Unix.close_process_in ic with
@@ -55,22 +59,17 @@ let coqproject_sorted_files (coqproject_file : string) :
       | Some first_line -> Ok (String_utils.split_words first_line)
       | None ->
           Error.format_to_or_error "Executing %s returned an empty output"
-            Rocq_version.dep_executable)
+            dep_program_repr)
   | Unix.WEXITED n ->
-      Error.format_to_or_error "%s exited with %d; output:\n%s"
-        Rocq_version.dep_executable n (String.concat "\n" lines)
-  | _ ->
-      Error.format_to_or_error "%s terminated abnormally"
-        Rocq_version.dep_executable
+      Error.format_to_or_error "%s exited with %d; output:\n%s" dep_program_repr
+        n (String.concat "\n" lines)
+  | _ -> Error.format_to_or_error "%s terminated abnormally" dep_program_repr
 
 type dependency_graph = (string, string list) Hashtbl.t
 
 let coqproject_to_dep_graph (coqproject_file : string) :
     (dependency_graph, Error.t) result =
-  let ic, _ =
-    Unix.open_process_args Rocq_version.dep_executable
-      [| Rocq_version.dep_executable; "-f"; coqproject_file |]
-  in
+  let ic = open_dep_process [ "-f"; coqproject_file ] in
   let lines = read_all ic in
   match Unix.close_process_in ic with
   | Unix.WEXITED 0 ->
@@ -121,11 +120,9 @@ let coqproject_to_dep_graph (coqproject_file : string) :
 
       Ok parents_table
   | Unix.WEXITED n ->
-      Error.format_to_or_error "%s exited with %d; output:\n%s"
-        Rocq_version.dep_executable n (String.concat "\n" lines)
-  | _ ->
-      Error.format_to_or_error "%s terminated abnormally"
-        Rocq_version.dep_executable
+      Error.format_to_or_error "%s exited with %d; output:\n%s" dep_program_repr
+        n (String.concat "\n" lines)
+  | _ -> Error.format_to_or_error "%s terminated abnormally" dep_program_repr
 
 let coqproject_to_project_args (coqproject_file : string) =
   let proj =

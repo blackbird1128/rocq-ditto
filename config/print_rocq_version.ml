@@ -81,15 +81,16 @@ let () =
       "let major_version = %d\nlet minor_version = %d\nlet patch_version = %d\n"
       major minor patch;
     if major >= 9 then (
-      print_endline
-        "let executable_name = \"rocq\"\nlet dep_executable = \"rocq dep\"";
+      Printf.printf
+        "let executable_name = %S\nlet dep_command = (\"rocq\", [\"dep\"])"
+        executable_name;
       print_endline "let compiler_command = \"rocq c\"\n";
       print_endline "let ltac_ext_plugin_name = \"rocq-runtime.plugins.ltac\"";
       print_endline
         "let ltac_funid_plugin_name = \"rocq-runtime.plugins.funind\"")
     else (
       print_endline
-        "let executable_name = \"coq\"\nlet dep_executable = \"coqdep\"";
+        "let executable_name = \"coq\"\nlet dep_command = (\"coqdep\",[])";
       print_endline "let compiler_command = \"coqc\"";
       print_endline "let ltac_ext_plugin_name = \"coq-core.plugins.ltac\"";
       print_endline "let ltac_funid_plugin_name = \"coq-core.plugins.funind\""))
