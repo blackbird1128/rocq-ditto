@@ -1416,12 +1416,6 @@ let replace_induction_by_destruct_in_node (token : Coq.Limits.Token.t)
   rewrite_node_tacexpr token state_before node
     ~f:map_induction_to_destruct_in_tacexpr
 
-let find_alias_kername (t : Ltac_plugin.Tacexpr.raw_tactic_expr) :
-    Names.KerName.t option =
-  match t.v with
-  | Ltac_plugin.Tacexpr.TacAlias (kn, _args) -> Some kn
-  | _ -> None
-
 let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
     (proof : Proof.t) : (Transforming_step.t list, Error.t) result =
   rewrite_proof_nodes doc proof ~rewrite:replace_induction_by_destruct_in_node
@@ -1466,7 +1460,7 @@ let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
 
               let intro_n_kername =
                 Syntax_node.string_to_raw_tactic_expr "intro n."
-                |> Result.get_ok |> find_alias_kername |> Option.get
+                |> Result.get_ok |> Ltac.get_alias_kername |> Option.get
               in
 
               let explicit_intro_raw_tac =
