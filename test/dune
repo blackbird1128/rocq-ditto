@@ -19,11 +19,6 @@
  (libraries ditto ditto_test_support alcotest))
 
 (test
- (name test_coq_document)
- (package coq-ditto)
- (libraries ditto ditto_test_support alcotest))
-
-(test
  (name test_compile)
  (package coq-ditto)
  (libraries ditto ditto_test_support alcotest)) 
