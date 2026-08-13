@@ -1,12 +1,5 @@
 open Nary_tree
 
-val run_with_timeout :
-  token:Coq.Limits.Token.t ->
-  timeout:int ->
-  f:('a -> ('b, Error.t) result) ->
-  'a ->
-  ('b, Error.t) result
-
 val run_node :
   Coq.Limits.Token.t ->
   Coq.State.t ->
@@ -44,8 +37,6 @@ val goals :
   token:Coq.Limits.Token.t ->
   st:Coq.State.t ->
   ((string Coq.Goals.Reified_goal.t, string) Coq.Goals.t option, Error.t) result
-
-val get_proof_state : (Coq.State.t, Loc.t) Coq.Protect.E.t -> Coq.State.t
 
 val reified_goals_at_state :
   Coq.Limits.Token.t -> Coq.State.t -> string Coq.Goals.Reified_goal.t list

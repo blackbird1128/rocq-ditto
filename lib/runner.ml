@@ -2,28 +2,6 @@ open Syntax_node
 open Nary_tree
 open Proof
 
-let run_with_timeout ~(token : Coq.Limits.Token.t) ~(timeout : int)
-    ~(f : 'a -> ('b, Error.t) result) x : ('b, Error.t) result =
-  (* Start a timeout thread *)
-  let completed = ref false in
-
-  let _ =
-    Thread.create
-      (fun () ->
-        Unix.sleep timeout;
-        if not !completed then Coq.Limits.Token.set token)
-      ()
-  in
-
-  if Coq.Limits.Token.is_set token then Error (Error.of_string "Interrupted")
-  else
-    let () = Control.interrupt := false in
-    try
-      let y = f x in
-      completed := true;
-      y
-    with Sys.Break -> Error.string_to_or_error "Interrupted"
-
 let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
     ( (string Coq.Goals.Reified_goal.t, string) Coq.Goals.t option,
       Error.t )
@@ -188,6 +166,7 @@ let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
           (before_count, step, before_count) :: aux token st tail
         else
           let state = Fleche.Doc.run ~token ~st (repr step) in
+
           let agent_state = get_proof_state state in
           let goal_count = count_goals agent_state in
           (before_count, step, goal_count) :: aux token agent_state tail
