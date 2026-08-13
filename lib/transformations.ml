@@ -523,7 +523,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
               depth_tuples_nodes_rev;
 
             let tree =
-              Runner.proof_tree_from_parents
+              Proof_tree.proof_tree_from_parents
                 (List.length depth_tuples_nodes_rev, default_node)
                 parents
             in
@@ -955,7 +955,7 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
 let turn_into_oneliner (_ : Rocq_document.t)
     (proof_tree : Syntax_node.t nary_tree) :
     (Transforming_step.t list, Error.t) result =
-  let* proof = Runner.tree_to_proof proof_tree in
+  let* proof = Proof_tree.tree_to_proof proof_tree in
 
   match Proof.status proof with
   | Proof.Aborted | Proof.Admitted -> Ok []
@@ -1631,7 +1631,7 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
                             (fun x ->
                               let x_qualid =
                                 try Ok (Libnames.qualid_of_string x)
-                                with Invalid_argument _ ->
+                                with _ ->
                                   Error.format_to_or_error
                                     "Error converting \"%s\" to a qualified \
                                      identifier"
@@ -1714,7 +1714,7 @@ let apply_proof_tree_transformation
   let* proofs = Rocq_document.get_proofs doc in
   let proof_trees =
     List.filter_map
-      (fun proof -> Result.to_option (Runner.treeify_proof doc proof))
+      (fun proof -> Result.to_option (Proof_tree.treeify_proof doc proof))
       proofs
   in
   List.fold_left

@@ -1787,7 +1787,7 @@ let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
     |> expect_head ~context:"Expected non-empty list"
   in
 
-  let proof_tree = Runner.treeify_proof doc first_proof in
+  let proof_tree = Proof_tree.treeify_proof doc first_proof in
 
   let proof_tree_sexp =
     Result.map (Nary_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree
@@ -1829,7 +1829,7 @@ let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
     |> expect_head ~context:"Expected non-empty list"
   in
 
-  let proof_tree = Runner.treeify_proof doc first_proof in
+  let proof_tree = Proof_tree.treeify_proof doc first_proof in
 
   let proof_tree_sexp =
     Result.map (Nary_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree

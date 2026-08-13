@@ -58,9 +58,6 @@ val proof_steps_with_goalcount :
   Syntax_node.t list ->
   (int * Syntax_node.t * int) list
 
-(* val remove_focus : *)
-(*   (int * Syntax_node.t * int) list -> (int * Syntax_node.t * int) list *)
-
 val get_hypothesis_names : string Coq.Goals.Reified_goal.t -> string list
 val goal_hyps_at_state : Coq.State.t -> Coq.Limits.Token.t -> string list list
 
@@ -77,15 +74,6 @@ val get_current_goal :
 
 val can_reduce_to_zero_goals : Coq.State.t -> Syntax_node.t list -> bool
 val is_valid_proof : Rocq_document.t -> Proof.t -> bool
-val tree_to_proof : Syntax_node.t nary_tree -> (Proof.t, Error.t) result
-
-val proof_tree_from_parents :
-  int * Syntax_node.t ->
-  (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t ->
-  Syntax_node.t nary_tree
-
-val treeify_proof :
-  Rocq_document.t -> Proof.t -> (Syntax_node.t nary_tree, Error.t) result
 
 val fold_nodes_with_state :
   (Coq.State.t -> 'acc -> Syntax_node.t -> (Coq.State.t * 'acc, Error.t) result) ->

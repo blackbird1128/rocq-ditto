@@ -87,14 +87,15 @@ let neat_compile ~io:_ ~token:_ ~(doc : Doc.t) =
               print_endline (Syntax_node.repr x.proposition))
             proofs;
           let proof_trees =
-            List.map (Runner.treeify_proof res) proofs |> List.map Result.get_ok
+            List.map (Proof_tree.treeify_proof res) proofs
+            |> List.map Result.get_ok
           in
 
           let remove_random_tactics_steps =
             List.fold_left
               (fun step_acc tree ->
                 let proof_of_tree =
-                  Runner.tree_to_proof tree |> Result.get_ok
+                  Proof_tree.tree_to_proof tree |> Result.get_ok
                 in
                 let step =
                   Transformations.remove_random_step res proof_of_tree
