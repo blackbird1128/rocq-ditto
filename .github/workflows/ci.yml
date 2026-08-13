@@ -38,4 +38,8 @@ jobs:
         run: |
           eval "$(opam env --switch=./ --set-switch)"
           dune build
-
+          
+      - name: Test Rocq-ditto
+        run: |
+          eval "$(opam env --switch=./ --set-switch)"
+          dune runtest
