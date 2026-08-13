@@ -3,6 +3,7 @@ open Ditto
 open Ditto.Nary_tree
 open Ditto.Proof
 open Ditto.Syntax_node
+open Ditto_test_support.Test_support
 
 let normalize_strings (strings : string list) : string list =
   List.map (fun str -> String.trim str) strings
@@ -44,62 +45,12 @@ let print_tree ?(prefix = "") sexp =
   in
   aux prefix (simplify sexp)
 
-let testable_nary_tree (pp_a : Format.formatter -> 'a -> unit)
-    (equal_a : 'a -> 'a -> bool) =
-  Alcotest.testable (pp_nary_tree pp_a) (equal_nary_tree equal_a)
-
 let document_to_range_representation_pairs (doc : Rocq_document.t) :
     (string * Code_range.t) list =
   List.map (fun node -> (Syntax_node.repr node, node.range)) doc.elements
 
 let pp_syntax_node fmt node =
   Format.fprintf fmt "%S at %a" (Syntax_node.repr node) Code_range.pp node.range
-
-let expect_ok ~(context : string) ~(pp_error : 'e Fmt.t) : ('a, 'e) result -> 'a
-    = function
-  | Ok value -> value
-  | Error err ->
-      Alcotest.failf "%s: expected Ok, got Error: %a" context pp_error err
-
-let expect_some ~(context : string) : 'a option -> 'a = function
-  | Some value -> value
-  | None -> Alcotest.failf "%s: expected Some, got None" context
-
-let expect_single ~(context : string) ~(pp : 'a Fmt.t) : 'a list -> 'a =
-  function
-  | [ value ] -> value
-  | values ->
-      Alcotest.failf "%s: expected exactly one element, got %d: %a" context
-        (List.length values)
-        Fmt.(Dump.list pp)
-        values
-
-let expect_nth ~(context : string) ~(pp : 'a Fmt.t) (index : int)
-    (values : 'a list) : 'a =
-  match List.nth_opt values index with
-  | Some value -> value
-  | None ->
-      Alcotest.failf
-        "%s: expected an element at index %d, but list length is %d: %a" context
-        index (List.length values)
-        Fmt.(Dump.list pp)
-        values
-
-let expect_result_ok ?(context = "Expected Ok") (result : ('a, Error.t) result) =
-  expect_ok ~context ~pp_error:Error.pp result
-
-let expect_head ~(context : string) (values : 'a list) : 'a =
-  match values with
-  | value :: _ -> value
-  | [] -> Alcotest.failf "%s: expected a non-empty list" context
-
-let expect_nth_default (index : int) (values : 'a list) : 'a =
-  expect_nth ~context:"Expected an element at the requested index"
-    ~pp:(fun fmt _ -> Format.pp_print_string fmt "<value>") index values
-
-let expect_error ~(context : string) : ('a, 'e) result -> 'e = function
-  | Error err -> err
-  | Ok _ -> Alcotest.failf "%s: expected Error, got Ok" context
 
 let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
@@ -124,39 +75,6 @@ let node (repr : string) : Syntax_node.t =
 
 let pp_int (fmt : Format.formatter) (x : int) = Format.fprintf fmt "%d" x
 let int_tree = testable_nary_tree pp_int ( = )
-let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
-let range_testable = Alcotest.testable Code_range.pp ( = )
-let uuidm_testable = Alcotest.testable Uuidm.pp ( = )
-let error_testable = Alcotest.testable Error.pp ( = )
-let goal_select_view_testable = Alcotest.testable Goal_select_view.pp ( = )
-let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
-let reified_goal_testable = Alcotest.testable Reified_goal.pp ( = )
-
-let vernacexpr_testable =
-  Alcotest.testable
-    (fun (fmt : Format.formatter) (x : Vernacexpr.vernac_expr) ->
-      let repr = Ppvernac.pr_vernac_expr x in
-      Pp.pp_with fmt repr)
-    ( = )
-
-let vernac_control_gen_r_testable =
-  Alcotest.testable
-    (fun (fmt : Format.formatter)
-         (x :
-           ( Vernacexpr.control_flag,
-             Vernacexpr.synterp_vernac_expr )
-           Vernacexpr.vernac_control_gen_r) ->
-      let x_wrapped = CAst.make x in
-      let x = Ppvernac.pr_vernac x_wrapped in
-      Pp.pp_with fmt x)
-    ( = )
-
-let synterp_vernac_expr_testable =
-  Alcotest.testable
-    (fun (fmt : Format.formatter) (x : Vernacexpr.synterp_vernac_expr) ->
-      let s = Serlib.Ser_vernacexpr.sexp_of_synterp_vernac_expr x in
-      Sexplib.Sexp.pp_mach fmt s)
-    ( = )
 
 let make_dummy_node_from_repr (start_line : int) (start_char : int)
     (repr : string) : Syntax_node.t =
@@ -166,46 +84,6 @@ let make_dummy_node_from_repr (start_line : int) (start_char : int)
   Syntax_node.comment_of_string repr start_point
   |> expect_result_ok ~context:"Error creating a dummy node from representation"
 (* TODO: Improve and remove get_ok *)
-
-let check_list_unique ~(eq : 'a -> 'a -> bool) ~(pp : 'a Fmt.t) (lst : 'a list)
-    =
-  let rec find_duplicate idx = function
-    | [] -> None
-    | x :: rest -> (
-        let rec find_in_rest duplicate_idx = function
-          | [] -> None
-          | y :: ys ->
-              if eq x y then Some (idx, duplicate_idx, x)
-              else find_in_rest (duplicate_idx + 1) ys
-        in
-        match find_in_rest (idx + 1) rest with
-        | Some _ as duplicate -> duplicate
-        | None -> find_duplicate (idx + 1) rest)
-  in
-  match find_duplicate 0 lst with
-  | None -> ()
-  | Some (first_idx, duplicate_idx, value) ->
-      let pp_list = Fmt.Dump.list pp in
-      let list_str = Format.asprintf "@[<v>Full list:@ %a@]" pp_list lst in
-      Alcotest.failf
-        "List contains duplicate elements at indices %d and %d: %a\n%s"
-        first_idx duplicate_idx pp value list_str
-
-let check_list_sorted ~(cmp : 'a -> 'a -> int) ~(pp : 'a Fmt.t) (lst : 'a list)
-    =
-  let rec find_failure idx = function
-    | [] | [ _ ] -> None
-    | x :: y :: rest ->
-        if cmp x y <= 0 then find_failure (idx + 1) (y :: rest)
-        else Some (idx, x, y)
-  in
-  match find_failure 0 lst with
-  | None -> ()
-  | Some (idx, x, y) ->
-      let pp_list = Fmt.Dump.list pp in
-      let list_str = Format.asprintf "@[<v>Full list:@ %a@]" pp_list lst in
-      Alcotest.failf "List is not sorted at index %d: %a > %a\n%s" idx pp x pp y
-        list_str
 
 let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
     (doc : Doc.t) =
@@ -316,7 +194,10 @@ let test_parsing_abort2 (doc : Doc.t) () : unit =
 
 let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
-  let proof = expect_head ~context:"Expected non-empty list" (expect_result_ok (Rocq_document.get_proofs doc)) in
+  let proof =
+    expect_head ~context:"Expected non-empty list"
+      (expect_result_ok (Rocq_document.get_proofs doc))
+  in
   Alcotest.(check string)
     "The proof name should be modus ponens" "modus_ponens"
     (Proof.get_proof_name proof
@@ -544,7 +425,8 @@ let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
     |> expect_result_ok
   in
   let valid_end =
-    Syntax_node.syntax_node_of_string "Qed." Code_point.dummy |> expect_result_ok
+    Syntax_node.syntax_node_of_string "Qed." Code_point.dummy
+    |> expect_result_ok
   in
   let proof = Proof.proof_from_nodes [ invalid_start; valid_end ] in
 
@@ -572,8 +454,12 @@ let test_of_coq_ast_in_state (doc : Doc.t) () =
   let lemma_node =
     expect_some ~context:"The notation-state lemma should be present" lemma_node
   in
-  let ast = expect_some ~context:"The lemma should have an AST" lemma_node.ast in
-  let st = Runner.get_init_state parsed_doc lemma_node token |> expect_result_ok in
+  let ast =
+    expect_some ~context:"The lemma should have an AST" lemma_node.ast
+  in
+  let st =
+    Runner.get_init_state parsed_doc lemma_node token |> expect_result_ok
+  in
   let new_node =
     Syntax_node.of_coq_ast_in_state ~token ~st ast.v lemma_node.range.start
     |> expect_result_ok
@@ -827,7 +713,8 @@ let test_selecting_all_goal_with_goal_select (doc : Doc.t) () : unit =
 let test_detecting_proof_with (_ : Doc.t) () : unit =
   let point : Code_point.t = { line = 0; character = 0 } in
   let node =
-    Syntax_node.syntax_node_of_string "Proof with easy." point |> expect_result_ok
+    Syntax_node.syntax_node_of_string "Proof with easy." point
+    |> expect_result_ok
   in
 
   let is_node_proof_with = Syntax_node.is_proof_with node in
@@ -849,7 +736,9 @@ let test_not_detecting_simple_proof_command_with_proof_with (_ : Doc.t) () :
 
 let test_searching_node (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
-  let first_node_id = (expect_head ~context:"Expected non-empty list" doc.elements).id in
+  let first_node_id =
+    (expect_head ~context:"Expected non-empty list" doc.elements).id
+  in
   let node_compute = Rocq_document.element_with_id_opt first_node_id doc in
   let node_compute_id = Option.map (fun node -> node.id) node_compute in
   Alcotest.(check (option uuidm_testable))
@@ -1038,7 +927,9 @@ let test_removing_only_node_on_line (doc : Doc.t) () : unit =
 
   let parsed_target = get_target uri_str in
 
-  let first_node_id = (expect_head ~context:"Expected non-empty list" doc.elements).id in
+  let first_node_id =
+    (expect_head ~context:"Expected non-empty list" doc.elements).id
+  in
 
   let new_doc =
     expect_result_ok (Rocq_document.remove_node_with_id first_node_id doc)
@@ -1097,7 +988,8 @@ let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
   let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
-    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
+    expect_result_ok
+      (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
   let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1113,7 +1005,8 @@ let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
   let start_point : Code_point.t = { line = 1; character = 0 } in
 
   let node =
-    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
+    expect_result_ok
+      (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
 
   let new_doc = Rocq_document.insert_node node doc in
@@ -1149,7 +1042,8 @@ let test_adding_node_between (doc : Doc.t) () : unit =
   let start_point : Code_point.t = { line = 1; character = 11 } in
 
   let node =
-    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 2." start_point)
+    expect_result_ok
+      (Syntax_node.syntax_node_of_string "Compute 2." start_point)
   in
 
   let new_doc =
@@ -1205,7 +1099,8 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
   let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
-    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 42." start_point)
+    expect_result_ok
+      (Syntax_node.syntax_node_of_string "Compute 42." start_point)
   in
 
   let second_node_id = (expect_nth_default 1 doc.elements).id in
@@ -1224,7 +1119,8 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
   let start_point : Code_point.t = { line = 2; character = 0 } in
 
   let node =
-    expect_result_ok (Syntax_node.syntax_node_of_string "Compute 123." start_point)
+    expect_result_ok
+      (Syntax_node.syntax_node_of_string "Compute 123." start_point)
   in
 
   let second_node_id = (expect_nth_default 1 doc.elements).id in
@@ -1288,7 +1184,9 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
          "Theorem th : forall n : nat,\nn + 0 = n." start_point)
   in
 
-  let first_node_id = (expect_head ~context:"Expected non-empty list" doc.elements).id in
+  let first_node_id =
+    (expect_head ~context:"Expected non-empty list" doc.elements).id
+  in
 
   let new_doc = Rocq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1309,7 +1207,9 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
          "Theorem th : forall n : nat, n + 0 = n." start_point)
   in
 
-  let first_node_id = (expect_head ~context:"Expected non-empty list" doc.elements).id in
+  let first_node_id =
+    (expect_head ~context:"Expected non-empty list" doc.elements).id
+  in
 
   let new_doc = Rocq_document.replace_node first_node_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1333,7 +1233,11 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
          start_point)
   in
 
-  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
+  let first_proof =
+    Rocq_document.get_proofs doc
+    |> expect_result_ok
+    |> expect_head ~context:"Expected non-empty list"
+  in
   let thm_id = first_proof.proposition.id in
 
   let new_doc = Rocq_document.replace_node thm_id node doc in
@@ -1348,7 +1252,9 @@ let test_attach_node_after_end_doc (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let node = node "Compute 1." in
-  let last_node = List_utils.last doc.elements |> expect_some ~context:"Expected Some" in
+  let last_node =
+    List_utils.last doc.elements |> expect_some ~context:"Expected Some"
+  in
   let attach_step = Transforming_step.Attach (node, LineAfter, last_node.id) in
 
   let new_doc = Rocq_document.apply_transformation_step attach_step doc in
@@ -1363,7 +1269,9 @@ let test_attach_node_before_node_end (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let node = node "Compute 1." in
-  let last_node = List_utils.last doc.elements |> expect_some ~context:"Expected Some" in
+  let last_node =
+    List_utils.last doc.elements |> expect_some ~context:"Expected Some"
+  in
   let attach_step = Transforming_step.Attach (node, LineBefore, last_node.id) in
 
   let new_doc = Rocq_document.apply_transformation_step attach_step doc in
@@ -1378,10 +1286,32 @@ let test_attach_node_same_line_node_end (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let node = node "Compute 1." in
-  let last_node = List_utils.last doc.elements |> expect_some ~context:"Expected Some" in
+  let last_node =
+    List_utils.last doc.elements |> expect_some ~context:"Expected Some"
+  in
   let attach_step = Transforming_step.Attach (node, SameLine, last_node.id) in
 
   let new_doc = Rocq_document.apply_transformation_step attach_step doc in
+  let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
+
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
+    "The two list should be the same" (Ok parsed_target) new_doc_res
+
+let test_attach_node_line_after_multiline_anchor (doc : Doc.t) () : unit =
+  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let parsed_target = get_target uri_str in
+
+  let node = node "Compute 2." in
+
+  let first_node =
+    List_utils.head_opt doc.elements |> expect_some ~context:"Expected Some"
+  in
+
+  let attach_step = Transforming_step.Attach (node, LineAfter, first_node.id) in
+
+  let new_doc = Rocq_document.apply_transformation_step attach_step doc in
+
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
 
   Alcotest.(check (result (list (pair string range_testable)) error_testable))
@@ -1394,7 +1324,6 @@ let test_tree_transformation (doc : Doc.t)
       (Transforming_step.t list, Error.t) result) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
-
   let parsed_target = get_target uri_str in
 
   let new_doc =
@@ -1553,6 +1482,19 @@ let test_replacing_induction_by_destruct_no_op (doc : Doc.t) () : unit =
   test_proof_transformation doc
     Transformations.replace_induction_by_destruct_when_possible ()
 
+let test_replacing_induction_by_destruct_existing_ih (doc : Doc.t) () : unit =
+  test_proof_transformation doc
+    Transformations.replace_induction_by_destruct_when_possible ()
+
+let test_replacing_induction_by_destruct_provided_induction_principle
+    (doc : Doc.t) () : unit =
+  test_proof_transformation doc
+    Transformations.replace_induction_by_destruct_when_possible ()
+
+let test_replace_induction_by_destruct_intro_pattern (doc : Doc.t) () : unit =
+  test_proof_transformation doc
+    Transformations.replace_induction_by_destruct_when_possible ()
+
 let test_renaming_def_in_proof_steps (doc : Doc.t) () : unit =
   Unix.putenv "DITTO_ARG0"
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
@@ -1702,7 +1644,11 @@ let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
 let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let token = Coq.Limits.Token.create () in
-  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
+  let first_proof =
+    Rocq_document.get_proofs doc
+    |> expect_result_ok
+    |> expect_head ~context:"Expected non-empty list"
+  in
 
   let state =
     Runner.get_init_state doc first_proof.proposition token |> expect_result_ok
@@ -1744,7 +1690,11 @@ let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
     unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let token = Coq.Limits.Token.create () in
-  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
+  let first_proof =
+    Rocq_document.get_proofs doc
+    |> expect_result_ok
+    |> expect_head ~context:"Expected non-empty list"
+  in
 
   let state =
     Runner.get_init_state doc first_proof.proposition token |> expect_result_ok
@@ -1785,7 +1735,11 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
     : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let token = Coq.Limits.Token.create () in
-  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
+  let first_proof =
+    Rocq_document.get_proofs doc
+    |> expect_result_ok
+    |> expect_head ~context:"Expected non-empty list"
+  in
 
   let state =
     Runner.get_init_state doc first_proof.proposition token |> expect_result_ok
@@ -1827,7 +1781,11 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
 let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
+  let first_proof =
+    Rocq_document.get_proofs doc
+    |> expect_result_ok
+    |> expect_head ~context:"Expected non-empty list"
+  in
 
   let proof_tree = Runner.treeify_proof doc first_proof in
 
@@ -1865,7 +1823,11 @@ let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
 let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
 
-  let first_proof = Rocq_document.get_proofs doc |> expect_result_ok |> expect_head ~context:"Expected non-empty list" in
+  let first_proof =
+    Rocq_document.get_proofs doc
+    |> expect_result_ok
+    |> expect_head ~context:"Expected non-empty list"
+  in
 
   let proof_tree = Runner.treeify_proof doc first_proof in
 
@@ -2189,6 +2151,10 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_attach_same_line_end.v"
     (create_fixed_test "test attaching a node on the last node's line"
        test_attach_node_same_line_node_end doc);
+  Hashtbl.add table "ex_attach_line_after_multiline_anchor.v"
+    (create_fixed_test
+       "test attaching a node on the line after a multiline anchor"
+       test_attach_node_line_after_multiline_anchor doc);
 
   Hashtbl.add table "ex_auto1.v"
     (create_fixed_test "test replacing simple auto with all the taken steps"
@@ -2281,6 +2247,14 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_induction_to_destruct_no_op.v"
     (create_fixed_test "test replacing induction by destruct keeping induction"
        test_replacing_induction_by_destruct_no_op doc);
+  Hashtbl.add table "ex_induction_to_destruct_subject_named_ih.v"
+    (create_fixed_test "test replacing induction by destruct with IHx present"
+       test_replacing_induction_by_destruct_existing_ih doc);
+  Hashtbl.add table "ex_induction_to_destruct_induction_principle_provided.v"
+    (create_fixed_test
+       "test replacing induction by destruct when an explicit induction \
+        principe is provided"
+       test_replacing_induction_by_destruct_provided_induction_principle doc);
 
   Hashtbl.add table "ex_proof_with_remove.v"
     (create_fixed_test "test removing \"Proof with\" from a simple proof"

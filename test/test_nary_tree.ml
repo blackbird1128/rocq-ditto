@@ -1,7 +1,5 @@
 open Ditto.Nary_tree
-
-let testable_nary_tree pp_a equal_a =
-  Alcotest.testable (pp_nary_tree pp_a) (equal_nary_tree equal_a)
+open Ditto_test_support.Test_support
 
 let pp_int fmt x = Format.fprintf fmt "%d" x
 let int_tree = testable_nary_tree pp_int ( = )

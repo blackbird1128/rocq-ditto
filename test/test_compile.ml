@@ -1,9 +1,5 @@
 open Ditto
-
-let sorted_string_testable =
-  Alcotest.testable
-    Fmt.Dump.(list string)
-    (fun a b -> List.sort String.compare a = List.sort String.compare b)
+open Ditto_test_support.Test_support
 
 let graph (bindings : ('a * 'b list) list) : ('a, 'b list) Hashtbl.t =
   let table : ('a, 'b list) Hashtbl.t = Hashtbl.create (List.length bindings) in

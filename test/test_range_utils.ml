@@ -1,5 +1,3 @@
-(* test_range_utils.ml *)
-
 open Alcotest
 open Ditto.Code_range
 

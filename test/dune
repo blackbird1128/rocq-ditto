@@ -1,29 +1,29 @@
 (test
  (name test_nary_tree)
  (package coq-ditto)
- (libraries ditto alcotest))
+ (libraries ditto ditto_test_support alcotest))
 
 (test
  (name test_range_utils)
  (package coq-ditto)
- (libraries ditto alcotest))
+ (libraries ditto ditto_test_support alcotest))
 
 (test
  (name test_list_utils)
  (package coq-ditto)
- (libraries ditto alcotest))
+ (libraries ditto ditto_test_support alcotest))
 
 (test
  (name test_string_utils)
  (package coq-ditto)
- (libraries ditto alcotest))
+ (libraries ditto ditto_test_support alcotest))
 
 (test
  (name test_coq_document)
  (package coq-ditto)
- (libraries ditto alcotest))
+ (libraries ditto ditto_test_support alcotest))
 
 (test
  (name test_compile)
  (package coq-ditto)
- (libraries ditto alcotest)) 
+ (libraries ditto ditto_test_support alcotest)) 
