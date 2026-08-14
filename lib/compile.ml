@@ -203,11 +203,11 @@ let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
 
   let err = Error.of_string msg_string in
   let err =
-    Error.tag_arg err "range"
+    Error.tag_arg err ~tag:"range"
       (Code_range.code_range_from_lang_range x.range)
       Code_range.sexp_of_t
   in
-  Error.tag_arg err "severity" x.severity sexp_of_int
+  Error.tag_arg err ~tag:"severity" x.severity sexp_of_int
 
 let compile_file (io : Io.CallBack.t) (env : Doc.Env.t) (filepath : string) :
     (Doc.t, Error.t list) result =

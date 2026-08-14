@@ -26,12 +26,13 @@ let[@inline] tag_with_debug_infos ?(file = __FILE__) ?(funcname = __FUNCTION__)
 
   tag t ~tag:loc
 
-let tag_arg (t : t) (tag : string) (arg : 'a) (sexp_of_arg : 'a -> Sexp.t) : t =
+let tag_arg (t : t) ~(tag : string) (arg : 'a) (sexp_of_arg : 'a -> Sexp.t) : t
+    =
   let sexp = sexp_of_arg arg in
   Tag_sexp (tag, sexp, t)
 
-let tag_sexp (t : t) (tag_name : string) (arg : Sexplib.Sexp.t) : t =
-  Tag_sexp (tag_name, arg, t)
+let tag_sexp (t : t) ~(tag : string) (arg : Sexplib.Sexp.t) : t =
+  Tag_sexp (tag, arg, t)
 
 let pp fmt t =
   let rec aux indent fmt = function

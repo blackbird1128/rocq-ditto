@@ -109,7 +109,7 @@ let get_state_after (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
     let msg =
       [%message "" ~loc:(x.range : Code_range.t) ~repr:(repr x : string)]
     in
-    Error.tag_sexp err "info" msg
+    Error.tag_sexp err ~tag:"info" msg
   in
 
   let rec aux (state : Coq.State.t) = function
