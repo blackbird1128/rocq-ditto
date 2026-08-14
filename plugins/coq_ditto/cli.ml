@@ -239,10 +239,6 @@ let env_of_array (env_array : string array) : (env, Error.t) result =
   in
   aux [] env_list
 
-let env_to_array (env : env) : string array =
-  List.map (fun (key, value) -> Printf.sprintf "%s=%s" key value) env
-  |> Array.of_list
-
 let get_env (env : env) (key : string) : (string, Error.t) result =
   match List.assoc_opt key env with
   | Some key -> Ok key

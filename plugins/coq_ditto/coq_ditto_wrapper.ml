@@ -42,12 +42,26 @@ let validate_transformation_opts (opts : transformation_options)
     Error.string_to_or_error "Cannot use both --verbose and --quiet"
   else Ok ()
 
-let extend_env (env : string array) (values : (string * string) list) :
+(* Already set values take precedence *)
+(* TODO: check if this is the better solution *)
+let add_to_env_preserving (env : string array) (assoc : string * string) :
+    string array =
+  let key, value = assoc in
+  let env_list = Array.to_list env in
+  let assoc_repr = Printf.sprintf "%s=%s" key value in
+  match
+    List.find_opt (fun env_val -> String.equal env_val assoc_repr) env_list
+  with
+  | Some _ -> env
+  | None -> Array.of_list (assoc_repr :: env_list)
+
+(* Already set values take precedence *)
+(* TODO: check if this is the better solution *)
+let extend_env (env_array : string array) (values : (string * string) list) :
     string array =
   List.fold_left
-    (fun env_acc (key, value) ->
-      Array.append env_acc [| Printf.sprintf "%s=%s" key value |])
-    env values
+    (fun env_acc assoc -> add_to_env_preserving env_acc assoc)
+    env_array values
 
 let make_args_transform_files (prog : string) (root : string) (verbose : bool)
     (save_vo : bool) (input_file : string) : string array =
