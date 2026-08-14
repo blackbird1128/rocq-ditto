@@ -31,7 +31,9 @@ let warn_if_exists (dir_state : Filesystem.newDirState) =
 
 let validate_transformation_opts (opts : transformation_options)
     (pathkind : Filesystem.path_kind) =
-  if opts.dependencies_action != NoAction && pathkind = Filesystem.Dir then
+  if opts.input = opts.output then
+    Error.string_to_or_error "Input folder is equal to output folder, aborting"
+  else if opts.dependencies_action != NoAction && pathkind = Filesystem.Dir then
     Error.string_to_or_error
       "Using a dependency action when targeting a folder doesn't make sense"
   else if Option.has_some opts.jobs && pathkind = Filesystem.File then
@@ -94,7 +96,8 @@ let compile_files (files : string list) (root : string) =
           Printf.printf "compiling file %s\n%!" curr_file;
           let curr_args = make_args_compile_files root curr_file in
           let status =
-            Process_runner.run_process_silent ~env:[||] ~args:curr_args prog
+            Process_runner.run_process_silent ~env:(Unix.environment ())
+              ~args:curr_args prog
           in
           (status, curr_file_count + 1)
       | err -> (err, curr_file_count + 1))
