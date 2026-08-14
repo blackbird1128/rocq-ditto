@@ -63,7 +63,7 @@ let make_args_compile_files (root : string) (input_file : string) =
 
 let transform_files (root : string) (dep_files : string list) (prog : string)
     (total_file_count : int) (base_env : string array) (save_vo : bool)
-    (verbose : bool) =
+    (verbose : bool) : (unit, Error.t) result * int =
   List.fold_left
     (fun (err_acc, curr_file_count) curr_file ->
       match err_acc with
@@ -132,14 +132,16 @@ let run_stats (opts : stats_option) : (unit, Error.t) result =
 let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
     ~(root : string) ~(verbose : bool) ~(save_vo : bool)
     ~(dependents : (string, string list) Hashtbl.t)
-    ~(indegree : (string, int) Hashtbl.t) : (unit, Error.t) result =
-  let running : (int, running_job) Hashtbl.t = Hashtbl.create 32 in
+    ~(outdegree : (string, int) Hashtbl.t) : (unit, Error.t) result =
+  let running : (Process_runner.pid, running_job) Hashtbl.t =
+    Hashtbl.create 32
+  in
 
-  let total_nodes = Hashtbl.length indegree in
+  let total_nodes = Hashtbl.length outdegree in
   let completed = ref 0 in
 
   let initial_ready =
-    Hashtbl.to_seq indegree
+    Hashtbl.to_seq outdegree
     |> Seq.filter_map (fun (file, degree) ->
         if degree = 0 then Some file else None)
     |> List.of_seq |> List.sort String.compare
@@ -171,11 +173,11 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
     in
     List.iter
       (fun dep ->
-        match Hashtbl.find_opt indegree dep with
+        match Hashtbl.find_opt outdegree dep with
         | None -> ()
         | Some degree ->
             let d' = degree - 1 in
-            Hashtbl.replace indegree dep d';
+            Hashtbl.replace outdegree dep d';
             if d' = 0 then Queue.add dep ready)
       dependents_on
   in
@@ -190,7 +192,8 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
       let pid, status = Process_runner.wait_for_one () in
       match Hashtbl.find_opt running pid with
       | None ->
-          Error.format_to_or_error "Unknown child process finished: pid: %d" pid
+          Error.format_to_or_error "Unknown child process finished: pid: %s"
+            (Process_runner.string_of_pid pid)
       | Some job -> (
           Hashtbl.remove running pid;
           match status with
@@ -369,10 +372,10 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
 
           let dependents = Compile.build_dependents depgraph in
 
-          let indeg_graph = Compile.build_outdegrees depgraph in
+          let outdeg_graph = Compile.build_outdegrees depgraph in
 
           run_parallel ~jobs ~env:base_env ~prog ~root:output ~save_vo ~verbose
-            ~dependents ~indegree:indeg_graph)
+            ~dependents ~outdegree:outdeg_graph)
 
 (* --- Cmdliner definitions ------------------------------------------- *)
 

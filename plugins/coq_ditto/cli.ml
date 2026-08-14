@@ -145,13 +145,6 @@ let transformation_help_fun (kind : transformation_kind) :
 let transformations_help =
   List.map transformation_help_fun all_transformation_kinds
 
-let transformation_help_to_string
-    (transformation_help : (transformation_kind * string) list) : string =
-  List.fold_left
-    (fun acc (kind, help) ->
-      acc ^ transformation_kind_to_string kind ^ ": " ^ help ^ "\n")
-    "" transformation_help
-
 let suggest_spelling (from : string) (choices : string list) : string option =
   let spellchecked =
     String.spellcheck (fun yield -> List.iter yield choices) from
@@ -246,6 +239,10 @@ let env_of_array (env_array : string array) : (env, Error.t) result =
   in
   aux [] env_list
 
+let env_to_array (env : env) : string array =
+  List.map (fun (key, value) -> Printf.sprintf "%s=%s" key value) env
+  |> Array.of_list
+
 let get_env (env : env) (key : string) : (string, Error.t) result =
   match List.assoc_opt key env with
   | Some key -> Ok key
@@ -254,25 +251,12 @@ let get_env (env : env) (key : string) : (string, Error.t) result =
 let get_env_opt (env : env) (key : string) : string option =
   List.assoc_opt key env
 
-let get_env_default (env : env) (key : string) ~(default : string) : string =
-  match List.assoc_opt key env with Some key -> key | None -> default
-
 let int_of_string_err (arg : string) : (int, Error.t) result =
   match int_of_string_opt arg with
   | Some integer -> Ok integer
   | None ->
       Error.format_to_or_error
         "given string %S is not a valid representation of an integer" arg
-
-let get_env_as_bool (env : env) (key : string) : (bool, Error.t) result =
-  let ( let* ) = Result.bind in
-  let* env_value = get_env env key in
-  match env_value with
-  | "true" -> Ok true
-  | "false" -> Ok false
-  | _ ->
-      Error.format_to_or_error
-        "value %S of key %S can't be converted to a boolean" env_value key
 
 let get_env_as_bool_default (env : env) (key : string) (default : bool) :
     (bool, Error.t) result =

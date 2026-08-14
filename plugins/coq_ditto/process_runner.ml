@@ -1,6 +1,9 @@
 open Ditto
 
 type process_status = Success | Failure of string
+type pid = int
+
+let string_of_pid = string_of_int
 
 let string_of_process_status = function
   | Unix.WEXITED code -> Printf.sprintf "Exited with code %d" code
@@ -28,19 +31,19 @@ let run_process_silent ~(env : string array) ~(args : string array)
     (fun () -> run_process ~env ~args prog devnull devnull devnull)
 
 let spawn_process ~(env : string array) ~(args : string array) (prog : string) :
-    int =
+    pid =
   let pid =
     Unix.create_process_env prog args env Unix.stdin Unix.stdout Unix.stderr
   in
   pid
 
-let wait_for_one () : int * process_status =
+let wait_for_one () : pid * process_status =
   let pid, status = Unix.wait () in
   match status with
   | WEXITED 0 -> (pid, Success)
   | _ -> (pid, Failure (string_of_process_status status))
 
-let kill_all_running (running : (int, 'a) Hashtbl.t) : unit =
+let kill_all_running (running : (pid, 'a) Hashtbl.t) : unit =
   let pids = Hashtbl.to_seq_keys running |> List.of_seq in
 
   (* ask children to terminate *)
