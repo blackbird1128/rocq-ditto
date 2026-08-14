@@ -48,15 +48,13 @@ let extend_env (env : string array) (values : (string * string) list) :
     env values
 
 let make_args_transform_files (prog : string) (root : string) (verbose : bool)
-    (save_vo : bool) (input_file : string) =
-  let base =
-    [| prog; "--root=" ^ root; "--plugin=ditto-plugin"; input_file |]
+    (save_vo : bool) (input_file : string) : string array =
+  let args = [ prog; "--root=" ^ root; "--plugin=ditto-plugin"; input_file ] in
+  let args =
+    args @ [ (if verbose then "--display=verbose" else "--display=quiet") ]
   in
-  base |> fun a ->
-  if verbose then Array.append a [| "--display=verbose" |]
-  else
-    Array.append a [| "--display=quiet" |] |> fun a ->
-    if save_vo then Array.append a [| "--no_vo" |] else a
+  let args = if save_vo then args @ [ "--no-vo" ] else args in
+  Array.of_list args
 
 let make_args_compile_files (root : string) (input_file : string) =
   [| "fcc"; "--root=" ^ root; input_file |]
