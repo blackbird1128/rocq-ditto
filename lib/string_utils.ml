@@ -29,6 +29,21 @@ let contains ~(substring : string) (container : string) =
   in
   loop 0
 
+let split_at (split_point : char) (str : string) :
+    (string * string, Error.t) result =
+  match String.index_opt str split_point with
+  | Some idx ->
+      let first_part = String.sub str 0 idx in
+      let length_second_part = String.length str - (idx + 1) in
+      let second_part =
+        if length_second_part = 0 then ""
+        else String.sub str (idx + 1) length_second_part
+      in
+      Ok (first_part, second_part)
+  | None ->
+      Error.format_to_or_error "Couldn't find the split point %C in %S"
+        split_point str
+
 let split_words (line : string) : string list =
   let rec skip_spaces i =
     if i < String.length line then
