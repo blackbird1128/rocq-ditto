@@ -36,7 +36,7 @@ let resolve_project_path (path : string) : (string * string, Error.t) result =
         Error.string_to_or_error
           "Please provide a directory or a project file path "
 
-let read_all ic =
+let read_all (ic : in_channel) : string list =
   let rec loop acc =
     match input_line ic with
     | line -> loop (line :: acc)
@@ -124,11 +124,17 @@ let coqproject_to_dep_graph (coqproject_file : string) :
         n (String.concat "\n" lines)
   | _ -> Error.format_to_or_error "%s terminated abnormally" dep_program_repr
 
-let coqproject_to_project_args (coqproject_file : string) =
-  let proj =
-    CoqProject_file.read_project_file ~warning_fn:(fun _ -> ()) coqproject_file
+let coqproject_to_project_args (coqproject_file : string) :
+    (string list, Error.t) result =
+  let ( let* ) = Result.bind in
+  let open CoqProject_file in
+  let* proj =
+    try Ok (read_project_file ~warning_fn:(fun _ -> ()) coqproject_file) with
+    | Parsing_error err_msg | UnableToOpenProjectFile err_msg ->
+        Error.string_to_or_error err_msg
+    | exn -> Error (Error.of_exn exn)
   in
-  CoqProject_file.coqtop_args_from_project proj
+  Ok (coqtop_args_from_project proj)
 
 let depgraph_to_dot_format (graph : dependency_graph) : string =
   let buf = Buffer.create (Hashtbl.length graph * 16) in

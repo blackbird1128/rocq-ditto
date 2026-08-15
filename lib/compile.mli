@@ -15,7 +15,7 @@ val resolve_project_path : string -> (string * string, Error.t) result
 val coqproject_to_dep_graph :
   string -> ((string, string list) Hashtbl.t, Error.t) result
 
-val coqproject_to_project_args : string -> string list
+val coqproject_to_project_args : string -> (string list, Error.t) result
 val depgraph_to_dot_format : (string, string list) Hashtbl.t -> string
 
 val build_outdegrees : ('a, 'a list) Hashtbl.t -> ('a, int) Hashtbl.t
