@@ -94,10 +94,11 @@ let rec proof_tree_from_parents (cur_node : int * Syntax_node.t)
 
 let treeify_proof (doc : Rocq_document.t) (p : Proof.t) :
     (Syntax_node.t nary_tree, Error.t) result =
+  let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
   match Runner.get_init_state doc p.proposition token with
   | Ok init_state ->
-      let steps_with_goals =
+      let* steps_with_goals =
         Runner.proof_steps_with_goalcount token init_state (Proof.proof_nodes p)
       in
 

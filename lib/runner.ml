@@ -97,9 +97,10 @@ let run_raw_tactic_expr (token : Coq.Limits.Token.t)
   match
     Syntax_node.raw_tactic_expr_to_syntax_node ?selector expr Code_point.dummy
   with
-  | Error _ ->
-      Error.format_to_or_error
-        "run_raw_tactic_expr: failed to build tactic node from expr"
+  | Error err ->
+      Error
+        (Error.tag
+           ~tag:"run_raw_tactic_expr: failed to build tactic node from expr" err)
   | Ok node -> run_node token state node
 
 let get_state_after (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
@@ -134,14 +135,6 @@ let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
     (fun (hyp : string Coq.Goals.Reified_goal.hyp) -> hyp.names)
     goal.hyps
 
-let get_proof_state (start_result : (Coq.State.t, Loc.t) Coq.Protect.E.t) :
-    Coq.State.t =
-  match Error.protect_to_result start_result with
-  | Ok run_result -> run_result
-  | Error err ->
-      Printf.eprintf "Error: %s\n" (Error.to_string_hum err);
-      raise (Failure "Failed to start proof")
-
 let count_goals (st : Coq.State.t) : int =
   let goals = Fleche.Info.Goals.get_goals_unit ~st in
   match goals with None -> 0 | Some goals -> List.length goals.goals
@@ -155,21 +148,25 @@ let reified_goals_at_state (token : Coq.Limits.Token.t) (st : Coq.State.t) :
   | Error _ -> []
 
 let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
-    (steps : Syntax_node.t list) : (int * Syntax_node.t * int) list =
+    (steps : Syntax_node.t list) :
+    ((int * Syntax_node.t * int) list, Error.t) result =
+  let ( let* ) = Result.bind in
   let rec aux (token : Coq.Limits.Token.t) (st : Coq.State.t)
       (steps : Syntax_node.t list) =
     match steps with
-    | [] -> []
+    | [] -> Ok []
     | step :: tail ->
         let before_count = count_goals st in
         if is_focusing_goal step || is_closing_bracket step then
-          (before_count, step, before_count) :: aux token st tail
+          let* aux_res = aux token st tail in
+          Ok ((before_count, step, before_count) :: aux_res)
         else
           let state = Fleche.Doc.run ~token ~st (repr step) in
 
-          let agent_state = get_proof_state state in
+          let* agent_state = state |> Error.protect_to_result in
           let goal_count = count_goals agent_state in
-          (before_count, step, goal_count) :: aux token agent_state tail
+          let* aux_res = aux token agent_state tail in
+          Ok ((before_count, step, goal_count) :: aux_res)
   in
   aux token st steps
 

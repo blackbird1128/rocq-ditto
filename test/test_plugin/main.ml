@@ -1581,6 +1581,7 @@ let test_count_goals_simple_proof_without_focus (doc : Doc.t) () : unit =
 
   let steps_with_goalcount =
     Runner.proof_steps_with_goalcount token doc.root_state doc.elements
+    |> expect_result_ok
   in
   let repr_with_goalcount =
     List.map
@@ -1613,6 +1614,7 @@ let test_count_goals_proof_with_bullets_without_focus (doc : Doc.t) () : unit =
 
   let steps_with_goalcount =
     Runner.proof_steps_with_goalcount token doc.root_state doc.elements
+    |> expect_result_ok
   in
   let repr_with_goalcount =
     List.map
@@ -1657,6 +1659,7 @@ let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
   let steps_with_goalcount =
     Runner.proof_steps_with_goalcount token state
       (Proof.proof_nodes first_proof)
+    |> expect_result_ok
   in
   let repr_with_goalcount =
     List.map
@@ -1703,6 +1706,7 @@ let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
   let steps_with_goalcount =
     Runner.proof_steps_with_goalcount token state
       (Proof.proof_nodes first_proof)
+    |> expect_result_ok
   in
   let repr_with_goalcount =
     List.map
@@ -1748,6 +1752,7 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
   let steps_with_goalcount =
     Runner.proof_steps_with_goalcount token state
       (Proof.proof_nodes first_proof)
+    |> expect_result_ok
   in
   let repr_with_goalcount =
     List.map
