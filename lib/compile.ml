@@ -55,10 +55,15 @@ let coqproject_sorted_files (coqproject_file : string) :
   let lines = read_all ic in
   match Unix.close_process_in ic with
   | Unix.WEXITED 0 -> (
-      match List_utils.head_opt lines with
-      | Some first_line -> Ok (String_utils.split_words first_line)
-      | None ->
+      match lines with
+      | [] ->
           Error.format_to_or_error "Executing %s returned an empty output"
+            dep_program_repr
+      | [ first_line ] -> Ok (String_utils.split_words first_line)
+      | _ :: _ ->
+          Error.format_to_or_error
+            "Executing %s returned more than a single line of output, \
+             unexpected format"
             dep_program_repr)
   | Unix.WEXITED n ->
       Error.format_to_or_error "%s exited with %d; output:\n%s" dep_program_repr
@@ -215,7 +220,7 @@ let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
   in
   Error.tag_arg err ~tag:"severity" x.severity sexp_of_int
 
-let compile_file (io : Io.CallBack.t) (env : Doc.Env.t) (filepath : string) :
+let parse_file (io : Io.CallBack.t) (env : Doc.Env.t) (filepath : string) :
     (Doc.t, Error.t list) result =
   let token = Coq.Limits.Token.create () in
 

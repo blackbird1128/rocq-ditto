@@ -34,5 +34,5 @@ val get_file_dependencies :
 (** [get_file_dependencies file dependency_graph] compute the list of
     dependencies a file has in the dependency graph, recursively *)
 
-val compile_file :
+val parse_file :
   Io.CallBack.t -> Doc.Env.t -> string -> (Doc.t, Error.t list) result
