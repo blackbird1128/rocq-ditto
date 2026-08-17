@@ -34,9 +34,9 @@ let resolve_project_path (path : string) : (string * string, Error.t) result =
         Ok (Filename.dirname path, Filename.basename path)
     | _ ->
         Error.string_to_or_error
-          "Please provide a directory or a project file path "
+          "Please provide a directory or a project file path"
 
-let read_all (ic : in_channel) : string list =
+let read_lines (ic : in_channel) : string list =
   let rec loop acc =
     match input_line ic with
     | line -> loop (line :: acc)
@@ -44,15 +44,21 @@ let read_all (ic : in_channel) : string list =
   in
   loop []
 
-let open_dep_process (args : string list) =
-  Unix.open_process_args_in dep_program
-    (Array.of_list ((dep_program :: dep_fixed_args) @ args))
+let open_dep_process (args : string list) : (in_channel, Error.t) result =
+  try
+    Ok
+      (Unix.open_process_args_in dep_program
+         (Array.of_list ((dep_program :: dep_fixed_args) @ args)))
+  with Unix.Unix_error (err, func, arg) ->
+    let msg = Unix.error_message err in
+    Error.format_to_or_error "%s: %s (%s)" func msg arg
 
 let coqproject_sorted_files (coqproject_file : string) :
     (string list, Error.t) result =
-  let ic = open_dep_process [ "-f"; coqproject_file; "-sort" ] in
+  let ( let* ) = Result.bind in
+  let* ic = open_dep_process [ "-f"; coqproject_file; "-sort" ] in
 
-  let lines = read_all ic in
+  let lines = read_lines ic in
   match Unix.close_process_in ic with
   | Unix.WEXITED 0 -> (
       match lines with
@@ -74,8 +80,9 @@ type dependency_graph = (string, string list) Hashtbl.t
 
 let coqproject_to_dep_graph (coqproject_file : string) :
     (dependency_graph, Error.t) result =
-  let ic = open_dep_process [ "-f"; coqproject_file ] in
-  let lines = read_all ic in
+  let ( let* ) = Result.bind in
+  let* ic = open_dep_process [ "-f"; coqproject_file ] in
+  let lines = read_lines ic in
   match Unix.close_process_in ic with
   | Unix.WEXITED 0 ->
       let re = Re.compile (Re.str "required_vo:") in

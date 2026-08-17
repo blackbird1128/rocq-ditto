@@ -17,9 +17,9 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   in
 
   let out_file_j = Lang.LUri.File.to_string_file uri ^ ".jsondump.json" in
-  let out_chan = open_out out_file_j in
 
-  Yojson.Safe.pretty_to_channel out_chan (`List parsed_asts_json)
+  Out_channel.with_open_text out_file_j (fun out_chan ->
+      Yojson.Safe.pretty_to_channel out_chan (`List parsed_asts_json))
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()

@@ -25,9 +25,8 @@ let dump_ast ~io ~token:_ ~(doc : Doc.t) =
   let json_repr = `List repr_and_ranges in
 
   let out_file_j = Lang.LUri.File.to_string_file uri ^ ".target.json" in
-  let out_chan = open_out out_file_j in
-
-  Yojson.Safe.pretty_to_channel out_chan json_repr
+  Out_channel.with_open_text out_file_j (fun out_chan ->
+      Yojson.Safe.pretty_to_channel out_chan json_repr)
 
 let main () = Theory.Register.Completed.add dump_ast
 let () = main ()
