@@ -12,24 +12,31 @@ type remove_method = LeaveBlank | ShiftNode
 type shift_method = ShiftVertically | ShiftHorizontally
 
 val pp : Format.formatter -> t -> unit
+
 val parse_document : Doc.t -> (t, Error.t) result
+(** Parse a Fleche document to a Rocq document. [parse_document doc] parses the
+    comments of a Rocq document, merge them with the sentences of the document
+    and returns [Ok doc] if the comments are correctly parsed *)
 
 val element_with_id_opt : Uuidm.t -> t -> Syntax_node.t option
 (** Find an element with a specific ID in a document.
     [element_with_id_opt element_id doc] returns [Some element] if an element
     with the given [element_id] exists in [doc], otherwise returns [None]. *)
 
-val proof_with_id_opt : Uuidm.t -> t -> Proof.t option
-(** Find a proof with a specific proposition ID.
-    [proof_with_id_opt proof_id doc] returns [Some element] if a proof has a
-    proposition with the given [proof_id] exists in [doc], otherwise returns
-    [None]. *)
+val proof_with_id_opt : Uuidm.t -> t -> (Proof.t option, Error.t) result
+(** Find a proof by id. [proof_with_id_opt proof_id doc] returns
+    [Ok (Some element)] if a proof has a proposition with the given [proof_id]
+    in [doc]. if a proof has a proposition with the given [proof_id] exists in
+    [doc], otherwise returns [None]. Return [Ok None] if no such proof is found
+    and [Error err] if the document proof parsing fail *)
 
-val proof_with_name_opt : string -> t -> Proof.t option
-(** Find a proof with a specific name. [proof_with_name_opt proof_name doc]
-    returns [Some element] if a proof has the name [proof_name] where proof_name
-    match the ident_decl of a command in \{Theorem, Lemma, Fact, Remark,
-    Corollary, Proposition, Property\} for example. *)
+val proof_with_name_opt : string -> t -> (Proof.t option, Error.t) result
+(** Find a proof by name. [proof_with_name_opt proof_name doc] returns
+    [Ok (Some element)] if proofs are parsed correctly and a proof has the name
+    [proof_name] where [proof_name] match the ident_decl of a command in
+    \{Theorem, Lemma, Fact, Remark, Corollary, Proposition, Property\} for
+    example. Return [Ok None] if no such proof is found and [Error err] if the
+    document proof parsing fail *)
 
 val split_at_id :
   Uuidm.t -> t -> (Syntax_node.t list * Syntax_node.t list, Error.t) result
@@ -71,7 +78,7 @@ val get_proofs : t -> (Proof.t list, Error.t) result
     mode*)
 
 val get_ltac_outside_proofs : t -> (Syntax_node.t list, Error.t) result
-(** Extract Ltac1 nodes outside of proof blocks*)
+(** Extract Ltac nodes outside of proof blocks*)
 
 val dump_elements_to_string : Syntax_node.t list -> (string, Error.t) result
 (** Convert a list of [Syntax_node.t] to a string representation as they would

@@ -259,26 +259,24 @@ let element_with_id_opt (element_id : Uuidm.t) (doc : t) : Syntax_node.t option
     =
   List.find_opt (fun elem -> elem.id = element_id) doc.elements
 
-let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) : Proof.t option =
-  let proofs_res = get_proofs doc in
-  match proofs_res with
-  | Ok proofs ->
-      List.find_opt
-        (fun (elem : Proof.t) -> elem.proposition.id = proof_id)
-        proofs
-  | Error _ -> None
+let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) :
+    (Proof.t option, Error.t) result =
+  let* proofs = get_proofs doc in
+  Ok
+    (List.find_opt
+       (fun (elem : Proof.t) -> elem.proposition.id = proof_id)
+       proofs)
 
-let proof_with_name_opt (proof_name : string) (doc : t) : Proof.t option =
-  let proof_res = get_proofs doc in
-  match proof_res with
-  | Ok proofs ->
-      List.find_opt
-        (fun proof ->
-          match Proof.get_proof_name proof with
-          | Some name -> name = proof_name
-          | None -> false)
-        proofs
-  | Error _ -> None
+let proof_with_name_opt (proof_name : string) (doc : t) :
+    (Proof.t option, Error.t) result =
+  let* proofs = get_proofs doc in
+  Ok
+    (List.find_opt
+       (fun proof ->
+         match Proof.get_proof_name proof with
+         | Some name -> name = proof_name
+         | None -> false)
+       proofs)
 
 let get_ltac_outside_proofs (doc : t) : (Syntax_node.t list, Error.t) result =
   let rec scan (in_proof : bool) (acc : Syntax_node.t list) = function
@@ -418,86 +416,79 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
           sorted
   in
 
-  (* Ensure new node doesn't start before previous ends. If it does, it's an overlap. *)
-  (* this shouldn't happen tho ? *)
-  let prev_opt = List_utils.last before in
-  let overlaps_prev =
-    match prev_opt with
-    | None -> false
-    | Some prev -> not (Code_point.leq prev.range.end_ new_node.range.start)
-  in
-
-  if overlaps_prev then
-    Error.format_to_or_error
-      "insert_node: new node starts before previous ends\n\
-       prev=%s (%s)\n\
-       new=%s (%s)"
-      (Syntax_node.repr (Option.get prev_opt))
-      (Code_range.to_string (Option.get prev_opt).range)
-      (Syntax_node.repr new_node)
-      (Code_range.to_string new_node.range)
-  else
-    match shift_method with
-    | ShiftHorizontally ->
-        (* Horizontal insert must be single-line *)
-        if new_node.range.start.line <> new_node.range.end_.line then
-          Error.format_to_or_error
-            "insert_node: ShiftHorizontally requires a single-line node, got %s"
-            (Code_range.to_string new_node.range)
-        else
-          let line = new_node.range.start.line in
-          let insert_at = new_node.range.start.character in
-          let inserted_width =
-            new_node.range.end_.character - new_node.range.start.character
-          in
-          let extra_sep =
-            match after with
-            | first_after :: _ ->
-                if
-                  first_after.range.start.line = line
-                  && first_after.range.start.character = insert_at
-                then 1
-                else 0
-            | [] -> 0
-          in
-          let total_shift = inserted_width + extra_sep in
-          let new_after =
-            if total_shift = 0 then after
-            else
-              List.map
-                (fun x ->
+  match List_utils.last before with
+  | Some prev when not (Code_point.leq prev.range.end_ new_node.range.start) ->
+      Error.format_to_or_error
+        "insert_node: new node starts before previous ends\n\
+         prev=%s (%s)\n\
+         new=%s (%s)"
+        (Syntax_node.repr prev)
+        (Code_range.to_string prev.range)
+        (Syntax_node.repr new_node)
+        (Code_range.to_string new_node.range)
+  | Some _ | None -> (
+      match shift_method with
+      | ShiftHorizontally ->
+          (* Horizontal insert must be single-line *)
+          if new_node.range.start.line <> new_node.range.end_.line then
+            Error.format_to_or_error
+              "insert_node: ShiftHorizontally requires a single-line node, got \
+               %s"
+              (Code_range.to_string new_node.range)
+          else
+            let line = new_node.range.start.line in
+            let insert_at = new_node.range.start.character in
+            let inserted_width =
+              new_node.range.end_.character - new_node.range.start.character
+            in
+            let extra_sep =
+              match after with
+              | first_after :: _ ->
                   if
-                    x.range.start.line = line
-                    && x.range.start.character >= insert_at
-                  then move_node_by ~lines:0 ~chars:total_shift x
-                  else x)
-                after
+                    first_after.range.start.line = line
+                    && first_after.range.start.character = insert_at
+                  then 1
+                  else 0
+              | [] -> 0
+            in
+            let total_shift = inserted_width + extra_sep in
+            let new_after =
+              if total_shift = 0 then after
+              else
+                List.map
+                  (fun x ->
+                    if
+                      x.range.start.line = line
+                      && x.range.start.character >= insert_at
+                    then move_node_by ~lines:0 ~chars:total_shift x
+                    else x)
+                  after
+            in
+            let elements = before @ (new_node :: new_after) in
+            let* document_repr = dump_sorted_elements_to_string elements in
+            Ok { doc with elements; document_repr }
+      | ShiftVertically ->
+          (* Push down only if we overlap the next node; and push by number of
+           newlines inserted, not "height in lines". *)
+          let needs_push =
+            match after with
+            | [] -> false
+            | first_after :: _ ->
+                not (Code_point.leq new_node.range.end_ first_after.range.start)
+          in
+          let* new_after =
+            if not needs_push then Ok after
+            else
+              let delta_lines =
+                new_node.range.end_.line - new_node.range.start.line
+              in
+              (* For vertical inserts, treat the node as occupying full lines. *)
+              let push_lines = delta_lines + 1 in
+              shift_block_checked push_lines 0 after
           in
           let elements = before @ (new_node :: new_after) in
           let* document_repr = dump_sorted_elements_to_string elements in
-          Ok { doc with elements; document_repr }
-    | ShiftVertically ->
-        (* Push down only if we overlap the next node; and push by number of
-           newlines inserted, not "height in lines". *)
-        let needs_push =
-          match after with
-          | [] -> false
-          | first_after :: _ ->
-              not (Code_point.leq new_node.range.end_ first_after.range.start)
-        in
-        let* new_after =
-          if not needs_push then Ok after
-          else
-            let delta_lines =
-              new_node.range.end_.line - new_node.range.start.line
-            in
-            (* For vertical inserts, treat the node as occupying full lines. *)
-            let push_lines = delta_lines + 1 in
-            shift_block_checked push_lines 0 after
-        in
-        let elements = before @ (new_node :: new_after) in
-        let* document_repr = dump_sorted_elements_to_string elements in
-        Ok { doc with elements; document_repr }
+          Ok { doc with elements; document_repr })
 
 let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
     (t, Error.t) result =
