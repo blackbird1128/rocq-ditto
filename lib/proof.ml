@@ -1,4 +1,3 @@
-open Vernacexpr
 open Transforming_step
 
 type proof_status = Admitted | Proved | Aborted
@@ -43,7 +42,7 @@ let coq_ast_of_theorem_components (c : theorem_components) : Coq.Ast.t =
     Vernacexpr.VernacStartTheoremProof
       (c.kind, [ ((c.name, c.universe), (c.binders, c.expr)) ])
   in
-  let synpure_expr = VernacSynPure expr_syn in
+  let synpure_expr = Vernacexpr.VernacSynPure expr_syn in
   let control = Syntax_node.mk_vernac_control synpure_expr in
   Coq.Ast.of_coq control
 
@@ -68,16 +67,16 @@ let proof_status_of_vernacexpr (expr : Vernacexpr.synpure_vernac_expr) :
 
 let proof_status_from_last_node (node : Syntax_node.t) :
     (proof_status, Error.t) result =
-  match node.ast with
-  | Some ast -> (
-      match (Coq.Ast.to_coq ast.v).v.expr with
-      | VernacSynterp _ ->
+  match Syntax_node.synpure_expr node with
+  | Some expr -> proof_status_of_vernacexpr expr
+  | None -> (
+      match node.ast with
+      | Some _ ->
           Error.format_to_or_error "(%s) is not a valid closing node"
             (Syntax_node.repr node)
-      | VernacSynPure expr -> proof_status_of_vernacexpr expr)
-  | None ->
-      Error.format_to_or_error "(%s) is not a valid closing node (no ast)"
-        (Syntax_node.repr node)
+      | None ->
+          Error.format_to_or_error "(%s) is not a valid closing node (no ast)"
+            (Syntax_node.repr node))
 
 let status (p : t) : proof_status =
   match List_utils.last p.proof_steps with
@@ -113,9 +112,9 @@ let get_proof_conclusion (p : t) : Constrexpr.constr_expr option =
 
 let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (x : t) : Transforming_step.t option =
-  let ( let+ ) = Option.bind in
+  let ( let* ) = Option.bind in
   let x_start = x.proposition.range.start in
-  let+ components = get_theorem_components x in
+  let* components = get_theorem_components x in
 
   let new_expr = Constrexpr_map.constr_expr_map f components.expr in
   if not (Constrexpr_ops.constr_expr_eq components.expr new_expr) then
@@ -162,7 +161,7 @@ let proof_from_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
           "The provided first node (%s) can't open a proof"
           (Syntax_node.repr proposition)
       else
-        (* there is a last node as there is more than one node in the list, that last node might end the proof or  *)
+        (* there is a last node as there is more than one node in the list, that last node might end the proof or might be unrelated *)
         let last_node = List_utils.last tail |> Option.get in
         if not (Syntax_node.can_close_proof last_node) then
           Error.format_to_or_error

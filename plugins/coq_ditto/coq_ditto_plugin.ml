@@ -89,9 +89,8 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   | IdDocTransformation -> DocScope (fun _ -> Ok [])
 
 let local_apply_doc_transformation (doc_acc : Rocq_document.t)
-    (trans : Rocq_document.t -> (Transforming_step.t list, Error.t) result)
-    (_transformation_kind : transformation_kind) (_verbose : bool)
-    (_quiet : bool) : (Rocq_document.t, Error.t) result =
+    (trans : Rocq_document.t -> (Transforming_step.t list, Error.t) result) :
+    (Rocq_document.t, Error.t) result =
   Transformations.apply_doc_transformation trans doc_acc
 
 let print_current_running (proof_count : int) (proof_total : int)
@@ -297,9 +296,7 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
                 Ok
                   (local_apply_proof_transformation doc_acc trans
                      transformation_kind proof_list config.verbose config.quiet)
-            | DocScope trans ->
-                local_apply_doc_transformation doc_acc trans transformation_kind
-                  config.verbose config.quiet)
+            | DocScope trans -> local_apply_doc_transformation doc_acc trans)
         | Error err, _ -> Error err)
       (Ok parsed_document) scoped_transformations
   in

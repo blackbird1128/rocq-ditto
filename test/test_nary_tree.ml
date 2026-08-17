@@ -80,10 +80,11 @@ let test_top_n_n_equal_zero () =
 let test_bottom_n_simple () =
   let tree1 = Node (1, [ Node (2, []) ]) in
   let expected = Node (1, [ Node (2, []) ]) in
-  let res = bottom_n 0 tree1 in
+  let res =
+    bottom_n 0 tree1 |> expect_head ~context:"Getting the bottom n single node"
+  in
   Alcotest.check int_tree
-    "the result doesn't have the same shape as the expected result" expected
-    (List.hd res)
+    "the result doesn't have the same shape as the expected result" expected res
 
 let tests =
   [

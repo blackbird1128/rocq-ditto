@@ -12,9 +12,6 @@ let document_to_range_representation_pairs (doc : Rocq_document.t) :
     (string * Code_range.t) list =
   List.map (fun node -> (Syntax_node.repr node, node.range)) doc.elements
 
-let pp_syntax_node fmt node =
-  Format.fprintf fmt "%S at %a" (Syntax_node.repr node) Code_range.pp node.range
-
 let parse_json_target (json : Yojson.Safe.t) : (string * Code_range.t) list =
   let open Yojson.Safe.Util in
   json |> to_list
@@ -54,6 +51,7 @@ let test_parsing_ex1 (doc : Doc.t) () : unit =
     |> expect_result_ok ~context:"Error while parsing ex_parsing1.v"
   in
   let nodes_repr = List.map (fun elem -> Syntax_node.repr elem) doc.elements in
+
   Alcotest.(check int)
     "More than one element was parsed." 1 (List.length nodes_repr);
   Alcotest.(check (list string))
@@ -2404,6 +2402,7 @@ let test_runner ~io:_ ~token:_ ~(doc : Doc.t) =
         Printf.eprintf "%s" (Error.to_string_hum err);
         exit 1
   in
+
   let tests = [ ("parsing tests", file_tests) ] in
   if List.length file_tests > 0 then (
     print_endline

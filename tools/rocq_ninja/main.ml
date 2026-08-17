@@ -1,5 +1,7 @@
 open Ditto
 
+type cli_args = { normalize : bool; path : string }
+
 let get_ninja_rule () =
   let flagname = Rocq_version.executable_name ^ "flags" in
   let rule =
@@ -9,8 +11,6 @@ let get_ninja_rule () =
       ()
   in
   Ninja.rule rule
-
-type cli_args = { normalize : bool; path : string }
 
 let normalize_path ~(project_dir : string) (path : string) : string =
   let with_sep =
@@ -30,8 +30,9 @@ let coqproject_to_ninja_file ~(normalize : bool) (coqproject_path : string) :
     if normalize then normalize_path ~project_dir else Fun.id
   in
   let flagname = Rocq_version.executable_name ^ "flags" in
-  let args =
-    Compile.coqproject_to_project_args coqproject_path |> String.concat " "
+  let* args =
+    Compile.coqproject_to_project_args coqproject_path
+    |> Result.map (String.concat " ")
   in
 
   let flags_var = Ninja.variable flagname args in

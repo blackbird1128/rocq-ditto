@@ -390,7 +390,10 @@ let replace_decompose_or_with_decompose_stab_or
           decomposed_args_genarg
         |> Option.map (List.map constrexpr_to_string)
       in
-      match args_str with
+
+      let sorted_args_str = Option.map (List.sort String.compare) args_str in
+
+      match sorted_args_str with
       | Some [ "or" ] ->
           let hypothesis_genarg =
             Ltac.get_tac_generic_genarg hypothesis |> Option.get
@@ -408,7 +411,7 @@ let replace_decompose_or_with_decompose_stab_or
           in
 
           decompose_stab_or_raw_tac_expr
-      | Some [ "or"; "and" ] | Some [ "and"; "or" ] ->
+      | Some [ "and"; "or" ] ->
           let hypothesis_genarg =
             Ltac.get_tac_generic_genarg hypothesis |> Option.get
           in
