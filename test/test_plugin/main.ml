@@ -8,43 +8,6 @@ open Ditto_test_support.Test_support
 let normalize_strings (strings : string list) : string list =
   List.map (fun str -> String.trim str) strings
 
-let sexp_of_syntax_node (x : Syntax_node.t) : Sexplib.Sexp.t =
-  let open Sexplib in
-  Sexp.(Atom (repr x))
-
-let sexp_of_proof_tree (x : Syntax_node.t nary_tree) =
-  Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
-
-let rec simplify sexp =
-  let open Sexplib.Sexp in
-  match sexp with
-  | List [ x ] -> simplify x
-  | List xs -> List (List.map simplify xs)
-  | Atom _ as a -> a
-
-let print_tree ?(prefix = "") sexp =
-  let open Sexplib.Sexp in
-  let rec aux prefix sexp =
-    match sexp with
-    | Atom s -> Printf.printf "%s%s\n" prefix s
-    | List lst ->
-        let len = List.length lst in
-        List.iteri
-          (fun i x ->
-            let is_last = i = len - 1 in
-            let branch = if is_last then "└── " else "├── " in
-            let next_prefix =
-              if is_last then prefix ^ "    " else prefix ^ "│   "
-            in
-            match x with
-            | Atom s -> Printf.printf "%s%s%s\n" prefix branch s
-            | List _ ->
-                Printf.printf "%s%s()\n" prefix branch;
-                aux next_prefix x)
-          lst
-  in
-  aux prefix (simplify sexp)
-
 let document_to_range_representation_pairs (doc : Rocq_document.t) :
     (string * Code_range.t) list =
   List.map (fun node -> (Syntax_node.repr node, node.range)) doc.elements
@@ -73,9 +36,6 @@ let node (repr : string) : Syntax_node.t =
   Syntax_node.syntax_node_of_string repr Code_point.dummy
   |> expect_result_ok ~context:(Printf.sprintf "Creating a node from %s" repr)
 
-let pp_int (fmt : Format.formatter) (x : int) = Format.fprintf fmt "%d" x
-let int_tree = testable_nary_tree pp_int ( = )
-
 let make_dummy_node_from_repr (start_line : int) (start_char : int)
     (repr : string) : Syntax_node.t =
   let start_point : Code_point.t =
@@ -83,7 +43,6 @@ let make_dummy_node_from_repr (start_line : int) (start_char : int)
   in
   Syntax_node.comment_of_string repr start_point
   |> expect_result_ok ~context:"Error creating a dummy node from representation"
-(* TODO: Improve and remove get_ok *)
 
 let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
     (doc : Doc.t) =

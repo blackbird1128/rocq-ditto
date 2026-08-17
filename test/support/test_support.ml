@@ -131,3 +131,40 @@ let check_list_sorted ~(cmp : 'a -> 'a -> int) ~(pp : 'a Fmt.t) (lst : 'a list)
       let list_str = Format.asprintf "@[<v>Full list:@ %a@]" pp_list lst in
       Alcotest.failf "List is not sorted at index %d: %a > %a\n%s" idx pp x pp y
         list_str
+
+let sexp_of_syntax_node (x : Syntax_node.t) : Sexplib.Sexp.t =
+  let open Sexplib in
+  Sexp.(Atom (Syntax_node.repr x))
+
+let sexp_of_proof_tree (x : Syntax_node.t nary_tree) : Sexplib.Sexp.t =
+  Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
+
+let rec simplify (sexp : Sexplib.Sexp.t) : Sexplib.Sexp.t =
+  let open Sexplib.Sexp in
+  match sexp with
+  | List [ x ] -> simplify x
+  | List xs -> List (List.map simplify xs)
+  | Atom _ as a -> a
+
+let print_tree ?(prefix = "") (sexp : Sexplib.Sexp.t) : unit =
+  let open Sexplib.Sexp in
+  let rec aux prefix sexp =
+    match sexp with
+    | Atom s -> Printf.printf "%s%s\n" prefix s
+    | List lst ->
+        let len = List.length lst in
+        List.iteri
+          (fun i x ->
+            let is_last = i = len - 1 in
+            let branch = if is_last then "└── " else "├── " in
+            let next_prefix =
+              if is_last then prefix ^ "    " else prefix ^ "│   "
+            in
+            match x with
+            | Atom s -> Printf.printf "%s%s%s\n" prefix branch s
+            | List _ ->
+                Printf.printf "%s%s()\n" prefix branch;
+                aux next_prefix x)
+          lst
+  in
+  aux prefix (simplify sexp)
