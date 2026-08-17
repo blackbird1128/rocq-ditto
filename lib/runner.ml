@@ -161,19 +161,16 @@ let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
           let* aux_res = aux token st tail in
           Ok ((before_count, step, before_count) :: aux_res)
         else
-          let state = Fleche.Doc.run ~token ~st (repr step) in
+          let* state = run_node token st step in
 
-          let* agent_state = state |> Error.protect_to_result in
-          let goal_count = count_goals agent_state in
-          let* aux_res = aux token agent_state tail in
+          let goal_count = count_goals state in
+          let* aux_res = aux token state tail in
           Ok ((before_count, step, goal_count) :: aux_res)
   in
   aux token st steps
 
-let can_reduce_to_zero_goals (init_state : Coq.State.t)
-    (nodes : Syntax_node.t list) : bool =
-  let token = Coq.Limits.Token.create () in
-
+let can_reduce_to_zero_goals (token : Coq.Limits.Token.t)
+    (init_state : Coq.State.t) (nodes : Syntax_node.t list) : bool =
   let rec aux state nodes =
     match nodes with
     | [] -> Ok state
@@ -218,10 +215,10 @@ let get_new_vars ?(keep : string list = [])
            old_goals_vars new_goals_vars)
   | _ -> None
 
-let is_valid_proof (doc : Rocq_document.t) (p : Proof.t) : bool =
-  let token = Coq.Limits.Token.create () in
+let is_valid_proof (token : Coq.Limits.Token.t) (doc : Rocq_document.t)
+    (p : Proof.t) : bool =
   match get_init_state doc p.proposition token with
-  | Ok init_state -> can_reduce_to_zero_goals init_state p.proof_steps
+  | Ok init_state -> can_reduce_to_zero_goals token init_state p.proof_steps
   | Error _ -> false
 
 (* take a full tree and return an acc *)

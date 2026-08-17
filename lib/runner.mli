@@ -63,8 +63,10 @@ val get_current_goal :
   Coq.State.t ->
   (string Coq.Goals.Reified_goal.t, Error.t) result
 
-val can_reduce_to_zero_goals : Coq.State.t -> Syntax_node.t list -> bool
-val is_valid_proof : Rocq_document.t -> Proof.t -> bool
+val can_reduce_to_zero_goals :
+  Coq.Limits.Token.t -> Coq.State.t -> Syntax_node.t list -> bool
+
+val is_valid_proof : Coq.Limits.Token.t -> Rocq_document.t -> Proof.t -> bool
 
 val fold_nodes_with_state :
   (Coq.State.t -> 'acc -> Syntax_node.t -> (Coq.State.t * 'acc, Error.t) result) ->

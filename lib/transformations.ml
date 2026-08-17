@@ -230,7 +230,7 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : Proof.t) :
     | x :: tail -> (
         if
           ((not (is_proof_intro_or_end x)) && not (is_bullet x))
-          && Runner.can_reduce_to_zero_goals state tail
+          && Runner.can_reduce_to_zero_goals token_reduce state tail
         then
           let* acc = acc in
           aux state (Ok (Remove x.id :: acc)) tail
