@@ -378,6 +378,25 @@ let test_creating_invalid_proof_not_enough_nodes_zero (_ : Doc.t) () : unit =
          "Not enough elements to create a proof from the nodes.\nnodes: []")
       proof_status)
 
+let test_creating_invalid_proof_not_enough_nodes_one (_ : Doc.t) () : unit =
+  let valid_start =
+    Syntax_node.syntax_node_of_string "Theorem th : forall n : nat, n = n."
+      Code_point.dummy
+    |> expect_result_ok
+  in
+
+  let proof = Proof.proof_from_nodes [ valid_start ] in
+  let proof_status = Result.map Proof.status proof in
+
+  Alcotest.(
+    check
+      (result proof_status_testable error_testable)
+      "Creating a proof with an invalid starting node should not succeed"
+      (Error.format_to_or_error
+         "Not enough elements to create a proof from the nodes.\nnodes: [%s]"
+         (Syntax_node.repr valid_start))
+      proof_status)
+
 let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
   let invalid_start =
     Syntax_node.syntax_node_of_string "Compute 1 + 1." Code_point.dummy
@@ -398,6 +417,38 @@ let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
       (Error.format_to_or_error
          "The provided first node (%s) can't open a proof"
          (Syntax_node.repr invalid_start))
+      proof_status)
+
+let test_creating_a_proof_invalid_closing_node (_ : Doc.t) () : unit =
+  let valid_start =
+    Syntax_node.syntax_node_of_string "Theorem th : forall n : nat, n = n."
+      Code_point.dummy
+    |> expect_result_ok
+  in
+
+  let valid_proof_step =
+    Syntax_node.syntax_node_of_string "easy." Code_point.dummy
+    |> expect_result_ok
+  in
+
+  let invalid_end =
+    Syntax_node.syntax_node_of_string "Compute 1 + 1." Code_point.dummy
+    |> expect_result_ok
+  in
+
+  let proof =
+    Proof.proof_from_nodes [ valid_start; valid_proof_step; invalid_end ]
+  in
+
+  let proof_status = Result.map Proof.status proof in
+
+  Alcotest.(
+    check
+      (result proof_status_testable error_testable)
+      "Creating a proof with an invalid closing node should not succeed"
+      (Error.format_to_or_error
+         "The provided last node (%s) can't close a proof"
+         (Syntax_node.repr invalid_end))
       proof_status)
 
 let test_of_coq_ast_in_state (doc : Doc.t) () =
@@ -1898,6 +1949,9 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a proof with an invalid starting node"
        test_creating_a_proof_invalid_starting_node doc);
+  Hashtbl.add table "test_dummy.v"
+    (create_fixed_test "test creating a proof with an invalid ending node"
+       test_creating_a_proof_invalid_closing_node doc);
 
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating a then b from AST (a;b)"
