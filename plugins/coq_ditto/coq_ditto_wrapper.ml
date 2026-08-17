@@ -48,9 +48,12 @@ let add_to_env_preserving (env : string array) (assoc : string * string) :
     string array =
   let key, value = assoc in
   let env_list = Array.to_list env in
-  let assoc_repr = Printf.sprintf "%s=%s" key value in
+  let assoc_key_repr = Printf.sprintf "%s=" key in
+  let assoc_repr = assoc_key_repr ^ value in
   match
-    List.find_opt (fun env_val -> String.equal env_val assoc_repr) env_list
+    List.find_opt
+      (fun env_val -> String.starts_with ~prefix:assoc_key_repr env_val)
+      env_list
   with
   | Some _ -> env
   | None -> Array.of_list (assoc_repr :: env_list)
