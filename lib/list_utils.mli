@@ -6,6 +6,7 @@ val drop_while : ('a -> bool) -> 'a list -> 'a list
 val split_while : ('a -> bool) -> 'a list -> 'a list * 'a list
 val last : 'a list -> 'a option
 val last_and_len : 'a list -> 'a option * int
+val split_last : 'a list -> ('a list * 'a) option
 val find_index : ('a -> bool) -> 'a list -> int option
 val find_last_opt : ('a -> bool) -> 'a list -> 'a option
 val dedup : 'a list -> 'a list

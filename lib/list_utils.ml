@@ -48,6 +48,14 @@ let last_and_len (lst : 'a list) : 'a option * int =
   in
   aux None 0 lst
 
+let split_last (l : 'a list) : ('a list * 'a) option =
+  let rec aux (acc : 'a list) = function
+    | [] -> None
+    | [ x ] -> Some (acc, x)
+    | x :: xs -> (aux [@tailcall]) (x :: acc) xs
+  in
+  aux [] l
+
 let find_index (f : 'a -> bool) (xs : 'a list) : int option =
   let rec aux i = function
     | [] -> None
