@@ -1,5 +1,7 @@
 open Alcotest
 open Ditto.String_utils
+open Ditto_test_support.Test_support
+open Ditto
 
 let test_split_prefix_simple () =
   check
@@ -146,6 +148,27 @@ let test_split_words_trimming () =
     [ "hello"; "world" ]
     (split_words "  hello  world  ")
 
+let test_split_at_simple () =
+  check
+    (result (pair string string) error_testable)
+    "The words should be split at ','"
+    (Ok ("hello", "world"))
+    (split_at ',' "hello,world")
+
+let test_split_at_empty () =
+  check
+    (result (pair string string) error_testable)
+    "split_at on an empty string should return an error"
+    (Error.string_to_or_error "Couldn't find the split point ',' in \"\"")
+    (split_at ',' "")
+
+let test_split_at_first () =
+  check
+    (result (pair string string) error_testable)
+    "split_at should split at the first occurrence"
+    (Ok ("hello", "world,there"))
+    (split_at ',' "hello,world,there")
+
 let () =
   run "String utils"
     [
@@ -202,5 +225,11 @@ let () =
             test_split_words_tab;
           test_case "test splitting words correctly trim" `Quick
             test_split_words_trimming;
+          test_case "test splitting at char simple string" `Quick
+            test_split_at_simple;
+          test_case "test splitting at char empty string" `Quick
+            test_split_at_empty;
+          test_case "test splitting at char, multiple separators" `Quick
+            test_split_at_first;
         ] );
     ]

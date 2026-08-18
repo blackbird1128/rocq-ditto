@@ -179,20 +179,40 @@ let test_last_regular_list () =
   check (option int) "Last get the last element of a list" (Some 4)
     (last [ 1; 2; 3; 4 ])
 
+let test_split_last_empty () =
+  check
+    (option (pair (list int) int))
+    "Split last should return None for an empty list" None (split_last [])
+
+let test_split_last_single () =
+  check
+    (option (pair (list int) int))
+    "Split last should return ([],x) for a singleton list [x]"
+    (Some ([], 1))
+    (split_last [ 1 ])
+
+let test_split_last_multiple () =
+  check
+    (option (pair (list int) int))
+    "Split last should correctly separate the last element for a list"
+    (Some ([ 1; 2; 3 ], 4))
+    (split_last [ 1; 2; 3; 4 ])
+
 let test_last_and_len_empty () =
-  check (pair (option int) int)
-    "last_and_len on an empty list should return None and zero"
-    (None, 0)
+  check
+    (pair (option int) int)
+    "last_and_len on an empty list should return None and zero" (None, 0)
     (last_and_len [])
 
 let test_last_and_len_single_element () =
-  check (pair (option int) int)
+  check
+    (pair (option int) int)
     "last_and_len on a single-element list should return that element and one"
-    (Some 1, 1)
-    (last_and_len [ 1 ])
+    (Some 1, 1) (last_and_len [ 1 ])
 
 let test_last_and_len_regular_list () =
-  check (pair (option int) int)
+  check
+    (pair (option int) int)
     "last_and_len on a regular list should return its final element and length"
     (Some 4, 4)
     (last_and_len [ 1; 2; 3; 4 ])
@@ -226,13 +246,13 @@ let test_find_last_opt_single_element () =
     (find_last_opt (fun x -> x = 1) [ 1 ])
 
 let test_find_last_opt_regular_list () =
-  check (option int)
-    "find_last_opt should return the last matching element" (Some 3)
+  check (option int) "find_last_opt should return the last matching element"
+    (Some 3)
     (find_last_opt (fun x -> x = 3) [ 1; 3; 2; 3; 4 ])
 
 let test_find_last_opt_no_match () =
-  check (option int)
-    "find_last_opt should return None when there is no match" None
+  check (option int) "find_last_opt should return None when there is no match"
+    None
     (find_last_opt (fun x -> x > 4) [ 1; 2; 3; 4 ])
 
 let () =
@@ -326,15 +346,24 @@ let () =
             `Quick test_last_single_element;
           test_case "last on a regular list should return its final element"
             `Quick test_last_regular_list;
+          test_case "last_and_len on an empty list should return None and zero"
+            `Quick test_last_and_len_empty;
           test_case
-            "last_and_len on an empty list should return None and zero" `Quick
-            test_last_and_len_empty;
-          test_case
-            "last_and_len on a single-element list should return that element and one"
+            "last_and_len on a single-element list should return that element \
+             and one"
             `Quick test_last_and_len_single_element;
           test_case
-            "last_and_len on a regular list should return its final element and length"
+            "last_and_len on a regular list should return its final element \
+             and length"
             `Quick test_last_and_len_regular_list;
+          test_case "split last on an empty list should return None" `Quick
+            test_split_last_empty;
+          test_case
+            "split last on a singleton list [x] should return Some([],x)" `Quick
+            test_split_last_single;
+          test_case
+            "split last on a non empty list should correctly split that list"
+            `Quick test_split_last_multiple;
           test_case "find_index on an empty list should return None" `Quick
             test_find_index_empty;
           test_case
@@ -343,18 +372,17 @@ let () =
           test_case
             "find_index should return the index of the first matching element"
             `Quick test_find_index_regular_list;
-          test_case
-            "find_index should return None when there is no match" `Quick
-            test_find_index_no_match;
+          test_case "find_index should return None when there is no match"
+            `Quick test_find_index_no_match;
           test_case "find_last_opt on an empty list should return None" `Quick
             test_find_last_opt_empty;
           test_case
-            "find_last_opt on a matching single-element list should return that element"
+            "find_last_opt on a matching single-element list should return \
+             that element"
             `Quick test_find_last_opt_single_element;
           test_case "find_last_opt should return the last matching element"
             `Quick test_find_last_opt_regular_list;
-          test_case
-            "find_last_opt should return None when there is no match" `Quick
-            test_find_last_opt_no_match;
+          test_case "find_last_opt should return None when there is no match"
+            `Quick test_find_last_opt_no_match;
         ] );
     ]
