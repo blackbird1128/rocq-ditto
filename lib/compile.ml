@@ -36,19 +36,22 @@ let resolve_project_path (path : string) : (string * string, Error.t) result =
         Error.string_to_or_error
           "Please provide a directory or a project file path"
 
-let read_lines (ic : in_channel) : string list =
-  let rec loop acc =
-    match input_line ic with
-    | line -> loop (line :: acc)
-    | exception End_of_file -> List.rev acc
-  in
-  loop []
-
-let open_dep_process (args : string list) : (in_channel, Error.t) result =
+let run_dep_process (args : string list) : (string, Error.t) result =
+  let argv = Array.of_list ((dep_program :: dep_fixed_args) @ args) in
   try
-    Ok
-      (Unix.open_process_args_in dep_program
-         (Array.of_list ((dep_program :: dep_fixed_args) @ args)))
+    let ic = Unix.open_process_args_in dep_program argv in
+    let output = In_channel.input_all ic in
+    match Unix.close_process_in ic with
+    | Unix.WEXITED 0 -> Ok output
+    | Unix.WEXITED n ->
+        Error.format_to_or_error "%s exited with %d; output:\n%s"
+          dep_program_repr n output
+    | Unix.WSTOPPED signal ->
+        Error.format_to_or_error "%s was stopped by signal %d" dep_program_repr
+          signal
+    | Unix.WSIGNALED signal ->
+        Error.format_to_or_error "%s was killed by signal %d" dep_program_repr
+          signal
   with Unix.Unix_error (err, func, arg) ->
     let msg = Unix.error_message err in
     Error.format_to_or_error "%s: %s (%s)" func msg arg
@@ -56,85 +59,66 @@ let open_dep_process (args : string list) : (in_channel, Error.t) result =
 let coqproject_sorted_files (coqproject_file : string) :
     (string list, Error.t) result =
   let ( let* ) = Result.bind in
-  let* ic = open_dep_process [ "-f"; coqproject_file; "-sort" ] in
+  let* output = run_dep_process [ "-f"; coqproject_file; "-sort" ] in
+  let lines = String_utils.split_by_newline output in
 
-  let lines = read_lines ic in
-  match Unix.close_process_in ic with
-  | Unix.WEXITED 0 -> (
-      match lines with
-      | [] ->
-          Error.format_to_or_error "Executing %s returned an empty output"
-            dep_program_repr
-      | [ first_line ] -> Ok (String_utils.split_words first_line)
-      | _ :: _ ->
-          Error.format_to_or_error
-            "Executing %s returned more than a single line of output, \
-             unexpected format"
-            dep_program_repr)
-  | Unix.WEXITED n ->
-      Error.format_to_or_error "%s exited with %d; output:\n%s" dep_program_repr
-        n (String.concat "\n" lines)
-  | _ -> Error.format_to_or_error "%s terminated abnormally" dep_program_repr
+  match lines with
+  | [] ->
+      Error.format_to_or_error "Executing %s returned an empty output"
+        dep_program_repr
+  | [ first_line ] -> Ok (String_utils.split_words first_line)
+  | _ :: _ ->
+      Error.format_to_or_error
+        "Executing %s returned more than a single line of output, unexpected \
+         format"
+        dep_program_repr
 
 type dependency_graph = (string, string list) Hashtbl.t
+type dependency_rule = { filename : string; dependencies : string list }
+
+let parse_depf_line (line : string) : (dependency_rule, Error.t) result =
+  let re = Re.compile (Re.str "required_vo:") in
+  let split = Re.split_delim re line in
+  match split with
+  | [ _; second_part ] -> (
+      let words = String_utils.split_words second_part in
+      match List_utils.split_last words with
+      | Some (filename :: vo_dependencies, _) ->
+          let dependencies =
+            List.map
+              (fun x ->
+                if String.ends_with ~suffix:".vo" x then
+                  String.sub x 0 (String.length x - 1)
+                else x)
+              vo_dependencies
+          in
+
+          Ok { filename; dependencies }
+      | _ -> Error.format_to_or_error "Malformed depedency line: %S" line)
+  | _ ->
+      Error.format_to_or_error "Can't split the line %S at \"required_vo:\""
+        line
+
+let parse_depf_output (output : string) : (dependency_graph, Error.t) result =
+  let ( let* ) = Result.bind in
+  let lines = String_utils.split_by_newline output in
+  let* parsed_lines = List.map parse_depf_line lines |> List_utils.result_all in
+  let parents_table = Hashtbl.create (List.length parsed_lines) in
+  List.iter
+    (fun { filename; dependencies } ->
+      let filtered_dependencies =
+        List.filter (fun dep -> not (String.equal filename dep)) dependencies
+      in
+      (* avoid making a recursive parent table *)
+      Hashtbl.replace parents_table filename filtered_dependencies)
+    parsed_lines;
+  Ok parents_table
 
 let coqproject_to_dep_graph (coqproject_file : string) :
     (dependency_graph, Error.t) result =
   let ( let* ) = Result.bind in
-  let* ic = open_dep_process [ "-f"; coqproject_file ] in
-  let lines = read_lines ic in
-  match Unix.close_process_in ic with
-  | Unix.WEXITED 0 ->
-      let re = Re.compile (Re.str "required_vo:") in
-      let split = List.map (Re.split_delim re) lines in
-      let filenames =
-        List.map
-          (fun x ->
-            let hd = List.hd x in
-            let filename_vo = String_utils.split_words hd |> List.hd in
-            let filename =
-              String.sub filename_vo 0 (String.length filename_vo - 1)
-            in
-            filename)
-          split
-      in
-      let tails =
-        List.map
-          (fun x ->
-            let tl = List.nth x 1 in
-            String_utils.split_words tl)
-          split
-      in
-
-      let tails_filenames =
-        List.map
-          (fun l ->
-            List.filter_map
-              (fun x ->
-                if String.ends_with ~suffix:".vo" x then
-                  Some (String.sub x 0 (String.length x - 1))
-                else if String.ends_with ~suffix:".v" x then Some x
-                else None)
-              l)
-          tails
-      in
-
-      let parents_table = Hashtbl.create (List.length filenames) in
-      List.iteri
-        (fun idx x ->
-          let matching_tail =
-            List.nth tails_filenames idx
-            |> List.filter (fun elem_tl -> not (String.equal elem_tl x))
-            (* avoid making a recursive parent table *)
-          in
-          Hashtbl.add parents_table x matching_tail)
-        filenames;
-
-      Ok parents_table
-  | Unix.WEXITED n ->
-      Error.format_to_or_error "%s exited with %d; output:\n%s" dep_program_repr
-        n (String.concat "\n" lines)
-  | _ -> Error.format_to_or_error "%s terminated abnormally" dep_program_repr
+  let* output = run_dep_process [ "-f"; coqproject_file ] in
+  parse_depf_output output
 
 let coqproject_to_project_args (coqproject_file : string) :
     (string list, Error.t) result =
