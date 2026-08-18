@@ -1,5 +1,7 @@
 open Ditto
 
+type cli_args = { path : string }
+
 let output_dot_of_coqproject (project_dir : string) (project_filename : string)
     : (unit, Error.t) result =
   let ( let* ) = Result.bind in
@@ -24,18 +26,39 @@ let output_dot_of_coqproject (project_dir : string) (project_filename : string)
 
   let dot_repr = Compile.depgraph_to_dot_format depgraph_stripped in
 
-  Printf.printf "%s!" dot_repr;
+  Printf.printf "%s%!" dot_repr;
   Ok ()
+
+let parse_args () : (cli_args, Error.t) result =
+  let path = ref None in
+  let usage_msg =
+    Printf.sprintf "Usage: %s <path>" (Filename.basename Sys.argv.(0))
+  in
+
+  let set_path arg =
+    match !path with
+    | None -> path := Some arg
+    | Some _ -> raise (Arg.Bad "Please provide exactly one path")
+  in
+
+  try
+    Arg.parse [] set_path usage_msg;
+    match !path with
+    | Some path -> Ok { path }
+    | None -> Error.string_to_or_error "Please provide a path"
+  with
+  | Arg.Bad msg -> Error.string_to_or_error msg
+  | Arg.Help msg ->
+      print_string msg;
+      exit 0
 
 let get_project_dot () =
   let ( let* ) = Result.bind in
-  if Array.length Sys.argv != 2 then
-    Error.string_to_or_error "Usage: rocqdep-dot path"
-  else
-    let path = Sys.argv.(1) in
 
-    let* project_dir, project_filename = Compile.resolve_project_path path in
-    output_dot_of_coqproject project_dir project_filename
+  let* { path } = parse_args () in
+
+  let* project_dir, project_filename = Compile.resolve_project_path path in
+  output_dot_of_coqproject project_dir project_filename
 
 let main =
   match get_project_dot () with
