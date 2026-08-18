@@ -65,3 +65,10 @@ let split_words (line : string) : string list =
       loop j (word :: acc)
   in
   loop 0 []
+
+let split_by_newline (str : string) : string list =
+  String.split_on_char '\n' str
+  |> List.map (fun line ->
+      let len = String.length line in
+      if len > 0 && line.[len - 1] = '\r' then String.sub line 0 (len - 1)
+      else line)
