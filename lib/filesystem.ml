@@ -9,9 +9,9 @@ let is_directory (path : string) : bool =
 let get_pathkind (path : string) : path_kind =
   if is_directory path then Dir else File
 
-type newDirState = AlreadyExists | Created
+type creation_status = AlreadyExists | Created
 
-let make_dir (dir_name : string) : (newDirState, Error.t) result =
+let make_dir (dir_name : string) : (creation_status, Error.t) result =
   let perm = 0o755 in
   if Sys.file_exists dir_name then Ok AlreadyExists
   else

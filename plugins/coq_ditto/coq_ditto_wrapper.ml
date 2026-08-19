@@ -22,7 +22,7 @@ type stats_option = {
 
 type running_job = { target : string }
 
-let warn_if_exists (dir_state : Filesystem.newDirState) =
+let warn_if_exists (dir_state : Filesystem.creation_status) =
   match dir_state with
   | AlreadyExists ->
       Printf.printf
