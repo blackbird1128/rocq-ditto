@@ -56,10 +56,10 @@ let run_dep_process (args : string list) : (string, Error.t) result =
     let msg = Unix.error_message err in
     Error.format_to_or_error "%s: %s (%s)" func msg arg
 
-let coqproject_sorted_files (coqproject_file : string) :
+let coqproject_sorted_files (coqproject_filepath : string) :
     (string list, Error.t) result =
   let ( let* ) = Result.bind in
-  let* output = run_dep_process [ "-f"; coqproject_file; "-sort" ] in
+  let* output = run_dep_process [ "-f"; coqproject_filepath; "-sort" ] in
   let lines = String_utils.split_by_newline output in
 
   match lines with
@@ -74,9 +74,13 @@ let coqproject_sorted_files (coqproject_file : string) :
         dep_program_repr
 
 type dependency_graph = (string, string list) Hashtbl.t
-type dependency_rule = { filename : string; dependencies : string list }
 
+type dependency_rule = { filename : string; dependencies : string list }
+[@@deriving show { with_path = false }]
+
+(* TODO: Checks how to make it testable but not expose for a single line *)
 let parse_depf_line (line : string) : (dependency_rule, Error.t) result =
+  let ( let* ) = Result.bind in
   let re = Re.compile (Re.str "required_vo:") in
   let split = Re.split_delim re line in
   match split with
@@ -84,13 +88,14 @@ let parse_depf_line (line : string) : (dependency_rule, Error.t) result =
       let words = String_utils.split_words second_part in
       match List_utils.split_last words with
       | Some (filename :: vo_dependencies, _) ->
-          let dependencies =
+          let* dependencies =
             List.map
               (fun x ->
                 if String.ends_with ~suffix:".vo" x then
-                  String.sub x 0 (String.length x - 1)
-                else x)
+                  Ok (String.sub x 0 (String.length x - 1))
+                else Error.format_to_or_error "Part: %S doesn't end with .vo" x)
               vo_dependencies
+            |> List_utils.result_all
           in
 
           Ok { filename; dependencies }
@@ -101,7 +106,10 @@ let parse_depf_line (line : string) : (dependency_rule, Error.t) result =
 
 let parse_depf_output (output : string) : (dependency_graph, Error.t) result =
   let ( let* ) = Result.bind in
-  let lines = String_utils.split_by_newline output in
+  let lines =
+    String_utils.split_by_newline output
+    |> List.filter (fun line -> not (String.equal line ""))
+  in
   let* parsed_lines = List.map parse_depf_line lines |> List_utils.result_all in
   let parents_table = Hashtbl.create (List.length parsed_lines) in
   List.iter
