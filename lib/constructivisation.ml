@@ -777,7 +777,7 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
 let get_proofs_named (proofs : Proof.t list) (names : string list) =
   List.filter
     (fun p ->
-      let name = Proof.get_proof_name p in
+      let name = Proof.get_proof_name p |> Option.map Names.Id.to_string in
       List.exists (fun x -> Option.equal String.equal name (Some x)) names)
     proofs
 

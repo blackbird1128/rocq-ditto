@@ -40,7 +40,7 @@ val syntax_node_of_theorem_components_in_state :
   Code_point.t ->
   (Syntax_node.t, Error.t) result
 
-val get_proof_name : t -> string option
+val get_proof_name : t -> Names.Id.t option
 (** Retrieve the name of the proof's proposition if available.
     [get_proof_name p] returns [Some name] if the proof [p] has a proposition
     with a name, otherwise it returns [None]. *)

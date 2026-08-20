@@ -155,10 +155,12 @@ let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
     expect_head ~context:"Expected non-empty list"
       (expect_result_ok (Rocq_document.get_proofs doc))
   in
-  Alcotest.(check string)
-    "The proof name should be modus ponens" "modus_ponens"
-    (Proof.get_proof_name proof
-    |> expect_some ~context:"The proof should have a name");
+  let proof_name =
+    Proof.get_proof_name proof |> Option.map Names.Id.to_string
+  in
+
+  Alcotest.(check (option string))
+    "The proof name should be modus ponens" (Some "modus_ponens") proof_name;
   Alcotest.(check int)
     "The proof should have 6 steps (including Proof. and Qed.)" 6
     (List.length proof.proof_steps);
@@ -186,7 +188,11 @@ let test_proof_parsing_multiple_proofs_ex3 (doc : Doc.t) () : unit =
   let proofs = expect_result_ok (Rocq_document.get_proofs doc) in
   Alcotest.(check int)
     "The wrong number of proofs was parsed" 2 (List.length proofs);
-  let proof_names = List.filter_map (fun p -> Proof.get_proof_name p) proofs in
+  let proof_names =
+    List.filter_map
+      (fun p -> Proof.get_proof_name p |> Option.map Names.Id.to_string)
+      proofs
+  in
   Alcotest.(check (list string))
     "One or more proof does't have the correct name"
     [ "and_split"; "and_split_bis" ]

@@ -12,28 +12,22 @@ type theorem_components = {
   expr : Constrexpr.constr_expr;
 }
 
-let get_theorem_components (x : t) : theorem_components option =
-  match Syntax_node.synpure_expr x.proposition with
+let get_theorem_components (p : t) : theorem_components option =
+  match Syntax_node.synpure_expr p.proposition with
   | Some
       (Vernacexpr.VernacStartTheoremProof
          (kind, [ ((name, universe), (binders, expr)) ])) ->
       Some { kind; name; universe; binders; expr }
   | _ -> None
 
-let get_theorem_kind (x : t) : Decls.theorem_kind option =
-  match get_theorem_components x with
-  | Some { kind; _ } -> Some kind
-  | None -> None
+let get_theorem_kind (p : t) : Decls.theorem_kind option =
+  Option.map (fun c -> c.kind) (get_theorem_components p)
 
-let get_constr_expr (x : t) : Constrexpr.constr_expr option =
-  match get_theorem_components x with
-  | Some { expr; _ } -> Some expr
-  | None -> None
+let get_constr_expr (p : t) : Constrexpr.constr_expr option =
+  Option.map (fun c -> c.expr) (get_theorem_components p)
 
-let get_proof_name (p : t) : string option =
-  match get_theorem_components p with
-  | Some { name; _ } -> Some (Names.Id.to_string name.v)
-  | None -> None
+let get_proof_name (p : t) : Names.Id.t option =
+  Option.map (fun c -> c.name.v) (get_theorem_components p)
 
 let coq_ast_of_theorem_components (c : theorem_components) : Coq.Ast.t =
   let expr_syn =

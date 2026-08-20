@@ -274,7 +274,7 @@ let proof_with_name_opt (proof_name : string) (doc : t) :
     (List.find_opt
        (fun proof ->
          match Proof.get_proof_name proof with
-         | Some name -> name = proof_name
+         | Some name -> Names.Id.to_string name = proof_name
          | None -> false)
        proofs)
 
@@ -391,8 +391,7 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
                            after)
                 else
                   let dl = removed_start.line - first_after.range.start.line in
-                  if dl = 0 then Ok after
-                  else Ok (List.map (move_node_by ~lines:dl ~chars:0) after))
+                  Ok (List.map (move_node_by ~lines:dl ~chars:0) after))
       in
       let elements = before @ shifted_after in
       let* document_repr = dump_sorted_elements_to_string elements in

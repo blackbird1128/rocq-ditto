@@ -127,7 +127,8 @@ let display_transformation_error (prev_proof : Proof.t option)
   let prev_proof_name =
     match prev_proof with
     | Some prev_proof ->
-        Option.default "anonymous" (Proof.get_proof_name prev_proof)
+        Option.default "anonymous"
+          (Proof.get_proof_name prev_proof |> Option.map Names.Id.to_string)
     | None -> "None"
   in
   let transformation_name = transformation_kind_to_string transformation_kind in
@@ -160,7 +161,8 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
           Runner.get_init_state curr_doc proof.proposition token
         in
         let proof_name =
-          Option.default "anonymous" (Proof.get_proof_name proof)
+          Option.default "anonymous"
+            (Proof.get_proof_name proof |> Option.map Names.Id.to_string)
         in
         print_current_running proof_count proof_total proof_name
           transformation_kind quiet verbose;
@@ -170,7 +172,10 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
             apply_steps transformation_steps curr_doc proof_count proof
         | Error _ ->
             let prev_proof_name =
-              Option.map (fun p -> Proof.get_proof_name p) prev_proof
+              Option.map
+                (fun p ->
+                  Proof.get_proof_name p |> Option.map Names.Id.to_string)
+                prev_proof
               |> Option.flatten
               |> Option.default "No previous proof ? This might be a bug\n"
             in
