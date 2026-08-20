@@ -51,7 +51,7 @@ let last_and_len (lst : 'a list) : 'a option * int =
 let split_last (l : 'a list) : ('a list * 'a) option =
   let rec aux (acc : 'a list) = function
     | [] -> None
-    | [ x ] -> Some (acc, x)
+    | [ x ] -> Some (List.rev acc, x)
     | x :: xs -> (aux [@tailcall]) (x :: acc) xs
   in
   aux [] l
