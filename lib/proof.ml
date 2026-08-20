@@ -1,5 +1,3 @@
-open Transforming_step
-
 type proof_status = Admitted | Proved | Aborted
 [@@deriving show { with_path = false }]
 
@@ -57,18 +55,17 @@ let syntax_node_of_theorem_components_in_state ~(token : Coq.Limits.Token.t)
   let coq_ast = coq_ast_of_theorem_components c in
   Syntax_node.of_coq_ast_in_state ~token ~st coq_ast start_point
 
-let proof_status_of_vernacexpr (expr : Vernacexpr.synpure_vernac_expr) :
-    (proof_status, Error.t) result =
-  match expr with
-  | Vernacexpr.VernacEndProof Admitted -> Ok Admitted
-  | Vernacexpr.VernacEndProof (Proved _) -> Ok Proved
-  | Vernacexpr.VernacAbort | Vernacexpr.VernacAbortAll -> Ok Aborted
-  | _ -> Error.string_to_or_error "not a valid closing node"
-
 let proof_status_from_last_node (node : Syntax_node.t) :
     (proof_status, Error.t) result =
   match Syntax_node.synpure_expr node with
-  | Some expr -> proof_status_of_vernacexpr expr
+  | Some expr -> (
+      match expr with
+      | Vernacexpr.VernacEndProof Admitted -> Ok Admitted
+      | Vernacexpr.VernacEndProof (Proved _) -> Ok Proved
+      | Vernacexpr.VernacAbort | Vernacexpr.VernacAbortAll -> Ok Aborted
+      | _ ->
+          Error.format_to_or_error "(%s) is not a valid closing node"
+            (Syntax_node.repr node))
   | None -> (
       match node.ast with
       | Some _ ->
@@ -122,7 +119,7 @@ let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
 
     let new_node = syntax_node_of_theorem_components new_components x_start in
 
-    Some (Replace (x.proposition.id, new_node))
+    Some (Transforming_step.Replace (x.proposition.id, new_node))
   else None
 
 let map_proof_proposition_in_state
@@ -142,7 +139,7 @@ let map_proof_proposition_in_state
             x_start
         in
 
-        Ok (Some (Replace (x.proposition.id, new_node)))
+        Ok (Some (Transforming_step.Replace (x.proposition.id, new_node)))
       else Ok None
   | None -> Ok None
 
