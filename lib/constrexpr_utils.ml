@@ -27,6 +27,25 @@ let get_fun_names_in_constrexpr (term : Constrexpr.constr_expr) :
 let get_func_args (x : Constrexpr.constr_expr) : Constrexpr.constr_expr list =
   match x.v with Constrexpr.CApp (_, args) -> List.map fst args | _ -> []
 
+let rec get_conclusion (expr : Constrexpr.constr_expr) :
+    Constrexpr.constr_expr option =
+  match expr.v with
+  | Constrexpr.CProdN (_, body) -> get_conclusion body
+  | Constrexpr.CLetIn (_, _, _, body) -> get_conclusion body
+  | Constrexpr.CNotation (_, (_, notation_key), (args, _, _, _)) ->
+      if notation_key = "_ -> _" then (
+        match args with
+        | [ _; right ] -> get_conclusion right
+        | _ ->
+            Logs.debug (fun m ->
+                m
+                  "fun: get_proof_conclusion\n\
+                   You should never see this message\n\
+                   Please fill an issue");
+            assert false)
+      else Some expr
+  | _ -> Some expr
+
 let is_constrexpr_c_app_named (x : Constrexpr.constr_expr) (name : string) :
     bool =
   match x.v with

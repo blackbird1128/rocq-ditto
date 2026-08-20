@@ -78,27 +78,8 @@ let status (p : t) : proof_status =
   | None -> assert false (* a proof always has a last closing proof steps *)
 
 let get_proof_conclusion (p : t) : Constrexpr.constr_expr option =
-  let rec get_conclusion (expr : Constrexpr.constr_expr) =
-    match expr.v with
-    | Constrexpr.CProdN (_, body) -> get_conclusion body
-    | Constrexpr.CLetIn (_, _, _, body) -> get_conclusion body
-    | Constrexpr.CNotation (_, (_, notation_key), (args, _, _, _)) ->
-        if notation_key = "_ -> _" then (
-          match args with
-          | [ _; right ] -> get_conclusion right
-          | _ ->
-              Logs.debug (fun m ->
-                  m
-                    "fun: get_proof_conclusion\n\
-                     You should never see this message\n\
-                     Please fill an issue");
-              assert false)
-        else Some expr
-    | _ -> Some expr
-  in
-
   match get_theorem_components p with
-  | Some components -> get_conclusion components.expr
+  | Some components -> Constrexpr_utils.get_conclusion components.expr
   | None -> None
 
 let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)

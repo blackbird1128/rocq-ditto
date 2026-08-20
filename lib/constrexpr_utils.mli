@@ -6,6 +6,7 @@ val get_fun_name_in_constrexpr :
 
 val get_fun_names_in_constrexpr : Constrexpr.constr_expr -> Libnames.qualid list
 val get_func_args : Constrexpr.constr_expr -> Constrexpr.constr_expr list
+val get_conclusion : Constrexpr.constr_expr -> Constrexpr.constr_expr option
 val is_constrexpr_c_app_named : Constrexpr.constr_expr -> string -> bool
 
 val replace_fun_name_in_constrexpr :
