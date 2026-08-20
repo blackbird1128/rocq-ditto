@@ -73,14 +73,11 @@ let run_node_with_diagnostics (token : Coq.Limits.Token.t)
     ( Coq.State.t * Lang.Diagnostic.t list,
       Error.t * Lang.Diagnostic.t list )
     result =
-  let execution =
-    let st =
-      run_with_diagnostics ~token ~memo:true ~st:prev_state (repr node)
-    in
-    st
+  let res =
+    run_with_diagnostics ~token ~memo:true ~st:prev_state (repr node)
+    |> Error.protect_to_result_with_feedback
   in
 
-  let res = Error.protect_to_result_with_feedback execution in
   match res with
   | Ok (state_msgs, messages) ->
       let state = fst state_msgs in
@@ -171,18 +168,8 @@ let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
 
 let can_reduce_to_zero_goals (token : Coq.Limits.Token.t)
     (init_state : Coq.State.t) (nodes : Syntax_node.t list) : bool =
-  let rec aux state nodes =
-    match nodes with
-    | [] -> Ok state
-    | x :: tail -> (
-        let state_node_res = run_node token state x in
-        match state_node_res with
-        | Ok state_node -> aux state_node tail
-        | Error _ -> Error ())
-  in
-  match aux init_state nodes with
-  | Ok state -> count_goals state = 0
-  | Error _ -> false
+  let end_state = get_state_after init_state token nodes in
+  match end_state with Ok state -> count_goals state = 0 | Error _ -> false
 
 let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
     (string Coq.Goals.Reified_goal.t, Error.t) result =
