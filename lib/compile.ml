@@ -4,34 +4,45 @@ open Sexplib.Std
 let dep_program, dep_fixed_args = Rocq_version.dep_command
 let dep_program_repr = String.concat " " (dep_program :: dep_fixed_args)
 
-let rec find_coqproject_dir_and_file (dir : string) : (string * string) option =
+type project = { directory : string; filename : string; path : string }
+
+let rec find_coqproject_dir_and_file (dir : string) : project option =
   let coqproject_filename = "_CoqProject" in
   let rocqproject_filename = "_RocqProject" in
   if Sys.file_exists (Filename.concat dir coqproject_filename) then
-    Some (dir, coqproject_filename)
+    Some
+      {
+        directory = dir;
+        filename = coqproject_filename;
+        path = Filename.concat dir coqproject_filename;
+      }
   else if Sys.file_exists (Filename.concat dir rocqproject_filename) then
-    Some (dir, rocqproject_filename)
+    Some
+      {
+        directory = dir;
+        filename = rocqproject_filename;
+        path = Filename.concat dir rocqproject_filename;
+      }
   else if dir = "/" || dir = "." then None
   else find_coqproject_dir_and_file (Filename.dirname dir)
 
-let find_coqproject_dir (dir : string) : string option =
-  Option.map fst (find_coqproject_dir_and_file dir)
-
-let find_coqproject_file (dir : string) : string option =
-  Option.map snd (find_coqproject_dir_and_file dir)
-
-let resolve_project_path (path : string) : (string * string, Error.t) result =
+let resolve_project_path (path : string) : (project, Error.t) result =
   if not (Sys.file_exists path) then
     Error.string_to_or_error
       "Please provide a path to an existing file or directory"
   else if Filesystem.is_directory path then
     match find_coqproject_dir_and_file path with
     | None -> Error.string_to_or_error "No _CoqProject or _RocqProject found"
-    | Some (dir, filename) -> Ok (dir, filename)
+    | Some project -> Ok project
   else
     match Filename.basename path with
     | "_CoqProject" | "_RocqProject" ->
-        Ok (Filename.dirname path, Filename.basename path)
+        Ok
+          {
+            directory = Filename.dirname path;
+            filename = Filename.basename path;
+            path;
+          }
     | _ ->
         Error.string_to_or_error
           "Please provide a directory or a project file path"
@@ -56,10 +67,10 @@ let run_dep_process (args : string list) : (string, Error.t) result =
     let msg = Unix.error_message err in
     Error.format_to_or_error "%s: %s (%s)" func msg arg
 
-let coqproject_sorted_files (coqproject_filepath : string) :
-    (string list, Error.t) result =
+let coqproject_sorted_files (project : project) : (string list, Error.t) result
+    =
   let ( let* ) = Result.bind in
-  let* output = run_dep_process [ "-f"; coqproject_filepath; "-sort" ] in
+  let* output = run_dep_process [ "-f"; project.path; "-sort" ] in
   let lines = String_utils.split_by_newline output in
 
   match lines with
@@ -122,18 +133,18 @@ let parse_depf_output (output : string) : (dependency_graph, Error.t) result =
     parsed_lines;
   Ok parents_table
 
-let coqproject_to_dep_graph (coqproject_file : string) :
+let coqproject_to_dep_graph (project : project) :
     (dependency_graph, Error.t) result =
   let ( let* ) = Result.bind in
-  let* output = run_dep_process [ "-f"; coqproject_file ] in
+  let* output = run_dep_process [ "-f"; project.path ] in
   parse_depf_output output
 
-let coqproject_to_project_args (coqproject_file : string) :
+let coqproject_to_project_args (project : project) :
     (string list, Error.t) result =
   let ( let* ) = Result.bind in
   let open CoqProject_file in
   let* proj =
-    try Ok (read_project_file ~warning_fn:(fun _ -> ()) coqproject_file) with
+    try Ok (read_project_file ~warning_fn:(fun _ -> ()) project.path) with
     | Parsing_error err_msg | UnableToOpenProjectFile err_msg ->
         Error.string_to_or_error err_msg
     | exn -> Error (Error.of_exn exn)

@@ -1,21 +1,29 @@
 open Fleche
 
-val find_coqproject_dir : string -> string option
-val find_coqproject_file : string -> string option
-val find_coqproject_dir_and_file : string -> (string * string) option
-val coqproject_sorted_files : string -> (string list, Error.t) result
+type project = private { directory : string; filename : string; path : string }
 
-val resolve_project_path : string -> (string * string, Error.t) result
+val find_coqproject_dir_and_file : string -> project option
+val coqproject_sorted_files : project -> (string list, Error.t) result
+
+val resolve_project_path : string -> (project, Error.t) result
 (** [resolve_project_path path] checks that the provided path is either a path
     to a directory containing a project file (_CoqProject or _RocqProject) or a
     path to a project file. If one if these condition is true, it returns the
     project directory of that path and the name of the project file, otherwise
     it returns an error *)
 
-val coqproject_to_dep_graph :
+type dependency_rule = { filename : string; dependencies : string list }
+[@@deriving show { with_path = false }]
+
+val parse_depf_line : string -> (dependency_rule, Error.t) result
+
+val parse_depf_output :
   string -> ((string, string list) Hashtbl.t, Error.t) result
 
-val coqproject_to_project_args : string -> (string list, Error.t) result
+val coqproject_to_dep_graph :
+  project -> ((string, string list) Hashtbl.t, Error.t) result
+
+val coqproject_to_project_args : project -> (string list, Error.t) result
 val depgraph_to_dot_format : (string, string list) Hashtbl.t -> string
 
 val build_outdegrees : ('a, 'a list) Hashtbl.t -> ('a, int) Hashtbl.t

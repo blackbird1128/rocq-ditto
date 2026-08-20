@@ -2,22 +2,22 @@ open Ditto
 
 type cli_args = { path : string }
 
-let output_dot_of_coqproject (project_dir : string) (project_filename : string)
-    : (unit, Error.t) result =
+let output_dot_of_coqproject (project : Compile.project) :
+    (unit, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let project_path = Filename.concat project_dir project_filename in
-
   let* depgraph : (string, string list) Hashtbl.t =
-    Compile.coqproject_to_dep_graph project_path
+    Compile.coqproject_to_dep_graph project
   in
   let dep_seq = Hashtbl.to_seq depgraph in
   let stripped_seq =
     Seq.map
       (fun (file, neighbors) ->
-        let file_stripped = String_utils.remove_prefix file project_dir in
+        let file_stripped = String_utils.remove_prefix file project.directory in
         let neighbors_stripped =
-          List.map (fun x -> String_utils.remove_prefix x project_dir) neighbors
+          List.map
+            (fun x -> String_utils.remove_prefix x project.directory)
+            neighbors
         in
         (file_stripped, neighbors_stripped))
       dep_seq
@@ -57,8 +57,8 @@ let get_project_dot () =
 
   let* { path } = parse_args () in
 
-  let* project_dir, project_filename = Compile.resolve_project_path path in
-  output_dot_of_coqproject project_dir project_filename
+  let* project = Compile.resolve_project_path path in
+  output_dot_of_coqproject project
 
 let main =
   match get_project_dot () with

@@ -15,11 +15,8 @@ let get_dependencies () =
       | None ->
           Error.string_to_or_error
             "No _CoqProject or _RocqProject associated with the file found"
-      | Some (project_dir, project_file) ->
-          let* dep_graph =
-            Compile.coqproject_to_dep_graph
-              (Filename.concat project_dir project_file)
-          in
+      | Some project ->
+          let* dep_graph = Compile.coqproject_to_dep_graph project in
           let dependencies = Compile.get_file_dependencies filename dep_graph in
           List.iter print_endline dependencies;
           Ok ()

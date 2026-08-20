@@ -282,7 +282,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
 
         let input_dir =
           match coqproject_opt with
-          | Some (dir, _) -> dir
+          | Some { directory; _ } -> directory
           | None -> Filename.dirname input
         in
 
@@ -295,16 +295,14 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                   Error.string_to_or_error
                     "No _CoqProject or _RocqProject found, impossible to run a \
                      dependency action"
-              | Some (dir, file) ->
-                  let* dep_graph =
-                    Compile.coqproject_to_dep_graph (Filename.concat dir file)
-                  in
+              | Some project ->
+                  let* dep_graph = Compile.coqproject_to_dep_graph project in
                   let dependencies =
                     Compile.get_file_dependencies input dep_graph
                   in
                   Printf.printf "Compiling %d dependencies\n%!"
                     (List.length dependencies);
-                  let res, _ = compile_files dependencies dir in
+                  let res, _ = compile_files dependencies project.directory in
                   res)
           | TransformDependencies -> (
               match coqproject_opt with
@@ -312,18 +310,16 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                   Error.string_to_or_error
                     "No _CoqProject or _RocqProject found, impossible to run a \
                      dependency action"
-              | Some (dir, file) ->
-                  let* dep_graph =
-                    Compile.coqproject_to_dep_graph (Filename.concat dir file)
-                  in
+              | Some project ->
+                  let* dep_graph = Compile.coqproject_to_dep_graph project in
                   let dependencies =
                     Compile.get_file_dependencies input dep_graph
                   in
                   let length_dep = List.length dependencies in
                   Printf.printf "Transforming %d dependencies\n%!" length_dep;
                   let res, _ =
-                    transform_files dir dependencies "fcc" length_dep base_env
-                      true verbose
+                    transform_files project.directory dependencies "fcc"
+                      length_dep base_env true verbose
                   in
                   res)
         in
@@ -339,7 +335,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
       | None ->
           Error.format_to_or_error
             "No _CoqProject or _RocqProject file found in %s" input
-      | Some (coqproject_dir, coqproject_file) ->
+      | Some { directory = coqproject_dir; filename = coqproject_file; _ } ->
           let coqproject_path =
             Filename.concat coqproject_dir coqproject_file
           in
@@ -372,19 +368,15 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
             else Ok ()
           in
 
-          let* coqproject_dir_out, coqproject_file_out =
+          let* project =
             Compile.find_coqproject_dir_and_file output
             |> Option_utils.to_result
                  ~none:
                    (Error.string_to_or_error
                       "Can't find the newly created _CoqProject")
           in
-          let coqproject_out_path =
-            Filename.concat coqproject_dir_out coqproject_file_out
-          in
-
           let* depgraph : (string, string list) Hashtbl.t =
-            Compile.coqproject_to_dep_graph coqproject_out_path
+            Compile.coqproject_to_dep_graph project
           in
 
           let dependents = Compile.build_dependents depgraph in

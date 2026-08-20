@@ -20,19 +20,18 @@ let normalize_path ~(project_dir : string) (path : string) : string =
   (path |> fun x -> String_utils.remove_prefix x with_sep) |> fun x ->
   String_utils.remove_prefix x "/"
 
-let coqproject_to_ninja_file ~(normalize : bool) (coqproject_path : string) :
+let coqproject_to_ninja_file ~(normalize : bool) (project : Compile.project) :
     (Ninja.t, Error.t) result =
   let ( let* ) = Result.bind in
-  let* depgraph = Compile.coqproject_to_dep_graph coqproject_path in
-  let* depfiles = Compile.coqproject_sorted_files coqproject_path in
-  let project_dir = Filename.dirname coqproject_path in
+  let* depgraph = Compile.coqproject_to_dep_graph project in
+  let* depfiles = Compile.coqproject_sorted_files project in
+  let project_dir = Filename.dirname project.path in
   let maybe_normalize =
     if normalize then normalize_path ~project_dir else Fun.id
   in
   let flagname = Rocq_version.executable_name ^ "flags" in
   let* args =
-    Compile.coqproject_to_project_args coqproject_path
-    |> Result.map (String.concat " ")
+    Compile.coqproject_to_project_args project |> Result.map (String.concat " ")
   in
 
   let flags_var = Ninja.variable flagname args in
@@ -72,11 +71,11 @@ let coqproject_to_ninja_file ~(normalize : bool) (coqproject_path : string) :
 
   Ok (Ninja.concat [ flags_var; rule; builds; defaults ])
 
-let output_ninja_of_coqproject ~(normalize : bool) (project_dir : string)
-    (project_filename : string) : (unit, Error.t) result =
+let output_ninja_of_coqproject ~(normalize : bool) (project : Compile.project) :
+    (unit, Error.t) result =
   let ( let* ) = Result.bind in
-  let project_path = Filename.concat project_dir project_filename in
-  let* ninja_file = coqproject_to_ninja_file ~normalize project_path in
+
+  let* ninja_file = coqproject_to_ninja_file ~normalize project in
   Format.printf "%a\n%!" Ninja.pp ninja_file;
   Ok ()
 
@@ -115,9 +114,9 @@ let get_project_ninja () : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let* { normalize; path } = parse_args () in
 
-  let* project_dir, project_filename = Compile.resolve_project_path path in
+  let* project = Compile.resolve_project_path path in
 
-  output_ninja_of_coqproject ~normalize project_dir project_filename
+  output_ninja_of_coqproject ~normalize project
 
 let main =
   match get_project_ninja () with

@@ -71,12 +71,12 @@ let validate_unique_outputs ~(project_dir : string) ~(output_folder : string)
   in
   loop files
 
-let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
-    ~(transformed_file_list : string option) ~(output_file_map : string option)
-    ~(ditto_flags : string) : (Ninja.t, Error.t) result =
+let coqproject_to_ninja_file (project : Compile.project)
+    (output_folder : string) ~(transformed_file_list : string option)
+    ~(output_file_map : string option) ~(ditto_flags : string) :
+    (Ninja.t, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let project_dir = Filename.dirname coqproject_path in
   let* transformed_files =
     match transformed_file_list with
     | None -> Ok []
@@ -91,10 +91,12 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
     | Some map_path -> read_output_file_map map_path
   in
 
-  let* depgraph = Compile.coqproject_to_dep_graph coqproject_path in
-  let* depfiles = Compile.coqproject_sorted_files coqproject_path in
+  let* depgraph = Compile.coqproject_to_dep_graph project in
+  let* depfiles = Compile.coqproject_sorted_files project in
   let project_depfiles =
-    List.map (Filesystem.normalize_path ~containing_dir:project_dir) depfiles
+    List.map
+      (Filesystem.normalize_path ~containing_dir:project.directory)
+      depfiles
   in
 
   let* () =
@@ -108,8 +110,8 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
         (String.concat ", " unknown_inputs)
   in
   let* () =
-    validate_unique_outputs ~project_dir ~output_folder ~output_file_map
-      depfiles
+    validate_unique_outputs ~project_dir:project.directory ~output_folder
+      ~output_file_map depfiles
   in
 
   let ditto_var = Ninja.variable "ditto" "rocq-ditto" in
@@ -125,14 +127,15 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
       (fun (file, neighbors) ->
         let filepath = file |> Ninja.Path.v in
         let output_filepath =
-          mapped_output_path ~project_dir ~output_folder ~output_file_map file
+          mapped_output_path ~project_dir:project.directory ~output_folder
+            ~output_file_map file
           |> Ninja.Path.v
         in
         let neighbors_paths =
           List.map
             (fun file ->
-              mapped_output_path ~project_dir ~output_folder ~output_file_map
-                file
+              mapped_output_path ~project_dir:project.directory ~output_folder
+                ~output_file_map file
               |> Ninja.Path.v)
             neighbors
         in
@@ -160,7 +163,8 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
   let all_files =
     List.map
       (fun file ->
-        mapped_output_path ~project_dir ~output_folder ~output_file_map file
+        mapped_output_path ~project_dir:project.directory ~output_folder
+          ~output_file_map file
         |> Ninja.Path.v)
       depfiles
   in
@@ -178,14 +182,14 @@ let coqproject_to_ninja_file (coqproject_path : string) (output_folder : string)
          defaults;
        ])
 
-let output_ditto_ninja_of_coqproject (project_dir : string)
-    (project_filename : string) (output_folder : string)
-    ~(transformed_file_list : string option) ~(output_file_map : string option)
-    ~(ditto_flags : string) : (unit, Error.t) result =
+let output_ditto_ninja_of_coqproject (project : Compile.project)
+    (output_folder : string) ~(transformed_file_list : string option)
+    ~(output_file_map : string option) ~(ditto_flags : string) :
+    (unit, Error.t) result =
   let ( let* ) = Result.bind in
-  let project_path = Filename.concat project_dir project_filename in
+
   let* ninja_file =
-    coqproject_to_ninja_file project_path output_folder ~transformed_file_list
+    coqproject_to_ninja_file project output_folder ~transformed_file_list
       ~output_file_map ~ditto_flags
   in
   Format.printf "%a\n%!" Ninja.pp ninja_file;
@@ -258,8 +262,8 @@ let get_project_ninja () : (unit, Error.t) result =
   if output_folder = "" then
     Error.string_to_or_error "Please provide an output folder"
   else
-    let* project_dir, project_filename = Compile.resolve_project_path path in
-    output_ditto_ninja_of_coqproject project_dir project_filename output_folder
+    let* project = Compile.resolve_project_path path in
+    output_ditto_ninja_of_coqproject project output_folder
       ~transformed_file_list ~output_file_map ~ditto_flags
 
 let main =

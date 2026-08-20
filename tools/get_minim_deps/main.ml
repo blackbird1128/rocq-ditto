@@ -1,15 +1,14 @@
 open Ditto
 module StringSet = Set.Make (String)
 
-let print_minim_deps (project_dir : string) (project_filename : string)
-    (subset_path : string) : (unit, Error.t) result =
+let print_minim_deps (project : Compile.project) (subset_path : string) :
+    (unit, Error.t) result =
   let ( let* ) = Result.bind in
-  let project_path = Filename.concat project_dir project_filename in
 
-  let* project_files = Compile.coqproject_sorted_files project_path in
+  let* project_files = Compile.coqproject_sorted_files project in
   let normalized_project_files =
     List.map
-      (Filesystem.normalize_path ~containing_dir:project_dir)
+      (Filesystem.normalize_path ~containing_dir:project.directory)
       project_files
   in
 
@@ -22,17 +21,17 @@ let print_minim_deps (project_dir : string) (project_filename : string)
     StringSet.diff subset_files_set project_files_set |> StringSet.to_list
   with
   | [] ->
-      let* dep_graph = Compile.coqproject_to_dep_graph project_path in
+      let* dep_graph = Compile.coqproject_to_dep_graph project in
       let dep_graph_seq = Hashtbl.to_seq dep_graph in
       let dep_graph_seq_normalized =
         Seq.map
           (fun (a, neighbors) ->
             let normalized_a =
-              Filesystem.normalize_path ~containing_dir:project_dir a
+              Filesystem.normalize_path ~containing_dir:project.directory a
             in
             let normalized_neighbors =
               List.map
-                (Filesystem.normalize_path ~containing_dir:project_dir)
+                (Filesystem.normalize_path ~containing_dir:project.directory)
                 neighbors
             in
             (normalized_a, normalized_neighbors))
@@ -72,8 +71,8 @@ let get_minim_deps () =
       Error.string_to_or_error
         "Please provide a path to an existing file for the subset"
     else
-      let* project_dir, project_filename = Compile.resolve_project_path path in
-      print_minim_deps project_dir project_filename subset_path
+      let* project = Compile.resolve_project_path path in
+      print_minim_deps project subset_path
 
 let main =
   match get_minim_deps () with
