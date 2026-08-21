@@ -193,31 +193,35 @@ let get_file_dependencies (filename : string) (dep_graph : dependency_graph) :
   aux filename |> List_utils.dedup
 
 let build_outdegrees (deps : ('a, 'a list) Hashtbl.t) : ('a, int) Hashtbl.t =
-  let indeg = Hashtbl.create 128 in
+  let outdeg = Hashtbl.create 128 in
   Hashtbl.iter
-    (fun a prereqs ->
-      Hashtbl.replace indeg a (List.length prereqs);
+    (fun node neighbors ->
+      Hashtbl.replace outdeg node (List.length neighbors);
       List.iter
-        (fun b -> if not (Hashtbl.mem indeg b) then Hashtbl.add indeg b 0)
-        prereqs)
+        (fun b -> if not (Hashtbl.mem outdeg b) then Hashtbl.add outdeg b 0)
+        neighbors)
     deps;
-  indeg
+  outdeg
 
 let build_dependents (deps : ('a, 'a list) Hashtbl.t) : ('a, 'a list) Hashtbl.t
     =
-  let rev = Hashtbl.create 128 in
+  let dependents = Hashtbl.create 128 in
   Hashtbl.iter
     (fun a prereqs ->
       List.iter
         (fun b ->
-          let lst = Hashtbl.find_opt rev b |> Option.default [] in
-          Hashtbl.replace rev b (a :: lst))
+          let lst = Hashtbl.find_opt dependents b |> Option.default [] in
+          Hashtbl.replace dependents b (a :: lst))
         prereqs)
     deps;
   Hashtbl.iter
-    (fun a _ -> if Hashtbl.mem rev a then () else Hashtbl.add rev a [])
+    (fun a neighbors ->
+      List.iter
+        (fun x ->
+          if Hashtbl.mem dependents x then () else Hashtbl.add dependents x [])
+        (a :: neighbors))
     deps;
-  rev
+  dependents
 
 let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
   let msg_string = Pp.string_of_ppcmds x.message in

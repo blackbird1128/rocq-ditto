@@ -64,8 +64,7 @@ let test_parse_depf_single_dependency () =
 let test_parse_depf_no_separator () =
   let line =
     "BasicRubik.vo BasicRubik.glob BasicRubik.v.beautified BasicRubik \
-     BasicRubik.v \
-     /home/alexj/repos/rocq-ditto/_opam/lib/rocq-runtime/rocqworker"
+     BasicRubik.v /home/rocq-ditto/_opam/lib/rocq-runtime/rocqworker"
   in
   let parsed_line = Compile.parse_depf_line line in
 
@@ -78,7 +77,7 @@ let test_parse_depf_wrong_file_extension () =
   let line =
     "Example.vo Example.glob Example.v.beautified Example.required_vo: \
      Example.v BasicRubik.vok Rubik63.vo Solver.vo \
-     /home/alexj/repos/rocq-ditto/_opam/lib/rocq-runtime/rocqworker"
+     /home/rocq-ditto/_opam/lib/rocq-runtime/rocqworker"
   in
   let parsed_line = Compile.parse_depf_line line in
 
@@ -100,16 +99,15 @@ let test_parse_depf_output_simple () =
   let output =
     "BasicRubik.vo BasicRubik.glob BasicRubik.v.beautified \
      BasicRubik.required_vo: BasicRubik.v \
-     /home/alexj/repos/rocq-ditto/_opam/lib/rocq-runtime/rocqworker\n\
+     /home/rocq-ditto/_opam/lib/rocq-runtime/rocqworker\n\
      Example.vo Example.glob Example.v.beautified Example.required_vo: \
      Example.v BasicRubik.vo Rubik63.vo Solver.vo \
-     /home/alexj/repos/rocq-ditto/_opam/lib/rocq-runtime/rocqworker\n\
+     /home/rocq-ditto/_opam/lib/rocq-runtime/rocqworker\n\
      Rubik63.vo Rubik63.glob Rubik63.v.beautified Rubik63.required_vo: \
-     Rubik63.v BasicRubik.vo \
-     /home/alexj/repos/rocq-ditto/_opam/lib/rocq-runtime/rocqworker\n\
+     Rubik63.v BasicRubik.vo /home/rocq-ditto/_opam/lib/rocq-runtime/rocqworker\n\
     \                Solver.vo Solver.glob Solver.v.beautified \
      Solver.required_vo: Solver.v BasicRubik.vo Rubik63.vo \
-     /home/alexj/repos/rocq-ditto/_opam/lib/rocq-runtime/rocqworker"
+     /home/rocq-ditto/_opam/lib/rocq-runtime/rocqworker"
   in
 
   let parsed_output = Compile.parse_depf_output output in
@@ -169,6 +167,14 @@ let test_outdegrees_outside_graph () =
     "The out-degree of a node outside the graph should not exists" None
     (Hashtbl.find_opt outdegrees "z.v")
 
+let test_outdegrees_isolated_node () =
+  let deps = graph [ ("a.v", []) ] in
+  let outdegrees = Compile.build_outdegrees deps in
+
+  Alcotest.(check (option int))
+    "The out-degree of a single node graph should be 0" (Some 0)
+    (Hashtbl.find_opt outdegrees "a.v")
+
 let test_dependents () =
   let deps =
     graph
@@ -204,6 +210,15 @@ let test_dependents_outside_graph () =
     None
     (Hashtbl.find_opt dependents "z.v")
 
+let test_dependents_isolated_node () =
+  let deps = graph [ ("a.v", []) ] in
+  let dependents = Compile.build_dependents deps in
+
+  Alcotest.(check (option (list string)))
+    "The dependents of the node of a single node graph should be empty"
+    (Some [])
+    (Hashtbl.find_opt dependents "a.v")
+
 let tests =
   [
     ( "dependency graph tests",
@@ -221,9 +236,13 @@ let tests =
         Alcotest.test_case
           "Check getting the out-degree of a node outside a graph" `Quick
           test_outdegrees_outside_graph;
+        Alcotest.test_case "Check getting the out-degree of a single node graph"
+          `Quick test_outdegrees_isolated_node;
         Alcotest.test_case
           "Check getting the dependents of each node in a graph" `Quick
           test_dependents;
+        Alcotest.test_case "Check getting the dependents of a single node graph"
+          `Quick test_dependents_isolated_node;
         Alcotest.test_case
           "Check getting the dependents of a node outside the dependency graph"
           `Quick test_dependents_outside_graph;
