@@ -58,7 +58,7 @@ let statistic_kind_to_statistic (kind : statistic_kind) : 'a statistic =
       }
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :
-    (Syntax_node.t Nary_tree.nary_tree, Error.t) result =
+    (Syntax_node.t Nary_tree.t, Error.t) result =
   Proof_tree.treeify_proof doc x
 
 let transformation_kind_to_scoped_function (kind : transformation_kind) :

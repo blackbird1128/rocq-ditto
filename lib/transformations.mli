@@ -1,8 +1,6 @@
-open Nary_tree
-
 val fold_replace_assumption_with_apply :
   Rocq_document.t ->
-  Syntax_node.t nary_tree ->
+  Syntax_node.t Nary_tree.t ->
   (Transforming_step.t list, Error.t) result
 
 val id_transform :
@@ -34,7 +32,7 @@ val remove_random_step :
 
 val simple_proof_repair :
   Rocq_document.t ->
-  Syntax_node.t nary_tree ->
+  Syntax_node.t Nary_tree.t ->
   (Transforming_step.t list, Error.t) result
 
 val explicit_fresh_variables :
@@ -51,7 +49,7 @@ val flatten_goal_selectors :
 
 val turn_into_oneliner :
   Rocq_document.t ->
-  Syntax_node.t nary_tree ->
+  Syntax_node.t Nary_tree.t ->
   (Transforming_step.t list, Error.t) result
 
 val rewrite_node_tacexpr :
@@ -99,7 +97,7 @@ val apply_proof_transformation :
 
 val apply_proof_tree_transformation :
   (Rocq_document.t ->
-  Syntax_node.t nary_tree ->
+  Syntax_node.t Nary_tree.t ->
   (Transforming_step.t list, Error.t) result) ->
   Rocq_document.t ->
   (Rocq_document.t, Error.t) result

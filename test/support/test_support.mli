@@ -1,4 +1,3 @@
-open Ditto.Nary_tree
 open Ditto
 
 val sorted_string_testable : string list Alcotest.testable
@@ -23,7 +22,7 @@ val synterp_vernac_expr_testable :
 val testable_nary_tree :
   (Format.formatter -> 'a -> unit) ->
   ('a -> 'a -> bool) ->
-  'a nary_tree Alcotest.testable
+  'a Nary_tree.t Alcotest.testable
 
 val expect_ok : context:string -> pp_error:'e Fmt.t -> ('a, 'e) result -> 'a
 val expect_some : context:string -> 'a option -> 'a
@@ -36,6 +35,6 @@ val expect_result_ok : ?context:string -> ('a, Error.t) result -> 'a
 val check_list_unique : eq:('a -> 'a -> bool) -> pp:'a Fmt.t -> 'a list -> unit
 val check_list_sorted : cmp:('a -> 'a -> int) -> pp:'a Fmt.t -> 'a list -> unit
 val sexp_of_syntax_node : Syntax_node.t -> Sexplib.Sexp.t
-val sexp_of_proof_tree : Syntax_node.t nary_tree -> Sexplib.Sexp.t
+val sexp_of_proof_tree : Syntax_node.t Nary_tree.t -> Sexplib.Sexp.t
 val simplify : Sexplib.Sexp.t -> Sexplib.Sexp.t
 val print_tree : ?prefix:string -> Sexplib.Sexp.t -> unit

@@ -1,5 +1,3 @@
-open Nary_tree
-
 val run_node :
   Coq.Limits.Token.t ->
   Coq.State.t ->
@@ -88,5 +86,5 @@ val depth_first_fold_with_state :
   Coq.Limits.Token.t ->
   (Coq.State.t -> 'acc -> Syntax_node.t -> (Coq.State.t * 'acc, Error.t) result) ->
   'acc ->
-  Syntax_node.t nary_tree ->
+  Syntax_node.t Nary_tree.t ->
   ('acc, Error.t) result

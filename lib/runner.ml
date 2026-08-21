@@ -1,5 +1,4 @@
 open Syntax_node
-open Nary_tree
 open Proof
 
 let goals ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) :
@@ -31,7 +30,6 @@ let message_to_diagnostic (range : Code_range.t) (msg : Loc.t Coq.Message.t) :
   let severity, payload = msg in
   { severity; message = payload.msg; data = None; range = lang_range }
 
-(* Adaptor, should be supported in memo directly *)
 let eval_no_memo ~token (st, cmd) =
   Coq.Interp.interp ~token ~intern:Vernacinterp.fs_intern ~st cmd
 
@@ -217,11 +215,12 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
       'acc ->
       Syntax_node.t ->
       (Coq.State.t * 'acc, Error.t) result) (acc : 'acc)
-    (tree : Syntax_node.t nary_tree) : ('acc, Error.t) result =
+    (tree : Syntax_node.t Nary_tree.t) : ('acc, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let rec aux (state : Coq.State.t) (acc : 'acc) (tree : 'a nary_tree) :
-      (Coq.State.t * 'acc, Error.t) result =
+  let rec aux (state : Coq.State.t) (acc : 'acc)
+      (tree : Syntax_node.t Nary_tree.t) : (Coq.State.t * 'acc, Error.t) result
+      =
     match tree with
     | Node (x, children) ->
         let* state, acc = f state acc x in

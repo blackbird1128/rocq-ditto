@@ -2,7 +2,7 @@ open Nary_tree
 open Syntax_node
 open Transforming_step
 
-type proof_tree = Syntax_node.t nary_tree
+type proof_tree = Syntax_node.t Nary_tree.t
 
 let apply_transformation_step (step : Transforming_step.t)
     (proof_tree : proof_tree) : (proof_tree, Error.t) result =
@@ -85,7 +85,7 @@ let rec get_parents_rec (steps_with_goals : (int * Syntax_node.t * int) list)
 
 let rec proof_tree_from_parents (cur_node : int * Syntax_node.t)
     (parents : (int * Syntax_node.t, int * Syntax_node.t) Hashtbl.t) :
-    Syntax_node.t nary_tree =
+    Syntax_node.t Nary_tree.t =
   let _, tactic = cur_node in
   let childs = Hashtbl.find_all parents cur_node in
   Node
@@ -93,7 +93,7 @@ let rec proof_tree_from_parents (cur_node : int * Syntax_node.t)
       List.rev_map (fun node -> proof_tree_from_parents node parents) childs )
 
 let treeify_proof (doc : Rocq_document.t) (p : Proof.t) :
-    (Syntax_node.t nary_tree, Error.t) result =
+    (Syntax_node.t Nary_tree.t, Error.t) result =
   let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
   match Runner.get_init_state doc p.proposition token with
@@ -110,6 +110,7 @@ let treeify_proof (doc : Rocq_document.t) (p : Proof.t) :
 let rec proof_tree_to_node_list (Node (value, children)) : Syntax_node.t list =
   value :: List.concat (List.map proof_tree_to_node_list children)
 
-let tree_to_proof (tree : Syntax_node.t nary_tree) : (Proof.t, Error.t) result =
+let tree_to_proof (tree : Syntax_node.t Nary_tree.t) : (Proof.t, Error.t) result
+    =
   let nodes = proof_tree_to_node_list tree in
   Proof.proof_from_nodes nodes

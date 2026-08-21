@@ -1,14 +1,13 @@
 open Fleche
 open Ditto
-open Ditto.Nary_tree
 open Ditto.Diagnostic_utils
 
 let sexp_of_syntax_node (x : Syntax_node.t) : Sexplib.Sexp.t =
   let open Sexplib in
   Sexp.(Atom (Syntax_node.repr x))
 
-let sexp_of_proof_tree (x : Syntax_node.t nary_tree) =
-  Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
+let sexp_of_proof_tree (x : Syntax_node.t Nary_tree.t) =
+  Nary_tree.sexp_of sexp_of_syntax_node x
 
 let rec simplify sexp =
   let open Sexplib.Sexp in

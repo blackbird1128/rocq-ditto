@@ -1,6 +1,5 @@
 open Fleche
 open Ditto
-open Ditto.Nary_tree
 open Ditto.Proof
 open Ditto.Syntax_node
 open Ditto_test_support.Test_support
@@ -1334,7 +1333,7 @@ let test_attach_node_line_after_multiline_anchor (doc : Doc.t) () : unit =
 let test_tree_transformation (doc : Doc.t)
     (tree_transformation :
       Rocq_document.t ->
-      t nary_tree ->
+      t Nary_tree.t ->
       (Transforming_step.t list, Error.t) result) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
@@ -1809,7 +1808,7 @@ let test_parse_simple_proof_to_proof_tree (doc : Doc.t) () : unit =
   let proof_tree = Proof_tree.treeify_proof doc first_proof in
 
   let proof_tree_sexp =
-    Result.map (Nary_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree
+    Result.map (Nary_tree.sexp_of sexp_of_syntax_node) proof_tree
   in
 
   let expected_tree =
@@ -1851,7 +1850,7 @@ let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
   let proof_tree = Proof_tree.treeify_proof doc first_proof in
 
   let proof_tree_sexp =
-    Result.map (Nary_tree.sexp_of_nary_tree sexp_of_syntax_node) proof_tree
+    Result.map (Nary_tree.sexp_of sexp_of_syntax_node) proof_tree
   in
 
   let expected_tree =

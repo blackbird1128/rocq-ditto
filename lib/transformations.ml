@@ -8,7 +8,7 @@ open Re
 module Tacexpr = Ltac_plugin.Tacexpr
 
 let simple_proof_repair (doc : Rocq_document.t)
-    (proof_tree : Syntax_node.t nary_tree) :
+    (proof_tree : Syntax_node.t Nary_tree.t) :
     (Transforming_step.t list, Error.t) result =
   let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
@@ -81,7 +81,7 @@ let simple_proof_repair (doc : Rocq_document.t)
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let fold_replace_assumption_with_apply (doc : Rocq_document.t)
-    (proof_tree : Syntax_node.t nary_tree) :
+    (proof_tree : Syntax_node.t Nary_tree.t) :
     (Transforming_step.t list, Error.t) result =
   let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
@@ -628,7 +628,7 @@ let map_children f lst =
   aux [] lst
 
 let rec get_oneliner (suffix : Syntax_node.t option)
-    (tree : Syntax_node.t nary_tree) :
+    (tree : Syntax_node.t Nary_tree.t) :
     (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
   match tree with
   | Node (x, childrens) -> (
@@ -953,7 +953,7 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
   | None -> Ok []
 
 let turn_into_oneliner (_ : Rocq_document.t)
-    (proof_tree : Syntax_node.t nary_tree) :
+    (proof_tree : Syntax_node.t Nary_tree.t) :
     (Transforming_step.t list, Error.t) result =
   let* proof = Proof_tree.tree_to_proof proof_tree in
 
@@ -1708,7 +1708,7 @@ let apply_proof_transformation
 let apply_proof_tree_transformation
     (transformation :
       Rocq_document.t ->
-      Syntax_node.t nary_tree ->
+      Syntax_node.t Nary_tree.t ->
       (Transforming_step.t list, Error.t) result) (doc : Rocq_document.t) :
     (Rocq_document.t, Error.t) result =
   let* proofs = Rocq_document.get_proofs doc in
@@ -1719,7 +1719,7 @@ let apply_proof_tree_transformation
   in
   List.fold_left
     (fun (doc_acc : (Rocq_document.t, Error.t) result)
-         (proof_tree : Syntax_node.t nary_tree) ->
+         (proof_tree : Syntax_node.t Nary_tree.t) ->
       match doc_acc with
       | Ok acc ->
           let* steps = transformation acc proof_tree in

@@ -1,5 +1,4 @@
 open Ditto
-open Ditto.Nary_tree
 
 let sorted_string_testable =
   Alcotest.testable
@@ -7,8 +6,8 @@ let sorted_string_testable =
     (fun a b -> List.sort String.compare a = List.sort String.compare b)
 
 let testable_nary_tree (pp_a : Format.formatter -> 'a -> unit)
-    (equal_a : 'a -> 'a -> bool) : 'a nary_tree Alcotest.testable =
-  Alcotest.testable (pp_nary_tree pp_a) (equal_nary_tree equal_a)
+    (equal_a : 'a -> 'a -> bool) : 'a Nary_tree.t Alcotest.testable =
+  Alcotest.testable (Nary_tree.pp pp_a) (Nary_tree.equal equal_a)
 
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
 let range_testable = Alcotest.testable Code_range.pp ( = )
@@ -136,8 +135,8 @@ let sexp_of_syntax_node (x : Syntax_node.t) : Sexplib.Sexp.t =
   let open Sexplib in
   Sexp.(Atom (Syntax_node.repr x))
 
-let sexp_of_proof_tree (x : Syntax_node.t nary_tree) : Sexplib.Sexp.t =
-  Nary_tree.sexp_of_nary_tree sexp_of_syntax_node x
+let sexp_of_proof_tree (x : Syntax_node.t Nary_tree.t) : Sexplib.Sexp.t =
+  Nary_tree.sexp_of sexp_of_syntax_node x
 
 let rec simplify (sexp : Sexplib.Sexp.t) : Sexplib.Sexp.t =
   let open Sexplib.Sexp in
