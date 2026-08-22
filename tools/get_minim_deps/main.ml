@@ -1,7 +1,7 @@
 open Ditto
 module StringSet = Set.Make (String)
 
-let print_minim_deps (project : Compile.project) (subset_path : string) :
+let print_minim_deps (project : Project.t) (subset_path : string) :
     (unit, Error.t) result =
   let ( let* ) = Result.bind in
 
@@ -71,7 +71,7 @@ let get_minim_deps () =
       Error.string_to_or_error
         "Please provide a path to an existing file for the subset"
     else
-      let* project = Compile.resolve_project_path path in
+      let* project = Project.resolve_project_path path in
       print_minim_deps project subset_path
 
 let main =

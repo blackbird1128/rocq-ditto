@@ -71,10 +71,9 @@ let validate_unique_outputs ~(project_dir : string) ~(output_folder : string)
   in
   loop files
 
-let coqproject_to_ninja_file (project : Compile.project)
-    (output_folder : string) ~(transformed_file_list : string option)
-    ~(output_file_map : string option) ~(ditto_flags : string) :
-    (Ninja.t, Error.t) result =
+let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
+    ~(transformed_file_list : string option) ~(output_file_map : string option)
+    ~(ditto_flags : string) : (Ninja.t, Error.t) result =
   let ( let* ) = Result.bind in
 
   let* transformed_files =
@@ -182,7 +181,7 @@ let coqproject_to_ninja_file (project : Compile.project)
          defaults;
        ])
 
-let output_ditto_ninja_of_coqproject (project : Compile.project)
+let output_ditto_ninja_of_coqproject (project : Project.t)
     (output_folder : string) ~(transformed_file_list : string option)
     ~(output_file_map : string option) ~(ditto_flags : string) :
     (unit, Error.t) result =
@@ -262,7 +261,7 @@ let get_project_ninja () : (unit, Error.t) result =
   if output_folder = "" then
     Error.string_to_or_error "Please provide an output folder"
   else
-    let* project = Compile.resolve_project_path path in
+    let* project = Project.resolve_project_path path in
     output_ditto_ninja_of_coqproject project output_folder
       ~transformed_file_list ~output_file_map ~ditto_flags
 

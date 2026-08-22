@@ -1,0 +1,12 @@
+type t = private { directory : string; filename : string; path : string }
+
+val find_coqproject_dir_and_file : string -> t option
+
+val resolve_project_path : string -> (t, Error.t) result
+(** [resolve_project_path path] checks that the provided path is either a path
+    to a directory containing a project file (_CoqProject or _RocqProject) or a
+    path to a project file. If one if these condition is true, it returns the
+    project directory of that path and the name of the project file, otherwise
+    it returns an error *)
+
+val to_args : t -> (string list, Error.t) result

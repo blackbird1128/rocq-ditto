@@ -2,8 +2,7 @@ open Ditto
 
 type cli_args = { path : string }
 
-let output_dot_of_coqproject (project : Compile.project) :
-    (unit, Error.t) result =
+let output_dot_of_coqproject (project : Project.t) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
 
   let* depgraph : (string, string list) Hashtbl.t =
@@ -57,7 +56,7 @@ let get_project_dot () =
 
   let* { path } = parse_args () in
 
-  let* project = Compile.resolve_project_path path in
+  let* project = Project.resolve_project_path path in
   output_dot_of_coqproject project
 
 let main =

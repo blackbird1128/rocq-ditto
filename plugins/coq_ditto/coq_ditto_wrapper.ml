@@ -278,7 +278,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
       else if not (Sys.file_exists input) then
         Error.string_to_or_error "Input must be an existing file"
       else
-        let coqproject_opt = Compile.find_coqproject_dir_and_file input in
+        let coqproject_opt = Project.find_coqproject_dir_and_file input in
 
         let input_dir =
           match coqproject_opt with
@@ -331,7 +331,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
         in
         Process_runner.run_process_loud ~env ~args prog
   | Dir -> (
-      match Compile.find_coqproject_dir_and_file input with
+      match Project.find_coqproject_dir_and_file input with
       | None ->
           Error.format_to_or_error
             "No _CoqProject or _RocqProject file found in %s" input
@@ -369,7 +369,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
           in
 
           let* project =
-            Compile.find_coqproject_dir_and_file output
+            Project.find_coqproject_dir_and_file output
             |> Option_utils.to_result
                  ~none:
                    (Error.string_to_or_error

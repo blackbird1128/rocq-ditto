@@ -20,7 +20,7 @@ let normalize_path ~(project_dir : string) (path : string) : string =
   (path |> fun x -> String_utils.remove_prefix x with_sep) |> fun x ->
   String_utils.remove_prefix x "/"
 
-let coqproject_to_ninja_file ~(normalize : bool) (project : Compile.project) :
+let coqproject_to_ninja_file ~(normalize : bool) (project : Project.t) :
     (Ninja.t, Error.t) result =
   let ( let* ) = Result.bind in
   let* depgraph = Compile.coqproject_to_dep_graph project in
@@ -30,9 +30,7 @@ let coqproject_to_ninja_file ~(normalize : bool) (project : Compile.project) :
     if normalize then normalize_path ~project_dir else Fun.id
   in
   let flagname = Rocq_version.executable_name ^ "flags" in
-  let* args =
-    Compile.coqproject_to_project_args project |> Result.map (String.concat " ")
-  in
+  let* args = Project.to_args project |> Result.map (String.concat " ") in
 
   let flags_var = Ninja.variable flagname args in
 
@@ -71,7 +69,7 @@ let coqproject_to_ninja_file ~(normalize : bool) (project : Compile.project) :
 
   Ok (Ninja.concat [ flags_var; rule; builds; defaults ])
 
-let output_ninja_of_coqproject ~(normalize : bool) (project : Compile.project) :
+let output_ninja_of_coqproject ~(normalize : bool) (project : Project.t) :
     (unit, Error.t) result =
   let ( let* ) = Result.bind in
 
@@ -114,7 +112,7 @@ let get_project_ninja () : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let* { normalize; path } = parse_args () in
 
-  let* project = Compile.resolve_project_path path in
+  let* project = Project.resolve_project_path path in
 
   output_ninja_of_coqproject ~normalize project
 
