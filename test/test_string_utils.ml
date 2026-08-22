@@ -169,6 +169,74 @@ let test_split_at_first () =
     (Ok ("hello", "world,there"))
     (split_at ',' "hello,world,there")
 
+let test_split_at_no_separator () =
+  check
+    (result (pair string string) error_testable)
+    "split_at should fail when the separator is absent"
+    (Error.format_to_or_error "Couldn't find the split point %C in %S" ','
+       "helloworld")
+    (split_at ',' "helloworld")
+
+let test_split_at_first_char () =
+  check
+    (result (pair string string) error_testable)
+    "split_at should return an empty string and the rest of the string when \
+     the separator is the first char"
+    (Ok ("", "hey there"))
+    (split_at ',' ",hey there")
+
+let test_split_at_last_char () =
+  check
+    (result (pair string string) error_testable)
+    "split_at should return the first part of the string and an empty string \
+     when the separator is the last char"
+    (Ok ("hey there", ""))
+    (split_at ',' "hey there,")
+
+let test_cut_simple () =
+  check
+    (result (pair string string) error_testable)
+    "the string should be cut at -<8-"
+    (Ok ("cut", "here"))
+    (cut "->8-" "cut->8-here")
+
+let test_cut_empty_string () =
+  check
+    (result (pair string string) error_testable)
+    "an empty string should not be cut"
+    (Error.format_to_or_error "Couldn't find the cut point \"->8-\" in \"\"")
+    (cut "->8-" "")
+
+let test_cut_no_cut_point () =
+  check
+    (result (pair string string) error_testable)
+    "cut should fail when the cut string isn't in the container"
+    (Error.format_to_or_error "Couldn't find the cut point %S in %S" "--"
+       "helloworld")
+    (cut "--" "helloworld")
+
+let test_cut_first_occurence () =
+  check
+    (result (pair string string) error_testable)
+    "cut should cut at the first occurrence"
+    (Ok ("cut", "here--not--here"))
+    (cut "--" "cut--here--not--here")
+
+let test_cut_prefix () =
+  check
+    (result (pair string string) error_testable)
+    "cut on a prefix should return an empty string and the rest of the string"
+    (Ok ("", "world"))
+    (cut "prefix" "prefixworld")
+
+let test_cut_suffix () =
+  check
+    (result (pair string string) error_testable)
+    "cut on a suffix should return the first part of the string and an empty \
+     string"
+    (Ok ("world", ""))
+    (cut "suffix" "worldsuffix")
+
 let () =
   run "String utils"
     [
@@ -229,7 +297,25 @@ let () =
             test_split_at_simple;
           test_case "test splitting at char empty string" `Quick
             test_split_at_empty;
+          test_case "test splitting at char with separator absent" `Quick
+            test_split_at_no_separator;
           test_case "test splitting at char, multiple separators" `Quick
             test_split_at_first;
+          test_case "test splitting at char on the first char" `Quick
+            test_split_at_first_char;
+          test_case "test splitting at char on the last char" `Quick
+            test_split_at_last_char;
+          test_case "test cutting at string simple string" `Quick
+            test_cut_simple;
+          test_case "test cutting a string with no cut point" `Quick
+            test_cut_no_cut_point;
+          test_case "test cutting at string empty string" `Quick
+            test_cut_empty_string;
+          test_case "test cutting the first occurrence" `Quick
+            test_cut_first_occurence;
+          test_case "test cutting at the prefix of a string" `Quick
+            test_cut_prefix;
+          test_case "test cutting at the suffix of a string" `Quick
+            test_cut_suffix;
         ] );
     ]

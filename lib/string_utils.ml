@@ -44,6 +44,29 @@ let split_at (split_point : char) (str : string) :
       Error.format_to_or_error "Couldn't find the split point %C in %S"
         split_point str
 
+let cut (cut_point : string) (container : string) :
+    (string * string, Error.t) result =
+  let cut_length = String.length cut_point in
+  let container_length = String.length container in
+  let rec loop idx =
+    if cut_length + idx > container_length then
+      Error.format_to_or_error "Couldn't find the cut point %S in %S" cut_point
+        container
+    else
+      let cur_sub = String.sub container idx cut_length in
+      if String.equal cur_sub cut_point then
+        let first_part = String.sub container 0 idx in
+        let length_second_part = String.length container - (idx + cut_length) in
+        let second_part =
+          if length_second_part = 0 then ""
+          else String.sub container (idx + cut_length) length_second_part
+        in
+
+        Ok (first_part, second_part)
+      else loop (idx + 1)
+  in
+  loop 0
+
 let split_words (line : string) : string list =
   let rec skip_spaces i =
     if i < String.length line then
