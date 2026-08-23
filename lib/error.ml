@@ -10,31 +10,31 @@ type t =
   | Of_list of t list
 [@@deriving sexp_of]
 
-let of_sexp (s : Sexp.t) = Of_sexp s
-let of_string (s : string) = String s
-let of_exn (exn : exn) = Of_exn exn
-let tag (t : t) ~(tag : string) = Tag_t (tag, t)
+let of_sexp (s : Sexp.t) : t = Of_sexp s
+let of_string (s : string) : t = String s
+let of_exn (exn : exn) : t = Of_exn exn
+let tag (t : t) ~(tag : string) : t = Tag_t (tag, t)
 
 let combine (errs : t list) : t =
   match errs with [] -> String "no error" | [ e ] -> e | lst -> Of_list lst
 
-let[@inline] tag_with_debug_infos ?(file = __FILE__) ?(funcname = __FUNCTION__)
-    ?(line = __LINE__) (t : t) =
+let tag_with_debug_infos ~(pos : Lexing.position) (t : t) =
   let loc =
-    Format.sprintf "File: %s, function: %s, line: %d" file funcname line
+    Format.sprintf "File: %s, line: %d, char: %d" pos.pos_fname pos.pos_lnum
+      pos.pos_bol
   in
 
   tag t ~tag:loc
 
-let tag_arg (t : t) ~(tag : string) (arg : 'a) (sexp_of_arg : 'a -> Sexp.t) : t
+let tag_arg (e : t) ~(tag : string) (arg : 'a) (sexp_of_arg : 'a -> Sexp.t) : t
     =
   let sexp = sexp_of_arg arg in
-  Tag_sexp (tag, sexp, t)
+  Tag_sexp (tag, sexp, e)
 
-let tag_sexp (t : t) ~(tag : string) (arg : Sexplib.Sexp.t) : t =
-  Tag_sexp (tag, arg, t)
+let tag_sexp (e : t) ~(tag : string) (arg : Sexplib.Sexp.t) : t =
+  Tag_sexp (tag, arg, e)
 
-let pp fmt t =
+let pp (fmt : Format.formatter) (e : t) =
   let rec aux indent fmt = function
     | String s -> Format.fprintf fmt "%s%s" (String.make indent ' ') s
     | Tag_t (tag, t) ->
@@ -60,17 +60,17 @@ let pp fmt t =
               e)
           l
   in
-  aux 0 fmt t
+  aux 0 fmt e
 
-let to_string_hum t = Format.asprintf "%a" pp t
-let to_string_mach (t : t) : string = Sexp.to_string (sexp_of_t t)
+let to_string_hum (e : t) : string = Format.asprintf "%a" pp e
+let to_string_mach (e : t) : string = Sexp.to_string (sexp_of_t e)
 
 type 'a or_error = ('a, t) result
 
 let of_result = function Ok x -> Ok x | Error s -> Error (of_string s)
-let to_string_result (t : t) = Error (to_string_hum t)
+let to_string_result (t : t) : ('a, string) result = Error (to_string_hum t)
 
-let or_error_to_string_result (x : 'a or_error) =
+let or_error_to_string_result (x : 'a or_error) : ('a, string) result =
   match x with Ok a -> Ok a | Error t -> to_string_result t
 
 let string_to_or_error (x : string) : ('a, t) result = Error (of_string x)

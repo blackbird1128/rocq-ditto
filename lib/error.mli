@@ -9,10 +9,7 @@ val tag : t -> tag:string -> t
 val tag_arg : t -> tag:string -> 'a -> ('a -> Sexp.t) -> t
 val tag_sexp : t -> tag:string -> Sexp.t -> t
 val combine : t list -> t
-
-val tag_with_debug_infos :
-  ?file:string -> ?funcname:string -> ?line:int -> t -> t
-
+val tag_with_debug_infos : pos:Lexing.position -> t -> t
 val to_string_hum : t -> string
 val to_string_mach : t -> string
 val pp : Format.formatter -> t -> unit

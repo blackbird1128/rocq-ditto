@@ -7,10 +7,11 @@ open Sexplib.Conv
 open Re
 module Tacexpr = Ltac_plugin.Tacexpr
 
+let ( let* ) = Result.bind
+
 let simple_proof_repair (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t Nary_tree.t) :
     (Transforming_step.t list, Error.t) result =
-  let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
   let admit_creator =
    fun node -> Syntax_node.syntax_node_of_string "admit." node.range.start
@@ -60,7 +61,8 @@ let simple_proof_repair (doc : Rocq_document.t)
                       let* admit_node = admit_creator node in
                       let* admit_state =
                         Runner.run_node token state_acc admit_node
-                        |> Result.map_error Error.tag_with_debug_infos
+                        |> Result.map_error
+                             (Error.tag_with_debug_infos ~pos:[%here])
                       in
                       let num_goals = Runner.count_goals admit_state in
 
@@ -83,7 +85,6 @@ let simple_proof_repair (doc : Rocq_document.t)
 let fold_replace_assumption_with_apply (doc : Rocq_document.t)
     (proof_tree : Syntax_node.t Nary_tree.t) :
     (Transforming_step.t list, Error.t) result =
-  let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
   let res =
     Runner.depth_first_fold_with_state doc token
@@ -139,7 +140,6 @@ let id_transform (_ : Rocq_document.t) (_ : Proof.t) :
 
 let admit_proof (_ : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
-  let ( let* ) = Result.bind in
   let proof_close_node_opt =
     List.find_opt Syntax_node.is_proof_end proof.proof_steps
   in
@@ -171,8 +171,6 @@ let remove_random_step (_ : Rocq_document.t) (proof : Proof.t) :
 
 let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
     (proof : Proof.t) : (Transforming_step.t list, Error.t) result =
-  let ( let* ) = Result.bind in
-
   let remove_all_steps =
     proof.proof_steps |> List.rev |> List.map (fun step -> Remove step.id)
   in
@@ -224,7 +222,6 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : Proof.t) :
       (acc : (Transforming_step.t list, Error.t) result)
       (nodes : Syntax_node.t list) : (Transforming_step.t list, Error.t) result
       =
-    let ( let* ) = Result.bind in
     match nodes with
     | [] -> acc
     | x :: tail -> (
@@ -246,7 +243,6 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : Proof.t) :
 let flatten_goal_selectors (doc : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
-  let ( let* ) = Result.bind in
 
   let reified_goal_hashtbl = Hashtbl.create 50 in
 
@@ -389,7 +385,6 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
 let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
-  let ( let* ) = Result.bind in
   let re =
     Re.Perl.compile_pat "auto(.*?)\\." ~opts:[ `Multiline; `Dotall; `Ungreedy ]
   in
@@ -614,8 +609,6 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
       [] proof
   in
   res
-
-let ( let* ) = Result.bind
 
 let map_children f lst =
   let open Result in
@@ -1107,7 +1100,6 @@ let string_to_intro_pattern_expr (x : string) :
 let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
-  let ( let* ) = Result.bind in
 
   let rewrite_induction (x : Syntax_node.t)
       (old_goals_vars : string list list option)

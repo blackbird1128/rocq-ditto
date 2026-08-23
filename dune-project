@@ -37,6 +37,7 @@
   uuidm
   ppx_import
   ppx_deriving
+  ppx_here
   ppx_deriving_yojson
   ppx_sexp_message
   ppx_sexp_value
