@@ -183,7 +183,11 @@ let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
         let first_step_start_line = first_step.range.start.line in
         let normalized_range_steps =
           List.map
-            (fun x -> shift_node (-first_step_start_line) 0 x)
+            (fun (x : Syntax_node.t) ->
+              let new_start_node =
+                Code_point.shift (-first_step_start_line) 0 x.range.start
+              in
+              move_to new_start_node x)
             (first_step :: tail)
         in
         Rocq_document.dump_elements_to_string normalized_range_steps
