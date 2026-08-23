@@ -47,28 +47,8 @@ let mk_vernac_control ?(loc : Loc.t option)
 let inherit_metadata ~(from : t) (node : t) : t =
   { node with id = from.id; diagnostics = from.diagnostics }
 
-let char_span_on_line (r : Code_range.t) (line : int) : int * int =
-  (* half-open char span [start_char, end_char) of r on a particular line that r touches *)
-  let start_char = if r.start.line < line then 0 else r.start.character in
-  let _, end_line_excl = Code_range.line_span r in
-  let end_char =
-    if end_line_excl > line + 1 then max_int else r.end_.character
-  in
-  (start_char, end_char)
-
 let are_colliding (a : t) (b : t) : bool =
-  let a_ls, a_le = Code_range.line_span a.range in
-  let b_ls, b_le = Code_range.line_span b.range in
-  (* common line span [cs, ce) *)
-  let cs = max a_ls b_ls in
-  let ce = min a_le b_le in
-  if ce <= cs then false
-  else if ce - cs >= 2 then true
-  else
-    let line = cs in
-    let a_cs = char_span_on_line a.range line in
-    let b_cs = char_span_on_line b.range line in
-    Code_range.are_flat_ranges_colliding a_cs b_cs
+  Code_range.are_colliding a.range b.range
 
 let colliding_nodes (target : t) (nodes_list : t list) : t list =
   List.filter (are_colliding target) nodes_list
@@ -251,9 +231,6 @@ let reformat (x : t) : (t, Error.t) result =
       (* we return the same id, doesn't matter in the order of operation we do *)
   | None ->
       Error.string_to_or_error "The node need to have an AST to be reformatted"
-
-let shift_node (n_line : int) (n_char : int) (x : t) : t =
-  { x with range = Code_range.shift n_line n_char x.range }
 
 let move_to (destination : Code_point.t) (x : t) : t =
   let new_range =

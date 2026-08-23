@@ -8,3 +8,5 @@ val range_from_starting_point_and_repr : Code_point.t -> string -> t
 val are_flat_ranges_colliding : int * int -> int * int -> bool
 val common_range : int * int -> int * int -> (int * int) option
 val line_span : t -> int * int
+val char_span_on_line : t -> int -> int * int
+val are_colliding : t -> t -> bool
