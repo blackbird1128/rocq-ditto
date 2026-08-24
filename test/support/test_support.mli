@@ -8,6 +8,7 @@ val error_testable : Error.t Alcotest.testable
 val goal_select_view_testable : Goal_select_view.t Alcotest.testable
 val sexp_testable : Sexplib.Sexp.t Alcotest.testable
 val reified_goal_testable : string Coq.Goals.Reified_goal.t Alcotest.testable
+val dependency_graph_testable : (string * string list) list Alcotest.testable
 val vernacexpr_testable : Vernacexpr.vernac_expr Alcotest.testable
 
 val vernac_control_gen_r_testable :

@@ -22,3 +22,8 @@
  (name test_compile)
  (package coq-ditto)
  (libraries ditto ditto_test_support alcotest)) 
+
+(test
+ (name test_dependency_graph)
+ (package coq-ditto)
+ (libraries ditto ditto_test_support alcotest))

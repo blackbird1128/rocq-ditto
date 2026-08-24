@@ -17,6 +17,14 @@ let goal_select_view_testable = Alcotest.testable Goal_select_view.pp ( = )
 let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
 let reified_goal_testable = Alcotest.testable Reified_goal.pp ( = )
 
+let dependency_graph_testable =
+  Alcotest.slist
+    (Alcotest.pair Alcotest.string (Alcotest.list Alcotest.string))
+    (fun (key_a, value_a) (key_b, value_b) ->
+      let key_comp = String.compare key_a key_b in
+      if key_comp = 0 then List.compare String.compare value_a value_b
+      else key_comp)
+
 let vernacexpr_testable =
   Alcotest.testable
     (fun (fmt : Format.formatter) (x : Vernacexpr.vernac_expr) ->
