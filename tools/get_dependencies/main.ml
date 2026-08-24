@@ -17,7 +17,9 @@ let get_dependencies () =
             "No _CoqProject or _RocqProject associated with the file found"
       | Some project ->
           let* dep_graph = Compile.coqproject_to_dep_graph project in
-          let dependencies = Compile.get_file_dependencies filename dep_graph in
+          let dependencies =
+            Dependency_graph.get_file_dependencies filename dep_graph
+          in
           List.iter print_endline dependencies;
           Ok ()
 

@@ -5,10 +5,10 @@ type cli_args = { path : string }
 let output_dot_of_coqproject (project : Project.t) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let* depgraph : (string, string list) Hashtbl.t =
+  let* depgraph : Dependency_graph.t =
     Compile.coqproject_to_dep_graph project
   in
-  let dep_seq = Hashtbl.to_seq depgraph in
+  let dep_seq = Dependency_graph.to_seq depgraph in
   let stripped_seq =
     Seq.map
       (fun (file, neighbors) ->
@@ -21,9 +21,9 @@ let output_dot_of_coqproject (project : Project.t) : (unit, Error.t) result =
         (file_stripped, neighbors_stripped))
       dep_seq
   in
-  let depgraph_stripped = Hashtbl.of_seq stripped_seq in
+  let depgraph_stripped = Dependency_graph.of_seq stripped_seq in
 
-  let dot_repr = Compile.depgraph_to_dot_format depgraph_stripped in
+  let dot_repr = Dependency_graph.to_dot_format depgraph_stripped in
 
   Printf.printf "%s%!" dot_repr;
   Ok ()

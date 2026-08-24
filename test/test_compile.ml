@@ -1,10 +1,10 @@
 open Ditto
 open Ditto_test_support.Test_support
 
-let graph (bindings : ('a * 'b list) list) : ('a, 'b list) Hashtbl.t =
+let graph (bindings : ('string * string list) list) : Dependency_graph.t =
   let table : ('a, 'b list) Hashtbl.t = Hashtbl.create (List.length bindings) in
   List.iter (fun (key, values) -> Hashtbl.replace table key values) bindings;
-  table
+  Dependency_graph.of_parents_table table
 
 let dependency_graph_testable =
   Alcotest.slist
@@ -112,7 +112,9 @@ let test_parse_depf_output_simple () =
 
   let parsed_output = Compile.parse_depf_output output in
   let assoc_list_res =
-    Result.map (fun tbl -> Hashtbl.to_seq tbl |> List.of_seq) parsed_output
+    Result.map
+      (fun tbl -> Dependency_graph.to_seq tbl |> List.of_seq)
+      parsed_output
   in
 
   let expected =
@@ -131,23 +133,23 @@ let test_direct_dependencies () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", []) ] in
   Alcotest.check sorted_string_testable
     "b.v and c.v should be dependencies of a.v" [ "b.v"; "c.v" ]
-    (Compile.get_file_dependencies "a.v" deps)
+    (Dependency_graph.get_file_dependencies "a.v" deps)
 
 let test_transitive_dependencies () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
   Alcotest.check sorted_string_testable
     "b.v, c.v and d.v should be dependencies of a.v" [ "b.v"; "c.v"; "d.v" ]
-    (Compile.get_file_dependencies "a.v" deps)
+    (Dependency_graph.get_file_dependencies "a.v" deps)
 
 let test_file_not_in_graph_zero_dependencies () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
   Alcotest.check sorted_string_testable
     "A file not in the graph should not have dependencies" []
-    (Compile.get_file_dependencies "z.v" deps)
+    (Dependency_graph.get_file_dependencies "z.v" deps)
 
 let test_outdegrees () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
-  let outdegrees = Compile.build_outdegrees deps in
+  let outdegrees = Dependency_graph.build_outdegrees deps in
 
   Alcotest.(check int)
     "The out-degree of a.v should be 2" 2
@@ -161,7 +163,7 @@ let test_outdegrees () =
 
 let test_outdegrees_outside_graph () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
-  let outdegrees = Compile.build_outdegrees deps in
+  let outdegrees = Dependency_graph.build_outdegrees deps in
 
   Alcotest.(check (option int))
     "The out-degree of a node outside the graph should not exists" None
@@ -169,7 +171,7 @@ let test_outdegrees_outside_graph () =
 
 let test_outdegrees_isolated_node () =
   let deps = graph [ ("a.v", []) ] in
-  let outdegrees = Compile.build_outdegrees deps in
+  let outdegrees = Dependency_graph.build_outdegrees deps in
 
   Alcotest.(check (option int))
     "The out-degree of a single node graph should be 0" (Some 0)
@@ -182,7 +184,7 @@ let test_dependents () =
         ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v"; "e.v" ]); ("c.v", [ "e.v" ]);
       ]
   in
-  let dependents = Compile.build_dependents deps in
+  let dependents = Dependency_graph.build_dependents deps in
 
   Alcotest.(check (list string))
     "The dependents of a.v should be empty" []
@@ -203,7 +205,7 @@ let test_dependents () =
 
 let test_dependents_outside_graph () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
-  let dependents = Compile.build_dependents deps in
+  let dependents = Dependency_graph.build_dependents deps in
 
   Alcotest.(check (option (list string)))
     "The dependents of a node outside the dependency graph should not exists"
@@ -212,7 +214,7 @@ let test_dependents_outside_graph () =
 
 let test_dependents_isolated_node () =
   let deps = graph [ ("a.v", []) ] in
-  let dependents = Compile.build_dependents deps in
+  let dependents = Dependency_graph.build_dependents deps in
 
   Alcotest.(check (option (list string)))
     "The dependents of the node of a single node graph should be empty"

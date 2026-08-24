@@ -22,7 +22,7 @@ let print_minim_deps (project : Project.t) (subset_path : string) :
   with
   | [] ->
       let* dep_graph = Compile.coqproject_to_dep_graph project in
-      let dep_graph_seq = Hashtbl.to_seq dep_graph in
+      let dep_graph_seq = Dependency_graph.to_seq dep_graph in
       let dep_graph_seq_normalized =
         Seq.map
           (fun (a, neighbors) ->
@@ -37,13 +37,15 @@ let print_minim_deps (project : Project.t) (subset_path : string) :
             (normalized_a, normalized_neighbors))
           dep_graph_seq
       in
-      let dep_graph_normalized = Hashtbl.of_seq dep_graph_seq_normalized in
+      let dep_graph_normalized =
+        Dependency_graph.of_seq dep_graph_seq_normalized
+      in
 
       let subset_needed =
         subset_files
         @ List.concat_map
             (fun file ->
-              Compile.get_file_dependencies file dep_graph_normalized)
+              Dependency_graph.get_file_dependencies file dep_graph_normalized)
             subset_files
         |> List_utils.dedup
       in

@@ -41,8 +41,6 @@ let coqproject_sorted_files (project : Project.t) :
          format"
         dep_program_repr
 
-type dependency_graph = (string, string list) Hashtbl.t
-
 type dependency_rule = { filename : string; dependencies : string list }
 [@@deriving show { with_path = false }]
 
@@ -72,7 +70,7 @@ let parse_depf_line (line : string) : (dependency_rule, Error.t) result =
       Error.format_to_or_error "Can't split the line %S at \"required_vo:\""
         line
 
-let parse_depf_output (output : string) : (dependency_graph, Error.t) result =
+let parse_depf_output (output : string) : (Dependency_graph.t, Error.t) result =
   let ( let* ) = Result.bind in
   let lines =
     String_utils.split_by_newline output
@@ -88,85 +86,13 @@ let parse_depf_output (output : string) : (dependency_graph, Error.t) result =
       (* avoid making a recursive parent table *)
       Hashtbl.replace parents_table filename filtered_dependencies)
     parsed_lines;
-  Ok parents_table
+  Ok (Dependency_graph.of_parents_table parents_table)
 
 let coqproject_to_dep_graph (project : Project.t) :
-    (dependency_graph, Error.t) result =
+    (Dependency_graph.t, Error.t) result =
   let ( let* ) = Result.bind in
   let* output = run_dep_process [ "-f"; project.path ] in
   parse_depf_output output
-
-let depgraph_to_dot_format (graph : dependency_graph) : string =
-  let buf = Buffer.create (Hashtbl.length graph * 16) in
-  Buffer.add_string buf "digraph G {\n";
-  Buffer.add_string buf
-    " rankdir=RL;\n\
-    \ splines=true;\n\
-    \ overlap=false;\n\
-    \ concentrate=true;\n\
-    \ node [shape=box, fontsize=10];\n";
-  Hashtbl.iter
-    (fun file neighbors ->
-      let file_without_leading_slash = String_utils.remove_prefix file "/" in
-      match neighbors with
-      | [] ->
-          Buffer.add_string buf
-            (Printf.sprintf "\"%s\";\n" file_without_leading_slash)
-      | neighbors ->
-          List.iter
-            (fun x ->
-              let x_without_leading_slash = String_utils.remove_prefix x "/" in
-              Buffer.add_string buf
-                (Printf.sprintf "\"%s\" -> \"%s\";\n" file_without_leading_slash
-                   x_without_leading_slash))
-            neighbors)
-    graph;
-  Buffer.add_string buf "}";
-  Buffer.contents buf
-
-let get_file_dependencies (filename : string) (dep_graph : dependency_graph) :
-    string list =
-  let rec aux filename : string list =
-    let curr_deps =
-      match Hashtbl.find_opt dep_graph filename with
-      | Some deps -> deps
-      | None -> []
-    in
-    let deps = List.concat_map aux curr_deps in
-    curr_deps @ deps
-  in
-  aux filename |> List_utils.dedup
-
-let build_outdegrees (deps : ('a, 'a list) Hashtbl.t) : ('a, int) Hashtbl.t =
-  let outdeg = Hashtbl.create 128 in
-  Hashtbl.iter
-    (fun node neighbors ->
-      Hashtbl.replace outdeg node (List.length neighbors);
-      List.iter
-        (fun b -> if not (Hashtbl.mem outdeg b) then Hashtbl.add outdeg b 0)
-        neighbors)
-    deps;
-  outdeg
-
-let build_dependents (deps : ('a, 'a list) Hashtbl.t) : ('a, 'a list) Hashtbl.t
-    =
-  let dependents = Hashtbl.create 128 in
-  Hashtbl.iter
-    (fun a prereqs ->
-      List.iter
-        (fun b ->
-          let lst = Hashtbl.find_opt dependents b |> Option.default [] in
-          Hashtbl.replace dependents b (a :: lst))
-        prereqs)
-    deps;
-  Hashtbl.iter
-    (fun a neighbors ->
-      List.iter
-        (fun x ->
-          if Hashtbl.mem dependents x then () else Hashtbl.add dependents x [])
-        (a :: neighbors))
-    deps;
-  dependents
 
 let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
   let msg_string = Pp.string_of_ppcmds x.message in

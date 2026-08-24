@@ -298,7 +298,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
               | Some project ->
                   let* dep_graph = Compile.coqproject_to_dep_graph project in
                   let dependencies =
-                    Compile.get_file_dependencies input dep_graph
+                    Dependency_graph.get_file_dependencies input dep_graph
                   in
                   Printf.printf "Compiling %d dependencies\n%!"
                     (List.length dependencies);
@@ -313,7 +313,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
               | Some project ->
                   let* dep_graph = Compile.coqproject_to_dep_graph project in
                   let dependencies =
-                    Compile.get_file_dependencies input dep_graph
+                    Dependency_graph.get_file_dependencies input dep_graph
                   in
                   let length_dep = List.length dependencies in
                   Printf.printf "Transforming %d dependencies\n%!" length_dep;
@@ -375,13 +375,13 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                    (Error.string_to_or_error
                       "Can't find the newly created _CoqProject")
           in
-          let* depgraph : (string, string list) Hashtbl.t =
+          let* depgraph : Dependency_graph.t =
             Compile.coqproject_to_dep_graph project
           in
 
-          let dependents = Compile.build_dependents depgraph in
+          let dependents = Dependency_graph.build_dependents depgraph in
 
-          let outdeg_graph = Compile.build_outdegrees depgraph in
+          let outdeg_graph = Dependency_graph.build_outdegrees depgraph in
 
           run_parallel ~jobs ~env:base_env ~prog ~root:output ~save_vo ~verbose
             ~dependents ~outdegree:outdeg_graph)

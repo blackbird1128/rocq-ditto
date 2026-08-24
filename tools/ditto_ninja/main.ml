@@ -119,7 +119,7 @@ let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
 
   let ditto_rule = get_ninja_rule () in
 
-  let depsgraph_seq = Hashtbl.to_seq depgraph |> List.of_seq in
+  let depsgraph_seq = Dependency_graph.to_seq depgraph |> List.of_seq in
 
   let builds =
     List.concat_map
