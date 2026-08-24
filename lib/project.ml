@@ -42,13 +42,18 @@ let resolve_project_path (path : string) : (t, Error.t) result =
         Error.string_to_or_error
           "Please provide a directory or a project file path"
 
-let to_args (project : t) : (string list, Error.t) result =
+let read_project_file (project : t) :
+    (unit CoqProject_file.project, Error.t) result =
   let ( let* ) = Result.bind in
   let open CoqProject_file in
   let* proj =
-    try Ok (read_project_file ~warning_fn:(fun _ -> ()) project.path) with
-    | Parsing_error err_msg | UnableToOpenProjectFile err_msg ->
-        Error.string_to_or_error err_msg
-    | exn -> Error (Error.of_exn exn)
+    try Ok (read_project_file ~warning_fn:(fun _ -> ()) project.path)
+    with Parsing_error err_msg | UnableToOpenProjectFile err_msg ->
+      Error.string_to_or_error err_msg
   in
-  Ok (coqtop_args_from_project proj)
+  Ok proj
+
+let to_args (project : t) : (string list, Error.t) result =
+  let ( let* ) = Result.bind in
+  let* proj = read_project_file project in
+  Ok (CoqProject_file.coqtop_args_from_project proj)

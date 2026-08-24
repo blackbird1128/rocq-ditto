@@ -9,4 +9,5 @@ val resolve_project_path : string -> (t, Error.t) result
     project directory of that path and the name of the project file, otherwise
     it returns an error *)
 
+val read_project_file : t -> (unit CoqProject_file.project, Error.t) result
 val to_args : t -> (string list, Error.t) result

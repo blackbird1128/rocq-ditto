@@ -335,30 +335,24 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
       | None ->
           Error.format_to_or_error
             "No _CoqProject or _RocqProject file found in %s" input
-      | Some { directory = coqproject_dir; filename = coqproject_file; _ } ->
-          let coqproject_path =
-            Filename.concat coqproject_dir coqproject_file
-          in
-
-          let open CoqProject_file in
-          let p =
-            CoqProject_file.read_project_file
-              ~warning_fn:(fun _ -> ())
-              coqproject_path
-          in
+      | Some project ->
+          let* p = Project.read_project_file project in
 
           let filenames =
-            List.map (fun x -> Filename.basename x.thing) p.files
+            List.map
+              (fun (x : string CoqProject_file.sourced) ->
+                Filename.basename x.thing)
+              p.files
           in
 
-          let makefile_path = Filename.concat coqproject_dir "Makefile" in
+          let makefile_path = Filename.concat project.directory "Makefile" in
 
           let* new_dir_state = Filesystem.make_dir output in
           warn_if_exists new_dir_state;
           let* _ = Filesystem.copy_dir input output filenames in
           let* _ =
-            Filesystem.copy_file coqproject_path
-              (Filename.concat output coqproject_file)
+            Filesystem.copy_file project.path
+              (Filename.concat output project.filename)
           in
 
           let* _ =
