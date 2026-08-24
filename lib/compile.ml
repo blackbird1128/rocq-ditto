@@ -174,7 +174,7 @@ let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
   let err = Error.of_string msg_string in
   let err =
     Error.tag_arg err ~tag:"range"
-      (Code_range.code_range_from_lang_range x.range)
+      (Code_range.of_lang_range x.range)
       Code_range.sexp_of_t
   in
   Error.tag_arg err ~tag:"severity" x.severity sexp_of_int

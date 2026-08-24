@@ -102,7 +102,6 @@ let validate (x : t) : (t, Error.t) result =
         last_len last_len r.end_.character
     else Ok x
 
-(* TODO, is this even necessary ? *)
 let comment_of_string (content : string) (start_point : Code_point.t) :
     (t, Error.t) result =
   let range =
@@ -161,7 +160,7 @@ let node_representation (node : Doc.Node.t) (document : string) : string =
 let of_doc_node (source : string) (node : Doc.Node.t) : t =
   {
     ast = node.ast;
-    range = Code_range.code_range_from_lang_range node.range;
+    range = Code_range.of_lang_range node.range;
     repr = lazy (node_representation node source);
     id = Unique_id.uuid ();
     diagnostics = node.diags;

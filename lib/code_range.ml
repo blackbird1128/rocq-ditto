@@ -8,7 +8,7 @@ let pp (fmt : Format.formatter) (x : t) : unit =
 
 let to_string (x : t) : string = Format.asprintf "%a" pp x
 
-let code_range_from_lang_range (x : Lang.Range.t) : t =
+let of_lang_range (x : Lang.Range.t) : t =
   {
     start = code_point_from_lang_point x.start;
     end_ = code_point_from_lang_point x.end_;
