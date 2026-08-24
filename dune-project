@@ -34,6 +34,8 @@
   fpath
   logs
   alcotest
+  qcheck-core
+  qcheck-alcotest
   uuidm
   ppx_import
   ppx_deriving

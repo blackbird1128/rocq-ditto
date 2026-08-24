@@ -1,29 +1,35 @@
 (test
  (name test_nary_tree)
  (package coq-ditto)
+ (modules test_nary_tree)
  (libraries ditto ditto_test_support alcotest))
 
 (test
  (name test_range_utils)
  (package coq-ditto)
+ (modules test_range_utils)
  (libraries ditto ditto_test_support alcotest))
 
 (test
  (name test_list_utils)
  (package coq-ditto)
- (libraries ditto ditto_test_support alcotest))
+ (modules test_list_utils)
+ (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
 
 (test
  (name test_string_utils)
  (package coq-ditto)
+ (modules test_string_utils)
  (libraries ditto ditto_test_support alcotest))
 
 (test
  (name test_compile)
  (package coq-ditto)
+ (modules test_compile)
  (libraries ditto ditto_test_support alcotest)) 
 
 (test
  (name test_dependency_graph)
  (package coq-ditto)
+ (modules test_dependency_graph)
  (libraries ditto ditto_test_support alcotest))

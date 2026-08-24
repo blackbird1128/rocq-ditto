@@ -9,13 +9,17 @@ let test_head_opt_empty () =
   check (option int) "Head opt should get None when there is no head" None
     (head_opt [])
 
-let take_empty () =
-  check (list int) "take on an empty list should return an empty list" []
-    (take 1 [])
+let test_take_empty_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"taking n elements on an empty list should return an empty list"
+    QCheck.(int_pos)
+    (fun n -> take n [] = [])
 
-let take_zero () =
-  check (list int) "taking zero elements should return an empty list" []
-    (take 0 [ 1; 2; 3; 4 ])
+let test_take_zero_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"taking zero elements should return an empty list"
+    QCheck.(list int_small)
+    (fun l -> take 0 l = [])
 
 let test_take_less_than_len () =
   check (list int) "take should take the n first item if n <= length"
@@ -36,14 +40,17 @@ let test_take_raise_negative_args () =
   check_raises "reject negative arguments" (Invalid_argument "List.take")
     (fun () -> ignore (take (-1) []))
 
-let drop_empty () =
-  check (list int) "drop on an empty list should return an empty list" []
-    (drop 1 [])
+let test_drop_empty_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"dropping n elements on an empty list should return an empty list"
+    QCheck.(int_pos)
+    (fun n -> drop n [] = [])
 
-let drop_zero () =
-  check (list int) "dropping zero element should return the initial list"
-    [ 1; 2; 3; 4 ]
-    (drop 0 [ 1; 2; 3; 4 ])
+let test_drop_zero_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"dropping zero element should return the initial list"
+    QCheck.(list int_small)
+    (fun l -> drop 0 l = l)
 
 let test_drop_less_than_len () =
   check (list int) "drop should drop the n first items if n <= length" [ 4 ]
@@ -66,11 +73,11 @@ let test_take_while_empty () =
     []
     (take_while (fun _ -> true) [])
 
-let test_take_while_all () =
-  check (list int)
-    "take while matching every element should return the whole list"
-    [ 1; 2; 3; 4 ]
-    (take_while (fun _ -> true) [ 1; 2; 3; 4 ])
+let test_take_while_all_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"taking while matching every element should return the whole list"
+    QCheck.(list int)
+    (fun l -> take_while (fun _ -> true) l = l)
 
 let test_take_while_none () =
   check (list int)
@@ -256,16 +263,26 @@ let test_find_last_opt_no_match () =
     (find_last_opt (fun x -> x > 4) [ 1; 2; 3; 4 ])
 
 let () =
+  let qcheck_tests =
+    List.map QCheck_alcotest.to_alcotest
+      [
+        test_take_zero_prop;
+        test_take_empty_prop;
+        test_drop_zero_prop;
+        test_drop_empty_prop;
+        test_take_while_all_prop;
+      ]
+  in
+
   run "List utils"
     [
+      ("Property tests", qcheck_tests);
       ( "List utils fun",
         [
           test_case "test head opt get some list head when non empty" `Quick
             test_head_opt_non_empty;
           test_case "test head opt return None when the list is empty" `Quick
             test_head_opt_empty;
-          test_case "test applying take to an empty list" `Quick take_empty;
-          test_case "test taking zero elements from a list" `Quick take_zero;
           test_case "test taking less than length items from a list" `Quick
             test_take_less_than_len;
           test_case "test taking more than length items from a list" `Quick
@@ -274,8 +291,6 @@ let () =
             test_take_exact_len;
           test_case "test taking negative items raise invalid_arg" `Quick
             test_take_raise_negative_args;
-          test_case "test applying drop to an empty list" `Quick drop_empty;
-          test_case "test dropping zero element from a list" `Quick drop_zero;
           test_case "test dropping less than length items from a list" `Quick
             test_drop_less_than_len;
           test_case "test dropping more than length items from a list" `Quick
@@ -286,9 +301,6 @@ let () =
             test_drop_raise_negative_args;
           test_case "take_while on an empty list should return an empty list"
             `Quick test_take_while_empty;
-          test_case
-            "take_while matching every elements should return the whole list"
-            `Quick test_take_while_all;
           test_case
             "take_while matching no elements should return an empty list" `Quick
             test_take_while_none;
