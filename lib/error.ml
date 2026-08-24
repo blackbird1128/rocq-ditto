@@ -78,6 +78,17 @@ let string_to_or_error (x : string) : ('a, t) result = Error (of_string x)
 let format_to_or_error fmt =
   Stdlib.Format.kasprintf (fun s -> Error (of_string s)) fmt
 
+let of_diagnostic (x : Lang.Diagnostic.t) : t =
+  let msg_string = Pp.string_of_ppcmds x.message in
+
+  let err = of_string msg_string in
+  let err =
+    tag_arg err ~tag:"range"
+      (Code_range.of_lang_range x.range)
+      Code_range.sexp_of_t
+  in
+  tag_arg err ~tag:"severity" x.severity sexp_of_int
+
 let protect_to_result_with_feedback (r : ('a, 'b) Coq.Protect.E.t) :
     ('a * 'b Coq.Message.t list, t * 'b Coq.Message.t list) result =
   match r with

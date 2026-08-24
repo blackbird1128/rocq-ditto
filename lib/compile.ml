@@ -94,17 +94,6 @@ let coqproject_to_dep_graph (project : Project.t) :
   let* output = run_dep_process [ "-f"; project.path ] in
   parse_depf_output output
 
-let diagnostic_to_error (x : Lang.Diagnostic.t) : Error.t =
-  let msg_string = Pp.string_of_ppcmds x.message in
-
-  let err = Error.of_string msg_string in
-  let err =
-    Error.tag_arg err ~tag:"range"
-      (Code_range.of_lang_range x.range)
-      Code_range.sexp_of_t
-  in
-  Error.tag_arg err ~tag:"severity" x.severity sexp_of_int
-
 let parse_file (io : Io.CallBack.t) (env : Doc.Env.t) (filepath : string) :
     (Doc.t, Error.t list) result =
   let token = Coq.Limits.Token.create () in
@@ -129,11 +118,11 @@ let parse_file (io : Io.CallBack.t) (env : Doc.Env.t) (filepath : string) :
           in
           let errors = List.filter Lang.Diagnostic.is_error diags in
           let err = Error.of_string "Parsing stopped" in
-          Error (err :: List.map diagnostic_to_error errors)
+          Error (err :: List.map Error.of_diagnostic errors)
       | Failed _ ->
           let diags =
             List.concat_map (fun (x : Doc.Node.t) -> x.diags) doc.nodes
           in
           let errors = List.filter Lang.Diagnostic.is_error diags in
           let err = Error.of_string "Parsing failed" in
-          Error (err :: List.map diagnostic_to_error errors))
+          Error (err :: List.map Error.of_diagnostic errors))

@@ -20,6 +20,7 @@ val of_result : ('a, string) result -> ('a, t) result
 val to_string_result : t -> ('a, string) result
 val or_error_to_string_result : 'a or_error -> ('a, string) result
 val string_to_or_error : string -> ('a, t) result
+val of_diagnostic : Lang.Diagnostic.t -> t
 
 val format_to_or_error :
   ('fmt, Format.formatter, unit, ('payload, t) result) format4 -> 'fmt
