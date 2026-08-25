@@ -47,10 +47,9 @@ type dependency_rule = { filename : string; dependencies : string list }
 (* TODO: Checks how to make it testable but not expose for a single line *)
 let parse_depf_line (line : string) : (dependency_rule, Error.t) result =
   let ( let* ) = Result.bind in
-  let re = Re.compile (Re.str "required_vo:") in
-  let split = Re.split_delim re line in
-  match split with
-  | [ _; second_part ] -> (
+
+  match String_utils.cut "required_vo:" line with
+  | Ok (_, second_part) -> (
       let words = String_utils.split_words second_part in
       match List_utils.split_last words with
       | Some (filename :: vo_dependencies, _) ->
@@ -66,7 +65,7 @@ let parse_depf_line (line : string) : (dependency_rule, Error.t) result =
 
           Ok { filename; dependencies }
       | _ -> Error.format_to_or_error "Malformed depedency line: %S" line)
-  | _ ->
+  | Error _ ->
       Error.format_to_or_error "Can't split the line %S at \"required_vo:\""
         line
 
