@@ -28,12 +28,15 @@ type dependencies_action =
 [@@deriving show { with_path = false }, enum]
 
 type output_format = Text | Json [@@deriving show { with_path = false }]
+
 type progress = { current_file_count : int; total_file_count : int }
+[@@deriving show { with_path = false }]
+
+type verbosity = Quiet | Normal | Verbose
 
 type transformation_configuration = {
   progress : progress option;
-  verbose : bool;
-  quiet : bool;
+  verbosity : verbosity;
   transformation_steps : transformation_kind list;
   reverse_order : bool;
   output_filename : string;
@@ -223,6 +226,15 @@ let arg_to_dependencies_action (arg : string) =
         ^ (List.map dependencies_action_to_string all_dependencies_action
           |> String.concat "\n"))
 
+let verbosity_of_flags ~(verbose : bool) ~(quiet : bool) :
+    (verbosity, Error.t) result =
+  match (verbose, quiet) with
+  | true, true ->
+      Error.string_to_or_error "Cannot use both --verbose and --quiet"
+  | true, false -> Ok Verbose
+  | false, true -> Ok Quiet
+  | false, false -> Ok Normal
+
 let env_of_array (env_array : string array) : (env, Error.t) result =
   let env_list = Array.to_list env_array in
   let rec aux (acc : env) = function
@@ -340,6 +352,8 @@ let transformation_configuration_of_env (env : env) :
   let* verbose = get_env_as_bool_default env "DEBUG_LEVEL" false in
   let* quiet = get_env_as_bool_default env "QUIET" false in
 
+  let* verbosity = verbosity_of_flags ~verbose ~quiet in
+
   let* transformation_steps_env_val = get_env env "DITTO_TRANSFORMATION" in
   let* transformation_steps =
     parse_transformation_steps transformation_steps_env_val
@@ -354,8 +368,7 @@ let transformation_configuration_of_env (env : env) :
   Ok
     {
       progress;
-      verbose;
-      quiet;
+      verbosity;
       transformation_steps;
       reverse_order;
       output_filename;

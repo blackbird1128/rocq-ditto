@@ -94,29 +94,25 @@ let local_apply_doc_transformation (doc_acc : Rocq_document.t)
   Transformations.apply_doc_transformation trans doc_acc
 
 let print_current_running (proof_count : int) (proof_total : int)
-    (proof_name : string) (transformation_kind : transformation_kind) quiet
-    verbose =
-  if verbose then
-    Printf.printf "Running transformation %s on %-20s (%d/%d)%!\n%!"
-      (transformation_kind_to_string transformation_kind)
-      proof_name (proof_count + 1) proof_total
-  else if not quiet then
-    Printf.printf "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
-      (transformation_kind_to_string transformation_kind)
-      proof_name (proof_count + 1) proof_total
-  else ()
+    (proof_name : string) (transformation_kind : transformation_kind)
+    (verbosity : verbosity) =
+  match verbosity with
+  | Verbose ->
+      Printf.printf "Running transformation %s on %-20s (%d/%d)%!\n%!"
+        (transformation_kind_to_string transformation_kind)
+        proof_name (proof_count + 1) proof_total
+  | Normal ->
+      Printf.printf "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
+        (transformation_kind_to_string transformation_kind)
+        proof_name (proof_count + 1) proof_total
+  | Quiet -> ()
 
 let apply_steps
     (transformation_steps : (Transforming_step.t list, Error.t) result)
     (curr_doc : Rocq_document.t) (proof_count : int) (proof : 'a) =
   match transformation_steps with
   | Ok steps ->
-      ( List.fold_left
-          (fun doc_acc_err step ->
-            match doc_acc_err with
-            | Ok doc -> Rocq_document.apply_transformation_step step doc
-            | Error err -> Error err)
-          (Ok curr_doc) steps,
+      ( Rocq_document.apply_transformations_steps steps curr_doc,
         proof_count + 1,
         curr_doc,
         Some proof )
@@ -141,7 +137,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
     (transformation :
       Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result)
     (transformation_kind : transformation_kind) (proof_list : Proof.t list)
-    (verbose : bool) (quiet : bool) : Rocq_document.t =
+    (verbosity : verbosity) : Rocq_document.t =
   let proof_total = List.length proof_list in
   let first_proof = List_utils.head_opt proof_list in
   let token = Coq.Limits.Token.create () in
@@ -165,7 +161,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
             (Proof.get_proof_name proof |> Option.map Names.Id.to_string)
         in
         print_current_running proof_count proof_total proof_name
-          transformation_kind quiet verbose;
+          transformation_kind verbosity;
         match status_before with
         | Ok _ ->
             let transformation_steps = transformation curr_doc proof in
@@ -193,14 +189,15 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
       display_transformation_error prev_proof transformation_kind err;
       doc_acc
 
-let print_info (filename : string) (verbose : bool) : unit =
+let print_info (filename : string) (verbosity : verbosity) : unit =
   Printf.printf "\nAll transformations applied, writing to file %s\n%!" filename;
 
-  if verbose then (
-    let stats = Stats.Global.dump () in
-    Printf.printf "rocq-ditto stats: %s\n" (Stats.Global.to_string stats);
-    Printf.printf "rocq-ditto %s\n" (Memo.GlobalCacheStats.stats ()))
-  else ()
+  match verbosity with
+  | Verbose ->
+      let stats = Stats.Global.dump () in
+      Printf.printf "rocq-ditto stats: %s\n" (Stats.Global.to_string stats);
+      Printf.printf "rocq-ditto %s\n" (Memo.GlobalCacheStats.stats ())
+  | _ -> ()
 
 let statistic_action (doc : Fleche.Doc.t) (config : statistic_configuration) =
   let ( let* ) = Result.bind in
@@ -262,8 +259,11 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
 
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
 
-  if config.verbose then Logs.set_level (Some Logs.Debug)
-  else Logs.set_level (Some Logs.Info);
+  let _ =
+    match config.verbosity with
+    | Verbose -> Logs.set_level (Some Logs.Debug)
+    | Normal | Quiet -> Logs.set_level (Some Logs.Info)
+  in
 
   let _ =
     match config.progress with
@@ -300,7 +300,7 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
 
                 Ok
                   (local_apply_proof_transformation doc_acc trans
-                     transformation_kind proof_list config.verbose config.quiet)
+                     transformation_kind proof_list config.verbosity)
             | DocScope trans -> local_apply_doc_transformation doc_acc trans)
         | Error err, _ -> Error err)
       (Ok parsed_document) scoped_transformations
@@ -308,13 +308,13 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
 
   match (res, config.save_vo) with
   | Ok res, false ->
-      print_info config.output_filename config.verbose;
+      print_info config.output_filename config.verbosity;
       (* new document repr was computed when applying transformation steps *)
       let doc_repr = res.document_repr in
       write_file config.output_filename doc_repr;
       Ok ()
   | Ok res, true ->
-      print_info config.output_filename config.verbose;
+      print_info config.output_filename config.verbosity;
       let* doc_repr = Rocq_document.dump_to_string res in
       write_file config.output_filename doc_repr;
       save_vo_to_file config.output_filename res doc.uri token
