@@ -86,6 +86,17 @@ let option_all (xs : 'a option list) : 'a list option =
   in
   go [] xs
 
+let fold_left_result (f : 'acc -> 'a -> ('acc, 'e) result) (init : 'acc)
+    (l : 'a list) : ('acc, 'e) result =
+  let rec aux acc = function
+    | [] -> Ok acc
+    | x :: tail -> (
+        match f acc x with
+        | Ok new_acc -> aux new_acc tail
+        | Error err -> Error err)
+  in
+  aux init l
+
 let result_all (xs : ('a, 'e) result list) : ('a list, 'e) result =
   List.fold_left
     (fun acc x ->
