@@ -4,7 +4,7 @@ val of_parents_table : (string, string list) Hashtbl.t -> t
 val of_seq : (string * string list) Seq.t -> t
 val to_seq : t -> (string * string list) Seq.t
 
-val get_file_dependencies : string -> t -> string list
+val get_file_dependencies : string -> t -> (string list, Error.t) result
 (** [get_file_dependencies file dependency_graph] compute the list of
     dependencies a file has in the dependency graph, recursively *)
 

@@ -41,11 +41,13 @@ let print_minim_deps (project : Project.t) (subset_path : string) :
         Dependency_graph.of_seq dep_graph_seq_normalized
       in
 
+      (* TODO: Remove Result.get_ok *)
       let subset_needed =
         subset_files
         @ List.concat_map
             (fun file ->
-              Dependency_graph.get_file_dependencies file dep_graph_normalized)
+              Dependency_graph.get_file_dependencies file dep_graph_normalized
+              |> Result.get_ok)
             subset_files
         |> List_utils.dedup
       in

@@ -297,7 +297,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                      dependency action"
               | Some project ->
                   let* dep_graph = Compile.coqproject_to_dep_graph project in
-                  let dependencies =
+                  let* dependencies =
                     Dependency_graph.get_file_dependencies input dep_graph
                   in
                   Printf.printf "Compiling %d dependencies\n%!"
@@ -312,7 +312,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                      dependency action"
               | Some project ->
                   let* dep_graph = Compile.coqproject_to_dep_graph project in
-                  let dependencies =
+                  let* dependencies =
                     Dependency_graph.get_file_dependencies input dep_graph
                   in
                   let length_dep = List.length dependencies in

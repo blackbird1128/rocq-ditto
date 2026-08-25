@@ -4,17 +4,25 @@ let of_parents_table (parents : (string, string list) Hashtbl.t) : t = parents
 let of_seq (seq : (string * string list) Seq.t) : t = Hashtbl.of_seq seq
 let to_seq (graph : t) : (string * string list) Seq.t = Hashtbl.to_seq graph
 
-let get_file_dependencies (filename : string) (dep_graph : t) : string list =
+let in_graph (filename : string) (graph : t) : bool =
+  Hashtbl.fold
+    (fun file neighbors acc ->
+      acc || String.equal filename file || List.mem filename neighbors)
+    graph false
+
+let get_file_dependencies (filename : string) (dep_graph : t) :
+    (string list, Error.t) result =
   let rec aux filename : string list =
     let curr_deps =
       match Hashtbl.find_opt dep_graph filename with
       | Some deps -> deps
       | None -> []
     in
-    let deps = List.concat_map aux curr_deps in
-    curr_deps @ deps
+    curr_deps @ List.concat_map aux curr_deps
   in
-  aux filename |> List_utils.dedup
+
+  if in_graph filename dep_graph then Ok (aux filename |> List_utils.dedup)
+  else Error.format_to_or_error "file %S isn't in the dependency graph" filename
 
 let build_outdegrees (deps : t) : (string, int) Hashtbl.t =
   let outdeg = Hashtbl.create 128 in

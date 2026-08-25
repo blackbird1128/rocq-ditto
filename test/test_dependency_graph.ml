@@ -8,20 +8,23 @@ let graph (bindings : ('string * string list) list) : Dependency_graph.t =
 
 let test_direct_dependencies () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", []) ] in
-  Alcotest.check sorted_string_testable
-    "b.v and c.v should be dependencies of a.v" [ "b.v"; "c.v" ]
+  Alcotest.(check (result sorted_string_testable error_testable))
+    "b.v and c.v should be dependencies of a.v"
+    (Ok [ "b.v"; "c.v" ])
     (Dependency_graph.get_file_dependencies "a.v" deps)
 
 let test_transitive_dependencies () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
-  Alcotest.check sorted_string_testable
-    "b.v, c.v and d.v should be dependencies of a.v" [ "b.v"; "c.v"; "d.v" ]
+  Alcotest.(check (result sorted_string_testable error_testable))
+    "b.v, c.v and d.v should be dependencies of a.v"
+    (Ok [ "b.v"; "c.v"; "d.v" ])
     (Dependency_graph.get_file_dependencies "a.v" deps)
 
 let test_file_not_in_graph_zero_dependencies () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
-  Alcotest.check sorted_string_testable
-    "A file not in the graph should not have dependencies" []
+  Alcotest.(check (result sorted_string_testable error_testable))
+    "Querying a file outside the graph should error out"
+    (Error.format_to_or_error "file %S isn't in the dependency graph" "z.v")
     (Dependency_graph.get_file_dependencies "z.v" deps)
 
 let test_outdegrees () =
