@@ -80,45 +80,44 @@ let make_args_compile_files (root : string) (input_file : string) =
 
 let transform_files (root : string) (dep_files : string list) (prog : string)
     (total_file_count : int) (base_env : string array) (save_vo : bool)
-    (verbose : bool) : (unit, Error.t) result * int =
-  List.fold_left
-    (fun (err_acc, curr_file_count) curr_file ->
-      match err_acc with
-      | Ok () ->
-          let curr_args =
-            make_args_transform_files prog root verbose save_vo curr_file
-          in
-          let curr_env =
-            extend_env base_env
-              [
-                ("OUTPUT_FILENAME", curr_file);
-                ("CURRENT_FILE_COUNT", string_of_int curr_file_count);
-                ("TOTAL_FILE_COUNT", string_of_int total_file_count);
-              ]
-          in
-          let status =
-            Process_runner.run_process_loud ~env:curr_env ~args:curr_args prog
-          in
-          Printf.printf "\n%!";
-          (status, curr_file_count + 1)
-      | err -> (err, curr_file_count + 1))
-    (Ok (), 1) dep_files
+    (verbose : bool) : (unit, Error.t) result =
+  let ( let* ) = Result.bind in
+  List_utils.fold_left_result
+    (fun curr_file_count curr_file ->
+      let curr_args =
+        make_args_transform_files prog root verbose save_vo curr_file
+      in
+      let curr_env =
+        extend_env base_env
+          [
+            ("OUTPUT_FILENAME", curr_file);
+            ("CURRENT_FILE_COUNT", string_of_int curr_file_count);
+            ("TOTAL_FILE_COUNT", string_of_int total_file_count);
+          ]
+      in
+      let* _status =
+        Process_runner.run_process_loud ~env:curr_env ~args:curr_args prog
+      in
+      Printf.printf "\n%!";
+      Ok (curr_file_count + 1))
+    1 dep_files
+  |> Result.map (fun _ -> ())
 
-let compile_files (files : string list) (root : string) =
+let compile_files (files : string list) (root : string) : (unit, Error.t) result
+    =
+  let ( let* ) = Result.bind in
   let prog = "fcc" in
-  List.fold_left
-    (fun (err_acc, curr_file_count) curr_file ->
-      match err_acc with
-      | Ok () ->
-          Printf.printf "compiling file %s\n%!" curr_file;
-          let curr_args = make_args_compile_files root curr_file in
-          let status =
-            Process_runner.run_process_silent ~env:(Unix.environment ())
-              ~args:curr_args prog
-          in
-          (status, curr_file_count + 1)
-      | err -> (err, curr_file_count + 1))
-    (Ok (), 1) files
+  List_utils.fold_left_result
+    (fun current_file_count curr_file ->
+      Printf.printf "compiling file %s%!" curr_file;
+      let curr_args = make_args_compile_files root curr_file in
+      let* _status =
+        Process_runner.run_process_silent ~env:(Unix.environment ())
+          ~args:curr_args prog
+      in
+      Ok (current_file_count + 1))
+    1 files
+  |> Result.map (fun _ -> ())
 
 let run_stats (opts : stats_option) : (unit, Error.t) result =
   let input = opts.input in
@@ -302,8 +301,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                   in
                   Printf.printf "Compiling %d dependencies\n%!"
                     (List.length dependencies);
-                  let res, _ = compile_files dependencies project.directory in
-                  res)
+                  compile_files dependencies project.directory)
           | TransformDependencies -> (
               match coqproject_opt with
               | None ->
@@ -317,11 +315,9 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                   in
                   let length_dep = List.length dependencies in
                   Printf.printf "Transforming %d dependencies\n%!" length_dep;
-                  let res, _ =
-                    transform_files project.directory dependencies "fcc"
-                      length_dep base_env true verbose
-                  in
-                  res)
+
+                  transform_files project.directory dependencies "fcc"
+                    length_dep base_env true verbose)
         in
 
         let env = extend_env base_env [ ("OUTPUT_FILENAME", output) ] in
@@ -539,7 +535,7 @@ let main (opts : transformation_options) =
   match transform_project opts with
   | Ok _ -> exit 0
   | Error err ->
-      prerr_endline (Error.to_string_hum err);
+      Logs.err (fun m -> m "%s" (Error.to_string_hum err));
       exit 1
 
 let main_stats (opts : stats_option) =

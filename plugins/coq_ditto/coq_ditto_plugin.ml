@@ -27,16 +27,11 @@ let run_statistic (doc : Rocq_document.t) (statistic : 'a statistic) :
   match statistic.scope with
   | ProofScope compute ->
       let* proofs = Rocq_document.get_proofs doc in
-      List.fold_left
-        (fun (acc : ('a, Error.t) result) (x : Proof.t) ->
-          match acc with
-          | Ok acc -> (
-              let compute_res = compute doc x in
-              match compute_res with
-              | Ok value -> Ok (statistic.combine acc value)
-              | Error err -> Error err)
-          | Error _ -> acc)
-        (Ok statistic.empty) proofs
+      List_utils.fold_left_result
+        (fun acc p ->
+          let* compute_res = compute doc p in
+          Ok (statistic.combine acc compute_res))
+        statistic.empty proofs
   | DocScope compute -> compute doc
 
 let print_induction_count (formatter : Format.formatter) (count : int) =
