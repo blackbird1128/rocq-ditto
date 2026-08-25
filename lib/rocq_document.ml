@@ -147,8 +147,7 @@ let get_comments (content : string) :
 
 let range_contains_node (container : Syntax_node.t) (candidate : Syntax_node.t)
     : bool =
-  Code_point.compare container.range.start candidate.range.start <= 0
-  && Code_point.compare candidate.range.end_ container.range.end_ <= 0
+  Code_range.range_contains_other container.range candidate.range
 
 (** requires: [nodes] to be sorted *)
 let remove_contained_nodes (nodes : Syntax_node.t list) : Syntax_node.t list =
