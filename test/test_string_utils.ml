@@ -193,6 +193,24 @@ let test_split_at_last_char () =
     (Ok ("hey there", ""))
     (split_at ',' "hey there,")
 
+let test_cut_is_equivalent_to_split_at_for_len_one =
+  QCheck.Test.make ~count:1000
+    ~name:
+      "cut is equivalent to split at for a string of length one on succes or \
+       both fail"
+    QCheck.(pair char string)
+    (fun (cut_or_split, to_split) ->
+      match
+        ( cut (String.make 1 cut_or_split) to_split,
+          split_at cut_or_split to_split )
+      with
+      | ( Ok (first_part_cut, second_part_cut),
+          Ok (first_part_split_at, second_part_split_at) ) ->
+          String.equal first_part_cut first_part_split_at
+          && String.equal second_part_cut second_part_split_at
+      | Error _, Error _ -> true
+      | _ -> false)
+
 let test_cut_simple () =
   check
     (result (pair string string) error_testable)
@@ -237,9 +255,43 @@ let test_cut_suffix () =
     (Ok ("world", ""))
     (cut "suffix" "worldsuffix")
 
+let test_split_by_newline_simple () =
+  let to_split = "line one\nline two" in
+  check (list string) "" [ "line one"; "line two" ] (split_by_newline to_split)
+
+let test_split_by_newline_without_newlines_prop =
+  QCheck.Test.make ~count:1000
+    ~name:
+      "splitting by newline a string without newlines should return the \
+       original string"
+    QCheck.(string_of Gen.char)
+    (fun s ->
+      QCheck.assume (String.contains s '\n' = false);
+      match split_by_newline s with [ res ] -> String.equal s res | _ -> false)
+
+let test_split_by_newline_reconstruct_unix_newlines_prop =
+  QCheck.Test.make ~count:1000
+    ~name:
+      "splitting by newline a string with no '\\r' should have a String.concat \
+       inverse"
+    QCheck.(string_of Gen.char)
+    (fun s ->
+      QCheck.assume (String.contains s '\r' = false);
+      String.equal (String.concat "\n" (split_by_newline s)) s)
+
 let () =
+  let qcheck_tests =
+    List.map QCheck_alcotest.to_alcotest
+      [
+        test_cut_is_equivalent_to_split_at_for_len_one;
+        test_split_by_newline_without_newlines_prop;
+        test_split_by_newline_reconstruct_unix_newlines_prop;
+      ]
+  in
+
   run "String utils"
     [
+      ("Property tests", qcheck_tests);
       ( "String utils tests",
         [
           test_case "test splitting a simple prefix from a string" `Quick
@@ -317,5 +369,7 @@ let () =
             test_cut_prefix;
           test_case "test cutting at the suffix of a string" `Quick
             test_cut_suffix;
+          test_case "test splitting by newline a simple string" `Quick
+            test_split_by_newline_simple;
         ] );
     ]

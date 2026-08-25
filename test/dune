@@ -20,7 +20,7 @@
  (name test_string_utils)
  (package coq-ditto)
  (modules test_string_utils)
- (libraries ditto ditto_test_support alcotest))
+ (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
 
 (test
  (name test_compile)
