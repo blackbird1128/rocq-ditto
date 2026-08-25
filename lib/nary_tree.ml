@@ -2,33 +2,26 @@ type 'a t = Node of 'a * 'a t list
 
 let rec equal (equal_a : 'a -> 'a -> bool) (Node (a1, children1))
     (Node (a2, children2)) : bool =
-  try equal_a a1 a2 && List.for_all2 (equal equal_a) children1 children2
-  with Invalid_argument _ -> false
+  equal_a a1 a2 && List.equal (equal equal_a) children1 children2
 
 let rec sexp_of (sexp_of_a : 'a -> Sexplib.Sexp.t) (Node (v, children)) :
     Sexplib.Sexp.t =
   List [ sexp_of_a v; List (List.map (sexp_of sexp_of_a) children) ]
 
+let pp_sep fmt () = Format.fprintf fmt ",@ "
+
 let rec pp (pp_a : Format.formatter -> 'a -> unit) (fmt : Format.formatter)
     (Node (a, children)) : unit =
-  (* Print the current node value *)
   Format.fprintf fmt "%a" pp_a a;
-  (* If the node has children, print them in parentheses *)
+
   if children <> [] then (
     Format.fprintf fmt " (";
-    List.iteri
-      (fun i child ->
-        if i > 0 then Format.fprintf fmt ", ";
-        (* Add a comma between children *)
-        pp pp_a fmt child)
-      children;
+    Format.pp_print_list ~pp_sep (pp pp_a) fmt children;
     Format.fprintf fmt ")")
 
-let rec tree_from_parents (cur_node : 'a) (parents : ('a, 'a) Hashtbl.t) : 'a t
-    =
+let rec from_parents (cur_node : 'a) (parents : ('a, 'a) Hashtbl.t) : 'a t =
   let childs = Hashtbl.find_all parents cur_node in
-  Node
-    (cur_node, List.rev_map (fun node -> tree_from_parents node parents) childs)
+  Node (cur_node, List.rev_map (fun node -> from_parents node parents) childs)
 
 let rec flatten_filter (f : 'a -> bool) (Node (x, children)) : 'a t list =
   let processed_children = List.concat_map (flatten_filter f) children in
