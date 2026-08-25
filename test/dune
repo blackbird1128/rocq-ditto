@@ -5,9 +5,9 @@
  (libraries ditto ditto_test_support alcotest))
 
 (test
- (name test_range_utils)
+ (name test_range)
  (package coq-ditto)
- (modules test_range_utils)
+ (modules test_range)
  (libraries ditto ditto_test_support alcotest))
 
 (test
