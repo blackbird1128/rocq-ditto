@@ -1,0 +1,5 @@
+(test
+ (name test_cli)
+ (package coq-ditto)
+ (modules test_cli)
+ (libraries ditto ditto_test_support ditto_cli_lib alcotest qcheck-core qcheck-alcotest))
