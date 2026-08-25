@@ -165,7 +165,8 @@ let arg_to_output_format (arg : string) : (output_format, Error.t) result =
       Error.format_to_or_error
         "Unknown output format: %s.\nExpected: (text|json)" normalized
 
-let arg_to_transformation_kind (arg : string) =
+let arg_to_transformation_kind (arg : string) :
+    (transformation_kind, Error.t) result =
   let normalized = String.lowercase_ascii arg in
   match
     List.find_opt
@@ -188,7 +189,7 @@ let arg_to_transformation_kind (arg : string) =
                (String.concat ", " transformations_list)
                possible_spell))
 
-let arg_to_statistic_kind (arg : string) =
+let arg_to_statistic_kind (arg : string) : (statistic_kind, Error.t) result =
   let normalized = String.lowercase_ascii arg in
   match
     List.find_opt
@@ -212,7 +213,8 @@ let arg_to_statistic_kind (arg : string) =
                (String.concat ", " statistics_list)
                possible_spell))
 
-let arg_to_dependencies_action (arg : string) =
+let arg_to_dependencies_action (arg : string) :
+    (dependencies_action, Error.t) result =
   let normalized = String.lowercase_ascii arg in
   match
     List.find_opt
@@ -314,6 +316,18 @@ let statistic_configuration_of_env (env : env) :
 
   Ok { statistic_kind; format }
 
+let create_progress (current : int) (total : int) : (progress, Error.t) result =
+  if current < 0 then
+    Error.format_to_or_error "Provided current file count: %d is lesser than 0"
+      current
+  else if total < 0 then
+    Error.format_to_or_error "Total file count: %d is lesser than 0" total
+  else if current <= total then
+    Ok { current_file_count = current; total_file_count = total }
+  else
+    Error.format_to_or_error
+      "current file: %d is greater than total file count: %d" current total
+
 let progress_of_env (env : env) : (progress option, Error.t) result =
   let ( let* ) = Result.bind in
   let total_file_count_text_opt = get_env_opt env "TOTAL_FILE_COUNT" in
@@ -323,18 +337,8 @@ let progress_of_env (env : env) : (progress option, Error.t) result =
   | Some current_file_count_text, Some total_file_count_text ->
       let* current_file_count = int_of_string_err current_file_count_text in
       let* total_file_count = int_of_string_err total_file_count_text in
-      if current_file_count < 0 then
-        Error.format_to_or_error
-          "Provided current file count: %d is lesser than 0" current_file_count
-      else if total_file_count < 0 then
-        Error.format_to_or_error "Total file count: %d is lesser than 0"
-          total_file_count
-      else if current_file_count <= total_file_count then
-        Ok (Some { current_file_count; total_file_count })
-      else
-        Error.format_to_or_error
-          "current file: %d is greater than total file count: %d"
-          current_file_count total_file_count
+      create_progress current_file_count total_file_count
+      |> Result.map Option.make
   | None, None -> Ok None
   | Some _, None ->
       Error.string_to_or_error
