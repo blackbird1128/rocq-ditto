@@ -90,8 +90,12 @@ let split_words (line : string) : string list =
   loop 0 []
 
 let split_by_newline (str : string) : string list =
-  String.split_on_char '\n' str
+  let line_by_newlines = String.split_on_char '\n' str in
+  let count_line_by_newlines = List.length line_by_newlines in
+
+  line_by_newlines
   |> List.map (fun line ->
       let len = String.length line in
-      if len > 0 && line.[len - 1] = '\r' then String.sub line 0 (len - 1)
+      if count_line_by_newlines > 1 && len > 0 && line.[len - 1] = '\r' then
+        String.sub line 0 (len - 1)
       else line)
