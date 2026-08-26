@@ -8,24 +8,40 @@ let graph (bindings : ('string * string list) list) : Dependency_graph.t =
 
 let test_direct_dependencies () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", []) ] in
-  Alcotest.(check (result sorted_string_testable error_testable))
+  Alcotest.(check (result (list string) error_testable))
     "b.v and c.v should be dependencies of a.v"
     (Ok [ "b.v"; "c.v" ])
     (Dependency_graph.get_file_dependencies "a.v" deps)
 
 let test_transitive_dependencies () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
-  Alcotest.(check (result sorted_string_testable error_testable))
+  Alcotest.(check (result (list string) error_testable))
     "b.v, c.v and d.v should be dependencies of a.v"
-    (Ok [ "b.v"; "c.v"; "d.v" ])
+    (Ok [ "d.v"; "b.v"; "c.v" ])
     (Dependency_graph.get_file_dependencies "a.v" deps)
 
 let test_file_not_in_graph_zero_dependencies () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
-  Alcotest.(check (result sorted_string_testable error_testable))
+  Alcotest.(check (result (list string) error_testable))
     "Querying a file outside the graph should error out"
     (Error.format_to_or_error "file %S isn't in the dependency graph" "z.v")
     (Dependency_graph.get_file_dependencies "z.v" deps)
+
+let test_file_dependencies_are_compilation_ordered () =
+  let deps = graph [ ("a.v", [ "b.v" ]); ("b.v", [ "d.v" ]); ("d.v", []) ] in
+  Alcotest.(check (result (list string) error_testable))
+    "dependencies are compilation ordered"
+    (Ok [ "d.v"; "b.v" ])
+    (Dependency_graph.get_file_dependencies "a.v" deps)
+
+let test_file_dependencies_order_graph_diamond () =
+  let deps =
+    graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]); ("c.v", [ "d.v" ]) ]
+  in
+  Alcotest.(check (result (list string) error_testable))
+    "dependencies are compilation ordered"
+    (Ok [ "d.v"; "b.v"; "c.v" ])
+    (Dependency_graph.get_file_dependencies "a.v" deps)
 
 let test_outdegrees () =
   let deps = graph [ ("a.v", [ "b.v"; "c.v" ]); ("b.v", [ "d.v" ]) ] in
@@ -112,6 +128,12 @@ let tests =
         Alcotest.test_case
           "Check getting a file dependencies outside the dependencies graph"
           `Quick test_file_not_in_graph_zero_dependencies;
+        Alcotest.test_case
+          "Check that files dependencies are compilation ordered" `Quick
+          test_file_dependencies_are_compilation_ordered;
+        Alcotest.test_case
+          "Check that files dependencies are correctly ordered in a diamond"
+          `Quick test_file_dependencies_order_graph_diamond;
         Alcotest.test_case
           "Check getting the out-degree of each node in a graph" `Quick
           test_outdegrees;

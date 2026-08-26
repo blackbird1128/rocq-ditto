@@ -18,7 +18,7 @@ let get_file_dependencies (filename : string) (dep_graph : t) :
       | Some deps -> deps
       | None -> []
     in
-    curr_deps @ List.concat_map aux curr_deps
+    List.concat_map aux curr_deps @ curr_deps
   in
 
   if in_graph filename dep_graph then Ok (aux filename |> List_utils.dedup)
