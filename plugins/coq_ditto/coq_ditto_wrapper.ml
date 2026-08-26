@@ -48,7 +48,7 @@ let make_args_transform_files (prog : string) (root : string) (verbose : bool)
   let args =
     args @ [ (if verbose then "--display=verbose" else "--display=quiet") ]
   in
-  let args = if save_vo then args @ [ "--no-vo" ] else args in
+  let args = if save_vo then args @ [ "--no_vo" ] else args in
   Array.of_list args
 
 let make_args_compile_files (root : string) (input_file : string) =
