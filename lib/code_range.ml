@@ -13,10 +13,7 @@ let compare (a : t) (b : t) : int =
   if c <> 0 then c else Code_point.compare a.end_ b.end_
 
 let of_lang_range (x : Lang.Range.t) : t =
-  {
-    start = code_point_from_lang_point x.start;
-    end_ = code_point_from_lang_point x.end_;
-  }
+  { start = of_lang_point x.start; end_ = of_lang_point x.end_ }
 
 let range_from_starting_point_and_repr (starting_point : Code_point.t)
     (repr : string) : t =
