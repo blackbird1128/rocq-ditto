@@ -240,14 +240,6 @@ let save_vo_to_file (filename : string) (doc : Rocq_document.t)
   Result.iter (fun _ -> Printf.printf "vo saved successfully\n") res;
   res
 
-let write_file (filename : string) (contents : string) =
-  let out = open_out filename in
-  Fun.protect
-    ~finally:(fun () -> close_out_noerr out)
-    (fun () ->
-      output_string out contents;
-      flush out)
-
 let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
     (config : transformation_configuration) =
   let ( let* ) = Result.bind in
@@ -306,12 +298,12 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
       print_info config.output_filename config.verbosity;
       (* new document repr was computed when applying transformation steps *)
       let doc_repr = res.document_repr in
-      write_file config.output_filename doc_repr;
+      Filesystem.write_file config.output_filename doc_repr;
       Ok ()
   | Ok res, true ->
       print_info config.output_filename config.verbosity;
       let* doc_repr = Rocq_document.dump_to_string res in
-      write_file config.output_filename doc_repr;
+      Filesystem.write_file config.output_filename doc_repr;
       save_vo_to_file config.output_filename res doc.uri token
   | Error err, _ -> Error err
 

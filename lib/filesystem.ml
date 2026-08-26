@@ -21,6 +21,14 @@ let make_dir (dir_name : string) : (creation_status, Error.t) result =
     with Unix.Unix_error (err, _, _) ->
       Error.string_to_or_error (Unix.error_message err)
 
+let write_file (filename : string) (contents : string) : unit =
+  let out = open_out filename in
+  Fun.protect
+    ~finally:(fun () -> close_out_noerr out)
+    (fun () ->
+      output_string out contents;
+      flush out)
+
 let copy_file (src : string) (dst : string) : (unit, Error.t) result =
   let buffer_size = 8192 in
   let buffer = Bytes.create buffer_size in

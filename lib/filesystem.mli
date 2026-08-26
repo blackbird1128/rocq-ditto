@@ -3,6 +3,7 @@ type creation_status = AlreadyExists | Created
 
 val is_directory : string -> bool
 val get_pathkind : string -> path_kind
+val write_file : string -> string -> unit
 val copy_file : string -> string -> (unit, Error.t) result
 val copy_dir : string -> string -> string list -> (unit, Error.t) result
 val make_dir : string -> (creation_status, Error.t) result
