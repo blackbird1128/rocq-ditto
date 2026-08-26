@@ -3,7 +3,7 @@ type t
 val path : t -> string
 val directory : t -> string
 val filename : t -> string
-val find_coqproject_dir_and_file : string -> t option
+val find_project : string -> t option
 
 val resolve_project_path : string -> (t, Error.t) result
 (** [resolve_project_path path] checks that the provided path is either a path

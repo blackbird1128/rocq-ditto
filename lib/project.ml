@@ -4,7 +4,7 @@ let path (project : t) : string = project.path
 let directory (project : t) : string = project.directory
 let filename (project : t) : string = project.filename
 
-let rec find_coqproject_dir_and_file (dir : string) : t option =
+let rec find_project (dir : string) : t option =
   let coqproject_filename = "_CoqProject" in
   let rocqproject_filename = "_RocqProject" in
   if Sys.file_exists (Filename.concat dir coqproject_filename) then
@@ -22,14 +22,14 @@ let rec find_coqproject_dir_and_file (dir : string) : t option =
         path = Filename.concat dir rocqproject_filename;
       }
   else if dir = "/" || dir = "." then None
-  else find_coqproject_dir_and_file (Filename.dirname dir)
+  else find_project (Filename.dirname dir)
 
 let resolve_project_path (path : string) : (t, Error.t) result =
   if not (Sys.file_exists path) then
     Error.string_to_or_error
       "Please provide a path to an existing file or directory"
   else if Filesystem.is_directory path then
-    match find_coqproject_dir_and_file path with
+    match find_project path with
     | None -> Error.string_to_or_error "No _CoqProject or _RocqProject found"
     | Some project -> Ok project
   else

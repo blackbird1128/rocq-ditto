@@ -11,7 +11,7 @@ let get_dependencies () =
     else if not (Sys.file_exists filename) then
       Error.string_to_or_error "Please provide an existing file"
     else
-      match Project.find_coqproject_dir_and_file filename with
+      match Project.find_project filename with
       | None ->
           Error.string_to_or_error
             "No _CoqProject or _RocqProject associated with the file found"
