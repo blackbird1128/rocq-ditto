@@ -25,8 +25,8 @@ type running_job = { target : string }
 let warn_if_exists (dir_state : Filesystem.creation_status) =
   match dir_state with
   | AlreadyExists ->
-      Printf.printf
-        "Warning: output directory already exists: replacing files\n%!"
+      Logs.warn (fun m ->
+          m "output directory already exists: replacing files\n%!")
   | _ -> ()
 
 let validate_transformation_opts (opts : transformation_options)
@@ -41,30 +41,6 @@ let validate_transformation_opts (opts : transformation_options)
   else if opts.verbose && opts.quiet then
     Error.string_to_or_error "Cannot use both --verbose and --quiet"
   else Ok ()
-
-(* Already set values take precedence *)
-(* TODO: check if this is the better solution *)
-let add_to_env_preserving (env : string array) (assoc : string * string) :
-    string array =
-  let key, value = assoc in
-  let env_list = Array.to_list env in
-  let assoc_key_repr = Printf.sprintf "%s=" key in
-  let assoc_repr = assoc_key_repr ^ value in
-  match
-    List.find_opt
-      (fun env_val -> String.starts_with ~prefix:assoc_key_repr env_val)
-      env_list
-  with
-  | Some _ -> env
-  | None -> Array.of_list (assoc_repr :: env_list)
-
-(* Already set values take precedence *)
-(* TODO: check if this is the better solution *)
-let extend_env (env_array : string array) (values : (string * string) list) :
-    string array =
-  List.fold_left
-    (fun env_acc assoc -> add_to_env_preserving env_acc assoc)
-    env_array values
 
 let make_args_transform_files (prog : string) (root : string) (verbose : bool)
     (save_vo : bool) (input_file : string) : string array =
@@ -103,8 +79,8 @@ let transform_files (root : string) (dep_files : string list) (prog : string)
     1 dep_files
   |> Result.map (fun _ -> ())
 
-let compile_files (files : string list) (root : string) : (unit, Error.t) result
-    =
+let compile_files (files : string list) (root : string)
+    (base_env : string array) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let prog = "fcc" in
   List_utils.fold_left_result
@@ -112,8 +88,7 @@ let compile_files (files : string list) (root : string) : (unit, Error.t) result
       Printf.printf "compiling file %s%!" curr_file;
       let curr_args = make_args_compile_files root curr_file in
       let* _status =
-        Process_runner.run_process_silent ~env:(Unix.environment ())
-          ~args:curr_args prog
+        Process_runner.run_process_silent ~env:base_env ~args:curr_args prog
       in
       Ok (current_file_count + 1))
     1 files
@@ -301,7 +276,8 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                   in
                   Printf.printf "Compiling %d dependencies\n%!"
                     (List.length dependencies);
-                  compile_files dependencies project.directory)
+                  compile_files dependencies project.directory
+                    (Unix.environment ()))
           | TransformDependencies -> (
               match coqproject_opt with
               | None ->

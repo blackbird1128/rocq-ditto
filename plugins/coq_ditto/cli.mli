@@ -79,6 +79,8 @@ val arg_to_dependencies_action : string -> (dependencies_action, Error.t) result
 val verbosity_of_flags :
   verbose:bool -> quiet:bool -> (verbosity, Error.t) result
 
+val add_to_env_preserving : string array -> string * string -> string array
+val extend_env : string array -> (string * string) list -> string array
 val env_of_array : string array -> (env, Error.t) result
 val get_env : env -> string -> (string, Error.t) result
 val get_env_opt : env -> string -> string option
