@@ -8,7 +8,7 @@ let print_minim_deps (project : Project.t) (subset_path : string) :
   let* project_files = Compile.coqproject_sorted_files project in
   let normalized_project_files =
     List.map
-      (Filesystem.normalize_path ~containing_dir:project.directory)
+      (Filesystem.normalize_path ~containing_dir:(Project.directory project))
       project_files
   in
 
@@ -27,11 +27,14 @@ let print_minim_deps (project : Project.t) (subset_path : string) :
         Seq.map
           (fun (a, neighbors) ->
             let normalized_a =
-              Filesystem.normalize_path ~containing_dir:project.directory a
+              Filesystem.normalize_path
+                ~containing_dir:(Project.directory project)
+                a
             in
             let normalized_neighbors =
               List.map
-                (Filesystem.normalize_path ~containing_dir:project.directory)
+                (Filesystem.normalize_path
+                   ~containing_dir:(Project.directory project))
                 neighbors
             in
             (normalized_a, normalized_neighbors))

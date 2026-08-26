@@ -12,10 +12,12 @@ let output_dot_of_coqproject (project : Project.t) : (unit, Error.t) result =
   let stripped_seq =
     Seq.map
       (fun (file, neighbors) ->
-        let file_stripped = String_utils.remove_prefix file project.directory in
+        let file_stripped =
+          String_utils.remove_prefix file (Project.directory project)
+        in
         let neighbors_stripped =
           List.map
-            (fun x -> String_utils.remove_prefix x project.directory)
+            (fun x -> String_utils.remove_prefix x (Project.directory project))
             neighbors
         in
         (file_stripped, neighbors_stripped))

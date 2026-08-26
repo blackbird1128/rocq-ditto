@@ -1,5 +1,9 @@
 type t = { directory : string; filename : string; path : string }
 
+let path (project : t) : string = project.path
+let directory (project : t) : string = project.directory
+let filename (project : t) : string = project.filename
+
 let rec find_coqproject_dir_and_file (dir : string) : t option =
   let coqproject_filename = "_CoqProject" in
   let rocqproject_filename = "_RocqProject" in

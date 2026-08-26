@@ -256,7 +256,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
 
         let input_dir =
           match coqproject_opt with
-          | Some { directory; _ } -> directory
+          | Some project -> Project.directory project
           | None -> Filename.dirname input
         in
 
@@ -276,7 +276,8 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                   in
                   Printf.printf "Compiling %d dependencies\n%!"
                     (List.length dependencies);
-                  compile_files dependencies project.directory
+                  compile_files dependencies
+                    (Project.directory project)
                     (Unix.environment ()))
           | TransformDependencies -> (
               match coqproject_opt with
@@ -292,8 +293,9 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                   let length_dep = List.length dependencies in
                   Printf.printf "Transforming %d dependencies\n%!" length_dep;
 
-                  transform_files project.directory dependencies "fcc"
-                    length_dep base_env true verbose)
+                  transform_files
+                    (Project.directory project)
+                    dependencies "fcc" length_dep base_env true verbose)
         in
 
         let env = extend_env base_env [ ("OUTPUT_FILENAME", output) ] in
@@ -317,14 +319,16 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
               p.files
           in
 
-          let makefile_path = Filename.concat project.directory "Makefile" in
+          let makefile_path =
+            Filename.concat (Project.directory project) "Makefile"
+          in
 
           let* new_dir_state = Filesystem.make_dir output in
           warn_if_exists new_dir_state;
           let* _ = Filesystem.copy_dir input output filenames in
           let* _ =
-            Filesystem.copy_file project.path
-              (Filename.concat output project.filename)
+            Filesystem.copy_file (Project.path project)
+              (Filename.concat output (Project.filename project))
           in
 
           let* _ =

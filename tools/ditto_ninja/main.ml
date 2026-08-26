@@ -94,7 +94,7 @@ let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
   let* depfiles = Compile.coqproject_sorted_files project in
   let project_depfiles =
     List.map
-      (Filesystem.normalize_path ~containing_dir:project.directory)
+      (Filesystem.normalize_path ~containing_dir:(Project.directory project))
       depfiles
   in
 
@@ -109,8 +109,9 @@ let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
         (String.concat ", " unknown_inputs)
   in
   let* () =
-    validate_unique_outputs ~project_dir:project.directory ~output_folder
-      ~output_file_map depfiles
+    validate_unique_outputs
+      ~project_dir:(Project.directory project)
+      ~output_folder ~output_file_map depfiles
   in
 
   let ditto_var = Ninja.variable "ditto" "rocq-ditto" in
@@ -126,15 +127,17 @@ let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
       (fun (file, neighbors) ->
         let filepath = file |> Ninja.Path.v in
         let output_filepath =
-          mapped_output_path ~project_dir:project.directory ~output_folder
-            ~output_file_map file
+          mapped_output_path
+            ~project_dir:(Project.directory project)
+            ~output_folder ~output_file_map file
           |> Ninja.Path.v
         in
         let neighbors_paths =
           List.map
             (fun file ->
-              mapped_output_path ~project_dir:project.directory ~output_folder
-                ~output_file_map file
+              mapped_output_path
+                ~project_dir:(Project.directory project)
+                ~output_folder ~output_file_map file
               |> Ninja.Path.v)
             neighbors
         in
@@ -162,8 +165,9 @@ let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
   let all_files =
     List.map
       (fun file ->
-        mapped_output_path ~project_dir:project.directory ~output_folder
-          ~output_file_map file
+        mapped_output_path
+          ~project_dir:(Project.directory project)
+          ~output_folder ~output_file_map file
         |> Ninja.Path.v)
       depfiles
   in

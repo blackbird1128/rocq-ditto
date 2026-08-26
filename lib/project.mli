@@ -1,5 +1,8 @@
-type t = private { directory : string; filename : string; path : string }
+type t
 
+val path : t -> string
+val directory : t -> string
+val filename : t -> string
 val find_coqproject_dir_and_file : string -> t option
 
 val resolve_project_path : string -> (t, Error.t) result

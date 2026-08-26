@@ -25,7 +25,7 @@ let coqproject_to_ninja_file ~(normalize : bool) (project : Project.t) :
   let ( let* ) = Result.bind in
   let* depgraph = Compile.coqproject_to_dep_graph project in
   let* depfiles = Compile.coqproject_sorted_files project in
-  let project_dir = Filename.dirname project.path in
+  let project_dir = Filename.dirname (Project.path project) in
   let maybe_normalize =
     if normalize then normalize_path ~project_dir else Fun.id
   in

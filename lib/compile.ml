@@ -27,7 +27,7 @@ let run_dep_process (args : string list) : (string, Error.t) result =
 let coqproject_sorted_files (project : Project.t) :
     (string list, Error.t) result =
   let ( let* ) = Result.bind in
-  let* output = run_dep_process [ "-f"; project.path; "-sort" ] in
+  let* output = run_dep_process [ "-f"; Project.path project; "-sort" ] in
   let lines = String_utils.split_by_newline output in
 
   match lines with
@@ -90,7 +90,7 @@ let parse_depf_output (output : string) : (Dependency_graph.t, Error.t) result =
 let coqproject_to_dep_graph (project : Project.t) :
     (Dependency_graph.t, Error.t) result =
   let ( let* ) = Result.bind in
-  let* output = run_dep_process [ "-f"; project.path ] in
+  let* output = run_dep_process [ "-f"; Project.path project ] in
   parse_depf_output output
 
 let parse_file (io : Io.CallBack.t) (env : Doc.Env.t) (filepath : string) :
