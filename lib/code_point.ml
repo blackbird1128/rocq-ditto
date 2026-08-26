@@ -8,8 +8,8 @@ let pp (fmt : Format.formatter) (x : t) : unit =
   Format.fprintf fmt "(l: %d c: %d)" x.line x.character
 
 let compare (a : t) (b : t) : int =
-  let c = compare a.line b.line in
-  if c = 0 then compare a.character b.character else c
+  let c = Int.compare a.line b.line in
+  if c = 0 then Int.compare a.character b.character else c
 
 let leq (a : t) (b : t) : bool = compare a b <= 0
 let to_string (x : t) : string = Format.asprintf "%a" pp x

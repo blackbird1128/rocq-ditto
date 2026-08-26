@@ -8,6 +8,10 @@ let pp (fmt : Format.formatter) (x : t) : unit =
 
 let to_string (x : t) : string = Format.asprintf "%a" pp x
 
+let compare (a : t) (b : t) : int =
+  let c = Code_point.compare a.start b.start in
+  if c <> 0 then c else Code_point.compare a.end_ b.end_
+
 let of_lang_range (x : Lang.Range.t) : t =
   {
     start = code_point_from_lang_point x.start;
@@ -79,5 +83,5 @@ let are_colliding (a : t) (b : t) : bool =
     are_flat_ranges_colliding a_cs b_cs
 
 let range_contains_other ~(container : t) (candidate : t) : bool =
-  compare container.start candidate.start <= 0
-  && compare candidate.end_ container.end_ <= 0
+  Code_point.compare container.start candidate.start <= 0
+  && Code_point.compare candidate.end_ container.end_ <= 0

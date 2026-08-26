@@ -53,9 +53,7 @@ let are_colliding (a : t) (b : t) : bool =
 let colliding_nodes (target : t) (nodes_list : t list) : t list =
   List.filter (are_colliding target) nodes_list
 
-let compare (a : t) (b : t) : int =
-  let c = Code_point.compare a.range.start b.range.start in
-  if c <> 0 then c else Code_point.compare a.range.end_ b.range.end_
+let compare (a : t) (b : t) : int = Code_range.compare a.range b.range
 
 let count_newlines_and_last_line_len (s : string) : int * int =
   (* returns (number_of_newlines, length_of_last_line_after_last_newline) *)
