@@ -78,6 +78,6 @@ let are_colliding (a : t) (b : t) : bool =
     let b_cs = char_span_on_line b line in
     are_flat_ranges_colliding a_cs b_cs
 
-let range_contains_other (container : t) (candidate : t) : bool =
+let range_contains_other ~(container : t) (candidate : t) : bool =
   compare container.start candidate.start <= 0
   && compare candidate.end_ container.end_ <= 0

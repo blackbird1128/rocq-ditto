@@ -9,4 +9,4 @@ val common_range : int * int -> int * int -> (int * int) option
 val line_span : t -> int * int
 val char_span_on_line : t -> int -> int * int
 val are_colliding : t -> t -> bool
-val range_contains_other : t -> t -> bool
+val range_contains_other : container:t -> t -> bool
