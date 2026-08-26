@@ -3,7 +3,6 @@ type t = { directory : string; filename : string; path : string }
 let rec find_coqproject_dir_and_file (dir : string) : t option =
   let coqproject_filename = "_CoqProject" in
   let rocqproject_filename = "_RocqProject" in
-  let dir = Filename.dirname dir in
   if Sys.file_exists (Filename.concat dir coqproject_filename) then
     Some
       {
