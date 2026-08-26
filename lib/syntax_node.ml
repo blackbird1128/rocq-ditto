@@ -11,13 +11,13 @@ module Procq = Pcoq
 type t = {
   ast : Doc.Node.Ast.t option;
   range : Code_range.t;
-  repr : string Lazy.t;
+  repr : string;
   id : Uuidm.t;
   diagnostics : Lang.Diagnostic.t list;
 }
 
 let ( let* ) = Result.bind
-let repr (x : t) : string = Lazy.force x.repr
+let repr (x : t) : string = x.repr
 
 let generate_ast (code : string) :
     (Vernacexpr.vernac_control list, Error.t) result =
@@ -116,7 +116,7 @@ let comment_of_string (content : string) (start_point : Code_point.t) :
     Ok
       {
         ast = None;
-        repr = lazy content;
+        repr = content;
         range;
         id = Unique_id.uuid ();
         diagnostics = [];
@@ -140,14 +140,14 @@ let syntax_node_of_string (code : string) (start_point : Code_point.t) :
           range;
           id = Unique_id.uuid ();
           (*id is set during insertion in a document*)
-          repr = lazy code;
+          repr = code;
           diagnostics = [];
         }
   | Ok (_ :: _ :: _) ->
       Error.format_to_or_error "More than one node found in string \"%s\"." code
   | Error err -> Error err
 
-let remove_outer_parentheses s =
+let remove_outer_parentheses (s : string) =
   let len = String.length s in
   if len >= 2 && s.[0] = '(' && s.[len - 2] = ')' && s.[len - 1] = '.' then
     String.sub s 1 (len - 3) ^ "."
@@ -161,7 +161,7 @@ let of_doc_node (source : string) (node : Doc.Node.t) : t =
   {
     ast = node.ast;
     range = Code_range.of_lang_range node.range;
-    repr = lazy (node_representation node source);
+    repr = node_representation node source;
     id = Unique_id.uuid ();
     diagnostics = node.diags;
   }
@@ -180,7 +180,7 @@ let of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
     range;
     id = Unique_id.uuid ();
     (* id is set during document insertion *)
-    repr = lazy repr;
+    repr;
     diagnostics = [];
   }
 
@@ -204,7 +204,7 @@ let of_coq_ast_in_state ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
       range;
       id = Unique_id.uuid ();
       (* id is set during document insertion *)
-      repr = lazy repr;
+      repr;
       diagnostics = [];
     }
 

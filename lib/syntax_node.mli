@@ -4,7 +4,7 @@ open Vernacexpr
 type t = private {
   ast : Doc.Node.Ast.t option;
   range : Code_range.t;
-  repr : string Lazy.t;
+  repr : string;
   id : Uuidm.t;
   diagnostics : Lang.Diagnostic.t list;
 }
