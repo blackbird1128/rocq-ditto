@@ -8,7 +8,7 @@
  (name test_range)
  (package coq-ditto)
  (modules test_range)
- (libraries ditto ditto_test_support alcotest))
+ (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
 
 (test
  (name test_list_utils)
@@ -22,6 +22,12 @@
  (modules test_string_utils)
  (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
 
+(test
+ (name test_syntax_node)
+ (package coq-ditto)
+ (modules test_syntax_node)
+ (libraries ditto ditto_test_support alcotest))
+ 
 (test
  (name test_compile)
  (package coq-ditto)

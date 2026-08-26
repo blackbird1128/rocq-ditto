@@ -32,14 +32,6 @@ let node (repr : string) : Syntax_node.t =
   Syntax_node.syntax_node_of_string repr Code_point.dummy
   |> expect_result_ok ~context:(Printf.sprintf "Creating a node from %s" repr)
 
-let make_dummy_node_from_repr (start_line : int) (start_char : int)
-    (repr : string) : Syntax_node.t =
-  let start_point : Code_point.t =
-    { line = start_line; character = start_char }
-  in
-  Syntax_node.comment_of_string repr start_point
-  |> expect_result_ok ~context:"Error creating a dummy node from representation"
-
 let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
     (doc : Doc.t) =
   Alcotest.test_case test_text `Quick (f doc)
@@ -344,29 +336,6 @@ let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
       "The node creation should return an error"
       (Error
          (Error.of_string "'.' expected after [lconstr] (in [query_command])"))
-      node_repr)
-
-let test_creating_valid_comment_from_string (_ : Doc.t) () : unit =
-  let start : Code_point.t = { line = 0; character = 0 } in
-  let node = Syntax_node.comment_of_string "(* hello world *)" start in
-  let node_repr = Result.map Syntax_node.repr node in
-
-  Alcotest.(
-    check
-      (result string error_testable)
-      "The node should be created without error" (Ok "(* hello world *)")
-      node_repr)
-
-let test_creating_invalid_comment_from_string (_ : Doc.t) () : unit =
-  let node = Syntax_node.comment_of_string "hello world *)" Code_point.dummy in
-  let node_repr = Result.map Syntax_node.repr node in
-
-  Alcotest.(
-    check
-      (result string error_testable)
-      "The node creation should not succeed"
-      (Error.format_to_or_error
-         "Content \"hello world *)\" should start with (*")
       node_repr)
 
 let test_creating_invalid_proof_not_enough_nodes_zero (_ : Doc.t) () : unit =
@@ -764,21 +733,6 @@ let test_searching_node (doc : Doc.t) () : unit =
     "No element should be retrieved" None
     (Option.map (fun x -> x.id) absurd_node)
 
-let test_reformat_comment_node (_ : Doc.t) () : unit =
-  let starting_point : Code_point.t = { line = 0; character = 0 } in
-
-  let comment_node =
-    comment_of_string "(* a comment *)" starting_point |> expect_result_ok
-  in
-
-  let reformatted_node = Syntax_node.reformat comment_node in
-  let reformat_id = Result.map (fun x -> x.id) reformatted_node in
-
-  Alcotest.(check (result uuidm_testable error_testable))
-    "Should return an error"
-    (Error.string_to_or_error "The node need to have an AST to be reformatted")
-    reformat_id
-
 let test_reformat_keep_id (_ : Doc.t) () : unit =
   let starting_point : Code_point.t = { line = 0; character = 0 } in
 
@@ -796,91 +750,6 @@ let test_id_assign_document (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let nodes_ids = List.map (fun x -> x.id) doc.elements in
   check_list_unique ~eq:Uuidm.equal ~pp:Uuidm.pp nodes_ids
-
-let test_sorting_nodes (_ : Doc.t) () : unit =
-  let node1 = make_dummy_node_from_repr 0 0 "(* aaaaaa *)" in
-  (* your example *)
-  let node2 = make_dummy_node_from_repr 0 14 "(*\n*)" in
-  (* overlaps with node1 *)
-  let node3 = make_dummy_node_from_repr 2 0 "(* aaaa *)" in
-  (* does not overlap *)
-
-  let sorted = List.sort Syntax_node.compare [ node2; node3; node1 ] in
-  let ids = List.map (fun n -> n.id) sorted in
-
-  (* node1 and node2 overlap; smallest common = 18 *)
-  (* node1 starts at 16 < 18 => node1 before node2 *)
-  (* node3 is later and doesn't overlap *)
-  let expected = [ node1.id; node2.id; node3.id ] in
-
-  Alcotest.(check (list uuidm_testable))
-    "The nodes should be ordered correctly" expected ids
-
-let test_colliding_nodes_no_common_lines (_ : Doc.t) () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 "(* aaaaaa *)" in
-  let other_node = make_dummy_node_from_repr 1 0 "(* aaaa *)" in
-
-  let colliding_nodes_ids =
-    Syntax_node.colliding_nodes target_node [ other_node ]
-    |> List.map (fun node -> node.id)
-  in
-
-  Alcotest.(check (list uuidm_testable))
-    "the two nodes should not be colliding" [] colliding_nodes_ids
-
-let test_colliding_nodes_common_line_no_collision (_ : Doc.t) () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 "(*l*)" in
-  let other_node = make_dummy_node_from_repr 0 20 "(*r*)" in
-
-  let colliding_nodes_ids =
-    Syntax_node.colliding_nodes target_node [ other_node ]
-    |> List.map (fun node -> node.id)
-  in
-
-  Alcotest.(check (list uuidm_testable))
-    "the two nodes should not be colliding" [] colliding_nodes_ids
-
-let test_colliding_nodes_common_line_collision (_ : Doc.t) () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 "(* hello *)" in
-  let other_node = make_dummy_node_from_repr 0 3 "(* world *)" in
-
-  let colliding_nodes_ids =
-    Syntax_node.colliding_nodes target_node [ other_node ]
-    |> List.map (fun node -> node.id)
-  in
-
-  Alcotest.(check (list uuidm_testable))
-    "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
-
-let test_colliding_nodes_one_common_line_no_collision (_ : Doc.t) () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 "(* hi *)" in
-  let other_node = make_dummy_node_from_repr 1 12 "(* hello *)" in
-
-  let colliding_nodes_ids =
-    Syntax_node.colliding_nodes target_node [ other_node ]
-    |> List.map (fun node -> node.id)
-  in
-
-  Alcotest.(check (list uuidm_testable))
-    "the two nodes should not be colliding" [] colliding_nodes_ids
-
-let test_colliding_nodes_multiple_common_lines_collision (_ : Doc.t) () : unit =
-  let target_node =
-    make_dummy_node_from_repr 0 0
-      "(*aaaaaaaaa\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa*)"
-  in
-  let other_node =
-    make_dummy_node_from_repr 1 12
-      "(*aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaaaaaaa*)"
-  in
-
-  let colliding_nodes_ids =
-    Syntax_node.colliding_nodes target_node [ other_node ]
-    |> List.map (fun node -> node.id)
-  in
-
-  Alcotest.(check (list uuidm_testable))
-    "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
 
 let test_removing_and_leaving_blank (doc : Doc.t) () : unit =
   let uri_str = Lang.LUri.File.to_string_uri doc.uri in
@@ -1903,30 +1772,6 @@ let setup_test_table table (doc : Doc.t) =
        test_not_is_auto_composed doc);
 
   Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "Check if simply ordered nodes are sorted correctly"
-       test_sorting_nodes doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "check if two nodes on different lines are not colliding"
-       test_colliding_nodes_no_common_lines doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "check if two nodes on the same line are not colliding"
-       test_colliding_nodes_common_line_no_collision doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "check if two nodes on the same line are colliding"
-       test_colliding_nodes_common_line_collision doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test
-       "check if two nodes with one common line are not colliding"
-       test_colliding_nodes_one_common_line_no_collision doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test
-       "check if two nodes with multiple common lines are colliding"
-       test_colliding_nodes_multiple_common_lines_collision doc);
-
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "Check if reformat fail on comment"
-       test_reformat_comment_node doc);
-  Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if reformat keep the same id"
        test_reformat_keep_id doc);
   Hashtbl.add table "test_dummy.v"
@@ -1936,12 +1781,6 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "test creating an invalid node"
        test_creating_invalid_syntax_node_from_string doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "test creating a valid comment node"
-       test_creating_valid_comment_from_string doc);
-  Hashtbl.add table "test_dummy.v"
-    (create_fixed_test "test creating an invalid comment node"
-       test_creating_invalid_comment_from_string doc);
   Hashtbl.add table "ex_rename_definition_notation_state.v"
     (create_fixed_test "test creating a syntax node that depends on the state"
        test_of_coq_ast_in_state doc);
