@@ -9,7 +9,7 @@ let ( let* ) = Result.bind
 let rewrite_qualid_prefix ~(old_prefix : string) ~(new_prefix : string)
     (qualid : Libnames.qualid) : Libnames.qualid option =
   let qualid_str = Libnames.string_of_qualid qualid in
-  match String_utils.split_prefix old_prefix qualid_str with
+  match String_utils.split_prefix ~prefix:old_prefix qualid_str with
   | Some (_, postfix) -> Some (Libnames.qualid_of_string (new_prefix ^ postfix))
   | None -> None
 

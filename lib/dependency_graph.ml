@@ -65,7 +65,9 @@ let to_dot_format (graph : t) : string =
     \ node [shape=box, fontsize=10];\n";
   Hashtbl.iter
     (fun file neighbors ->
-      let file_without_leading_slash = String_utils.remove_prefix file "/" in
+      let file_without_leading_slash =
+        String_utils.remove_prefix file ~prefix:"/"
+      in
       match neighbors with
       | [] ->
           Buffer.add_string buf
@@ -73,7 +75,9 @@ let to_dot_format (graph : t) : string =
       | neighbors ->
           List.iter
             (fun x ->
-              let x_without_leading_slash = String_utils.remove_prefix x "/" in
+              let x_without_leading_slash =
+                String_utils.remove_prefix x ~prefix:"/"
+              in
               Buffer.add_string buf
                 (Printf.sprintf "\"%s\" -> \"%s\";\n" file_without_leading_slash
                    x_without_leading_slash))

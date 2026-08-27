@@ -922,7 +922,7 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
           (fun node ->
             if Syntax_node.is_ending_with_ellipsis node then
               let node_repr_without_ellipsis =
-                String_utils.remove_suffix (Syntax_node.repr node) "..."
+                String_utils.remove_suffix (Syntax_node.repr node) ~suffix:"..."
               in
               let node_concat_repr =
                 node_repr_without_ellipsis ^ ";" ^ Syntax_node.repr suffix_node
@@ -1490,7 +1490,8 @@ let parse_diagnostic_into_apply_args (lemma_name : string)
   | [ diag ] -> (
       let tactic_diagnostic_repr = Pp.string_of_ppcmds diag.message in
       let args =
-        String_utils.split_prefix ("(" ^ lemma_name) tactic_diagnostic_repr
+        String_utils.split_prefix ~prefix:("(" ^ lemma_name)
+          tactic_diagnostic_repr
       in
       match args with
       | Some (_prefix, args) ->
@@ -1502,7 +1503,7 @@ let parse_diagnostic_into_apply_args (lemma_name : string)
             let args =
               List.map
                 (fun x ->
-                  match String_utils.split_prefix "?" x with
+                  match String_utils.split_prefix ~prefix:"?" x with
                   | Some (_, var_name) -> Hole var_name
                   | None -> Filled x)
                 args_split

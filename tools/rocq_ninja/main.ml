@@ -17,8 +17,8 @@ let normalize_path ~(project_dir : string) (path : string) : string =
     if Filename.check_suffix project_dir Filename.dir_sep then project_dir
     else project_dir ^ Filename.dir_sep
   in
-  (path |> fun x -> String_utils.remove_prefix x with_sep) |> fun x ->
-  String_utils.remove_prefix x "/"
+  (path |> fun x -> String_utils.remove_prefix x ~prefix:with_sep) |> fun x ->
+  String_utils.remove_prefix x ~prefix:"/"
 
 let coqproject_to_ninja_file ~(normalize : bool) (project : Project.t) :
     (Ninja.t, Error.t) result =

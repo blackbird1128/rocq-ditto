@@ -95,11 +95,11 @@ let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
 let relocate_path (input_folder : string) (output_folder : string)
     (filename : string) : string =
   let prefix = Filename.concat input_folder "" in
-  Filename.concat output_folder (String_utils.remove_prefix filename prefix)
+  Filename.concat output_folder (String_utils.remove_prefix filename ~prefix)
 
 let normalize_path ~(containing_dir : string) (path : string) : string =
   let prefix = Filename.concat containing_dir "" in
-  String_utils.remove_prefix path prefix
+  String_utils.remove_prefix path ~prefix
 
 let read_nonempty_lines (path : string) : (string list, Error.t) result =
   try

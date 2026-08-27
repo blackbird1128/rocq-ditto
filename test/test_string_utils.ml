@@ -9,7 +9,7 @@ let test_split_prefix_simple () =
     "Splitting a simple prefix should return that prefix and the rest of the \
      string"
     (Some ("hello", "world"))
-    (split_prefix "hello" "helloworld")
+    (split_prefix ~prefix:"hello" "helloworld")
 
 let test_splitting_prefix_is_string () =
   check
@@ -17,7 +17,7 @@ let test_splitting_prefix_is_string () =
     "Spltting by prefix when the prefix is the whole string should return that \
      string and an empty string"
     (Some ("helloworld", ""))
-    (split_prefix "helloworld" "helloworld")
+    (split_prefix ~prefix:"helloworld" "helloworld")
 
 let test_splitting_unexisting_prefix () =
   check
@@ -25,7 +25,7 @@ let test_splitting_unexisting_prefix () =
     "Splitting by prefix when the prefix isn't in the string should returns \
      None"
     None
-    (split_prefix "zebra" "hello world")
+    (split_prefix ~prefix:"zebra" "hello world")
 
 let test_splitting_empty_prefix () =
   check
@@ -33,7 +33,7 @@ let test_splitting_empty_prefix () =
     "Splitting by prefix when the prefix is an empty string should return an \
      empty string and the string"
     (Some ("", "hello world"))
-    (split_prefix "" "hello world")
+    (split_prefix ~prefix:"" "hello world")
 
 let test_splitting_prefix_longer_than_container () =
   check
@@ -41,67 +41,67 @@ let test_splitting_prefix_longer_than_container () =
     "Splitting by prefix when the prefix is longer than the string should \
      return None"
     None
-    (split_prefix "hello" "hell")
+    (split_prefix ~prefix:"hello" "hell")
 
 let test_remove_prefix_simple () =
   check string
     "Removing a simple prefix from a string should return that string without \
      the prefix"
     "world"
-    (remove_prefix "helloworld" "hello")
+    (remove_prefix "helloworld" ~prefix:"hello")
 
 let test_remove_prefix_prefix_is_whole_string () =
   check string
     "Removing a prefix when the prefix is the entire string should return an \
      empty string"
     ""
-    (remove_prefix "helloworld" "helloworld")
+    (remove_prefix "helloworld" ~prefix:"helloworld")
 
 let test_remove_prefix_not_existing_prefix () =
   check string "Removing a non-existing prefix should leave the string intact"
     "hello world"
-    (remove_prefix "hello world" "zebra")
+    (remove_prefix "hello world" ~prefix:"zebra")
 
 let test_remove_prefix_empty_prefix () =
   check string "Removing an empty prefix should leave the string intact"
     "hello world"
-    (remove_prefix "hello world" "")
+    (remove_prefix "hello world" ~prefix:"")
 
 let test_remove_prefix_longer_than_container () =
   check string
     "Remove a prefix longer than the string should leave the string intact"
     "helloworld"
-    (remove_prefix "helloworld" "helloworldworldworld")
+    (remove_prefix "helloworld" ~prefix:"helloworldworldworld")
 
 let test_remove_suffix_simple () =
   check string
     "Removing a simple suffix from a string should return that string without \
      the suffix"
     "hello"
-    (remove_suffix "helloworld" "world")
+    (remove_suffix "helloworld" ~suffix:"world")
 
 let test_remove_suffix_suffix_is_whole_string () =
   check string
     "Removing a suffix when the suffix is the entire string should return an \
      empty string"
     ""
-    (remove_suffix "helloworld" "helloworld")
+    (remove_suffix "helloworld" ~suffix:"helloworld")
 
 let test_remove_suffix_not_existing_suffix () =
   check string "Removing a non-existing suffix should leave the string intact"
     "hello world"
-    (remove_suffix "hello world" "zebra")
+    (remove_suffix "hello world" ~suffix:"zebra")
 
 let test_remove_suffix_empty_suffix () =
   check string "Removing an empty suffix should leave the string intact"
     "hello world"
-    (remove_suffix "hello world" "")
+    (remove_suffix "hello world" ~suffix:"")
 
 let test_remove_suffix_longer_than_container () =
   check string
     "Remove a suffix longer than the string should leave the string intact"
     "helloworld"
-    (remove_suffix "helloworld" "worldworldhelloworld")
+    (remove_suffix "helloworld" ~suffix:"worldworldhelloworld")
 
 let test_simple_contains () =
   check bool "\"hello world\" should contains \"world\"" true
@@ -116,13 +116,17 @@ let test_not_contains_substring_longer_than_container () =
     false
     (contains ~substring:"hello world from tests" "hello world")
 
-let test_zero_size_container_substring () =
-  check bool "An empty string should no contains a substring" false
-    (contains ~substring:"hello" "")
+let test_empty_string_contains_no_nonempty_subtring =
+  QCheck.Test.make ~count:1000
+    ~name:"An empty string should not contain a non empty substring"
+    QCheck.(string_size (Gen.int_range 1 100000))
+    (fun s -> not (contains ~substring:s ""))
 
-let test_zero_size_substring_contained_anywhere () =
-  check bool "An empty substring should be found in any string" true
-    (contains ~substring:"" "hello")
+let test_empty_substring_contained_in_all_strings_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"The empty string is a substring of every string"
+    QCheck.(string)
+    (fun s -> contains ~substring:"" s)
 
 let test_split_words_simple () =
   check (list string) "Each word should be split correctly at the space"
@@ -283,6 +287,8 @@ let () =
   let qcheck_tests =
     List.map QCheck_alcotest.to_alcotest
       [
+        test_empty_string_contains_no_nonempty_subtring;
+        test_empty_substring_contained_in_all_strings_prop;
         test_cut_is_equivalent_to_split_at_for_len_one;
         test_split_by_newline_without_newlines_prop;
         test_split_by_newline_reconstruct_unix_newlines_prop;
@@ -331,10 +337,6 @@ let () =
             `Quick test_simple_not_contains;
           test_case "test that a string doesn't contains a longer substring"
             `Quick test_not_contains_substring_longer_than_container;
-          test_case "test that an empty string doesn't contain a substring"
-            `Quick test_zero_size_container_substring;
-          test_case "test that an empty substring is contained in any string"
-            `Quick test_zero_size_substring_contained_anywhere;
           test_case "test splitting a simple string of two words" `Quick
             test_split_words_simple;
           test_case "test splitting words in an empty string" `Quick
