@@ -10,6 +10,8 @@ type t = private {
 (** Represents a proof in a Coq document. [proof] contains the initial
     proposition and a list of proof steps. *)
 
+val equal : t -> t -> bool
+
 val get_theorem_kind : t -> Decls.theorem_kind option
 (** Get the theorem kind of a proof. If the proof isn't a basic assertion
     command ie: Theorem, Lemma, Fact, Remark, Property, Proposition or

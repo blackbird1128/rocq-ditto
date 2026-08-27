@@ -82,6 +82,21 @@ let test_parse_depf_empty_line () =
     (Error.string_to_or_error "Can't split the line \"\" at \"required_vo:\"")
     parsed_line
 
+let test_parse_depf_empty_output () =
+  let output = "" in
+  let parsed_output = Compile.parse_depf_output output in
+  let assoc_list_res =
+    Result.map
+      (fun tbl -> Dependency_graph.to_seq tbl |> List.of_seq)
+      parsed_output
+  in
+
+  (* TODO: verify if this is the correct semantic *)
+  let expected = Ok [] in
+
+  Alcotest.(check (result dependency_graph_testable error_testable))
+    "Empty rocq dep -f should be parsed correctly" expected assoc_list_res
+
 let test_parse_depf_output_simple () =
   let output =
     "BasicRubik.vo BasicRubik.glob BasicRubik.v.beautified \
@@ -105,16 +120,17 @@ let test_parse_depf_output_simple () =
   in
 
   let expected =
-    [
-      ("BasicRubik.v", []);
-      ("Rubik63.v", [ "BasicRubik.v" ]);
-      ("Solver.v", [ "BasicRubik.v"; "Rubik63.v" ]);
-      ("Example.v", [ "BasicRubik.v"; "Rubik63.v"; "Solver.v" ]);
-    ]
+    Ok
+      [
+        ("BasicRubik.v", []);
+        ("Rubik63.v", [ "BasicRubik.v" ]);
+        ("Solver.v", [ "BasicRubik.v"; "Rubik63.v" ]);
+        ("Example.v", [ "BasicRubik.v"; "Rubik63.v"; "Solver.v" ]);
+      ]
   in
 
   Alcotest.(check (result dependency_graph_testable error_testable))
-    "Simple rocq dep -f should be parsed correctly" (Ok expected) assoc_list_res
+    "Simple rocq dep -f should be parsed correctly" expected assoc_list_res
 
 let tests =
   [
@@ -140,6 +156,8 @@ let tests =
         Alcotest.test_case
           "Check parsing a line with a wrong extension in the second part"
           `Quick test_parse_depf_wrong_file_extension;
+        Alcotest.test_case "Check parsing an empty output from rocq dep -f"
+          `Quick test_parse_depf_empty_output;
         Alcotest.test_case "Check parsing the full output of rocq dep -f" `Quick
           test_parse_depf_output_simple;
       ] );

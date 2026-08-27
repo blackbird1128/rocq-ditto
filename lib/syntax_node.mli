@@ -9,6 +9,7 @@ type t = private {
   diagnostics : Lang.Diagnostic.t list;
 }
 
+val equal : t -> t -> bool
 val repr : t -> string
 val compare : t -> t -> int
 val are_colliding : t -> t -> bool

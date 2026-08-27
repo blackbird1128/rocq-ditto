@@ -12,6 +12,10 @@ type theorem_components = {
   expr : Constrexpr.constr_expr;
 }
 
+let equal (a : t) (b : t) =
+  Syntax_node.equal a.proposition b.proposition
+  && List.equal Syntax_node.equal a.proof_steps b.proof_steps
+
 let get_theorem_components (p : t) : theorem_components option =
   match Syntax_node.synpure_expr p.proposition with
   | Some

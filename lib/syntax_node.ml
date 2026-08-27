@@ -17,6 +17,7 @@ type t = {
 }
 
 let ( let* ) = Result.bind
+let equal (a : t) (b : t) = Uuidm.equal a.id b.id
 let repr (x : t) : string = x.repr
 
 let generate_ast (code : string) :
