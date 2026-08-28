@@ -23,6 +23,12 @@
  (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
 
 (test
+ (name test_layout)
+ (package coq-ditto)
+ (modules test_layout)
+ (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
+
+(test
  (name test_syntax_node)
  (package coq-ditto)
  (modules test_syntax_node)
