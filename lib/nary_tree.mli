@@ -13,7 +13,7 @@ val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
 (** [pp pp_a fmt (Node (a, children))] prints the n-ary tree with root value [a]
     and [children] using the printer [pp_a] *)
 
-val tree_from_parents : 'a -> ('a, 'a) Hashtbl.t -> 'a t
+val from_parents : 'a -> ('a, 'a) Hashtbl.t -> 'a t
 
 val add_child : 'a t -> 'a t -> 'a t
 (** Add a child node to an n-ary tree. [add_child tree child] returns a new
@@ -27,6 +27,10 @@ val map : ('a -> 'b) -> 'a t -> 'b t
     each node in the tree, producing a new tree with the results. *)
 
 val mapi : (int -> 'a -> 'b) -> 'a t -> 'b t
+(** Map a function over an n-ary tree. [mapi f tree] applies the function [f] to
+    each node in the tree, producing a new tree with the results. At each call,
+    the index passed correspond to the count of the currently accessed node,
+    starting at zero*)
 
 val depth_first_fold : ('acc -> 'a -> 'acc) -> 'acc -> 'a t -> 'acc
 (** Perform a depth-first fold over an n-ary tree. [depth_first_fold f acc tree]
