@@ -16,9 +16,20 @@ let test_a_contains_b_collision () =
 let test_b_contains_a_collision () =
   check bool "b contains a" true (are_flat_ranges_colliding (4, 5) (2, 10))
 
-let test_no_overlapping_half_open () =
-  check bool "No overlap half open" false
-    (are_flat_ranges_colliding (4, 5) (5, 10))
+let test_no_overlapping_half_open_glued_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"half open contiguous ranges (a,b) and (b,c) don't collide"
+    QCheck.(triple (int_range 0 10) (int_range 11 20) (int_range 21 30))
+    (fun (a, b, c) -> not (are_flat_ranges_colliding (a, b) (b, c)))
+
+let test_flat_ranges_colliding_symmetric_prop =
+  QCheck.Test.make ~count:1000 ~name:"are_flat_ranges_colliding is symmetric"
+    QCheck.(
+      quad (int_range 0 10) (int_range 11 20) (int_range 21 30)
+        (int_range 31 40))
+    (fun (a, b, c, d) ->
+      are_flat_ranges_colliding (a, b) (c, d)
+      = are_flat_ranges_colliding (c, d) (a, b))
 
 let test_get_simple_common_range () =
   check
@@ -52,8 +63,17 @@ let test_b_contains_a_common_range () =
     (common_range (4, 5) (2, 10))
 
 let () =
+  let qcheck_tests =
+    List.map QCheck_alcotest.to_alcotest
+      [
+        test_no_overlapping_half_open_glued_prop;
+        test_flat_ranges_colliding_symmetric_prop;
+      ]
+  in
+
   run "Range utils"
     [
+      ("Properties", qcheck_tests);
       ( "Collisions",
         [
           test_case "test two ranges overlapping" `Quick test_simple_overlapping;
@@ -64,8 +84,6 @@ let () =
             test_a_contains_b_collision;
           test_case "test two ranges where b contains a" `Quick
             test_b_contains_a_collision;
-          test_case "test two contiguous half open range not touching" `Quick
-            test_no_overlapping_half_open;
         ] );
       ( "Common range",
         [
