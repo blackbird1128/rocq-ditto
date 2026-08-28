@@ -601,10 +601,8 @@ let apply_transformation_step (step : Transforming_step.t) (doc : t) :
           | LineAfter | LineBefore ->
               insert_node ~shift_method:ShiftVertically new_node doc))
 
-let rec apply_transformations_steps (steps : Transforming_step.t list) (doc : t)
-    : (t, Error.t) result =
-  match steps with
-  | [] -> Ok doc
-  | step :: tail ->
-      let* doc = apply_transformation_step step doc in
-      apply_transformations_steps tail doc
+let apply_transformations_steps (steps : Transforming_step.t list) (doc : t) :
+    (t, Error.t) result =
+  List_utils.fold_left_result
+    (fun (doc : t) step -> apply_transformation_step step doc)
+    doc steps
