@@ -70,9 +70,9 @@ val proof_nodes : t -> Syntax_node.t list
 (** Extracts the nodes from a proof. [proof_nodes p] returns a list containing
     the proposition of the proof [p] followed by its proof steps. *)
 
-val proof_from_nodes : Syntax_node.t list -> (t, Error.t) result
-(** Create a proof from a list of annotated AST nodes. [proof_from_nodes nodes]
-    takes a list of nodes and returns a proof where the first node in the list
-    is used as the proposition, and the remaining nodes are the proof steps. If
-    the list made of less than two nodes, the first node can't open a proof or
-    the last node isn't a valid proof end, return an error. *)
+val of_nodes : Syntax_node.t list -> (t, Error.t) result
+(** Create a proof from a list of annotated AST nodes. [of_nodes nodes] takes a
+    list of nodes and returns a proof where the first node in the list is used
+    as the proposition, and the remaining nodes are the proof steps. If the list
+    made of less than two nodes, the first node can't open a proof or the last
+    node isn't a valid proof end, return an error. *)

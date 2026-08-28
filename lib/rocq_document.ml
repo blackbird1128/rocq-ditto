@@ -42,9 +42,7 @@ let get_proofs (doc : t) : (Proof.t list, Error.t) result =
               aux tail proofs_acc OutsideProof
               (* TODO: proper handling of Program and Obligation *)
           | InsideProof cur_proof_acc ->
-              let proof =
-                Proof.proof_from_nodes (List.rev (x :: cur_proof_acc))
-              in
+              let proof = Proof.of_nodes (List.rev (x :: cur_proof_acc)) in
               aux tail (proof :: proofs_acc) OutsideProof
         else
           match cur_state with

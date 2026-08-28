@@ -339,7 +339,7 @@ let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
       node_repr)
 
 let test_creating_invalid_proof_not_enough_nodes_zero (_ : Doc.t) () : unit =
-  let proof = Proof.proof_from_nodes [] in
+  let proof = Proof.of_nodes [] in
   let proof_status = Result.map Proof.status proof in
 
   Alcotest.(
@@ -357,7 +357,7 @@ let test_creating_invalid_proof_not_enough_nodes_one (_ : Doc.t) () : unit =
     |> expect_result_ok
   in
 
-  let proof = Proof.proof_from_nodes [ valid_start ] in
+  let proof = Proof.of_nodes [ valid_start ] in
   let proof_status = Result.map Proof.status proof in
 
   Alcotest.(
@@ -378,7 +378,7 @@ let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
     Syntax_node.syntax_node_of_string "Qed." Code_point.dummy
     |> expect_result_ok
   in
-  let proof = Proof.proof_from_nodes [ invalid_start; valid_end ] in
+  let proof = Proof.of_nodes [ invalid_start; valid_end ] in
 
   let proof_status = Result.map Proof.status proof in
 
@@ -408,9 +408,7 @@ let test_creating_a_proof_invalid_closing_node (_ : Doc.t) () : unit =
     |> expect_result_ok
   in
 
-  let proof =
-    Proof.proof_from_nodes [ valid_start; valid_proof_step; invalid_end ]
-  in
+  let proof = Proof.of_nodes [ valid_start; valid_proof_step; invalid_end ] in
 
   let proof_status = Result.map Proof.status proof in
 

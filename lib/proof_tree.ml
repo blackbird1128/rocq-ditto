@@ -113,4 +113,4 @@ let rec proof_tree_to_node_list (Node (value, children)) : Syntax_node.t list =
 let tree_to_proof (tree : Syntax_node.t Nary_tree.t) : (Proof.t, Error.t) result
     =
   let nodes = proof_tree_to_node_list tree in
-  Proof.proof_from_nodes nodes
+  Proof.of_nodes nodes

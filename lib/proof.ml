@@ -78,7 +78,7 @@ let status (p : t) : proof_status =
   | Some last -> (
       match proof_status_from_last_node last with
       | Ok status -> status
-      | Error _ -> assert false (* impossible by proof_from_nodes invariant *))
+      | Error _ -> assert false (* impossible by of_nodes invariant *))
   | None -> assert false (* a proof always has a last closing proof steps *)
 
 let get_proof_conclusion (p : t) : Constrexpr.constr_expr option =
@@ -124,7 +124,7 @@ let map_proof_proposition_in_state
 
 let proof_nodes (p : t) : Syntax_node.t list = p.proposition :: p.proof_steps
 
-let proof_from_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
+let of_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
   match nodes with
   | [] | [ _ ] ->
       Error.string_to_or_error
