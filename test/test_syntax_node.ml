@@ -2,7 +2,7 @@ open Ditto
 open Ditto_test_support.Test_support
 
 let test_creating_valid_comment_from_string () =
-  let start : Code_point.t = { line = 0; character = 0 } in
+  let start = Code_point.origin in
   let node = Syntax_node.comment_of_string "(* hello world *)" start in
   let node_repr = Result.map Syntax_node.repr node in
 
@@ -25,7 +25,7 @@ let test_creating_invalid_comment_from_string () =
       node_repr)
 
 let test_reformat_comment_node () : unit =
-  let starting_point : Code_point.t = { line = 0; character = 0 } in
+  let starting_point = Code_point.origin in
 
   let comment_node =
     Syntax_node.comment_of_string "(* a comment *)" starting_point

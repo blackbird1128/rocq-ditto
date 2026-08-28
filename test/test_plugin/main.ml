@@ -314,7 +314,7 @@ let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
     reconstructed
 
 let test_creating_valid_syntax_node_from_string (_ : Doc.t) () : unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
+  let point = Code_point.origin in
   let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." point in
   let node_repr = Result.map Syntax_node.repr node in
 
@@ -324,7 +324,7 @@ let test_creating_valid_syntax_node_from_string (_ : Doc.t) () : unit =
       "The node should be created without error" (Ok "Compute 1 + 1.") node_repr)
 
 let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
+  let point = Code_point.origin in
   let node =
     Syntax_node.syntax_node_of_string "Compute Illegal grammar" point
   in
@@ -452,7 +452,7 @@ let test_of_coq_ast_in_state (doc : Doc.t) () =
     (Syntax_node.repr new_node)
 
 let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
-  let code_point_a : Code_point.t = { line = 0; character = 0 } in
+  let code_point_a = Code_point.origin in
   let code_point_b : Code_point.t = { line = 1; character = 0 } in
   let a =
     Syntax_node.syntax_node_of_string "idtac." code_point_a |> expect_result_ok
@@ -470,7 +470,7 @@ let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
       a_then_b_repr)
 
 let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
-  let code_point_a : Code_point.t = { line = 0; character = 0 } in
+  let code_point_a = Code_point.origin in
   let code_point_b : Code_point.t = { line = 1; character = 0 } in
   let a =
     Syntax_node.syntax_node_of_string
@@ -496,7 +496,7 @@ let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
       a_then_b_repr)
 
 let test_creating_simple_a_thens_b (_ : Doc.t) () : unit =
-  let code_point_a : Code_point.t = { line = 0; character = 0 } in
+  let code_point_a = Code_point.origin in
   let code_point_b : Code_point.t = { line = 1; character = 0 } in
   let a =
     Syntax_node.syntax_node_of_string "reflexivity." code_point_a
@@ -516,7 +516,7 @@ let test_creating_simple_a_thens_b (_ : Doc.t) () : unit =
       (Ok "reflexivity; [ reflexivity ].") a_thens_b_repr)
 
 let test_creating_a_thens_nothing (_ : Doc.t) () : unit =
-  let code_point_a : Code_point.t = { line = 0; character = 0 } in
+  let code_point_a = Code_point.origin in
   let a =
     Syntax_node.syntax_node_of_string "reflexivity." code_point_a
     |> expect_result_ok
@@ -693,7 +693,7 @@ let test_selecting_all_goal_with_goal_select (doc : Doc.t) () : unit =
       "All goals should be selected in order" (Ok expected_goals) selected_goals)
 
 let test_detecting_proof_with (_ : Doc.t) () : unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
+  let point : Code_point.t = Code_point.origin in
   let node =
     Syntax_node.syntax_node_of_string "Proof with easy." point
     |> expect_result_ok
@@ -706,7 +706,7 @@ let test_detecting_proof_with (_ : Doc.t) () : unit =
 
 let test_not_detecting_simple_proof_command_with_proof_with (_ : Doc.t) () :
     unit =
-  let point : Code_point.t = { line = 0; character = 0 } in
+  let point = Code_point.origin in
   let node =
     Syntax_node.syntax_node_of_string "Proof." point |> expect_result_ok
   in
@@ -734,7 +734,7 @@ let test_searching_node (doc : Doc.t) () : unit =
     (Option.map (fun x -> x.id) absurd_node)
 
 let test_reformat_keep_id (_ : Doc.t) () : unit =
-  let starting_point : Code_point.t = { line = 0; character = 0 } in
+  let starting_point = Code_point.origin in
 
   let content_node =
     syntax_node_of_string "Compute 1 + 1." starting_point |> expect_result_ok
