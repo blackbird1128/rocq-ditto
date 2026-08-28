@@ -56,6 +56,28 @@ let test_depth_first_fold_simple () =
   let res = depth_first_fold (fun acc x -> acc + x) 0 tree1 in
   Alcotest.(check int) "result isn't correct" expected res
 
+let test_depth_first_fold_order_single_child () =
+  let tree = Node (1, [ Node (2, []); Node (3, [ Node (4, []) ]) ]) in
+  let expected = [ 1; 2; 3; 4 ] in
+  let res = depth_first_fold (fun acc x -> x :: acc) [] tree |> List.rev in
+  Alcotest.(check (list int))
+    "the result doesn't have the same shape as the expected result" expected res
+
+let test_depth_first_fold_multiple_children () =
+  let tree = Node (1, [ Node (2, []); Node (3, []); Node (4, []) ]) in
+  let expected = [ 1; 2; 3; 4 ] in
+  let res = depth_first_fold (fun acc x -> x :: acc) [] tree |> List.rev in
+  Alcotest.(check (list int))
+    "the result doesn't have the same shape as the expected result" expected res
+
+let test_mapi_simple () =
+  let tree = Node (0, [ Node (0, []); Node (0, [ Node (0, []) ]) ]) in
+  let expected = Node (0, [ Node (1, []); Node (2, [ Node (3, []) ]) ]) in
+  let res = mapi (fun i value -> value + i) tree in
+
+  Alcotest.(check int_tree)
+    "the result doesn't have the same shape as the expected result" expected res
+
 let test_top_n_simple () =
   let tree1 = Node (1, [ Node (2, []) ]) in
   let expected = Node (1, [ Node (2, []) ]) in
@@ -100,6 +122,13 @@ let tests =
           `Quick test_flatten_map_simple;
         Alcotest.test_case "fold a simple tree" `Quick
           test_depth_first_fold_simple;
+        Alcotest.test_case "fold a tree in the correct order" `Quick
+          test_depth_first_fold_order_single_child;
+        Alcotest.test_case
+          "fold a tree with multiple children in the correct order" `Quick
+          test_depth_first_fold_multiple_children;
+        Alcotest.test_case "mapi over a simple tree in the correct order" `Quick
+          test_mapi_simple;
         Alcotest.test_case "top_n with n = 1 on a simple tree" `Quick
           test_top_n_simple;
         Alcotest.test_case "top_n with n = 2 on a simple tree" `Quick
@@ -111,4 +140,4 @@ let tests =
       ] );
   ]
 
-let () = Alcotest.run "N ary tree test global" tests
+let () = Alcotest.run "N-ary tree" tests
