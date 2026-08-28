@@ -10,7 +10,12 @@ vendor/
 **.vok
 **.vos
 **.aux
+**.bak
 **.target.json
 **.lia.cache
+**.dot
 **.jsondump.json
+**/__pycache__/
+.ninja_log
 lib/rocq_version_optcomp.mlh
+lib/rocq_version.ml
