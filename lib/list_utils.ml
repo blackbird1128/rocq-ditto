@@ -106,15 +106,14 @@ let fold_left_result (f : 'acc -> 'a -> ('acc, 'e) result) (init : 'acc)
   in
   aux init l
 
-let result_all (xs : ('a, 'e) result list) : ('a list, 'e) result =
-  List.fold_left
-    (fun acc x ->
-      match (acc, x) with
-      | Error e, _ -> Error e
-      | Ok _, Error e -> Error e
-      | Ok ys, Ok y -> Ok (y :: ys))
-    (Ok []) xs
-  |> Result.map List.rev
+let result_all (l : ('a, 'e) result list) : ('a list, 'e) result =
+  let rec aux acc l =
+    match l with
+    | Error e :: _ -> Error e
+    | Ok x :: tail -> aux (x :: acc) tail
+    | [] -> Ok (List.rev acc)
+  in
+  aux [] l
 
 let concat_result (l : ('a list, 'e) result list) : ('a list, 'e) result =
   let rec aux acc = function
