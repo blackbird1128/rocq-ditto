@@ -20,6 +20,11 @@ let ( let* ) = Result.bind
 let equal (a : t) (b : t) = Uuidm.equal a.id b.id
 let repr (x : t) : string = x.repr
 
+let make ?(ast = None) ?(diagnostics = []) (start_point : Code_point.t)
+    (repr : string) : t =
+  let range = Code_range.range_from_starting_point_and_repr start_point repr in
+  { ast; range; repr; id = Unique_id.uuid (); diagnostics }
+
 let generate_ast (code : string) :
     (Vernacexpr.vernac_control list, Error.t) result =
   let mode = Ltac_plugin.G_ltac.classic_proof_mode in
@@ -103,45 +108,22 @@ let validate (x : t) : (t, Error.t) result =
 
 let comment_of_string (content : string) (start_point : Code_point.t) :
     (t, Error.t) result =
-  let range =
-    Code_range.range_from_starting_point_and_repr start_point content
-  in
-
   if not (String.starts_with ~prefix:"(*" content) then
     Error.format_to_or_error "Content \"%s\" should start with (*" content
   else if not (String.ends_with ~suffix:"*)" content) then
     Error.format_to_or_error "Content \"%s\" should end with *)" content
-  else
-    Ok
-      {
-        ast = None;
-        repr = content;
-        range;
-        id = Unique_id.uuid ();
-        diagnostics = [];
-      }
+  else Ok (make ~ast:None start_point content)
 
 let syntax_node_of_string (code : string) (start_point : Code_point.t) :
     (t, Error.t) result =
-  let range = Code_range.range_from_starting_point_and_repr start_point code in
   (*offset doesn't count the newline in*)
-
   match generate_ast code with
   | Ok [] -> Error.format_to_or_error "No node found in string \"%s\"." code
   | Ok [ x ] ->
       let node_ast : Doc.Node.Ast.t =
         { v = Coq.Ast.of_coq x; ast_info = None }
       in
-
-      Ok
-        {
-          ast = Some node_ast;
-          range;
-          id = Unique_id.uuid ();
-          (*id is set during insertion in a document*)
-          repr = code;
-          diagnostics = [];
-        }
+      Ok (make ~ast:(Some node_ast) start_point code)
   | Ok (_ :: _ :: _) ->
       Error.format_to_or_error "More than one node found in string \"%s\"." code
   | Error err -> Error err
@@ -172,16 +154,9 @@ let of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
     Ppvernac.pr_vernac coq_ast |> Pp.string_of_ppcmds
     |> remove_outer_parentheses
   in
-  let range = Code_range.range_from_starting_point_and_repr start_point repr in
+
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
-  {
-    ast = Some node_ast;
-    range;
-    id = Unique_id.uuid ();
-    (* id is set during document insertion *)
-    repr;
-    diagnostics = [];
-  }
+  make ~ast:(Some node_ast) start_point repr
 
 let of_coq_ast_in_state ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
     (ast : Coq.Ast.t) (start_point : Code_point.t) : (t, Error.t) result =
@@ -195,17 +170,9 @@ let of_coq_ast_in_state ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
       coq_ast
     |> Error.protect_to_result
   in
-  let range = Code_range.range_from_starting_point_and_repr start_point repr in
+
   let node_ast : Doc.Node.Ast.t = { v = ast; ast_info = None } in
-  Ok
-    {
-      ast = Some node_ast;
-      range;
-      id = Unique_id.uuid ();
-      (* id is set during document insertion *)
-      repr;
-      diagnostics = [];
-    }
+  Ok (make ~ast:(Some node_ast) start_point repr)
 
 let of_vernacexpr (expr : Vernacexpr.vernac_expr) (start_point : Code_point.t) :
     t =
