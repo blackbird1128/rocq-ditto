@@ -35,6 +35,15 @@ let split_while (p : 'a -> bool) (l : 'a list) : 'a list * 'a list =
   in
   aux [] l l
 
+let split_around (p : 'a -> bool) (l : 'a list) :
+    ('a list * 'a * 'a list) option =
+  let rec aux acc_before = function
+    | [] -> None
+    | x :: tail when p x -> Some (List.rev acc_before, x, tail)
+    | x :: tail -> aux (x :: acc_before) tail
+  in
+  aux [] l
+
 let rec last (l : 'a list) : 'a option =
   match l with
   | [] -> None

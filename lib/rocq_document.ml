@@ -289,26 +289,18 @@ let get_ltac_outside_proofs (doc : t) : (Syntax_node.t list, Error.t) result =
 
 let split_at_id (target_id : Uuidm.t) (doc : t) :
     (Syntax_node.t list * Syntax_node.t list, Error.t) result =
-  let rec aux (elements : Syntax_node.t list) (acc : Syntax_node.t list) =
-    match elements with
-    | [] ->
-        Error.string_to_or_error
-          "Error: target to split at not found in the document"
-    | x :: tail ->
-        if x.id = target_id then Ok (List.rev acc, tail) else aux tail (x :: acc)
-  in
-  aux doc.elements []
+  match
+    List_utils.split_around (fun x -> Uuidm.equal x.id target_id) doc.elements
+  with
+  | Some (left, _, right) -> Ok (left, right)
+  | None ->
+      Error.format_to_or_error
+        "Error: target with id %S not found in the document"
+        (Uuidm.to_string target_id)
 
 let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
     (Syntax_node.t list * Syntax_node.t * Syntax_node.t list) option =
-  let rec aux (elements : Syntax_node.t list) (acc : Syntax_node.t list) =
-    match elements with
-    | [] -> None
-    | x :: tail ->
-        if x.id = target_id then Some (List.rev acc, x, tail)
-        else aux tail (x :: acc)
-  in
-  aux node_list []
+  List_utils.split_around (fun x -> Uuidm.equal x.id target_id) node_list
 
 let move_node_by ~(lines : int) ~(chars : int) (node : Syntax_node.t) =
   Syntax_node.move_to (Code_point.shift lines chars node.range.start) node
