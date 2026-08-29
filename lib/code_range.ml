@@ -42,13 +42,6 @@ let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =
   not (a_end <= b_start || b_end <= a_start)
 (* half open intervals *)
 
-let common_range (a : int * int) (b : int * int) : (int * int) option =
-  let a_start, a_end = a in
-  let b_start, b_end = b in
-  if are_flat_ranges_colliding (a_start, a_end) (b_start, b_end) then
-    Some (max a_start b_start, min a_end b_end)
-  else None
-
 (* as a code range is half_open (the end is open [a,b] and [b,c] are not colliding, this also mean that a node finishing on the character 0 of a line isn't included in this line  *)
 let line_span (r : t) : int * int =
   let end_excl =
