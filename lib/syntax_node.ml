@@ -22,7 +22,7 @@ let repr (x : t) : string = x.repr
 
 let make ?(ast = None) ?(diagnostics = []) (start_point : Code_point.t)
     (repr : string) : t =
-  let range = Code_range.range_from_starting_point_and_repr start_point repr in
+  let range = Code_range.extent_of_string start_point repr in
   { ast; range; repr; id = Unique_id.uuid (); diagnostics }
 
 let generate_ast (code : string) :
@@ -198,9 +198,7 @@ let reformat (x : t) : (t, Error.t) result =
       Error.string_to_or_error "The node need to have an AST to be reformatted"
 
 let move_to (destination : Code_point.t) (x : t) : t =
-  let new_range =
-    Code_range.range_from_starting_point_and_repr destination (repr x)
-  in
+  let new_range = Code_range.extent_of_string destination (repr x) in
   { x with range = new_range }
 
 let vernac_expr (x : t) =

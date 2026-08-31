@@ -15,8 +15,7 @@ let compare (a : t) (b : t) : int =
 let of_lang_range (x : Lang.Range.t) : t =
   { start = of_lang_point x.start; end_ = of_lang_point x.end_ }
 
-let range_from_starting_point_and_repr (starting_point : Code_point.t)
-    (repr : string) : t =
+let extent_of_string (starting_point : Code_point.t) (repr : string) : t =
   let number_line_jump =
     String.fold_left
       (fun count char -> if char = '\n' then count + 1 else count)
