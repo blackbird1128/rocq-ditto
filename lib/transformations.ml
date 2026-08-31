@@ -185,7 +185,8 @@ let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
           List.map
             (fun (x : Syntax_node.t) ->
               let new_start_node =
-                Code_point.shift (-first_step_start_line) 0 x.range.start
+                Code_point.shift ~lines:(-first_step_start_line) ~chars:0
+                  x.range.start
               in
               move_to new_start_node x)
             (first_step :: tail)
@@ -203,8 +204,8 @@ let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
   in
 
   let admitted_start =
-    Code_point.shift 1
-      (-comment_node.range.end_.character)
+    Code_point.shift ~lines:1
+      ~chars:(-comment_node.range.end_.character)
       comment_node.range.end_
   in
 
@@ -253,7 +254,7 @@ let flatten_goal_selectors (doc : Rocq_document.t) (proof : Proof.t) :
   let* steps =
     Runner.fold_proof_with_state doc token
       (fun (state : Coq.State.t) step_acc node ->
-        let goals = Runner.reified_goals_at_state token state in
+        let* goals = Runner.reified_goals_at_state token state in
         let* new_state = Runner.run_node token state node in
         let node_without_selector = Syntax_node.drop_goal_selector node in
         let* new_step_acc =
@@ -261,7 +262,7 @@ let flatten_goal_selectors (doc : Rocq_document.t) (proof : Proof.t) :
           | Some goal_selector ->
               Logs.debug (fun m -> m "found a goal selector: %s" (repr node));
 
-              let new_goals = Runner.reified_goals_at_state token new_state in
+              let* new_goals = Runner.reified_goals_at_state token new_state in
               (*Otherwise we can never get them later *)
               let* selected_goals =
                 Goal_select_view.apply_goal_selector_view goal_selector
@@ -376,7 +377,7 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
         in
 
         let comment_start_point =
-          Code_point.shift 0 5 furthest_char_node.range.end_
+          Code_point.shift ~lines:0 ~chars:5 furthest_char_node.range.end_
         in
         match
           Syntax_node.comment_of_string comment_content comment_start_point
@@ -592,7 +593,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
                 (fun i repr ->
                   Result.get_ok
                     (Syntax_node.syntax_node_of_string repr
-                       (Code_point.shift i 0 node.range.start)))
+                       (Code_point.shift ~lines:i ~chars:0 node.range.start)))
                 filtered_tactics
             in
             let shifted_nodes =
@@ -1318,14 +1319,14 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
       let* new_state = Runner.run_node token state node in
       match find_rewriter node with
       | Some rewriter -> (
-          let old_goals_vars =
+          let* old_goals_vars =
             Runner.reified_goals_at_state token state
-            |> List.map Runner.get_hypothesis_names
+            |> Result.map (List.map Runner.get_hypothesis_names)
           in
 
-          let new_goals_vars =
+          let* new_goals_vars =
             Runner.reified_goals_at_state token new_state
-            |> List.map Runner.get_hypothesis_names
+            |> Result.map (List.map Runner.get_hypothesis_names)
           in
 
           match rewriter node (Some old_goals_vars) (Some new_goals_vars) with
@@ -1395,8 +1396,16 @@ let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
   | Tacexpr.TacAtom
       (Tacexpr.TacInductionDestruct
          (true, false, (induction_clause_l, with_bindings))) ->
-      let old_goals_vars = Runner.goal_hyps_at_state state_before token in
-      let new_goals_vars = Runner.goal_hyps_at_state state_after token in
+      let old_goals_vars =
+        Runner.goal_hyps_at_state state_before token
+        |> Result.map_error (fun _ -> [])
+        |> Result.retract
+      in
+      let new_goals_vars =
+        Runner.goal_hyps_at_state state_after token
+        |> Result.map_error (fun _ -> [])
+        |> Result.retract
+      in
       if introduced_induction_hypothesis ~old_goals_vars ~new_goals_vars then
         tacexpr
       else
@@ -1431,8 +1440,16 @@ let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
       in
       if not is_intro then tacexpr
       else
-        let old_goals_vars = Runner.goal_hyps_at_state state_before token in
-        let new_goals_vars = Runner.goal_hyps_at_state state_after token in
+        let old_goals_vars =
+          Runner.goal_hyps_at_state state_before token
+          |> Result.map_error (fun _ -> [])
+          |> Result.retract
+        in
+        let new_goals_vars =
+          Runner.goal_hyps_at_state state_after token
+          |> Result.map_error (fun _ -> [])
+          |> Result.retract
+        in
 
         match
           Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars)

@@ -303,7 +303,7 @@ let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
   List_utils.split_around (fun x -> Uuidm.equal x.id target_id) node_list
 
 let move_node_by ~(lines : int) ~(chars : int) (node : Syntax_node.t) =
-  Syntax_node.move_to (Code_point.shift lines chars node.range.start) node
+  Syntax_node.move_to (Code_point.shift ~lines ~chars node.range.start) node
 
 let shift_block_checked (n_line : int) (n_char : int)
     ?(pred : Syntax_node.t -> bool = fun _ -> true) (nodes : Syntax_node.t list)
@@ -579,7 +579,7 @@ let apply_transformation_step (step : Transforming_step.t) (doc : t) :
                   line = target.range.end_.line + 1;
                   character = target.range.start.character;
                 }
-            | SameLine -> Code_point.shift 0 1 target.range.end_
+            | SameLine -> Code_point.shift ~lines:0 ~chars:1 target.range.end_
           in
 
           let new_node =

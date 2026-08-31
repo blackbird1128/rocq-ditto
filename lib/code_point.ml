@@ -15,8 +15,8 @@ let compare (a : t) (b : t) : int =
 let leq (a : t) (b : t) : bool = compare a b <= 0
 let to_string (x : t) : string = Format.asprintf "%a" pp x
 
-let shift (n_line : int) (n_char : int) (x : t) : t =
-  { line = x.line + n_line; character = x.character + n_char }
+let shift ~(lines : int) ~(chars : int) (x : t) : t =
+  { line = x.line + lines; character = x.character + chars }
 
 let of_lang_point (x : Lang.Point.t) : t =
   { line = x.line; character = x.character }
