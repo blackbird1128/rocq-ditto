@@ -56,9 +56,11 @@ let test_drop_less_than_len () =
   check (list int) "drop should drop the n first items if n <= length" [ 4 ]
     (drop 3 [ 1; 2; 3; 4 ])
 
-let test_drop_exact_len () =
-  check (list int) "drop should drop the whole list if n = length" []
-    (drop 4 [ 1; 2; 3; 4 ])
+let test_drop_exact_len_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"drop should drop the whole list if n = length"
+    QCheck.(list_size Gen.nat int)
+    (fun l -> List.is_empty (drop (List.length l) l))
 
 let test_drop_more_than_len () =
   check (list int) "drop should return an empty list if n > length" []
@@ -175,6 +177,40 @@ let test_split_while_single_element_non_matching () =
     ([], [ 1 ])
     (split_while (fun x -> x = 0) [ 1 ])
 
+let test_split_around_simple () =
+  check
+    (option (triple (list int) int (list int)))
+    "split_around should separate around zero in this case"
+    (Some ([ 1; 2; 3 ], 0, [ 4; 5; 6 ]))
+    (split_around (fun n -> n = 0) [ 1; 2; 3; 0; 4; 5; 6 ])
+
+let test_split_around_empty () =
+  check
+    (option (triple (list int) int (list int)))
+    "split_around on an empty list should return none" None
+    (split_around (fun _ -> true) [])
+
+let test_split_around_single_element_success_prop =
+  QCheck.Test.make ~count:1000
+    ~name:
+      "split_around on a single element list [x] succeeding should return Some \
+       ([],x,[])"
+    QCheck.(int)
+    (fun n ->
+      let res = split_around (fun a -> a = n) [ n ] in
+      match res with Some ([], x, []) when x = n -> true | _ -> false)
+
+let test_split_around_concat_prop =
+  QCheck.Test.make ~count:1000
+    ~name:
+      "if split_around l is Some (left,a,right) then l = left @ (a :: right)"
+    QCheck.(int_range 1 1000)
+    (fun n ->
+      let l = List.init 1000 (fun n -> n + 1) in
+      match split_around (fun x -> x = n) l with
+      | Some (left, a, right) -> List.equal Int.equal l (left @ (a :: right))
+      | None -> false)
+
 let test_last_empty () =
   check (option int) "Last should return None for an empty list" None (last [])
 
@@ -262,6 +298,30 @@ let test_find_last_opt_no_match () =
     None
     (find_last_opt (fun x -> x > 4) [ 1; 2; 3; 4 ])
 
+let test_result_all_empty_is_ok () =
+  check
+    (result (list int) unit)
+    "result_all on an empty list should return []" (Ok []) (result_all [])
+
+let test_result_all_simple_with_error () =
+  check
+    (result (list int) string)
+    "result_all on a list with errors should return the first error"
+    (Error "err")
+    (result_all [ Ok 1; Ok 2; Error "err"; Ok 3 ])
+
+let test_result_all_on_list_of_ok_return_list =
+  QCheck.Test.make ~count:1000
+    ~name:"result_all on a list l with only (Ok l_i) return l with Ok unwrapped"
+    QCheck.(int_range 0 1000)
+    (fun n ->
+      let l = List.init n (fun x -> x) in
+      let l_wrapped = List.map Result.ok l in
+      let res = result_all l_wrapped in
+      match res with
+      | Ok l_res -> List.equal Int.equal l_res l
+      | Error _ -> false)
+
 let () =
   let qcheck_tests =
     List.map QCheck_alcotest.to_alcotest
@@ -270,7 +330,11 @@ let () =
         test_take_empty_prop;
         test_drop_zero_prop;
         test_drop_empty_prop;
+        test_drop_exact_len_prop;
         test_take_while_all_prop;
+        test_split_around_single_element_success_prop;
+        test_split_around_concat_prop;
+        test_result_all_on_list_of_ok_return_list;
       ]
   in
 
@@ -295,8 +359,6 @@ let () =
             test_drop_less_than_len;
           test_case "test dropping more than length items from a list" `Quick
             test_drop_more_than_len;
-          test_case "test dropping n items from a list of length n" `Quick
-            test_drop_exact_len;
           test_case "test dropping negative items raise invalid_arg" `Quick
             test_drop_raise_negative_args;
           test_case "take_while on an empty list should return an empty list"
@@ -352,6 +414,10 @@ let () =
             "split_while not matching a single element should return it in the \
              second list"
             `Quick test_split_while_single_element_non_matching;
+          test_case "split_around should split a simple list correctly" `Quick
+            test_split_around_simple;
+          test_case "split_around on an empty list should return None" `Quick
+            test_split_around_empty;
           test_case "last on an empty list should return None" `Quick
             test_last_empty;
           test_case "last on a single-element list should return that element"
@@ -396,5 +462,10 @@ let () =
             `Quick test_find_last_opt_regular_list;
           test_case "find_last_opt should return None when there is no match"
             `Quick test_find_last_opt_no_match;
+          test_case "result_all on [] should return Ok []" `Quick
+            test_result_all_empty_is_ok;
+          test_case
+            "result_all on a list with errors should return the first error "
+            `Quick test_result_all_simple_with_error;
         ] );
     ]
