@@ -9,6 +9,7 @@ val dummy : t
     reproduce them. *)
 
 val pp : Format.formatter -> t -> unit
+val equal : t -> t -> bool
 val compare : t -> t -> int
 val leq : t -> t -> bool
 val shift : lines:int -> chars:int -> t -> t

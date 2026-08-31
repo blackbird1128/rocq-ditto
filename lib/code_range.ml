@@ -8,6 +8,9 @@ let pp (fmt : Format.formatter) (x : t) : unit =
 
 let to_string (x : t) : string = Format.asprintf "%a" pp x
 
+let equal (a : t) (b : t) : bool =
+  Code_point.equal a.start b.start && Code_point.equal a.end_ b.end_
+
 let compare (a : t) (b : t) : int =
   let c = Code_point.compare a.start b.start in
   if c <> 0 then c else Code_point.compare a.end_ b.end_

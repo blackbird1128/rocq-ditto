@@ -8,6 +8,8 @@ let origin : t = { line = 0; character = 0 }
 let pp (fmt : Format.formatter) (x : t) : unit =
   Format.fprintf fmt "(l: %d c: %d)" x.line x.character
 
+let equal (a : t) (b : t) : bool = a.line = b.line && a.character = b.character
+
 let compare (a : t) (b : t) : int =
   let c = Int.compare a.line b.line in
   if c = 0 then Int.compare a.character b.character else c

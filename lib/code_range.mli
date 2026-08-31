@@ -2,6 +2,7 @@ type t = { start : Code_point.t; end_ : Code_point.t } [@@deriving sexp, yojson]
 
 val pp : Format.formatter -> t -> unit
 val to_string : t -> string
+val equal : t -> t -> bool
 val compare : t -> t -> int
 val of_lang_range : Lang.Range.t -> t
 val extent_of_string : Code_point.t -> string -> t
