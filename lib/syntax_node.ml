@@ -61,50 +61,14 @@ let colliding_nodes (target : t) (nodes_list : t list) : t list =
 
 let compare (a : t) (b : t) : int = Code_range.compare a.range b.range
 
-let count_newlines_and_last_line_len (s : string) : int * int =
-  (* returns (number_of_newlines, length_of_last_line_after_last_newline) *)
-  let n = String.length s in
-  let rec loop (i : int) (newlines : int) (last_len : int) =
-    if i >= n then (newlines, last_len)
-    else
-      match s.[i] with
-      | '\n' -> loop (i + 1) (newlines + 1) 0
-      | _ -> loop (i + 1) newlines (last_len + 1)
-  in
-  loop 0 0 0
-
 let validate (x : t) : (t, Error.t) result =
-  let r = x.range in
-  if r.end_.line < r.start.line then
-    Error.string_to_or_error
-      "Incorrect range: range end line is smaller than start line"
-  else if r.end_.line = r.start.line && r.end_.character < r.start.character
-  then
-    Error.string_to_or_error
-      "Incorrect range: same line but end character < start character"
-  else
-    let s = repr x in
-    let nl, last_len = count_newlines_and_last_line_len s in
-    let expected_end_line = r.start.line + nl in
-    if r.end_.line <> expected_end_line then
-      Error.format_to_or_error
-        "Incorrect range: repr has %d newlines, expected end_.line = %d but \
-         got %d"
-        nl expected_end_line r.end_.line
-    else if nl = 0 then
-      let expected_end_char = r.start.character + String.length s in
-      if r.end_.character <> expected_end_char then
-        Error.format_to_or_error
-          "Incorrect range: single-line repr length: %d; expect \
-           end_.character=%d but got %d"
-          (String.length s) expected_end_char r.end_.character
-      else Ok x
-    else if r.end_.character <> last_len then (* multi line repr *)
-      Error.format_to_or_error
-        "Incorrect range: multi-line repr last-line length=%d, expected \
-         end_.character=%d but got %d"
-        last_len last_len r.end_.character
-    else Ok x
+  let expected_range = Code_range.extent_of_string x.range.start x.repr in
+  if not (Code_range.equal x.range expected_range) then
+    Error.format_to_or_error
+      "validation error: node(%s) expected range %S got range %S" (repr x)
+      (Code_range.to_string expected_range)
+      (Code_range.to_string x.range)
+  else Ok x
 
 let comment_of_string (content : string) (start_point : Code_point.t) :
     (t, Error.t) result =
