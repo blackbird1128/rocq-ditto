@@ -65,12 +65,13 @@ let proof_status_from_last_node (node : Syntax_node.t) :
           Error.format_to_or_error "(%s) is not a valid closing node"
             (Syntax_node.repr node))
   | None -> (
-      match node.ast with
-      | Some _ ->
+      match node.kind with
+      | Vernac _ ->
           Error.format_to_or_error "(%s) is not a valid closing node"
             (Syntax_node.repr node)
-      | None ->
-          Error.format_to_or_error "(%s) is not a valid closing node (no ast)"
+      | Comment ->
+          Error.format_to_or_error
+            "(%s) is not a valid closing node (is a comment)"
             (Syntax_node.repr node))
 
 let status (p : t) : proof_status =

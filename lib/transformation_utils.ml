@@ -71,8 +71,8 @@ let map_definition_body_in_state
     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (x : Syntax_node.t) :
     (Transforming_step.t option, Error.t) result =
   let ( let* ) = Result.bind in
-  match x.ast with
-  | Some ast -> (
+  match x.kind with
+  | Vernac ast -> (
       match (Coq.Ast.to_coq ast.v).v.expr with
       | VernacSynPure
           (Vernacexpr.VernacDefinition
@@ -108,7 +108,7 @@ let map_definition_body_in_state
                 in
                 Ok (Some (Replace (x.id, new_node))))
       | _ -> Ok None)
-  | None -> Ok None
+  | Comment -> Ok None
 
 let map_tacdef_bodies_in_node
     (f :

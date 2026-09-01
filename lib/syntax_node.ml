@@ -8,8 +8,10 @@ module Procq = Pcoq
 
 [%%endif]
 
+type kind = Vernac of Doc.Node.Ast.t | Comment
+
 type t = {
-  ast : Doc.Node.Ast.t option;
+  kind : kind;
   range : Code_range.t;
   repr : string;
   id : Uuidm.t;
@@ -23,7 +25,23 @@ let repr (x : t) : string = x.repr
 let make ?(ast = None) ?(diagnostics = []) (start_point : Code_point.t)
     (repr : string) : t =
   let range = Code_range.extent_of_string start_point repr in
-  { ast; range; repr; id = Unique_id.uuid (); diagnostics }
+  match ast with
+  | Some ast ->
+      { kind = Vernac ast; range; repr; id = Unique_id.uuid (); diagnostics }
+  | None -> { kind = Comment; range; repr; id = Unique_id.uuid (); diagnostics }
+
+let is_vernacular (x : t) : bool =
+  match x.kind with Comment -> false | Vernac _ -> true
+
+let is_comment (x : t) : bool =
+  match x.kind with Comment -> true | Vernac _ -> false
+
+let expect_vernacular (x : t) : (Doc.Node.Ast.t, Error.t) result =
+  match x.kind with
+  | Vernac ast -> Ok ast
+  | Comment ->
+      Error.format_to_or_error
+        "Node: %S, expected a vernacular node, got a comment" (repr x)
 
 let generate_ast (code : string) :
     (Vernacexpr.vernac_control list, Error.t) result =
@@ -103,13 +121,23 @@ let node_representation (node : Doc.Node.t) (document : string) : string =
     (node.range.end_.offset - node.range.start.offset)
 
 let of_doc_node (source : string) (node : Doc.Node.t) : t =
-  {
-    ast = node.ast;
-    range = Code_range.of_lang_range node.range;
-    repr = node_representation node source;
-    id = Unique_id.uuid ();
-    diagnostics = node.diags;
-  }
+  match node.ast with
+  | Some ast ->
+      {
+        kind = Vernac ast;
+        range = Code_range.of_lang_range node.range;
+        repr = node_representation node source;
+        id = Unique_id.uuid ();
+        diagnostics = node.diags;
+      }
+  | None ->
+      {
+        kind = Comment;
+        range = Code_range.of_lang_range node.range;
+        repr = node_representation node source;
+        id = Unique_id.uuid ();
+        diagnostics = node.diags;
+      }
 
 let of_coq_ast (ast : Coq.Ast.t) (start_point : Code_point.t) : t =
   let coq_ast = Coq.Ast.to_coq ast in
@@ -152,13 +180,13 @@ let of_vernacexpr_in_state ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
   of_coq_ast_in_state ~token ~st ast start_point
 
 let reformat (x : t) : (t, Error.t) result =
-  match x.ast with
-  | Some ast ->
+  match x.kind with
+  | Vernac ast ->
       let start_point = x.range.start in
       let ast_node = of_coq_ast ast.v start_point in
       Ok (inherit_metadata ~from:x ast_node)
       (* we return the same id, doesn't matter in the order of operation we do *)
-  | None ->
+  | Comment ->
       Error.string_to_or_error "The node need to have an AST to be reformatted"
 
 let move_to (destination : Code_point.t) (x : t) : t =
@@ -166,7 +194,9 @@ let move_to (destination : Code_point.t) (x : t) : t =
   { x with range = new_range }
 
 let vernac_expr (x : t) =
-  Option.map (fun (ast : Doc.Node.Ast.t) -> (Coq.Ast.to_coq ast.v).v.expr) x.ast
+  match x.kind with
+  | Vernac ast -> Some (Coq.Ast.to_coq ast.v).v.expr
+  | Comment -> None
 
 let synpure_expr (x : t) =
   match vernac_expr x with
@@ -251,8 +281,8 @@ let is_instance_start (x : t) : bool =
   match synpure_expr x with Some (VernacInstance _) -> true | _ -> false
 
 let is_program_instance_start (x : t) : bool =
-  match x.ast with
-  | Some ast -> (
+  match x.kind with
+  | Vernac ast -> (
       let coq_ast = Coq.Ast.to_coq ast.v in
       match coq_ast.v.expr with
       | VernacSynterp _ -> false
@@ -266,7 +296,7 @@ let is_program_instance_start (x : t) : bool =
                   String.equal str "program")
                 flags
           | _ -> false))
-  | None -> false
+  | Comment -> false
 
 let is_definition (x : t) : bool =
   match synpure_expr x with Some (VernacDefinition _) -> true | _ -> false

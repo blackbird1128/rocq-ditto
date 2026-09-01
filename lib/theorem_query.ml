@@ -1,7 +1,6 @@
 open Sexplib.Sexp
 open Proof
 open Vernacexpr
-open Fleche
 
 type sexp_query =
   | Q_anything
@@ -22,23 +21,15 @@ type sexp_query =
   | Q_sequence of sexp_query list
 
 let get_proof_proposition_sexp (x : Proof.t) : Sexplib.Sexp.t option =
-  let coq_ast =
-    Option.map
-      (fun (x : Doc.Node.Ast.t) -> Coq.Ast.to_coq x.v)
-      x.proposition.ast
-  in
-  match coq_ast with
-  | Some ast -> (
-      match ast.v.expr with
-      | VernacSynterp _ -> None
-      | VernacSynPure expr_syn -> (
-          match expr_syn with
-          | Vernacexpr.VernacStartTheoremProof _ ->
-              let sexp_expr =
-                Serlib.Ser_vernacexpr.sexp_of_synpure_vernac_expr expr_syn
-              in
-              Some sexp_expr
-          | _ -> None))
+  match Syntax_node.synpure_expr x.proposition with
+  | Some expr_syn -> (
+      match expr_syn with
+      | VernacStartTheoremProof _ ->
+          let sexp_expr =
+            Serlib.Ser_vernacexpr.sexp_of_synpure_vernac_expr expr_syn
+          in
+          Some sexp_expr
+      | _ -> None)
   | None -> None
 
 let rec matches (q : sexp_query) (sexp : Sexplib.Sexp.t) : bool =

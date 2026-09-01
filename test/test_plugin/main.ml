@@ -198,12 +198,13 @@ let test_parsing_comment_ex4 (doc : Doc.t) () : unit =
   Alcotest.(check string)
     "Comment was badly parsed" "(* single comment *)" (repr node);
   Alcotest.(check bool)
-    "Comment node should not have an AST" true (Option.is_empty node.ast)
+    "Comment node should has a comment kind" true
+    (Syntax_node.is_comment node)
 
 let test_parsing_multiples_comments_ex5 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let comment_nodes =
-    List.filter (fun node -> Option.is_empty node.ast) doc.elements
+    List.filter (fun node -> node.kind = Comment) doc.elements
   in
   Alcotest.(check int)
     "The wrong number of comment nodes was parsed" 5
@@ -213,9 +214,7 @@ let test_parsing_multiples_comments_ex5 (doc : Doc.t) () : unit =
 
 let test_parsing_embedded_comments_ex6 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
-  let comment_nodes =
-    List.filter (fun node -> Option.is_empty node.ast) doc.elements
-  in
+  let comment_nodes = List.filter Syntax_node.is_comment doc.elements in
   let comment_nodes_repr = List.map (fun node -> repr node) comment_nodes in
   Alcotest.(check int)
     "The wrong number of comment nodes was parsed" 2
@@ -227,9 +226,7 @@ let test_parsing_embedded_comments_ex6 (doc : Doc.t) () : unit =
 
 let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
-  let comment_nodes =
-    List.filter (fun node -> Option.is_empty node.ast) doc.elements
-  in
+  let comment_nodes = List.filter Syntax_node.is_comment doc.elements in
   let comment_nodes_repr = List.map (fun node -> repr node) comment_nodes in
 
   Alcotest.(check int)
@@ -242,11 +239,8 @@ let test_parsing_weird_comments_ex7 (doc : Doc.t) () : unit =
 
 let test_parsing_in_then_star_then_parenthesis (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
-  let comment_nodes =
-    List.filter (fun node -> Option.is_empty node.ast) doc.elements
-  in
-  let other_nodes =
-    List.filter (fun node -> Option.has_some node.ast) doc.elements
+  let comment_nodes, other_nodes =
+    List.partition Syntax_node.is_comment doc.elements
   in
 
   Alcotest.(check int)
@@ -258,7 +252,7 @@ let test_parsing_in_then_star_then_parenthesis (doc : Doc.t) () : unit =
 let test_parsing_glued_comment (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let comment_nodes, other_nodes =
-    List.partition (fun node -> Option.is_empty node.ast) doc.elements
+    List.partition Syntax_node.is_comment doc.elements
   in
 
   match (comment_nodes, other_nodes) with
@@ -435,7 +429,8 @@ let test_of_coq_ast_in_state (doc : Doc.t) () =
     expect_some ~context:"The notation-state lemma should be present" lemma_node
   in
   let ast =
-    expect_some ~context:"The lemma should have an AST" lemma_node.ast
+    expect_result_ok ~context:"The lemma should have a vernacular kind"
+      (Syntax_node.expect_vernacular lemma_node)
   in
   let st =
     Runner.get_init_state parsed_doc lemma_node token |> expect_result_ok

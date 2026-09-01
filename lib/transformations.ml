@@ -426,7 +426,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
   let res =
     Runner.fold_proof_with_state doc token
       (fun state acc node ->
-        if Option.is_empty node.ast then Ok (state, acc)
+        if Syntax_node.is_comment node then Ok (state, acc)
         else
           let* new_state = Runner.run_node token state node in
 
@@ -971,7 +971,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
           (fun node ->
             (not (is_command_allowed_in_proof node))
             && ((not (can_open_proof node)) && not (can_close_proof node))
-            && Option.has_some node.ast)
+            && Syntax_node.is_vernacular node)
           proof_tree
       in
 

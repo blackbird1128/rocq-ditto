@@ -1,8 +1,10 @@
 open Fleche
 open Vernacexpr
 
+type kind = Vernac of Doc.Node.Ast.t | Comment
+
 type t = private {
-  ast : Doc.Node.Ast.t option;
+  kind : kind;
   range : Code_range.t;
   repr : string;
   id : Uuidm.t;
@@ -12,6 +14,9 @@ type t = private {
 val equal : t -> t -> bool
 val repr : t -> string
 val compare : t -> t -> int
+val is_comment : t -> bool
+val is_vernacular : t -> bool
+val expect_vernacular : t -> (Doc.Node.Ast.t, Error.t) result
 val are_colliding : t -> t -> bool
 val vernac_expr : t -> synterp_vernac_expr vernac_expr_gen option
 val synpure_expr : t -> synpure_vernac_expr option

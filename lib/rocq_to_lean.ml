@@ -13,8 +13,8 @@ let rocq_to_lean (doc : Rocq_document.t) :
   let steps =
     List.map
       (fun (x : Syntax_node.t) ->
-        match x.ast with
-        | Some ast -> (
+        match x.kind with
+        | Vernac ast -> (
             match (Coq.Ast.to_coq ast.v).v.expr with
             | VernacSynterp synterp_expr -> (
                 match synterp_expr with
@@ -45,14 +45,12 @@ let rocq_to_lean (doc : Rocq_document.t) :
                       l
                 | _ -> [])
             | VernacSynPure _ -> [])
-        | None -> [])
+        | Comment -> [])
       require_nodes
     |> List.concat
   in
 
-  let comment_nodes =
-    List.filter (fun (x : Syntax_node.t) -> Option.is_empty x.ast) doc.elements
-  in
+  let comment_nodes = List.filter Syntax_node.is_comment doc.elements in
   let (replace_comments : Transforming_step.t list) =
     List.map
       (fun (x : Syntax_node.t) ->
