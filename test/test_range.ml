@@ -193,6 +193,30 @@ let test_no_collision_glued_prop =
 
       not (are_colliding first_range second_range))
 
+let test_compare_zero_equivalent_to_equality =
+  QCheck.Test.make ~count:1000 ~name:"compare a b = 0 <-> equal a b"
+    QCheck.(
+      pair
+        (quad (int_range 0 200) (int_range 0 50) (int_range 0 50)
+           (int_range 0 50))
+        (quad (int_range 0 200) (int_range 0 50) (int_range 0 50)
+           (int_range 0 50)))
+    (fun ( (a_line, a_char, a_l_offset, a_c_offset),
+           (b_line, b_char, b_l_offset, b_c_offset) )
+       ->
+      let a_start : Code_point.t = { line = a_line; character = a_char } in
+      let a_end : Code_point.t =
+        { line = a_line + a_l_offset; character = a_char + a_c_offset }
+      in
+      let a : Code_range.t = { start = a_start; end_ = a_end } in
+
+      let b_start : Code_point.t = { line = b_line; character = b_char } in
+      let b_end : Code_point.t =
+        { line = b_line + b_l_offset; character = b_char + b_c_offset }
+      in
+      let b = { start = b_start; end_ = b_end } in
+      if compare a b = 0 then equal a b else not (equal a b))
+
 let () =
   let qcheck_tests =
     List.map QCheck_alcotest.to_alcotest
@@ -207,6 +231,7 @@ let () =
         test_range_collide_with_itself_prop;
         test_collision_symmetric_prop;
         test_single_line_ranges_on_different_line_dont_intersect_prop;
+        test_compare_zero_equivalent_to_equality;
       ]
   in
 
