@@ -531,25 +531,6 @@ let raw_arguments_to_goal_selector (args : Genarg.raw_generic_argument list) :
       Option.flatten (ltac_selector_of_raw_generic_argument arg0)
   | _ -> None
 
-let raw_arguments_to_ltac_command (args : Genarg.raw_generic_argument list) :
-    ltac_command option =
-  match args with
-  | [ selector_arg; info_level_arg; raw_tactic_arg; use_default_arg ] ->
-      let selector =
-        Option.get (ltac_selector_of_raw_generic_argument selector_arg)
-      in
-
-      let info_level = raw_generic_argument_to_ltac_info info_level_arg in
-
-      let raw_tactic_expr =
-        Option.get (raw_tactic_expr_of_raw_generic_argument raw_tactic_arg)
-      in
-      let use_default =
-        Option.get (ltac_use_default_of_raw_generic_argument use_default_arg)
-      in
-      Some { selector; info_level; raw_tactic_expr; use_default }
-  | _ -> None
-
 let raw_arguments_to_raw_tactic_expr (args : Genarg.raw_generic_argument list) :
     Ltac_plugin.Tacexpr.raw_tactic_expr option =
   match args with
@@ -577,3 +558,41 @@ let raw_generic_argument_of_empty_ltac_info () : Genarg.raw_generic_argument =
   in
 
   Serlib.Ser_genarg.raw_generic_argument_of_sexp sexp
+
+let raw_arguments_to_ltac_command (args : Genarg.raw_generic_argument list) :
+    ltac_command option =
+  match args with
+  | [ selector_arg; info_level_arg; raw_tactic_arg; use_default_arg ] ->
+      let selector =
+        Option.get (ltac_selector_of_raw_generic_argument selector_arg)
+      in
+
+      let info_level = raw_generic_argument_to_ltac_info info_level_arg in
+
+      let raw_tactic_expr =
+        Option.get (raw_tactic_expr_of_raw_generic_argument raw_tactic_arg)
+      in
+      let use_default =
+        Option.get (ltac_use_default_of_raw_generic_argument use_default_arg)
+      in
+      Some { selector; info_level; raw_tactic_expr; use_default }
+  | _ -> None
+
+let ltac_command_to_raw_generic_arguments (command : ltac_command) :
+    Genarg.raw_generic_argument list =
+  let selector_arg = raw_generic_argument_of_ltac_selector command.selector in
+  let info_arg =
+    match command.info_level with
+    | None -> raw_generic_argument_of_empty_ltac_info ()
+    | Some info_level -> raw_generic_argument_of_ltac_info info_level
+  in
+
+  let raw_tactic_expr_arg =
+    raw_generic_argument_of_raw_tactic_expr command.raw_tactic_expr
+  in
+
+  let use_default_arg =
+    raw_generic_argument_of_ltac_use_default command.use_default
+  in
+
+  [ selector_arg; info_arg; raw_tactic_expr_arg; use_default_arg ]

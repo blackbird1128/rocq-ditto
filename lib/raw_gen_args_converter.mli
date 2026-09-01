@@ -139,6 +139,9 @@ val raw_generic_argument_of_ltac_info : int -> Genarg.raw_generic_argument
 val raw_arguments_to_ltac_command :
   Genarg.raw_generic_argument list -> ltac_command option
 
+val ltac_command_to_raw_generic_arguments :
+  ltac_command -> Genarg.raw_generic_argument list
+
 val raw_arguments_to_raw_tactic_expr :
   Genarg.raw_generic_argument list -> Ltac_plugin.Tacexpr.raw_tactic_expr option
 
