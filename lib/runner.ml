@@ -135,12 +135,12 @@ let count_goals (st : Coq.State.t) : int =
   match goals with None -> 0 | Some goals -> List.length goals.goals
 
 let reified_goals_at_state (token : Coq.Limits.Token.t) (st : Coq.State.t) :
-    string Coq.Goals.Reified_goal.t list =
+    (string Coq.Goals.Reified_goal.t list, Error.t) result =
   let goals = goals ~token ~st in
   match goals with
-  | Ok (Some reified_goals) -> reified_goals.goals
-  | Ok None -> []
-  | Error _ -> []
+  | Ok (Some reified_goals) -> Ok reified_goals.goals
+  | Ok None -> Ok []
+  | Error err -> Error err
 
 let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
     (steps : Syntax_node.t list) :
@@ -181,8 +181,9 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
   | Error err -> Error err
 
 let goal_hyps_at_state (state : Coq.State.t) (token : Coq.Limits.Token.t) :
-    string list list =
-  reified_goals_at_state token state |> List.map get_hypothesis_names
+    (string list list, Error.t) result =
+  reified_goals_at_state token state
+  |> Result.map (List.map get_hypothesis_names)
 
 (* TODO: relocate somewhere better ? *)
 let get_new_vars ?(keep : string list = [])

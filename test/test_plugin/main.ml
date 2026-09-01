@@ -637,7 +637,9 @@ let test_selecting_first_goal_with_goal_select (doc : Doc.t) () : unit =
   let state =
     Runner.get_init_state parsed_document third_node token |> expect_result_ok
   in
-  let goals_at_state = Runner.reified_goals_at_state token state in
+  let goals_at_state =
+    Runner.reified_goals_at_state token state |> expect_result_ok
+  in
   let goal_selector : Goal_select_view.t =
     Goal_select_view.SelectList [ Goal_select_view.NthSelector 1 ]
   in
@@ -669,7 +671,9 @@ let test_selecting_all_goal_with_goal_select (doc : Doc.t) () : unit =
   let state =
     Runner.get_init_state parsed_document fith_node token |> expect_result_ok
   in
-  let goals_at_state = Runner.reified_goals_at_state token state in
+  let goals_at_state =
+    Runner.reified_goals_at_state token state |> expect_result_ok
+  in
 
   let goal_selector : Goal_select_view.t = Goal_select_view.SelectAll in
 

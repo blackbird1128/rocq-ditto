@@ -37,7 +37,9 @@ val goals :
   ((string Coq.Goals.Reified_goal.t, string) Coq.Goals.t option, Error.t) result
 
 val reified_goals_at_state :
-  Coq.Limits.Token.t -> Coq.State.t -> string Coq.Goals.Reified_goal.t list
+  Coq.Limits.Token.t ->
+  Coq.State.t ->
+  (string Coq.Goals.Reified_goal.t list, Error.t) result
 
 val count_goals : Coq.State.t -> int
 
@@ -48,7 +50,9 @@ val proof_steps_with_goalcount :
   ((int * Syntax_node.t * int) list, Error.t) result
 
 val get_hypothesis_names : string Coq.Goals.Reified_goal.t -> string list
-val goal_hyps_at_state : Coq.State.t -> Coq.Limits.Token.t -> string list list
+
+val goal_hyps_at_state :
+  Coq.State.t -> Coq.Limits.Token.t -> (string list list, Error.t) result
 
 val get_new_vars :
   ?keep:string list ->
