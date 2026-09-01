@@ -370,10 +370,8 @@ let get_tactic_raw_generic_arguments (x : t) :
 
 open Raw_gen_args_converter
 
-let get_ltac_elements (x : t) : ltac_elements option =
-  Option.bind
-    (get_tactic_raw_generic_arguments x)
-    raw_arguments_to_ltac_elements
+let get_ltac_command (x : t) : ltac_command option =
+  Option.bind (get_tactic_raw_generic_arguments x) raw_arguments_to_ltac_command
 
 let get_goal_selector_opt (x : t) : Goal_select_view.t option =
   Option.bind
@@ -475,12 +473,20 @@ let tacdef_body_list_to_syntax_node
 
 let raw_tactic_expr_to_syntax_node
     (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
-    ?(selector : Goal_select_view.t option) ?(use_default = false)
-    (starting_point : Code_point.t) : (t, Error.t) result =
+    ?(selector : Goal_select_view.t option) ?(info_level : int option = None)
+    ?(use_default = false) (starting_point : Code_point.t) : (t, Error.t) result
+    =
+  let info_arg =
+    match info_level with
+    | None -> Raw_gen_args_converter.raw_generic_argument_of_empty_ltac_info ()
+    | Some info_level ->
+        Raw_gen_args_converter.raw_generic_argument_of_ltac_info info_level
+  in
+
   let args =
     [
       Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector;
-      Raw_gen_args_converter.raw_generic_argument_of_empty_ltac_info ();
+      info_arg;
       Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr raw_expr;
       Raw_gen_args_converter.raw_generic_argument_of_ltac_use_default
         use_default;
@@ -505,12 +511,20 @@ let raw_tactic_expr_to_syntax_node
 
 let raw_tactic_expr_to_syntax_node_in_state ~(token : Coq.Limits.Token.t)
     ~(st : Coq.State.t) (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
-    ?(selector : Goal_select_view.t option) ?(use_default = false)
-    (starting_point : Code_point.t) : (t, Error.t) result =
+    ?(selector : Goal_select_view.t option) ?(info_level = None)
+    ?(use_default = false) (starting_point : Code_point.t) : (t, Error.t) result
+    =
+  let info_arg =
+    match info_level with
+    | None -> Raw_gen_args_converter.raw_generic_argument_of_empty_ltac_info ()
+    | Some info_level ->
+        Raw_gen_args_converter.raw_generic_argument_of_ltac_info info_level
+  in
+
   let args =
     [
       Raw_gen_args_converter.raw_generic_argument_of_ltac_selector selector;
-      Raw_gen_args_converter.raw_generic_argument_of_empty_ltac_info ();
+      info_arg;
       Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr raw_expr;
       Raw_gen_args_converter.raw_generic_argument_of_ltac_use_default
         use_default;

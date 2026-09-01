@@ -117,12 +117,12 @@ let tactic_count ~io:_ ~token:_ ~(doc : Doc.t) =
             let raw_args =
               Syntax_node.get_tactic_raw_generic_arguments node |> Option.get
             in
-            let ltac_elements =
-              Raw_gen_args_converter.raw_arguments_to_ltac_elements raw_args
+            let ltac_command =
+              Raw_gen_args_converter.raw_arguments_to_ltac_command raw_args
               |> Option.get
             in
 
-            get_basic_tactic_names ltac_elements.raw_tactic_expr)
+            get_basic_tactic_names ltac_command.raw_tactic_expr)
           proof_tactics
       in
       let first_word_tactics =

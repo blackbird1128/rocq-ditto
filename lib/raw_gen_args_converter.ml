@@ -506,11 +506,23 @@ let raw_generic_argument_of_ltac_selector (sel : Goal_select_view.t option) :
   in
   Serlib.Ser_genarg.raw_generic_argument_of_sexp sexp
 
-type ltac_elements = {
+type ltac_command = {
   selector : Goal_select_view.t option;
+  info_level : int option;
   raw_tactic_expr : Ltac_plugin.Tacexpr.raw_tactic_expr;
-  use_default : bool; (* TODO parse last args *)
+  use_default : bool;
 }
+
+let raw_generic_argument_of_ltac_info (info : int) : Genarg.raw_generic_argument
+    =
+  let witness = Genarg.Rawwit G_ltac.wit_ltac_info in
+  Genarg.in_gen witness info
+
+let raw_generic_argument_to_ltac_info (arg : Genarg.raw_generic_argument) :
+    int option =
+  let witness = Genarg.Rawwit G_ltac.wit_ltac_info in
+  if Genarg.has_type arg witness then Some (Genarg.out_gen witness arg)
+  else None
 
 let raw_arguments_to_goal_selector (args : Genarg.raw_generic_argument list) :
     Goal_select_view.t option =
@@ -519,22 +531,23 @@ let raw_arguments_to_goal_selector (args : Genarg.raw_generic_argument list) :
       Option.flatten (ltac_selector_of_raw_generic_argument arg0)
   | _ -> None
 
-let raw_arguments_to_ltac_elements (args : Genarg.raw_generic_argument list) :
-    ltac_elements option =
+let raw_arguments_to_ltac_command (args : Genarg.raw_generic_argument list) :
+    ltac_command option =
   match args with
-  | [ selector_arg; _; raw_tactic_arg; use_default_arg ] ->
-      (* Ltac info *)
+  | [ selector_arg; info_level_arg; raw_tactic_arg; use_default_arg ] ->
       let selector =
         Option.get (ltac_selector_of_raw_generic_argument selector_arg)
       in
-      (* TODO parse second arg *)
+
+      let info_level = raw_generic_argument_to_ltac_info info_level_arg in
+
       let raw_tactic_expr =
         Option.get (raw_tactic_expr_of_raw_generic_argument raw_tactic_arg)
       in
       let use_default =
         Option.get (ltac_use_default_of_raw_generic_argument use_default_arg)
       in
-      Some { selector; raw_tactic_expr; use_default }
+      Some { selector; info_level; raw_tactic_expr; use_default }
   | _ -> None
 
 let raw_arguments_to_raw_tactic_expr (args : Genarg.raw_generic_argument list) :
