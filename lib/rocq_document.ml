@@ -254,14 +254,14 @@ let dump_to_string (doc : t) : (string, Error.t) result =
 
 let element_with_id_opt (element_id : Uuidm.t) (doc : t) : Syntax_node.t option
     =
-  List.find_opt (fun elem -> elem.id = element_id) doc.elements
+  List.find_opt (fun elem -> Uuidm.equal elem.id element_id) doc.elements
 
 let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) :
     (Proof.t option, Error.t) result =
   let* proofs = get_proofs doc in
   Ok
     (List.find_opt
-       (fun (elem : Proof.t) -> elem.proposition.id = proof_id)
+       (fun (elem : Proof.t) -> Uuidm.equal elem.proposition.id proof_id)
        proofs)
 
 let proof_with_name_opt (proof_name : string) (doc : t) :
