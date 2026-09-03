@@ -106,6 +106,15 @@ let fold_left_result (f : 'acc -> 'a -> ('acc, 'e) result) (init : 'acc)
   in
   aux init l
 
+let map_result (f : 'a -> ('b, 'e) result) (l : 'a list) : ('b list, 'e) result
+    =
+  let rec aux acc = function
+    | [] -> Ok (List.rev acc)
+    | x :: tail -> (
+        match f x with Ok y -> aux (y :: acc) tail | Error err -> Error err)
+  in
+  aux [] l
+
 let result_all (l : ('a, 'e) result list) : ('a list, 'e) result =
   let rec aux acc l =
     match l with
