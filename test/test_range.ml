@@ -1,5 +1,6 @@
 open Alcotest
 open Ditto.Code_range
+open Ditto_test_support.Test_support
 open Ditto
 
 let test_simple_overlapping () =
@@ -38,8 +39,8 @@ let test_range_collide_with_itself_prop =
       quad (int_range 0 100) (int_range 0 50) (int_range 101 200)
         (int_range 0 50))
     (fun (a_line, a_char, b_line, b_char) ->
-      let a_point : Code_point.t = { line = a_line; character = a_char } in
-      let b_point : Code_point.t = { line = b_line; character = b_char } in
+      let a_point = point ~line:a_line ~char:a_char in
+      let b_point = point ~line:b_line ~char:b_char in
       let range = { start = a_point; end_ = b_point } in
 
       are_colliding range range)
@@ -50,8 +51,8 @@ let test_range_contains_itself_prop =
       quad (int_range 0 100) (int_range 0 50) (int_range 101 200)
         (int_range 0 50))
     (fun (a_line, a_char, b_line, b_char) ->
-      let a_point : Code_point.t = { line = a_line; character = a_char } in
-      let b_point : Code_point.t = { line = b_line; character = b_char } in
+      let a_point = point ~line:a_line ~char:a_char in
+      let b_point = point ~line:b_line ~char:b_char in
       let range = { start = a_point; end_ = b_point } in
 
       range_contains_other ~container:range range)
@@ -63,14 +64,11 @@ let test_empty_range_contains_no_other_range_prop =
         (int_range 0 50))
     (fun (a_line, a_char, b_line, b_char) ->
       let empty_range =
-        {
-          start = { line = 0; character = 0 };
-          end_ = { line = 0; character = 0 };
-        }
+        { start = Code_point.origin; end_ = Code_point.origin }
       in
 
-      let a_point : Code_point.t = { line = a_line; character = a_char } in
-      let b_point : Code_point.t = { line = b_line; character = b_char } in
+      let a_point = point ~line:a_line ~char:a_char in
+      let b_point = point ~line:b_line ~char:b_char in
       let other_range = { start = a_point; end_ = b_point } in
 
       not (range_contains_other ~container:empty_range other_range))
@@ -83,14 +81,11 @@ let test_empty_range_collides_with_no_other_range_prop =
         (int_range 0 50))
     (fun (a_line, a_char, b_line, b_char) ->
       let empty_range =
-        {
-          start = { line = 0; character = 0 };
-          end_ = { line = 0; character = 0 };
-        }
+        { start = Code_point.origin; end_ = Code_point.origin }
       in
 
-      let a_point : Code_point.t = { line = a_line; character = a_char } in
-      let b_point : Code_point.t = { line = b_line; character = b_char } in
+      let a_point = point ~line:a_line ~char:a_char in
+      let b_point = point ~line:b_line ~char:b_char in
       let other_range = { start = a_point; end_ = b_point } in
 
       not (are_colliding other_range empty_range))
@@ -105,19 +100,16 @@ let test_single_line_ranges_on_different_line_dont_intersect_prop =
     (fun ( (a_line, a_char_start, a_char_offset),
            (b_line, b_char_start, b_char_offset) )
        ->
-      let a_start : Code_point.t =
-        { line = a_line; character = a_char_start }
-      in
+      let a_start : Code_point.t = point ~line:a_line ~char:a_char_start in
       let a_end : Code_point.t =
-        { line = a_line; character = a_char_start + a_char_offset }
+        point ~line:a_line ~char:(a_char_start + a_char_offset)
       in
+
       let a : Code_range.t = { start = a_start; end_ = a_end } in
 
-      let b_start : Code_point.t =
-        { line = b_line; character = b_char_start }
-      in
+      let b_start : Code_point.t = point ~line:b_line ~char:b_char_start in
       let b_end : Code_point.t =
-        { line = b_line; character = b_char_start + b_char_offset }
+        point ~line:b_line ~char:(b_char_start + b_char_offset)
       in
       let b : Code_range.t = { start = b_start; end_ = b_end } in
 
@@ -134,15 +126,17 @@ let test_collision_symmetric_prop =
     (fun ( (a_line, a_char, a_l_offset, a_c_offset),
            (b_line, b_char, b_l_offset, b_c_offset) )
        ->
-      let a_start : Code_point.t = { line = a_line; character = a_char } in
+      let a_start : Code_point.t = point ~line:a_line ~char:a_char in
       let a_end : Code_point.t =
-        { line = a_line + a_l_offset; character = a_char + a_c_offset }
+        point ~line:(a_line + a_l_offset) ~char:(a_char + a_c_offset)
       in
+
       let a : Code_range.t = { start = a_start; end_ = a_end } in
 
-      let b_start : Code_point.t = { line = b_line; character = b_char } in
+      let b_start : Code_point.t = point ~line:b_line ~char:b_char in
+
       let b_end : Code_point.t =
-        { line = b_line + b_l_offset; character = b_char + b_c_offset }
+        point ~line:(b_line + b_l_offset) ~char:(b_char + b_c_offset)
       in
       let b = { start = b_start; end_ = b_end } in
 
@@ -159,15 +153,17 @@ let test_containement_implies_collision_prop =
     (fun ( (a_line, a_char, a_l_offset, a_c_offset),
            (b_line, b_char, b_l_offset, b_c_offset) )
        ->
-      let a_start : Code_point.t = { line = a_line; character = a_char } in
-      let a_end : Code_point.t =
-        { line = a_line + a_l_offset; character = a_char + a_c_offset }
+      let a_start = point ~line:a_line ~char:a_char in
+      let a_end =
+        point ~line:(a_line + a_l_offset) ~char:(a_char + a_c_offset)
       in
+
       let a : Code_range.t = { start = a_start; end_ = a_end } in
 
-      let b_start : Code_point.t = { line = b_line; character = b_char } in
-      let b_end : Code_point.t =
-        { line = b_line + b_l_offset; character = b_char + b_c_offset }
+      let b_start = point ~line:b_line ~char:b_char in
+
+      let b_end =
+        point ~line:(b_line + b_l_offset) ~char:(b_char + b_c_offset)
       in
       let b = { start = b_start; end_ = b_end } in
 
@@ -181,13 +177,12 @@ let test_no_collision_glued_prop =
            (int_range 0 50))
         (pair (int_range 0 50) (int_range 0 50)))
     (fun ((a_line, a_char, a_l_offset, a_c_offset), (c_l_offset, c_c_offset)) ->
-      let a : Code_point.t = { line = a_line; character = a_char } in
-      let b : Code_point.t =
-        { line = a_line + a_l_offset; character = a_char + a_c_offset }
+      let a = point ~line:a_line ~char:a_char in
+      let b = point ~line:(a_line + a_l_offset) ~char:(a_char + a_c_offset) in
+      let c =
+        point ~line:(b.line + c_l_offset) ~char:(b.character + c_c_offset)
       in
-      let c : Code_point.t =
-        { line = b.line + c_l_offset; character = b.character + c_c_offset }
-      in
+
       let first_range : Code_range.t = { start = a; end_ = b } in
       let second_range : Code_range.t = { start = b; end_ = c } in
 
@@ -204,15 +199,17 @@ let test_compare_zero_equivalent_to_equality =
     (fun ( (a_line, a_char, a_l_offset, a_c_offset),
            (b_line, b_char, b_l_offset, b_c_offset) )
        ->
-      let a_start : Code_point.t = { line = a_line; character = a_char } in
-      let a_end : Code_point.t =
-        { line = a_line + a_l_offset; character = a_char + a_c_offset }
+      let a_start = point ~line:a_line ~char:a_char in
+
+      let a_end =
+        point ~line:(a_line + a_l_offset) ~char:(a_char + a_c_offset)
       in
       let a : Code_range.t = { start = a_start; end_ = a_end } in
 
-      let b_start : Code_point.t = { line = b_line; character = b_char } in
-      let b_end : Code_point.t =
-        { line = b_line + b_l_offset; character = b_char + b_c_offset }
+      let b_start = point ~line:b_line ~char:b_char in
+
+      let b_end =
+        point ~line:(b_line + b_l_offset) ~char:(b_char + b_c_offset)
       in
       let b = { start = b_start; end_ = b_end } in
       if compare a b = 0 then equal a b else not (equal a b))
@@ -235,7 +232,7 @@ let () =
       ]
   in
 
-  run "Range utils"
+  run "Range module tests"
     [
       ("Properties", qcheck_tests);
       ( "Collisions",

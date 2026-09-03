@@ -181,14 +181,14 @@ let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
     match proof.proof_steps with
     | first_step :: tail ->
         let first_step_start_line = first_step.range.start.line in
-        let normalized_range_steps =
-          List.map
+        let* normalized_range_steps =
+          List_utils.map_result
             (fun (x : Syntax_node.t) ->
-              let new_start_node =
+              let* new_start_node =
                 Code_point.shift ~lines:(-first_step_start_line) ~chars:0
                   x.range.start
               in
-              move_to new_start_node x)
+              Ok (move_to new_start_node x))
             (first_step :: tail)
         in
         Rocq_document.dump_elements_to_string normalized_range_steps
@@ -203,14 +203,8 @@ let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
     Syntax_node.comment_of_string comment_content first_proof_node.range.start
   in
 
-  let admitted_start =
-    Code_point.shift ~lines:1
-      ~chars:(-comment_node.range.end_.character)
-      comment_node.range.end_
-  in
-
   let* admitted_node =
-    Syntax_node.syntax_node_of_string "Admitted." admitted_start
+    Syntax_node.syntax_node_of_string "Admitted." Code_point.dummy
   in
   Ok
     (remove_all_steps
@@ -378,7 +372,9 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
 
         let comment_start_point =
           Code_point.shift ~lines:0 ~chars:5 furthest_char_node.range.end_
+          |> Result.get_ok
         in
+        (* TODO: Maybe change when we change shifting but a fixed positive shift is alway ok anyway *)
         match
           Syntax_node.comment_of_string comment_content comment_start_point
         with
@@ -591,9 +587,12 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
             let tactic_nodes =
               List.mapi
                 (fun i repr ->
-                  Result.get_ok
-                    (Syntax_node.syntax_node_of_string repr
-                       (Code_point.shift ~lines:i ~chars:0 node.range.start)))
+                  let shifted =
+                    Code_point.shift ~lines:i ~chars:0 node.range.start
+                    |> Result.get_ok
+                  in
+                  (* i is positive here *)
+                  Result.get_ok (Syntax_node.syntax_node_of_string repr shifted))
                 filtered_tactics
             in
             let shifted_nodes =

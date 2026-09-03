@@ -1,4 +1,6 @@
-type t = { line : int; character : int } [@@deriving sexp, yojson]
+type t = private { line : int; character : int } [@@deriving sexp, to_yojson]
+
+val make : int -> int -> (t, Error.t) result
 
 val origin : t
 (** The origin point (0, 0) *)
@@ -12,6 +14,9 @@ val pp : Format.formatter -> t -> unit
 val equal : t -> t -> bool
 val compare : t -> t -> int
 val leq : t -> t -> bool
-val shift : lines:int -> chars:int -> t -> t
+val shift : lines:int -> chars:int -> t -> (t, Error.t) result
 val to_string : t -> string
 val of_lang_point : Lang.Point.t -> t
+val move_throught_text : t -> string -> t
+val of_yojson : Yojson.Safe.t -> (t, string) result
+val of_sexp : Sexplib.Sexp.t -> (t, Error.t) result

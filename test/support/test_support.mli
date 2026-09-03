@@ -35,6 +35,7 @@ val expect_nth_default : int -> 'a list -> 'a
 val expect_result_ok : ?context:string -> ('a, Error.t) result -> 'a
 val check_list_unique : eq:('a -> 'a -> bool) -> pp:'a Fmt.t -> 'a list -> unit
 val check_list_sorted : cmp:('a -> 'a -> int) -> pp:'a Fmt.t -> 'a list -> unit
+val point : line:int -> char:int -> Code_point.t
 val make_dummy_node_from_repr : int -> int -> string -> Syntax_node.t
 val sexp_of_syntax_node : Syntax_node.t -> Sexplib.Sexp.t
 val sexp_of_proof_tree : Syntax_node.t Nary_tree.t -> Sexplib.Sexp.t

@@ -19,23 +19,9 @@ let of_lang_range (x : Lang.Range.t) : t =
   { start = of_lang_point x.start; end_ = of_lang_point x.end_ }
 
 let extent_of_string (starting_point : Code_point.t) (repr : string) : t =
-  let number_line_jump =
-    String.fold_left
-      (fun count char -> if char = '\n' then count + 1 else count)
-      0 repr
-  in
-  let last_jump = String.rindex_opt repr '\n' in
-  let offset_length = String.length repr in
   {
     start = starting_point;
-    end_ =
-      {
-        line = starting_point.line + number_line_jump;
-        character =
-          (if number_line_jump > 0 then
-             String.length repr - Option.get last_jump - 1
-           else starting_point.character + offset_length);
-      };
+    end_ = Code_point.move_throught_text starting_point repr;
   }
 
 let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =

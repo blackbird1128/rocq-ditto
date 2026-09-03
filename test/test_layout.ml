@@ -1,4 +1,5 @@
 open Ditto
+open Ditto_test_support.Test_support
 
 let test_prefix_before_origin_is_empty () =
   Alcotest.(check string)
@@ -12,7 +13,10 @@ let test_prefix_before_newline_count_equal_to_prefix_line =
        line"
     QCheck.(pair int_pos_mid int_pos_mid)
     (fun (line, character) ->
-      let p : Code_point.t = { line; character } in
+      let p =
+        Code_point.make line character
+        |> expect_result_ok ~context:"created from positive integers"
+      in
       let prefix = Layout.prefix_before p in
       let newline_count =
         String.fold_left
@@ -28,7 +32,10 @@ let test_prefix_before_space_count_equal_to_prefix_char =
        char"
     QCheck.(pair int_pos_mid int_pos_mid)
     (fun (line, character) ->
-      let p : Code_point.t = { line; character } in
+      let p =
+        Code_point.make line character
+        |> expect_result_ok ~context:"created from positive integers"
+      in
       let prefix = Layout.prefix_before p in
       let space_count =
         String.fold_left
@@ -42,7 +49,10 @@ let test_only_space_and_newline_in_prefix_before =
     ~name:"The prefix before is only made of spaces and newlines"
     QCheck.(pair int_pos_mid int_pos_mid)
     (fun (line, character) ->
-      let p : Code_point.t = { line; character } in
+      let p =
+        Code_point.make line character
+        |> expect_result_ok ~context:"created from positive integers"
+      in
       let prefix = Layout.prefix_before p in
       String.for_all (fun c -> Char.equal c ' ' || Char.equal c '\n') prefix)
 

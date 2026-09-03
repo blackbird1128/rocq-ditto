@@ -446,7 +446,10 @@ let test_of_coq_ast_in_state (doc : Doc.t) () =
 
 let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
   let code_point_a = Code_point.origin in
-  let code_point_b : Code_point.t = { line = 1; character = 0 } in
+  let code_point_b =
+    Code_point.make 1 0
+    |> expect_result_ok ~context:"created from positive integers"
+  in
   let a =
     Syntax_node.syntax_node_of_string "idtac." code_point_a |> expect_result_ok
   in
@@ -464,7 +467,10 @@ let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
 
 let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
   let code_point_a = Code_point.origin in
-  let code_point_b : Code_point.t = { line = 1; character = 0 } in
+  let code_point_b =
+    Code_point.make 1 0
+    |> expect_result_ok ~context:"created from positive integers"
+  in
   let a =
     Syntax_node.syntax_node_of_string
       "assert (forall A : Prop, (A -> A) /\\ (A -> A)) by (split;auto)."
@@ -490,7 +496,10 @@ let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
 
 let test_creating_simple_a_thens_b (_ : Doc.t) () : unit =
   let code_point_a = Code_point.origin in
-  let code_point_b : Code_point.t = { line = 1; character = 0 } in
+  let code_point_b =
+    Code_point.make 1 0
+    |> expect_result_ok ~context:"created from positive integers"
+  in
   let a =
     Syntax_node.syntax_node_of_string "reflexivity." code_point_a
     |> expect_result_ok
@@ -864,7 +873,10 @@ let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 1; character = 0 } in
+  let start_point =
+    Code_point.make 1 0
+    |> expect_result_ok ~context:"created from positive integers"
+  in
 
   let node =
     expect_result_ok
@@ -881,7 +893,10 @@ let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 1; character = 0 } in
+  let start_point =
+    Code_point.make 1 0
+    |> expect_result_ok ~context:"created from positive integers"
+  in
 
   let node =
     expect_result_ok
@@ -899,7 +914,10 @@ let test_adding_multiple_line_node (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 2; character = 0 } in
+  let start_point =
+    Code_point.make 2 0
+    |> expect_result_ok ~context:"created from positive integers"
+  in
 
   let node =
     expect_result_ok
@@ -918,7 +936,10 @@ let test_adding_node_between (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 1; character = 11 } in
+  let start_point =
+    Code_point.make 1 11
+    |> expect_result_ok ~context:"created from positive integers"
+  in
 
   let node =
     expect_result_ok
@@ -938,7 +959,10 @@ let test_adding_collision_next_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 2; character = 0 } in
+  let start_point =
+    Code_point.make 2 0
+    |> expect_result_ok ~context:"created from positive integers"
+  in
 
   let node =
     expect_result_ok
@@ -956,7 +980,10 @@ let test_adding_node_colliding_many (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 6; character = 2 } in
+  let start_point =
+    Code_point.make 6 2
+    |> expect_result_ok ~context:"created from positive integers"
+  in
 
   let node =
     expect_result_ok
@@ -975,7 +1002,10 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 2; character = 0 } in
+  let start_point =
+    Code_point.make 2 0
+    |> expect_result_ok ~context:"created from positive integers"
+  in
 
   let node =
     expect_result_ok
@@ -995,7 +1025,7 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 2; character = 0 } in
+  let start_point = point ~line:2 ~char:0 in
 
   let node =
     expect_result_ok
@@ -1015,7 +1045,7 @@ let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 2; character = 11 } in
+  let start_point = point ~line:2 ~char:11 in
 
   let node =
     expect_result_ok
@@ -1035,7 +1065,7 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 2; character = 22 } in
+  let start_point = point ~line:2 ~char:22 in
 
   let node =
     expect_result_ok
@@ -1055,7 +1085,7 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 1; character = 0 } in
+  let start_point = point ~line:1 ~char:0 in
 
   let node =
     expect_result_ok
@@ -1078,7 +1108,7 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 1; character = 0 } in
+  let start_point = point ~line:1 ~char:0 in
 
   let node =
     expect_result_ok
@@ -1100,7 +1130,7 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point : Code_point.t = { line = 16; character = 0 } in
+  let start_point = point ~line:16 ~char:0 in
 
   let node =
     expect_result_ok

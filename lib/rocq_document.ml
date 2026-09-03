@@ -54,7 +54,8 @@ let get_proofs (doc : t) : (Proof.t list, Error.t) result =
   let res = aux doc.elements [] OutsideProof in
   List.rev res |> List_utils.result_all
 
-let get_line_col_positions (text : string) (pos : int) : Code_point.t =
+let get_line_col_positions (text : string) (pos : int) :
+    (Code_point.t, Error.t) result =
   let rec aux line col index =
     if index = pos then (line, col)
     else if index >= String.length text then (line, col)
@@ -64,7 +65,7 @@ let get_line_col_positions (text : string) (pos : int) : Code_point.t =
 
   let line, character = aux 0 0 0 in
   (* Start from line 0, column 0, character 0 *)
-  { line; character }
+  Code_point.make line character
 
 let mark_string_regions (s : string) : bool array =
   let n = String.length s in
@@ -133,15 +134,15 @@ let get_comments (content : string) :
       pairs
   in
 
-  Ok
-    (List.map
-       (fun ((a, _), (_, d)) ->
-         let len = d - a + 1 in
-         let str = String.sub content a len in
-         let start = get_line_col_positions content a in
-
-         (str, start))
-       res)
+  List_utils.map_result
+    (fun ((a, _), (_, d)) ->
+      let len = d - a + 1 in
+      let str = String.sub content a len in
+      let start_res = get_line_col_positions content a in
+      match start_res with
+      | Ok start -> Ok (str, start)
+      | Error err -> Error err)
+    res
 
 let range_contains_node (container : Syntax_node.t) (candidate : Syntax_node.t)
     : bool =
@@ -302,8 +303,10 @@ let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
     (Syntax_node.t list * Syntax_node.t * Syntax_node.t list) option =
   List_utils.split_around (fun x -> Uuidm.equal x.id target_id) node_list
 
-let move_node_by ~(lines : int) ~(chars : int) (node : Syntax_node.t) =
-  Syntax_node.move_to (Code_point.shift ~lines ~chars node.range.start) node
+let move_node_by ~(lines : int) ~(chars : int) (node : Syntax_node.t) :
+    (Syntax_node.t, Error.t) result =
+  let* shifted = Code_point.shift ~lines ~chars node.range.start in
+  Ok (Syntax_node.move_to shifted node)
 
 let shift_block_checked (n_line : int) (n_char : int)
     ?(pred : Syntax_node.t -> bool = fun _ -> true) (nodes : Syntax_node.t list)
@@ -324,12 +327,11 @@ let shift_block_checked (n_line : int) (n_char : int)
            shift=%d)"
           min_char n_char
       else
-        Ok
-          (List.map
-             (fun node ->
-               if pred node then move_node_by ~lines:n_line ~chars:n_char node
-               else node)
-             nodes)
+        List_utils.map_result
+          (fun node ->
+            if pred node then move_node_by ~lines:n_line ~chars:n_char node
+            else Ok node)
+          nodes
 
 let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
     (doc : t) : (t, Error.t) result =
@@ -371,16 +373,15 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
                     in
                     if dc = 0 then Ok after
                     else
-                      Ok
-                        (List.map
-                           (fun x ->
-                             if x.range.start.line = removed_start.line then
-                               move_node_by ~lines:0 ~chars:dc x
-                             else x)
-                           after)
+                      List_utils.map_result
+                        (fun x ->
+                          if x.range.start.line = removed_start.line then
+                            move_node_by ~lines:0 ~chars:dc x
+                          else Ok x)
+                        after
                 else
                   let dl = removed_start.line - first_after.range.start.line in
-                  Ok (List.map (move_node_by ~lines:dl ~chars:0) after))
+                  List_utils.map_result (move_node_by ~lines:dl ~chars:0) after)
       in
       let elements = before @ shifted_after in
       let* document_repr = dump_sorted_elements_to_string elements in
@@ -440,16 +441,16 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
               | [] -> 0
             in
             let total_shift = inserted_width + extra_sep in
-            let new_after =
-              if total_shift = 0 then after
+            let* new_after =
+              if total_shift = 0 then Ok after
               else
-                List.map
+                List_utils.map_result
                   (fun x ->
                     if
                       x.range.start.line = line
                       && x.range.start.character >= insert_at
                     then move_node_by ~lines:0 ~chars:total_shift x
-                    else x)
+                    else Ok x)
                   after
             in
             let elements = before @ (new_node :: new_after) in
@@ -513,14 +514,14 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
               Code_point.compare node.range.start replacement.range.start < 0)
             sorted
         in
-        let shifted_after =
-          List.map
+        let* shifted_after =
+          List_utils.map_result
             (fun node ->
               if node.range.start.line = target.range.end_.line then
                 move_node_by ~lines:delta_lines ~chars:end_char_delta node
               else if node.range.start.line > target.range.end_.line then
                 move_node_by ~lines:delta_lines ~chars:0 node
-              else node)
+              else Ok node)
             after
         in
         let elements = before @ (replacement :: shifted_after) in
@@ -570,15 +571,14 @@ let apply_transformation_step (step : Transforming_step.t) (doc : t) :
             (Uuidm.to_string anchor_id)
             (repr attached_node)
       | Some target -> (
-          let attached_node_start_point =
+          let* attached_node_start_point =
             match attach_position with
-            | LineBefore -> target.range.start
+            | LineBefore -> Ok target.range.start
             (* we don't shift back as by default, equal elements are pushed after *)
             | LineAfter ->
-                {
-                  line = target.range.end_.line + 1;
-                  character = target.range.start.character;
-                }
+                Code_point.make
+                  (target.range.end_.line + 1)
+                  target.range.start.character
             | SameLine -> Code_point.shift ~lines:0 ~chars:1 target.range.end_
           in
 

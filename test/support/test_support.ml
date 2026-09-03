@@ -139,11 +139,14 @@ let check_list_sorted ~(cmp : 'a -> 'a -> int) ~(pp : 'a Fmt.t) (lst : 'a list)
       Alcotest.failf "List is not sorted at index %d: %a > %a\n%s" idx pp x pp y
         list_str
 
+let point ~(line : int) ~(char : int) : Code_point.t =
+  Code_point.make line char
+  |> expect_result_ok ~context:"creating a point for testing"
+
 let make_dummy_node_from_repr (start_line : int) (start_char : int)
     (repr : string) : Syntax_node.t =
-  let start_point : Code_point.t =
-    { line = start_line; character = start_char }
-  in
+  let start_point : Code_point.t = point ~line:start_line ~char:start_char in
+
   Syntax_node.comment_of_string repr start_point
   |> expect_result_ok ~context:"Error creating a dummy node from representation"
 
