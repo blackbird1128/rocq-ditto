@@ -11,6 +11,12 @@
  (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
 
 (test
+ (name test_point)
+ (package coq-ditto)
+ (modules test_point)
+ (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
+
+(test
  (name test_list_utils)
  (package coq-ditto)
  (modules test_list_utils)
