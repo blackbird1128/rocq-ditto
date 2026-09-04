@@ -215,7 +215,143 @@ let test_compare_zero_equivalent_to_equality =
 
       if compare a b = 0 then equal a b else not (equal a b))
 
+let test_to_yojson_simple () =
+  let start = point ~line:0 ~char:10 in
+  let end_ = point ~line:5 ~char:12 in
+  let range = range ~start ~end_ in
+  let json_repr = to_yojson range in
+  let expected : Yojson.Safe.t =
+    `Assoc
+      [
+        ("start", `Assoc [ ("line", `Int 0); ("character", `Int 10) ]);
+        ("end_", `Assoc [ ("line", `Int 5); ("character", `Int 12) ]);
+      ]
+  in
+
+  Alcotest.check yojson_testable
+    "the Json representation should be fixed to this representation" expected
+    json_repr
+
+let test_of_yojson_simple () =
+  let json_repr =
+    `Assoc
+      [
+        ("start", `Assoc [ ("line", `Int 0); ("character", `Int 10) ]);
+        ("end_", `Assoc [ ("line", `Int 5); ("character", `Int 12) ]);
+      ]
+  in
+
+  let parsed =
+    of_yojson json_repr
+    |> expect_ok ~context:"expecting parsing to succeed"
+         ~pp_error:Format.pp_print_string
+  in
+
+  let start = point ~line:0 ~char:10 in
+  let end_ = point ~line:5 ~char:12 in
+
+  let expected = range ~start ~end_ in
+
+  Alcotest.check range_testable "a range should be parsed from this Json shape"
+    expected parsed
+
+let test_roundtrip_parsing_json_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"Json parsing and serialization is round trip"
+    QCheck.(pair (pair int_pos_mid int_pos_mid) (pair int_pos_mid int_pos_mid))
+    (fun ((start_line, start_char), (end_line_offset, end_char_offset)) ->
+      let start = point ~line:start_line ~char:start_char in
+      let end_ =
+        point
+          ~line:(start_line + end_line_offset)
+          ~char:(start_char + end_char_offset)
+      in
+      let range = range ~start ~end_ in
+
+      let json_repr = to_yojson range in
+      let of_json_repr_res = of_yojson json_repr in
+      match of_json_repr_res with
+      | Ok parsed_range -> equal parsed_range range
+      | Error _ -> false)
+
+let test_to_sexp_simple () =
+  let start = point ~line:0 ~char:10 in
+  let end_ = point ~line:5 ~char:12 in
+  let range = range ~start ~end_ in
+  let sexp_repr = sexp_of_t range in
+
+  let expected : Sexplib.Sexp.t =
+    List
+      [
+        List [ Atom "start"; Code_point.sexp_of_t start ];
+        List [ Atom "end_"; Code_point.sexp_of_t end_ ];
+      ]
+  in
+
+  Alcotest.check sexp_testable
+    "the Sexp representation should be fixed to this representation" expected
+    sexp_repr
+
+let test_of_sexp_simple () =
+  let sexp_repr : Sexplib.Sexp.t =
+    List
+      [
+        List
+          [
+            Atom "start";
+            List
+              [
+                List [ Atom "line"; Atom "0" ];
+                List [ Atom "character"; Atom "10" ];
+              ];
+          ];
+        List
+          [
+            Atom "end_";
+            List
+              [
+                List [ Atom "line"; Atom "5" ];
+                List [ Atom "character"; Atom "12" ];
+              ];
+          ];
+      ]
+  in
+
+  let parsed = t_of_sexp sexp_repr in
+  let start = point ~line:0 ~char:10 in
+  let end_ = point ~line:5 ~char:12 in
+  let expected = range ~start ~end_ in
+
+  Alcotest.check range_testable "a range should be parsed from this S-exp shape"
+    expected parsed
+
+let test_roundtrip_parsing_sexp_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"S-exp parsing and serialization is round tripping"
+    QCheck.(pair (pair int_pos_mid int_pos_mid) (pair int_pos_mid int_pos_mid))
+    (fun ((start_line, start_char), (end_line_offset, end_char_offset)) ->
+      let start = point ~line:start_line ~char:start_char in
+      let end_ =
+        point
+          ~line:(start_line + end_line_offset)
+          ~char:(start_char + end_char_offset)
+      in
+      let range = range ~start ~end_ in
+
+      let sexp_repr = sexp_of_t range in
+      let of_sexp_repr = t_of_sexp sexp_repr in
+
+      equal range of_sexp_repr)
+
 let () =
+  let qcheck_tests_parsing_json =
+    List.map QCheck_alcotest.to_alcotest [ test_roundtrip_parsing_json_prop ]
+  in
+
+  let qcheck_tests_parsing_sexp =
+    List.map QCheck_alcotest.to_alcotest [ test_roundtrip_parsing_sexp_prop ]
+  in
+
   let qcheck_tests =
     List.map QCheck_alcotest.to_alcotest
       [
@@ -236,6 +372,30 @@ let () =
   run "Range module tests"
     [
       ("Properties", qcheck_tests);
+      ( "Json representation",
+        [
+          test_case
+            "test that a range is serialized to the expected Json \
+             representation"
+            `Quick test_to_yojson_simple;
+          test_case
+            "test that a range can be parsed from the expected Json \
+             representation"
+            `Quick test_of_yojson_simple;
+        ]
+        @ qcheck_tests_parsing_json );
+      ( "S-exp representation",
+        [
+          test_case
+            "test that a range is serialized to the expected S-exp \
+             representation"
+            `Quick test_to_sexp_simple;
+          test_case
+            "test that a range can be parsed from the expected S-exp \
+             representation"
+            `Quick test_of_sexp_simple;
+        ]
+        @ qcheck_tests_parsing_sexp );
       ( "Collisions",
         [
           test_case "test two ranges overlapping" `Quick test_simple_overlapping;
