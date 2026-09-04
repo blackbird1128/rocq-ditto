@@ -2,6 +2,12 @@ open Code_point
 
 type t = { start : Code_point.t; end_ : Code_point.t } [@@deriving sexp, yojson]
 
+let make (start : Code_point.t) (end_ : Code_point.t) : (t, Error.t) result =
+  if compare start end_ > 0 then
+    Error.format_to_or_error "start: %s is bigger than end_: %s"
+      (to_string start) (to_string end_)
+  else Ok { start; end_ }
+
 let pp (fmt : Format.formatter) (x : t) : unit =
   Format.fprintf fmt "{start_pos = %a; end_pos = %a}" Code_point.pp x.start
     Code_point.pp x.end_

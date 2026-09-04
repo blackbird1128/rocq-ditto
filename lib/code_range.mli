@@ -1,5 +1,7 @@
-type t = { start : Code_point.t; end_ : Code_point.t } [@@deriving sexp, yojson]
+type t = private { start : Code_point.t; end_ : Code_point.t }
+[@@deriving sexp, yojson]
 
+val make : Code_point.t -> Code_point.t -> (t, Error.t) result
 val pp : Format.formatter -> t -> unit
 val to_string : t -> string
 val equal : t -> t -> bool

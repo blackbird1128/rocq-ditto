@@ -10,12 +10,14 @@ let testable_nary_tree (pp_a : Format.formatter -> 'a -> unit)
   Alcotest.testable (Nary_tree.pp pp_a) (Nary_tree.equal equal_a)
 
 let proof_status_testable = Alcotest.testable Proof.pp_proof_status ( = )
+let point_testable = Alcotest.testable Code_point.pp Code_point.equal
 let range_testable = Alcotest.testable Code_range.pp ( = )
 let uuidm_testable = Alcotest.testable Uuidm.pp ( = )
 let error_testable = Alcotest.testable Error.pp ( = )
 let goal_select_view_testable = Alcotest.testable Goal_select_view.pp ( = )
-let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
 let reified_goal_testable = Alcotest.testable Reified_goal.pp ( = )
+let sexp_testable = Alcotest.testable Sexplib.Sexp.pp_hum Sexplib.Sexp.equal
+let yojson_testable = Alcotest.testable Yojson.Safe.pp Yojson.Safe.equal
 
 let dependency_graph_testable =
   Alcotest.slist
@@ -142,6 +144,10 @@ let check_list_sorted ~(cmp : 'a -> 'a -> int) ~(pp : 'a Fmt.t) (lst : 'a list)
 let point ~(line : int) ~(char : int) : Code_point.t =
   Code_point.make line char
   |> expect_result_ok ~context:"creating a point for testing"
+
+let range ~(start : Code_point.t) ~(end_ : Code_point.t) : Code_range.t =
+  Code_range.make start end_
+  |> expect_result_ok ~context:"creating a range for testing"
 
 let make_dummy_node_from_repr (start_line : int) (start_char : int)
     (repr : string) : Syntax_node.t =

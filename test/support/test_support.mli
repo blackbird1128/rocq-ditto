@@ -2,14 +2,16 @@ open Ditto
 
 val sorted_string_testable : string list Alcotest.testable
 val proof_status_testable : Proof.proof_status Alcotest.testable
+val point_testable : Code_point.t Alcotest.testable
 val range_testable : Code_range.t Alcotest.testable
 val uuidm_testable : Uuidm.t Alcotest.testable
 val error_testable : Error.t Alcotest.testable
 val goal_select_view_testable : Goal_select_view.t Alcotest.testable
-val sexp_testable : Sexplib.Sexp.t Alcotest.testable
 val reified_goal_testable : string Coq.Goals.Reified_goal.t Alcotest.testable
 val dependency_graph_testable : (string * string list) list Alcotest.testable
 val vernacexpr_testable : Vernacexpr.vernac_expr Alcotest.testable
+val sexp_testable : Sexplib.Sexp.t Alcotest.testable
+val yojson_testable : Yojson.Safe.t Alcotest.testable
 
 val vernac_control_gen_r_testable :
   ( Vernacexpr.control_flag,
@@ -36,6 +38,7 @@ val expect_result_ok : ?context:string -> ('a, Error.t) result -> 'a
 val check_list_unique : eq:('a -> 'a -> bool) -> pp:'a Fmt.t -> 'a list -> unit
 val check_list_sorted : cmp:('a -> 'a -> int) -> pp:'a Fmt.t -> 'a list -> unit
 val point : line:int -> char:int -> Code_point.t
+val range : start:Code_point.t -> end_:Code_point.t -> Code_range.t
 val make_dummy_node_from_repr : int -> int -> string -> Syntax_node.t
 val sexp_of_syntax_node : Syntax_node.t -> Sexplib.Sexp.t
 val sexp_of_proof_tree : Syntax_node.t Nary_tree.t -> Sexplib.Sexp.t
