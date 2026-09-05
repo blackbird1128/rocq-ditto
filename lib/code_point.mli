@@ -1,4 +1,4 @@
-type t = private { line : int; character : int } [@@deriving sexp, to_yojson]
+type t = private { line : int; character : int } [@@deriving sexp_of, to_yojson]
 
 val make : int -> int -> (t, Error.t) result
 

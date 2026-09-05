@@ -1,6 +1,7 @@
 open Code_point
 
-type t = { start : Code_point.t; end_ : Code_point.t } [@@deriving sexp, yojson]
+type t = { start : Code_point.t; end_ : Code_point.t }
+[@@deriving sexp_of, to_yojson]
 
 let make (start : Code_point.t) (end_ : Code_point.t) : (t, Error.t) result =
   if compare start end_ > 0 then
@@ -69,3 +70,28 @@ let are_colliding (a : t) (b : t) : bool =
 let range_contains_other ~(container : t) (candidate : t) : bool =
   Code_point.compare container.start candidate.start <= 0
   && Code_point.compare candidate.end_ container.end_ <= 0
+
+let of_yojson (json : Yojson.Safe.t) : (t, string) result =
+  let ( let* ) = Result.bind in
+  let* assoc =
+    try Ok (Yojson.Safe.Util.to_assoc json)
+    with Yojson.Safe.Util.Type_error _ ->
+      Error "Invalid Json received in Code_range.of_yojson"
+  in
+  match assoc with
+  | [ ("start", start_json); ("end_", end_json) ] ->
+      let* start_point = Code_point.of_yojson start_json in
+      let* end_point = Code_point.of_yojson end_json in
+      make start_point end_point |> Result.map_error Error.to_string_hum
+  | _ -> Error "Invalid Json received in Code_range.of_yojson"
+
+let of_sexp (sexp : Sexplib.Sexp.t) : (t, Error.t) result =
+  let ( let* ) = Result.bind in
+
+  match sexp with
+  | List [ List [ Atom "start"; start_sexp ]; List [ Atom "end_"; end_sexp ] ]
+    ->
+      let* start = Code_point.of_sexp start_sexp in
+      let* end_ = Code_point.of_sexp end_sexp in
+      make start end_
+  | _ -> Error.string_to_or_error "Invalid S-exp received in Code_range.of_sexp"

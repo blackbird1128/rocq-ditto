@@ -4,7 +4,7 @@ open Ditto_test_support.Test_support
 
 (* ok, this is silly, but at least we can in the future define our own function without breaking something unrelated *)
 let test_to_yojson_simple () =
-  let x = make 0 10 |> expect_result_ok ~context:"creating a simple point" in
+  let x = point ~line:0 ~char:10 in
   let json_repr = to_yojson x in
   let expected : Yojson.Safe.t =
     `Assoc [ ("line", `Int 0); ("character", `Int 10) ]
@@ -30,7 +30,7 @@ let test_of_yojson_simple () =
     expected parsed
 
 let test_to_sexp_simple () =
-  let x = make 0 10 |> expect_result_ok ~context:"creating a simple point" in
+  let x = point ~line:0 ~char:10 in
   let sexp_repr = sexp_of_t x in
   let expected : Sexplib.Sexp.t =
     List
@@ -47,14 +47,12 @@ let test_of_sexp_simple () =
       [ List [ Atom "line"; Atom "0" ]; List [ Atom "character"; Atom "10" ] ]
   in
 
-  let parsed = t_of_sexp sexp_repr in
+  let parsed = of_sexp sexp_repr in
+  let expected = make 0 10 in
 
-  let expected =
-    make 0 10 |> expect_result_ok ~context:"creating a simple expected point"
-  in
-
-  Alcotest.check point_testable "a point should be parsed from this S-exp shape"
-    expected parsed
+  Alcotest.check
+    (result point_testable error_testable)
+    "a point should be parsed from this S-exp shape" expected parsed
 
 let test_roundtrip_parsing_json_prop =
   QCheck.Test.make ~count:1000
@@ -84,8 +82,10 @@ let test_roundtrip_parsing_sexp_prop =
       in
 
       let sexp_repr = sexp_of_t point in
-      let of_sexp_repr = t_of_sexp sexp_repr in
-      equal point of_sexp_repr)
+      let of_sexp_repr = of_sexp sexp_repr in
+      match of_sexp_repr with
+      | Ok of_sexp -> equal of_sexp point
+      | Error _ -> false)
 
 let () =
   let qcheck_tests_parsing_json =

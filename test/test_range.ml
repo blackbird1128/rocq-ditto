@@ -317,13 +317,14 @@ let test_of_sexp_simple () =
       ]
   in
 
-  let parsed = t_of_sexp sexp_repr in
+  let parsed = of_sexp sexp_repr in
   let start = point ~line:0 ~char:10 in
   let end_ = point ~line:5 ~char:12 in
-  let expected = range ~start ~end_ in
+  let expected = make start end_ in
 
-  Alcotest.check range_testable "a range should be parsed from this S-exp shape"
-    expected parsed
+  Alcotest.check
+    (result range_testable error_testable)
+    "a range should be parsed from this S-exp shape" expected parsed
 
 let test_roundtrip_parsing_sexp_prop =
   QCheck.Test.make ~count:1000
@@ -339,9 +340,10 @@ let test_roundtrip_parsing_sexp_prop =
       let range = range ~start ~end_ in
 
       let sexp_repr = sexp_of_t range in
-      let of_sexp_repr = t_of_sexp sexp_repr in
-
-      equal range of_sexp_repr)
+      let of_sexp_repr = of_sexp sexp_repr in
+      match of_sexp_repr with
+      | Ok of_sexp -> equal of_sexp range
+      | Error _ -> false)
 
 let () =
   let qcheck_tests_parsing_json =

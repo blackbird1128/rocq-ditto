@@ -1,6 +1,6 @@
 open Sexplib.Std
 
-type t = { line : int; character : int } [@@deriving sexp, to_yojson]
+type t = { line : int; character : int } [@@deriving sexp_of, to_yojson]
 
 let make (line : int) (character : int) : (t, Error.t) result =
   if line < 0 then
@@ -56,7 +56,7 @@ let of_yojson (json : Yojson.Safe.t) : (t, string) result =
   in
   match assoc with
   | [ ("line", `Int line); ("character", `Int character) ] ->
-      Ok { line; character }
+      make line character |> Result.map_error Error.to_string_hum
   | _ -> Error "Invalid Json received in Code_point.of_yojson"
 
 let int_of_string_err (arg : string) : (int, Error.t) result =
@@ -77,5 +77,5 @@ let of_sexp (sexp : Sexplib.Sexp.t) : (t, Error.t) result =
       ] ->
       let* line = int_of_string_err line_str in
       let* character = int_of_string_err character_str in
-      Ok { line; character }
+      make line character
   | _ -> Error.string_to_or_error "Invalid S-exp received in Code_point.of_sexp"
