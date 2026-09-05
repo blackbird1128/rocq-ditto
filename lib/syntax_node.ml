@@ -193,6 +193,10 @@ let move_to (destination : Code_point.t) (x : t) : t =
   let new_range = Code_range.extent_of_string destination (repr x) in
   { x with range = new_range }
 
+let move_by ~(lines : int) ~(chars : int) (node : t) : (t, Error.t) result =
+  let* shifted = Code_point.shift ~lines ~chars node.range.start in
+  Ok (move_to shifted node)
+
 let vernac_expr (x : t) =
   match x.kind with
   | Vernac ast -> Some (Coq.Ast.to_coq ast.v).v.expr

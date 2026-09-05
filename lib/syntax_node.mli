@@ -71,6 +71,10 @@ val mk_vernac_control :
 val move_to : Code_point.t -> t -> t
 (** [move_to destination node] Shift node to [destination] point *)
 
+val move_by : lines:int -> chars:int -> t -> (t, Error.t) result
+(** [move_by lines chars node] move the selected node by n [lines] and [chars]
+    returning the result if both coordinates are positive *)
+
 val is_command_allowed_in_proof : t -> bool
 (** [is_command_allowed_in_proof x] checks if [x] is a command allowed inside a
     proof block context *)

@@ -303,11 +303,6 @@ let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
     (Syntax_node.t list * Syntax_node.t * Syntax_node.t list) option =
   List_utils.split_around (fun x -> Uuidm.equal x.id target_id) node_list
 
-let move_node_by ~(lines : int) ~(chars : int) (node : Syntax_node.t) :
-    (Syntax_node.t, Error.t) result =
-  let* shifted = Code_point.shift ~lines ~chars node.range.start in
-  Ok (Syntax_node.move_to shifted node)
-
 let shift_block_checked (n_line : int) (n_char : int)
     ?(pred : Syntax_node.t -> bool = fun _ -> true) (nodes : Syntax_node.t list)
     : (Syntax_node.t list, Error.t) result =
@@ -329,7 +324,8 @@ let shift_block_checked (n_line : int) (n_char : int)
       else
         List_utils.map_result
           (fun node ->
-            if pred node then move_node_by ~lines:n_line ~chars:n_char node
+            if pred node then
+              Syntax_node.move_by ~lines:n_line ~chars:n_char node
             else Ok node)
           nodes
 
@@ -376,12 +372,14 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
                       List_utils.map_result
                         (fun x ->
                           if x.range.start.line = removed_start.line then
-                            move_node_by ~lines:0 ~chars:dc x
+                            Syntax_node.move_by ~lines:0 ~chars:dc x
                           else Ok x)
                         after
                 else
                   let dl = removed_start.line - first_after.range.start.line in
-                  List_utils.map_result (move_node_by ~lines:dl ~chars:0) after)
+                  List_utils.map_result
+                    (Syntax_node.move_by ~lines:dl ~chars:0)
+                    after)
       in
       let elements = before @ shifted_after in
       let* document_repr = dump_sorted_elements_to_string elements in
@@ -449,7 +447,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
                     if
                       x.range.start.line = line
                       && x.range.start.character >= insert_at
-                    then move_node_by ~lines:0 ~chars:total_shift x
+                    then Syntax_node.move_by ~lines:0 ~chars:total_shift x
                     else Ok x)
                   after
             in
@@ -518,9 +516,10 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
           List_utils.map_result
             (fun node ->
               if node.range.start.line = target.range.end_.line then
-                move_node_by ~lines:delta_lines ~chars:end_char_delta node
+                Syntax_node.move_by ~lines:delta_lines ~chars:end_char_delta
+                  node
               else if node.range.start.line > target.range.end_.line then
-                move_node_by ~lines:delta_lines ~chars:0 node
+                Syntax_node.move_by ~lines:delta_lines ~chars:0 node
               else Ok node)
             after
         in
