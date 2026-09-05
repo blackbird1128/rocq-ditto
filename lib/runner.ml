@@ -89,14 +89,10 @@ let run_raw_tactic_expr (token : Coq.Limits.Token.t)
     ?(selector : Goal_select.t option) (state : Coq.State.t)
     (expr : Ltac_plugin.Tacexpr.raw_tactic_expr) =
   let selector = Option.map Goal_select_view.make selector in
-  match
+  let node =
     Syntax_node.raw_tactic_expr_to_syntax_node ?selector expr Code_point.dummy
-  with
-  | Error err ->
-      Error
-        (Error.tag
-           ~tag:"run_raw_tactic_expr: failed to build tactic node from expr" err)
-  | Ok node -> run_node token state node
+  in
+  run_node token state node
 
 let get_state_after (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
     (nodes : Syntax_node.t list) : (Coq.State.t, Error.t) result =

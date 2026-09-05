@@ -20,10 +20,9 @@ let map_raw_tactic_expr_in_node
   if raw_tac_expr = raw_expr_mapped then None
   else
     let selector = get_goal_selector_opt node in
-    let+ new_node =
+    let new_node =
       Syntax_node.raw_tactic_expr_to_syntax_node raw_expr_mapped ?selector
         node.range.start
-      |> Result.to_option
     in
     Some (Replace (node.id, new_node))
 

@@ -446,22 +446,23 @@ let coq_ast_of_ltac_raw_gen_args (ext : extend_name)
       Some (Coq.Ast.of_coq control)
   | _ -> None
 
+let ltac_command_to_syntax_node (command : Raw_gen_args_converter.ltac_command)
+    (starting_point : Code_point.t) : t =
+  let coq_ast = coq_ast_of_ltac_command command in
+  of_coq_ast coq_ast starting_point
+
+let ltac_command_to_syntax_node_in_state ~(token : Coq.Limits.Token.t)
+    ~(st : Coq.State.t) (command : Raw_gen_args_converter.ltac_command)
+    (starting_point : Code_point.t) : (t, Error.t) result =
+  let coq_ast = coq_ast_of_ltac_command command in
+  of_coq_ast_in_state ~token ~st coq_ast starting_point
+
 let tactic_raw_generic_arguments_to_syntax_node (ext : extend_name)
     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
     t option =
   match coq_ast_of_ltac_raw_gen_args ext args with
   | Some coq_ast -> Some (of_coq_ast coq_ast starting_point)
   | None -> None
-
-let tactic_raw_generic_arguments_to_syntax_node_in_state
-    ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (ext : extend_name)
-    (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
-    (t option, Error.t) result =
-  match coq_ast_of_ltac_raw_gen_args ext args with
-  | Some coq_ast ->
-      let* new_node = of_coq_ast_in_state ~token ~st coq_ast starting_point in
-      Ok (Some new_node)
-  | _ -> Ok None
 
 let tacdef_body_raw_generic_argument_to_syntax_node
     (args : Genarg.raw_generic_argument list) (starting_point : Code_point.t) :
@@ -492,73 +493,27 @@ let tacdef_body_list_to_syntax_node
 let raw_tactic_expr_to_syntax_node
     (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     ?(selector : Goal_select_view.t option) ?(info_level : int option = None)
-    ?(use_default = false) (starting_point : Code_point.t) : (t, Error.t) result
-    =
-  let args =
-    Raw_gen_args_converter.ltac_command_to_raw_generic_arguments
-      { selector; info_level; raw_tactic_expr = raw_expr; use_default }
-  in
-
-  match
-    tactic_raw_generic_arguments_to_syntax_node Ltac.ltac_tactic_extend_name
-      args starting_point
-  with
-  | Some tac -> Ok tac
-  | None ->
-      let env = Global.env () in
-      let evd = Evd.from_env env in
-
-      let raw_expr_repr =
-        Ltac_plugin.Pptactic.pr_raw_tactic env evd raw_expr
-        |> Pp.string_of_ppcmds
-      in
-      Error.format_to_or_error "Error creating a syntax node from %s"
-        raw_expr_repr
+    ?(use_default = false) (starting_point : Code_point.t) : t =
+  let cmd = { selector; info_level; raw_tactic_expr = raw_expr; use_default } in
+  let tac = ltac_command_to_syntax_node cmd starting_point in
+  tac
 
 let raw_tactic_expr_to_syntax_node_in_state ~(token : Coq.Limits.Token.t)
     ~(st : Coq.State.t) (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     ?(selector : Goal_select_view.t option) ?(info_level = None)
     ?(use_default = false) (starting_point : Code_point.t) : (t, Error.t) result
     =
-  let args =
-    Raw_gen_args_converter.ltac_command_to_raw_generic_arguments
-      { selector; info_level; raw_tactic_expr = raw_expr; use_default }
-  in
-
-  match
-    tactic_raw_generic_arguments_to_syntax_node_in_state ~token ~st
-      Ltac.ltac_tactic_extend_name args starting_point
-  with
-  | Ok (Some tac) -> Ok tac
-  | Ok None ->
-      let* repr =
-        Coq.State.in_state ~token ~st
-          ~f:(fun raw_expr ->
-            let env = Global.env () in
-            let evd = Evd.from_env env in
-            Ltac_plugin.Pptactic.pr_raw_tactic env evd raw_expr
-            |> Pp.string_of_ppcmds |> remove_outer_parentheses)
-          raw_expr
-        |> Error.protect_to_result
-      in
-
-      Error.format_to_or_error "Error creating a syntax node from %s" repr
-  | Error err -> Error err
+  let cmd = { selector; info_level; raw_tactic_expr = raw_expr; use_default } in
+  ltac_command_to_syntax_node_in_state ~token ~st cmd starting_point
 
 let drop_goal_selector (x : t) : t =
   match get_ltac_command x with
   | Some { info_level; raw_tactic_expr; use_default; _ } ->
       let args =
-        ltac_command_to_raw_generic_arguments
-          { selector = None; info_level; raw_tactic_expr; use_default }
+        { selector = None; info_level; raw_tactic_expr; use_default }
       in
 
-      let syntax_node_from_raw_gen_args =
-        tactic_raw_generic_arguments_to_syntax_node Ltac.ltac_tactic_extend_name
-          args x.range.start
-        |> Option.map (inherit_metadata ~from:x)
-      in
-      Option.default x syntax_node_from_raw_gen_args
+      ltac_command_to_syntax_node args x.range.start |> inherit_metadata ~from:x
   | _ -> x
 
 let add_goal_selector (x : t) (selector : Goal_select_view.t) :
@@ -571,7 +526,7 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
   | None -> (
       match require_raw_tactic_expr x with
       | Ok expr ->
-          raw_tactic_expr_to_syntax_node expr ~selector x.range.start
+          Ok (raw_tactic_expr_to_syntax_node expr ~selector x.range.start)
           |> Result.map (inherit_metadata ~from:x)
       | Error err -> Error err)
 

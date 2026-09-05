@@ -1017,7 +1017,7 @@ let turn_into_oneliner (_ : Rocq_document.t)
                        node in this case")
           in
 
-          let* one_liner_node =
+          let one_liner_node =
             Syntax_node.raw_tactic_expr_to_syntax_node one_liner_node_raw_expr
               first_step_node.range.start
           in
@@ -1214,8 +1214,8 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
           |> CAst.make
         in
 
-        Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
-        |> Result.to_option
+        Some
+          (Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start)
     | _ -> None
   in
 
@@ -1252,8 +1252,8 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
             (TacAssert (eflag, b, tacexpr_opt_opt, Some intro_pattern_expr, term))
           |> CAst.make
         in
-        Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
-        |> Result.to_option
+        Some
+          (Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start)
     | None -> None
   in
 
@@ -1282,8 +1282,8 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
         let new_raw_tac =
           TacAtom (TacIntroPattern (eflag, intro_pattern_expr)) |> CAst.make
         in
-        Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start
-        |> Result.to_option
+        Some
+          (Syntax_node.raw_tactic_expr_to_syntax_node new_raw_tac x.range.start)
     | None -> None
   in
 
@@ -1353,8 +1353,9 @@ let rewrite_node_tacexpr (token : Coq.Limits.Token.t)
       in
       if new_tacexpr = tacexpr then Ok node
       else
-        Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr
-          ?selector:selector_view node.range.start
+        Ok
+          (Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr
+             ?selector:selector_view node.range.start)
 
 let rewrite_proof_nodes (doc : Rocq_document.t) (proof : Proof.t)
     ~(rewrite :

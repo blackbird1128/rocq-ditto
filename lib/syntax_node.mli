@@ -162,7 +162,7 @@ val raw_tactic_expr_to_syntax_node :
   ?info_level:int option ->
   ?use_default:bool ->
   Code_point.t ->
-  (t, Error.t) result
+  t
 
 val raw_tactic_expr_to_syntax_node_in_state :
   token:Coq.Limits.Token.t ->
