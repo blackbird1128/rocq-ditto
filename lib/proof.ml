@@ -1,8 +1,7 @@
 type proof_status = Admitted | Proved | Aborted
 [@@deriving show { with_path = false }]
 
-type t = { proposition : Syntax_node.t; proof_steps : Syntax_node.t list }
-(* proposition can also be a type, better name ? *)
+type t = { opening : Syntax_node.t; proof_steps : Syntax_node.t list }
 
 type theorem_components = {
   kind : Decls.theorem_kind;
@@ -13,11 +12,11 @@ type theorem_components = {
 }
 
 let equal (a : t) (b : t) =
-  Syntax_node.equal a.proposition b.proposition
+  Syntax_node.equal a.opening b.opening
   && List.equal Syntax_node.equal a.proof_steps b.proof_steps
 
 let get_theorem_components (p : t) : theorem_components option =
-  match Syntax_node.synpure_expr p.proposition with
+  match Syntax_node.synpure_expr p.opening with
   | Some
       (Vernacexpr.VernacStartTheoremProof
          (kind, [ ((name, universe), (binders, expr)) ])) ->
@@ -90,7 +89,7 @@ let get_proof_conclusion (p : t) : Constrexpr.constr_expr option =
 let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (x : t) : Transforming_step.t option =
   let ( let* ) = Option.bind in
-  let x_start = x.proposition.range.start in
+  let x_start = x.opening.range.start in
   let* components = get_theorem_components x in
 
   let new_expr = Constrexpr_map.constr_expr_map f components.expr in
@@ -99,7 +98,7 @@ let map_proof_proposition (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
 
     let new_node = syntax_node_of_theorem_components new_components x_start in
 
-    Some (Transforming_step.Replace (x.proposition.id, new_node))
+    Some (Transforming_step.Replace (x.opening.id, new_node))
   else None
 
 let map_proof_proposition_in_state
@@ -107,7 +106,7 @@ let map_proof_proposition_in_state
     ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t) (x : t) :
     (Transforming_step.t option, Error.t) result =
   let ( let* ) = Result.bind in
-  let x_start = x.proposition.range.start in
+  let x_start = x.opening.range.start in
   match get_theorem_components x with
   | Some components ->
       let new_expr = Constrexpr_map.constr_expr_map f components.expr in
@@ -119,11 +118,11 @@ let map_proof_proposition_in_state
             x_start
         in
 
-        Ok (Some (Transforming_step.Replace (x.proposition.id, new_node)))
+        Ok (Some (Transforming_step.Replace (x.opening.id, new_node)))
       else Ok None
   | None -> Ok None
 
-let proof_nodes (p : t) : Syntax_node.t list = p.proposition :: p.proof_steps
+let proof_nodes (p : t) : Syntax_node.t list = p.opening :: p.proof_steps
 
 let of_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
   match nodes with
@@ -132,11 +131,11 @@ let of_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
         ("Not enough elements to create a proof from the nodes.\nnodes: ["
         ^ String.concat " " (List.map (fun node -> Syntax_node.repr node) nodes)
         ^ "]")
-  | proposition :: tail ->
-      if not (Syntax_node.can_open_proof proposition) then
+  | opening :: tail ->
+      if not (Syntax_node.can_open_proof opening) then
         Error.format_to_or_error
           "The provided first node (%s) can't open a proof"
-          (Syntax_node.repr proposition)
+          (Syntax_node.repr opening)
       else
         (* there is a last node as there is more than one node in the list, that last node might end the proof or might be unrelated *)
         let last_node = List_utils.last tail |> Option.get in
@@ -144,4 +143,4 @@ let of_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
           Error.format_to_or_error
             "The provided last node (%s) can't close a proof"
             (Syntax_node.repr last_node)
-        else Ok { proposition; proof_steps = tail }
+        else Ok { opening; proof_steps = tail }

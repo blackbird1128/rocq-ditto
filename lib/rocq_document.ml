@@ -262,7 +262,7 @@ let proof_with_id_opt (proof_id : Uuidm.t) (doc : t) :
   let* proofs = get_proofs doc in
   Ok
     (List.find_opt
-       (fun (elem : Proof.t) -> Uuidm.equal elem.proposition.id proof_id)
+       (fun (elem : Proof.t) -> Uuidm.equal elem.opening.id proof_id)
        proofs)
 
 let proof_with_name_opt (proof_name : string) (doc : t) :

@@ -149,7 +149,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
         in
 
         let status_before =
-          Runner.get_init_state curr_doc proof.proposition token
+          Runner.get_init_state curr_doc proof.opening token
         in
         let proof_name =
           Option.default "anonymous"

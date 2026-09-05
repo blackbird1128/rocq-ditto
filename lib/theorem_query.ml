@@ -21,7 +21,7 @@ type sexp_query =
   | Q_sequence of sexp_query list
 
 let get_proof_proposition_sexp (x : Proof.t) : Sexplib.Sexp.t option =
-  match Syntax_node.synpure_expr x.proposition with
+  match Syntax_node.synpure_expr x.opening with
   | Some expr_syn -> (
       match expr_syn with
       | VernacStartTheoremProof _ ->

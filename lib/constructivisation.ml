@@ -772,7 +772,7 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
 
   Ok
     (remove_all_steps_except_qed
-    @ [ Attach (solve_dec_node, LineAfter, proof.proposition.id) ])
+    @ [ Attach (solve_dec_node, LineAfter, proof.opening.id) ])
 
 let get_proofs_named (proofs : Proof.t list) (names : string list) =
   List.filter

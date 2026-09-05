@@ -158,7 +158,7 @@ let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
   Alcotest.(check string)
     "The proof expression is wrong."
     "Theorem modus_ponens:\n  forall A B: Prop, A /\\ (A -> B) -> B."
-    (repr proof.proposition);
+    (repr proof.opening);
   let proof_steps_normalized =
     normalize_strings (List.map (fun s -> repr s) proof.proof_steps)
   in
@@ -291,7 +291,7 @@ let test_parsing_unicode (doc : Doc.t) () : unit =
     "The wrong number of proofs was parsed." 1 (List.length proofs);
   let first_proof = expect_head ~context:"Expected non-empty list" proofs in
   let first_proof_status = Proof.status first_proof in
-  let proof_prop = first_proof.proposition in
+  let proof_prop = first_proof.opening in
   Alcotest.(check proof_status_testable)
     "The proof should be proved" Proof.Proved first_proof_status;
 
@@ -1147,7 +1147,7 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
     |> expect_result_ok
     |> expect_head ~context:"Expected non-empty list"
   in
-  let thm_id = first_proof.proposition.id in
+  let thm_id = first_proof.opening.id in
 
   let new_doc = Rocq_document.replace_node thm_id node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -1562,7 +1562,7 @@ let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
   in
 
   let state =
-    Runner.get_init_state doc first_proof.proposition token |> expect_result_ok
+    Runner.get_init_state doc first_proof.opening token |> expect_result_ok
   in
 
   let steps_with_goalcount =
@@ -1609,7 +1609,7 @@ let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
   in
 
   let state =
-    Runner.get_init_state doc first_proof.proposition token |> expect_result_ok
+    Runner.get_init_state doc first_proof.opening token |> expect_result_ok
   in
 
   let steps_with_goalcount =
@@ -1655,7 +1655,7 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
   in
 
   let state =
-    Runner.get_init_state doc first_proof.proposition token |> expect_result_ok
+    Runner.get_init_state doc first_proof.opening token |> expect_result_ok
   in
 
   let steps_with_goalcount =

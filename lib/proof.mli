@@ -3,10 +3,7 @@ type proof_status = Admitted | Proved | Aborted
 
 val pp_proof_status : Format.formatter -> proof_status -> unit
 
-type t = private {
-  proposition : Syntax_node.t;
-  proof_steps : Syntax_node.t list;
-}
+type t = private { opening : Syntax_node.t; proof_steps : Syntax_node.t list }
 (** Represents a proof in a Coq document. [proof] contains the initial
     proposition and a list of proof steps. *)
 

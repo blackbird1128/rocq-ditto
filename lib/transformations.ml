@@ -209,7 +209,7 @@ let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
   Ok
     (remove_all_steps
     @ [
-        Attach (comment_node, LineAfter, proof.proposition.id);
+        Attach (comment_node, LineAfter, proof.opening.id);
         Attach (admitted_node, LineAfter, comment_node.id);
       ])
 
@@ -235,7 +235,7 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : Proof.t) :
           | Ok state_node -> aux state_node acc tail
           | Error err -> Error err)
   in
-  match get_init_state doc proof.proposition token_reduce with
+  match get_init_state doc proof.opening token_reduce with
   | Ok state -> aux state (Ok []) (proof_nodes proof)
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
@@ -333,7 +333,7 @@ let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
         else aux state_node ([], acc_steps) tail
   in
 
-  match get_init_state doc proof.proposition token with
+  match get_init_state doc proof.opening token with
   | Ok state ->
       let steps = aux state ([], []) (proof_nodes proof) in
       Ok steps
@@ -1752,7 +1752,7 @@ let add_proof_node_if_missing (_ : Rocq_document.t) (proof : Proof.t) :
         in
         match proof_node with
         | Ok proof_node ->
-            Ok [ Attach (proof_node, LineAfter, proof.proposition.id) ]
+            Ok [ Attach (proof_node, LineAfter, proof.opening.id) ]
         | Error err ->
             Error.format_to_or_error
               "Error when creating a Proof node, this should never happen:\n%s"

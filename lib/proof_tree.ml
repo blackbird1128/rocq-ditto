@@ -96,7 +96,7 @@ let treeify_proof (doc : Rocq_document.t) (p : Proof.t) :
     (Syntax_node.t Nary_tree.t, Error.t) result =
   let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
-  match Runner.get_init_state doc p.proposition token with
+  match Runner.get_init_state doc p.opening token with
   | Ok init_state ->
       let* steps_with_goals =
         Runner.proof_steps_with_goalcount token init_state (Proof.proof_nodes p)
@@ -104,7 +104,7 @@ let treeify_proof (doc : Rocq_document.t) (p : Proof.t) :
 
       let parents = Hashtbl.create (List.length steps_with_goals) in
       let _ = get_parents_rec steps_with_goals [] 0 parents in
-      Ok (proof_tree_from_parents (0, p.proposition) parents)
+      Ok (proof_tree_from_parents (0, p.opening) parents)
   | Error err -> Error err
 
 let rec proof_tree_to_node_list (Node (value, children)) : Syntax_node.t list =

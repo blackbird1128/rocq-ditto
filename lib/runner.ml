@@ -199,7 +199,7 @@ let get_new_vars ?(keep : string list = [])
 
 let is_valid_proof (token : Coq.Limits.Token.t) (doc : Rocq_document.t)
     (p : Proof.t) : bool =
-  match get_init_state doc p.proposition token with
+  match get_init_state doc p.opening token with
   | Ok init_state -> can_reduce_to_zero_goals token init_state p.proof_steps
   | Error _ -> false
 
@@ -269,7 +269,7 @@ let fold_proof_with_state (doc : Rocq_document.t) (token : Coq.Limits.Token.t)
     ('acc, Error.t) result =
   let proof_nodes = Proof.proof_nodes p in
 
-  match get_init_state doc p.proposition token with
+  match get_init_state doc p.opening token with
   | Ok state -> fold_nodes_with_state f state acc proof_nodes
   | Error err ->
       Error
