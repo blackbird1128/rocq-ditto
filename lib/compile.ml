@@ -54,13 +54,12 @@ let parse_depf_line (line : string) : (dependency_rule, Error.t) result =
       match List_utils.split_last words with
       | Some (filename :: vo_dependencies, _) ->
           let* dependencies =
-            List.map
+            List_utils.map_result
               (fun x ->
                 if String.ends_with ~suffix:".vo" x then
                   Ok (String.sub x 0 (String.length x - 1))
                 else Error.format_to_or_error "Part: %S doesn't end with .vo" x)
               vo_dependencies
-            |> List_utils.result_all
           in
 
           Ok { filename; dependencies }
@@ -75,7 +74,7 @@ let parse_depf_output (output : string) : (Dependency_graph.t, Error.t) result =
     String_utils.split_by_newline output
     |> List.filter (fun line -> not (String.equal line ""))
   in
-  let* parsed_lines = List.map parse_depf_line lines |> List_utils.result_all in
+  let* parsed_lines = List_utils.map_result parse_depf_line lines in
   let parents_table = Hashtbl.create (List.length parsed_lines) in
   List.iter
     (fun { filename; dependencies } ->

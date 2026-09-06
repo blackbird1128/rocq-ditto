@@ -177,10 +177,9 @@ let parse_document (doc : Fleche.Doc.t) : (t, Error.t) result =
   let* comments = get_comments document_repr in
 
   let* comments_nodes =
-    List.map
+    List_utils.map_result
       (fun (content, start) -> Syntax_node.comment_of_string content start)
       comments
-    |> List_utils.result_all
   in
 
   let all_nodes =

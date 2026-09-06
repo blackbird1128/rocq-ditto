@@ -239,10 +239,9 @@ let replace_contexts (doc : Rocq_document.t) :
 
   let context_groups = aux doc.elements false [] [] in
   let* context_groups_names =
-    List.map
+    List_utils.map_result
       (fun l -> List_utils.concat_map_result get_context_names l)
       context_groups
-    |> List_utils.result_all
   in
   let res = List.map2 (fun a b -> (a, b)) context_groups_names context_groups in
   let a =

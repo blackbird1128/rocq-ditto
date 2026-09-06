@@ -1641,7 +1641,7 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
                         in
 
                         let new_apply_args =
-                          List.map
+                          List_utils.map_result
                             (fun x ->
                               let x_qualid =
                                 try Ok (Libnames.qualid_of_string x)
@@ -1659,9 +1659,6 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
                                       None )
                               | Error err -> Error err)
                             filled_args_str
-                        in
-                        let new_apply_args =
-                          List_utils.result_all new_apply_args
                         in
                         match new_apply_args with
                         | Ok new_apply_args ->
