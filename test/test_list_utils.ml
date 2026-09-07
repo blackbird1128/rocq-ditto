@@ -241,6 +241,50 @@ let test_split_last_multiple () =
     (Some ([ 1; 2; 3 ], 4))
     (split_last [ 1; 2; 3; 4 ])
 
+let test_split_last_snd_is_last_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"if split_last is Some _, snd (split_last) l = last l"
+    QCheck.(int_range 0 10000)
+    (fun n ->
+      let l = List.init n (fun x -> x) in
+      match split_last l with
+      | Some (_, last_elem) -> (
+          match last l with
+          | Some last_elem_from_last -> last_elem_from_last = last_elem
+          | None -> false)
+      | None -> true)
+
+let test_split_head_last_simple () =
+  let l = [ 0; 1; 2; 3 ] in
+  let expected = Some (0, [ 1; 2 ], 3) in
+  check
+    (option (triple int (list int) int))
+    "split_head_last should work on list with more than one element" expected
+    (split_head_last l)
+
+let test_split_head_last_empty () =
+  check
+    (option (triple int (list int) int))
+    "split_head_last on an empty list should return None" None
+    (split_head_last [])
+
+let test_split_head_last_single_element_prop =
+  QCheck.Test.make ~count:1000 ~name:"split_head_last on [x] should return None"
+    QCheck.(int)
+    (fun x ->
+      let l = [ x ] in
+      Option.is_empty (split_head_last l))
+
+let test_split_head_last_concat_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"if split_head_last l = Some (s,m,e) then l = s :: m @ [e]"
+    QCheck.(int_range 0 10000)
+    (fun n ->
+      let l = List.init n (fun x -> x) in
+      match split_head_last l with
+      | Some (s, m, e) -> List.equal Int.equal l ((s :: m) @ [ e ])
+      | None -> List.length l < 2)
+
 let test_last_and_len_empty () =
   check
     (pair (option int) int)
@@ -298,6 +342,19 @@ let test_find_last_opt_no_match () =
     None
     (find_last_opt (fun x -> x > 4) [ 1; 2; 3; 4 ])
 
+let test_find_last_true_fun_is_last_prop =
+  QCheck.Test.make ~count:1000
+    ~name:
+      "If the fun for find_last return true for all element, it return the \
+       last element"
+    QCheck.(int_range 1 1000)
+    (fun n ->
+      let l = List.init n (fun x -> x) in
+      match find_last_opt (fun _ -> true) l with
+      | Some elem -> (
+          match last l with Some last_elem -> elem = last_elem | None -> false)
+      | None -> false)
+
 let test_result_all_empty_is_ok () =
   check
     (result (list int) unit)
@@ -334,6 +391,10 @@ let () =
         test_take_while_all_prop;
         test_split_around_single_element_success_prop;
         test_split_around_concat_prop;
+        test_split_last_snd_is_last_prop;
+        test_split_head_last_single_element_prop;
+        test_split_head_last_concat_prop;
+        test_find_last_true_fun_is_last_prop;
         test_result_all_on_list_of_ok_return_list;
       ]
   in
@@ -442,6 +503,12 @@ let () =
           test_case
             "split last on a non empty list should correctly split that list"
             `Quick test_split_last_multiple;
+          test_case
+            "split head last on a list with length > 1 correctly split that \
+             list"
+            `Quick test_split_head_last_simple;
+          test_case "split head last on an empty list should return None" `Quick
+            test_split_head_last_empty;
           test_case "find_index on an empty list should return None" `Quick
             test_find_index_empty;
           test_case

@@ -65,6 +65,12 @@ let split_last (l : 'a list) : ('a list * 'a) option =
   in
   aux [] l
 
+let split_head_last (l : 'a list) : ('a * 'a list * 'a) option =
+  match split_last l with
+  | None -> None
+  | Some (body, last) -> (
+      match body with hd :: middle -> Some (hd, middle, last) | _ -> None)
+
 let find_index (f : 'a -> bool) (xs : 'a list) : int option =
   let rec aux i = function
     | [] -> None
