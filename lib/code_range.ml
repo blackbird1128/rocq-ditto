@@ -28,7 +28,7 @@ let of_lang_range (x : Lang.Range.t) : t =
 let extent_of_string (starting_point : Code_point.t) (repr : string) : t =
   {
     start = starting_point;
-    end_ = Code_point.move_throught_text starting_point repr;
+    end_ = Code_point.advance_by_text starting_point repr;
   }
 
 let are_flat_ranges_colliding (a : int * int) (b : int * int) : bool =

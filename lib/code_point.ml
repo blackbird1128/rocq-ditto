@@ -32,7 +32,7 @@ let shift ~(lines : int) ~(chars : int) (x : t) : (t, Error.t) result =
 let of_lang_point (x : Lang.Point.t) : t =
   { line = x.line; character = x.character }
 
-let move_throught_text (x : t) (str : string) : t =
+let advance_by_text (x : t) (str : string) : t =
   let number_line_jump =
     String.fold_left
       (fun count char -> if char = '\n' then count + 1 else count)

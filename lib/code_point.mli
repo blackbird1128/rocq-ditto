@@ -17,6 +17,6 @@ val leq : t -> t -> bool
 val shift : lines:int -> chars:int -> t -> (t, Error.t) result
 val to_string : t -> string
 val of_lang_point : Lang.Point.t -> t
-val move_throught_text : t -> string -> t
+val advance_by_text : t -> string -> t
 val of_yojson : Yojson.Safe.t -> (t, string) result
 val of_sexp : Sexplib.Sexp.t -> (t, Error.t) result
