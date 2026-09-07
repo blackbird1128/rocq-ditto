@@ -522,17 +522,17 @@ let drop_goal_selector (x : t) : t =
 
 let add_goal_selector (x : t) (selector : Goal_select_view.t) :
     (t, Error.t) result =
-  match get_goal_selector_opt x with
-  | Some selector ->
+  let* cmd = require_ltac_command x in
+  match cmd.selector with
+  | Some existing ->
       Error.format_to_or_error "%s already contains a goal selector: %s"
         (repr x)
-        (Goal_select_view.to_string selector)
-  | None -> (
-      match require_raw_tactic_expr x with
-      | Ok expr ->
-          Ok (raw_tactic_expr_to_syntax_node expr ~selector x.range.start)
-          |> Result.map (inherit_metadata ~from:x)
-      | Error err -> Error err)
+        (Goal_select_view.to_string existing)
+  | None ->
+      let cmd = { cmd with selector = Some selector } in
+      Ok
+        (ltac_command_to_syntax_node cmd x.range.start
+        |> inherit_metadata ~from:x)
 
 let get_alias_kername (x : t) : Names.KerName.t option =
   Option.bind (get_raw_tactic_expr x) Ltac.get_alias_kername
@@ -613,7 +613,7 @@ let apply_tac_thens (a : t) (l : t list)
   let args = get_tactic_raw_generic_arguments a in
 
   match args with
-  | Some [ selector; info; _; use_default ] ->
+  | Some [ selector; info; _; use_default ] -> (
       let extend = Ltac.ltac_tactic_extend_name in
 
       let a_thens_l : Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -625,11 +625,14 @@ let apply_tac_thens (a : t) (l : t list)
       in
       let new_args = [ selector; info; raw_arg; use_default ] in
 
-      tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
-      |> Option.cata Result.ok
-           (Error.format_to_or_error
-              "failed to create a thens between %s and [%s]" (repr a)
-              (l |> List.map repr |> String.concat "; "))
+      match
+        tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
+      with
+      | Some node -> Ok node
+      | None ->
+          Error.format_to_or_error
+            "failed to create a thens between %s and [%s]" (repr a)
+            (l |> List.map repr |> String.concat "; "))
   | _ ->
       Error.string_to_or_error
         "Failed to extract the expected representation from raw generic \
