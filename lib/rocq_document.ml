@@ -192,8 +192,7 @@ let parse_document (doc : Fleche.Doc.t) : (t, Error.t) result =
 let dump_sorted_elements_to_string (sorted : Syntax_node.t list) :
     (string, Error.t) result =
   let append_first (buf : Buffer.t) (node : Syntax_node.t) : unit =
-    Buffer.add_string buf (String.make node.range.start.line '\n');
-    Buffer.add_string buf (String.make node.range.start.character ' ');
+    Buffer.add_string buf (Layout.prefix_before node.range.start);
     Buffer.add_string buf (Syntax_node.repr node)
   in
 
@@ -202,39 +201,10 @@ let dump_sorted_elements_to_string (sorted : Syntax_node.t list) :
     match nodes with
     | [] -> Ok (Buffer.contents buf)
     | node :: tail ->
-        let line_diff = node.range.start.line - prev.range.end_.line in
-        if line_diff < 0 then
-          Error.format_to_or_error
-            "dump_elements_to_string: node starts before previous ends (line)\n\
-             prev: %s range=%s\n\
-             node: %s range=%s"
-            (Syntax_node.repr prev)
-            (Code_range.to_string prev.range)
-            (Syntax_node.repr node)
-            (Code_range.to_string node.range)
-        else if line_diff = 0 then
-          let char_diff =
-            node.range.start.character - prev.range.end_.character
-          in
-          if char_diff < 0 then
-            Error.format_to_or_error
-              "dump_elements_to_string: node starts before previous ends (char)\n\
-               prev: %s range=%s\n\
-               node: %s range=%s"
-              (Syntax_node.repr prev)
-              (Code_range.to_string prev.range)
-              (Syntax_node.repr node)
-              (Code_range.to_string node.range)
-          else (
-            Buffer.add_string buf (String.make char_diff ' ');
-            Buffer.add_string buf (Syntax_node.repr node);
-            aux tail buf node)
-        else (
-          (* moved to later line(s): newline(s) then indentation spaces *)
-          Buffer.add_string buf (String.make line_diff '\n');
-          Buffer.add_string buf (String.make node.range.start.character ' ');
-          Buffer.add_string buf (Syntax_node.repr node);
-          aux tail buf node)
+        let* gap = Layout.gap_between prev.range node.range in
+        Buffer.add_string buf gap;
+        Buffer.add_string buf (Syntax_node.repr node);
+        aux tail buf node
   in
 
   match sorted with
