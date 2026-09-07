@@ -1,6 +1,7 @@
 open Fleche
 open Ditto
 open Ditto.Proof
+open Ditto_cli_lib.Plugin_configuration
 open Ditto_cli_lib.Cli
 
 type scoped_function =

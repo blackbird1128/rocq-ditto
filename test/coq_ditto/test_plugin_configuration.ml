@@ -1,4 +1,4 @@
-open Ditto_cli_lib.Cli
+open Ditto_cli_lib.Plugin_configuration
 
 let test_camel_to_snake_simple () =
   Alcotest.(check string)

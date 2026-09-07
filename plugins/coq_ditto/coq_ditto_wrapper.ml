@@ -1,4 +1,5 @@
 open Ditto_cli_lib.Cli
+open Ditto_cli_lib.Plugin_configuration
 open Ditto_cli_lib
 open Ditto
 open Cmdliner

@@ -1,9 +1,9 @@
 (test
- (name test_cli)
+ (name test_plugin_configuration)
  (package coq-ditto)
- (modules test_cli)
+ (modules test_plugin_configuration)
  (libraries ditto ditto_test_support ditto_cli_lib alcotest qcheck-core qcheck-alcotest))
-
+  
 (test
  (name test_env)
  (package coq-ditto)

@@ -1,0 +1,310 @@
+open Ditto
+
+type dependencies_action =
+  | NoAction
+  | CompileDependencies
+  | TransformDependencies
+[@@deriving show { with_path = false }, enum]
+
+type output_format = Text | Json [@@deriving show { with_path = false }]
+
+type progress = { current_file_count : int; total_file_count : int }
+[@@deriving show { with_path = false }]
+
+type verbosity = Quiet | Normal | Verbose
+
+type transformation_kind =
+  | RenameDefinition
+  | ExplicitFreshVariables
+  | TurnIntoOneliner
+  | ReplaceAutoWithSteps
+  | FlattenGoalSelectors
+  | CompressIntro
+  | ReplaceInductionWithDestruct
+  | ExplicitIdentInIntro
+  | ExplicitApply
+  | AddProofNodeIfMissing
+  | RemoveProofWith
+  | IdProofTransformation
+  | IdDocTransformation
+  | ConstructiviseGeocoq
+  | RocqToLean
+[@@deriving show { with_path = false }, enum]
+
+type statistic_kind = CountInduction
+[@@deriving show { with_path = false }, enum]
+
+type transformation_configuration = {
+  progress : progress option;
+  verbosity : verbosity;
+  transformation_steps : transformation_kind list;
+  reverse_order : bool;
+  output_filename : string;
+  save_vo : bool;
+}
+
+type statistic_configuration = {
+  format : output_format;
+  statistic_kind : statistic_kind;
+}
+
+type t =
+  | StatisticAction of statistic_configuration
+  | TransformationAction of transformation_configuration
+
+let camel_to_snake (s : string) : string =
+  let b = Buffer.create (String.length s * 2) in
+  String.iteri
+    (fun i c ->
+      if 'A' <= c && c <= 'Z' then (
+        if i > 0 then Buffer.add_char b '_';
+        Buffer.add_char b (Char.lowercase_ascii c))
+      else Buffer.add_char b c)
+    s;
+  Buffer.contents b
+
+let transformation_kind_to_string (kind : transformation_kind) : string =
+  show_transformation_kind kind |> camel_to_snake
+
+let statistic_kind_to_string (kind : statistic_kind) : string =
+  show_statistic_kind kind |> camel_to_snake
+
+let dependencies_action_to_string (action : dependencies_action) : string =
+  show_dependencies_action action |> camel_to_snake
+
+let output_format_to_string (format : output_format) : string =
+  show_output_format format |> camel_to_snake
+
+let all_transformation_kinds =
+  List.init
+    (max_transformation_kind - min_transformation_kind + 1)
+    (fun i -> transformation_kind_of_enum (i + min_transformation_kind))
+  |> List.map Option.get
+
+let all_statistic_kinds =
+  List.init
+    (max_statistic_kind - min_statistic_kind + 1)
+    (fun i -> statistic_kind_of_enum (i + min_statistic_kind))
+  |> List.map Option.get
+
+let all_dependencies_action =
+  List.init
+    (max_dependencies_action - min_dependencies_action + 1)
+    (fun i -> dependencies_action_of_enum (i + min_dependencies_action))
+  |> List.map Option.get
+
+let transformations_list =
+  all_transformation_kinds
+  |> List.map (fun c -> show_transformation_kind c |> camel_to_snake)
+
+let statistics_list =
+  all_statistic_kinds
+  |> List.map (fun c -> show_statistic_kind c |> camel_to_snake)
+
+let arg_to_output_format (arg : string) : (output_format, Error.t) result =
+  let normalized = String.lowercase_ascii arg in
+  match normalized with
+  | "text" -> Ok Text
+  | "json" -> Ok Json
+  | _ ->
+      Error.format_to_or_error
+        "Unknown output format: %s.\nExpected: (text|json)" normalized
+
+let suggest_spelling (from : string) (choices : string list) : string option =
+  let spellchecked =
+    String.spellcheck (fun yield -> List.iter yield choices) from
+  in
+  match spellchecked with
+  | [] -> None
+  | possible_spell :: _ -> Some possible_spell
+
+let arg_to_transformation_kind (arg : string) :
+    (transformation_kind, Error.t) result =
+  let normalized = String.lowercase_ascii arg in
+  match
+    List.find_opt
+      (fun k -> transformation_kind_to_string k = normalized)
+      all_transformation_kinds
+  with
+  | Some k -> Ok k
+  | None -> (
+      match suggest_spelling normalized transformations_list with
+      | None ->
+          Error.string_to_or_error
+            (Printf.sprintf "unknown transformation %S; expected one of: %s" arg
+               (String.concat ", " transformations_list))
+      | Some possible_spell ->
+          Error.string_to_or_error
+            (Printf.sprintf
+               "unknown transformation %S; expected one of: %s\n\n\
+                Did you mean %s ?"
+               arg
+               (String.concat ", " transformations_list)
+               possible_spell))
+
+let arg_to_statistic_kind (arg : string) : (statistic_kind, Error.t) result =
+  let normalized = String.lowercase_ascii arg in
+  match
+    List.find_opt
+      (fun k -> statistic_kind_to_string k = normalized)
+      all_statistic_kinds
+  with
+  | Some k -> Ok k
+  | None -> (
+      match suggest_spelling normalized statistics_list with
+      | None ->
+          Error.string_to_or_error
+            (Printf.sprintf
+               "unknown statistic operation: %S; expected one of: %s" arg
+               (String.concat ", " statistics_list))
+      | Some possible_spell ->
+          Error.string_to_or_error
+            (Printf.sprintf
+               "unknown statistic operation %S; expected one of : %s\n\n\
+                Did you mean %s?"
+               arg
+               (String.concat ", " statistics_list)
+               possible_spell))
+
+let arg_to_dependencies_action (arg : string) :
+    (dependencies_action, Error.t) result =
+  let normalized = String.lowercase_ascii arg in
+  match
+    List.find_opt
+      (fun action -> dependencies_action_to_string action = normalized)
+      all_dependencies_action
+  with
+  | Some k -> Ok k
+  | None ->
+      Error.string_to_or_error
+        ("unknown dependency action: " ^ arg ^ " valid actions:\n"
+        ^ (List.map dependencies_action_to_string all_dependencies_action
+          |> String.concat "\n"))
+
+let verbosity_of_flags ~(verbose : bool) ~(quiet : bool) :
+    (verbosity, Error.t) result =
+  match (verbose, quiet) with
+  | true, true ->
+      Error.string_to_or_error "Cannot use both --verbose and --quiet"
+  | true, false -> Ok Verbose
+  | false, true -> Ok Quiet
+  | false, false -> Ok Normal
+
+let parse_transformation_steps (arg : string) :
+    (transformation_kind list, Error.t) result =
+  let split_arg = String.split_on_char ',' arg |> List.map String.trim in
+  let parsed_transformation_kinds =
+    List.map arg_to_transformation_kind split_arg
+  in
+  if List.exists Result.is_error parsed_transformation_kinds then
+    let not_recognized =
+      String.concat "\n"
+        (List.map
+           (fun x -> Error.to_string_hum (Result.get_error x))
+           ((List.filter Result.is_error) parsed_transformation_kinds))
+    in
+    Error.format_to_or_error
+      "Transformations not recognized:\n%s\nRecognized transformations: %s"
+      not_recognized
+      (String.concat "\n" transformations_list)
+  else Ok (List.map Result.get_ok parsed_transformation_kinds)
+
+let statistic_configuration_of_env (env : Env.t) :
+    (statistic_configuration, Error.t) result =
+  let ( let* ) = Result.bind in
+
+  let* statistic_kind_text = Env.get env "DITTO_STATISTIC" in
+  let* statistic_kind = arg_to_statistic_kind statistic_kind_text in
+
+  let output_format_text_opt = Env.get_opt env "DITTO_STAT_FORMAT" in
+  let* format_opt =
+    match output_format_text_opt with
+    | Some text -> Result.map Option.make (arg_to_output_format text)
+    | None -> Ok None
+  in
+  let format = Option.default Text format_opt in
+
+  Ok { statistic_kind; format }
+
+let create_progress (current : int) (total : int) : (progress, Error.t) result =
+  if current < 0 then
+    Error.format_to_or_error "Provided current file count: %d is lesser than 0"
+      current
+  else if total < 0 then
+    Error.format_to_or_error "Total file count: %d is lesser than 0" total
+  else if current <= total then
+    Ok { current_file_count = current; total_file_count = total }
+  else
+    Error.format_to_or_error
+      "current file: %d is greater than total file count: %d" current total
+
+let progress_of_env (env : Env.t) : (progress option, Error.t) result =
+  let ( let* ) = Result.bind in
+  let total_file_count_text_opt = Env.get_opt env "TOTAL_FILE_COUNT" in
+  let current_file_count_text_opt = Env.get_opt env "CURRENT_FILE_COUNT" in
+
+  match (current_file_count_text_opt, total_file_count_text_opt) with
+  | Some current_file_count_text, Some total_file_count_text ->
+      let* current_file_count = Env.int_of_string_err current_file_count_text in
+      let* total_file_count = Env.int_of_string_err total_file_count_text in
+      create_progress current_file_count total_file_count
+      |> Result.map Option.make
+  | None, None -> Ok None
+  | Some _, None ->
+      Error.string_to_or_error
+        "CURRENT_FILE_COUNT provided but TOTAL_FILE_COUNT not found"
+  | None, Some _ ->
+      Error.string_to_or_error
+        "TOTAL_FILE_COUNT provided but CURRENT_FILE_COUNT not found"
+
+let transformation_configuration_of_env (env : Env.t) :
+    (transformation_configuration, Error.t) result =
+  let ( let* ) = Result.bind in
+
+  let* progress = progress_of_env env in
+
+  let* verbose = Env.get_as_bool_default env "DEBUG_LEVEL" false in
+  let* quiet = Env.get_as_bool_default env "QUIET" false in
+
+  let* verbosity = verbosity_of_flags ~verbose ~quiet in
+
+  let* transformation_steps_env_val = Env.get env "DITTO_TRANSFORMATION" in
+  let* transformation_steps =
+    parse_transformation_steps transformation_steps_env_val
+  in
+
+  let* reverse_order = Env.get_as_bool_default env "REVERSE_ORDER" false in
+
+  let* output_filename = Env.get env "OUTPUT_FILENAME" in
+
+  let* save_vo = Env.get_as_bool_default env "SAVE_VO" false in
+
+  Ok
+    {
+      progress;
+      verbosity;
+      transformation_steps;
+      reverse_order;
+      output_filename;
+      save_vo;
+    }
+
+let plugin_configuration_of_env (env_array : string array) : (t, Error.t) result
+    =
+  let ( let* ) = Result.bind in
+  let* env = Env.of_array env_array in
+
+  let* action_text = Env.get env "DITTO_ACTION" in
+  let normalized_action_text = String.lowercase_ascii action_text in
+
+  match normalized_action_text with
+  | "transform" ->
+      let* transformation_config = transformation_configuration_of_env env in
+      Ok (TransformationAction transformation_config)
+  | "statistics" ->
+      let* statistic_config = statistic_configuration_of_env env in
+
+      Ok (StatisticAction statistic_config)
+  | _ ->
+      Error.format_to_or_error
+        "Unknown action %S, expected one of (transform|statistics)" action_text
