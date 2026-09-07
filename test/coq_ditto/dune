@@ -3,3 +3,9 @@
  (package coq-ditto)
  (modules test_cli)
  (libraries ditto ditto_test_support ditto_cli_lib alcotest qcheck-core qcheck-alcotest))
+
+(test
+ (name test_env)
+ (package coq-ditto)
+ (modules test_env)
+ (libraries ditto ditto_test_support ditto_cli_lib alcotest qcheck-core qcheck-alcotest))

@@ -2,6 +2,25 @@ open Ditto
 
 type t = (string * string) list
 
+let equal (a : t) (b : t) =
+  List.equal
+    (fun (key_a, value_a) (key_b, value_b) ->
+      String.equal key_a key_b && String.equal value_a value_b)
+    a b
+
+let pp_key_value (fmt : Format.formatter) (key_value : string * string) =
+  let key, value = key_value in
+  Format.pp_print_string fmt (Format.sprintf "(%s = %s)" key value)
+
+let pp (fmt : Format.formatter) (env : t) =
+  Format.fprintf fmt "[@[%a@]]"
+    (Format.pp_print_list
+       ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
+       pp_key_value)
+    env
+
+let of_assoc_list (a_list : (string * string) list) : t = a_list
+
 (* Already set values take precedence *)
 (* TODO: check if this is the better solution *)
 let add_to_env_preserving (env : string array) (assoc : string * string) :
@@ -29,7 +48,7 @@ let extend_env (env_array : string array) (values : (string * string) list) :
 let of_array (env_array : string array) : (t, Error.t) result =
   let env_list = Array.to_list env_array in
   let rec aux (acc : t) = function
-    | [] -> Ok acc
+    | [] -> Ok (List.rev acc)
     | x :: tail -> (
         let split = String_utils.split_at '=' x in
         match split with
