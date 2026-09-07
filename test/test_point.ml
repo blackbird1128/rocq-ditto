@@ -22,9 +22,21 @@ let test_of_yojson_simple () =
          ~pp_error:Format.pp_print_string
   in
 
-  let expected =
-    make 0 10 |> expect_result_ok ~context:"creating a simple expected point"
+  let expected = point ~line:0 ~char:10 in
+
+  Alcotest.check point_testable "a point should be parsed from this Json shape"
+    expected parsed
+
+let test_of_yojson_reverse_order () =
+  let json_repr = `Assoc [ ("character", `Int 10); ("line", `Int 0) ] in
+
+  let parsed =
+    of_yojson json_repr
+    |> expect_ok ~context:"expecting parsing to succeed"
+         ~pp_error:Format.pp_print_string
   in
+
+  let expected = point ~line:0 ~char:10 in
 
   Alcotest.check point_testable "a point should be parsed from this Json shape"
     expected parsed
@@ -108,6 +120,10 @@ let () =
             "test that a point can be parsed from the expected Json \
              representation"
             `Quick test_of_yojson_simple;
+          test_case
+            "test that a point can be parsed from the expected Json fields in \
+             the reverse order"
+            `Quick test_of_yojson_reverse_order;
         ]
         @ qcheck_tests_parsing_json );
       ( "S-exp representation",

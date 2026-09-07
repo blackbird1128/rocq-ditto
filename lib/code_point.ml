@@ -55,7 +55,8 @@ let of_yojson (json : Yojson.Safe.t) : (t, string) result =
       Error "Invalid Json received in Code_point.of_yojson"
   in
   match assoc with
-  | [ ("line", `Int line); ("character", `Int character) ] ->
+  | [ ("line", `Int line); ("character", `Int character) ]
+  | [ ("character", `Int character); ("line", `Int line) ] ->
       make line character |> Result.map_error Error.to_string_hum
   | _ -> Error "Invalid Json received in Code_point.of_yojson"
 
