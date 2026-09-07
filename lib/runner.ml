@@ -267,10 +267,10 @@ let fold_proof_with_state (doc : Rocq_document.t) (token : Coq.Limits.Token.t)
       Syntax_node.t ->
       (Coq.State.t * 'acc, Error.t) result) (acc : 'acc) (p : Proof.t) :
     ('acc, Error.t) result =
-  let proof_nodes = Proof.all_nodes p in
+  let all_nodes = Proof.all_nodes p in
 
   match get_init_state doc p.opening token with
-  | Ok state -> fold_nodes_with_state f state acc proof_nodes
+  | Ok state -> fold_nodes_with_state f state acc all_nodes
   | Error err ->
       Error
         (Error.tag err

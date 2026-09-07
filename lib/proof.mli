@@ -74,9 +74,12 @@ val all_nodes : t -> Syntax_node.t list
     the opening of the proof [p], followed by its proof steps, followed by its
     closing node *)
 
-val proof_nodes : t -> Syntax_node.t list
-(** Extracts the nodes from a proof. [proof_nodes p] returns a list containing
-    the proposition of the proof [p] followed by its proof steps. *)
+val opening_and_body : t -> Syntax_node.t list
+(** Extracts the opening and proof steps from a proof. [opening_and_body p]
+    returns a list containing the proposition of the proof [p] followed by its
+    proof steps. *)
+
+val body_and_closing : t -> Syntax_node.t list
 
 val of_nodes : Syntax_node.t list -> (t, Error.t) result
 (** Create a proof from a list of annotated AST nodes. [of_nodes nodes] takes a

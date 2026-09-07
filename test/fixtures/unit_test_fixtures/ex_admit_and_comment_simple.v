@@ -1,5 +1,5 @@
 Lemma foo: forall A, A -> A.
 Proof.
-(*  intros.
-    easy. *)
+  intros.
+  easy.
 Qed.

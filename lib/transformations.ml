@@ -168,7 +168,7 @@ let remove_random_step (_ : Rocq_document.t) (proof : Proof.t) :
 let admit_and_comment_proof_steps ?(msg = "") (_ : Rocq_document.t)
     (proof : Proof.t) : (Transforming_step.t list, Error.t) result =
   let remove_all_steps =
-    proof.proof_steps |> List.rev |> List.map (fun step -> Remove step.id)
+    Proof.body_and_closing proof |> List.rev_map (fun step -> Remove step.id)
   in
 
   let first_proof_node = List.hd proof.proof_steps in
@@ -232,7 +232,7 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : Proof.t) :
           | Error err -> Error err)
   in
   match get_init_state doc proof.opening token_reduce with
-  | Ok state -> aux state (Ok []) (proof_nodes proof)
+  | Ok state -> aux state (Ok []) (Proof.all_nodes proof)
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
 let flatten_goal_selectors (doc : Rocq_document.t) (proof : Proof.t) :
@@ -331,7 +331,7 @@ let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
 
   match get_init_state doc proof.opening token with
   | Ok state ->
-      let steps = aux state ([], []) (proof_nodes proof) in
+      let steps = aux state ([], []) (Proof.all_nodes proof) in
       Ok steps
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
@@ -354,7 +354,7 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
         let nodes_on_same_line =
           List.filter
             (fun x -> x != node && x.range.start.line = node.range.start.line)
-            (proof_nodes proof)
+            (Proof.all_nodes proof)
         in
         let furthest_char_node =
           List.fold_left

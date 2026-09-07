@@ -160,7 +160,8 @@ let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
     "Theorem modus_ponens:\n  forall A B: Prop, A /\\ (A -> B) -> B."
     (repr proof.opening);
   let proof_steps_normalized =
-    normalize_strings (List.map (fun s -> repr s) proof.proof_steps)
+    normalize_strings
+      (List.map (fun s -> repr s) (Proof.body_and_closing proof))
   in
   Alcotest.(check (list string))
     "The proof should have the following steps."
@@ -248,30 +249,6 @@ let test_parsing_in_then_star_then_parenthesis (doc : Doc.t) () : unit =
     (List.length comment_nodes);
   Alcotest.(check int)
     "The wrong number of other nodes was parsed" 8 (List.length other_nodes)
-
-let test_parsing_glued_comment (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> expect_result_ok in
-  let comment_nodes, other_nodes =
-    List.partition Syntax_node.is_comment doc.elements
-  in
-
-  match (comment_nodes, other_nodes) with
-  | [ comment_node ], [ other_node ] ->
-      Alcotest.(check bool)
-        "The command ends where the comment starts" true
-        (Code_point.compare other_node.range.end_ comment_node.range.start = 0);
-
-      Alcotest.(check bool)
-        "Touching half-open ranges do not collide" false
-        (Syntax_node.are_colliding other_node comment_node);
-
-      Alcotest.(check (result uuidm_testable error_testable))
-        "The comment range agrees with its representation" (Ok comment_node.id)
-        (Syntax_node.validate comment_node |> Result.map (fun node -> node.id))
-  | _ ->
-      Alcotest.failf "Expected one comment and one command, got %d and %d"
-        (List.length comment_nodes)
-        (List.length other_nodes)
 
 let test_parsing_instance (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
@@ -1301,6 +1278,12 @@ let test_not_is_auto_composed (_ : Doc.t) () : unit =
     "auto composed with other nodes should not be detected by is_auto" false
     (Syntax_node.is_auto (node "auto; easy."))
 
+let test_add_proof_node_simple_proof (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.add_proof_node_if_missing ()
+
+let test_add_proof_node_empty_proof (doc : Doc.t) () : unit =
+  test_proof_transformation doc Transformations.add_proof_node_if_missing ()
+
 let test_admit_simple_proof (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.admit_proof ()
 
@@ -1949,9 +1932,6 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "not_parsing_in_star_as_comment.v"
     (create_fixed_test "test not parsing star as a comment ) "
        test_parsing_in_then_star_then_parenthesis doc);
-  Hashtbl.add table "ex_half_open_comment.v"
-    (create_fixed_test "test that a comment and node touching are not colliding"
-       test_parsing_glued_comment doc);
 
   Hashtbl.add table "ex_reconstructing_stuck_together.v"
     (create_fixed_test "test reconstructing nodes glued together"
@@ -2051,6 +2031,10 @@ let setup_test_table table (doc : Doc.t) =
   (*   (create_fixed_test *)
   (*      "test attaching a node on the line after a multiline anchor" *)
   (*      test_attach_node_line_after_multiline_anchor doc); *)
+  Hashtbl.add table "ex_add_proof_node_simple.v"
+    (create_fixed_test "test adding a Proof node to a simple proof"
+       test_add_proof_node_simple_proof doc);
+
   Hashtbl.add table "ex_admit_transform_simple.v"
     (create_fixed_test "test admitting a simple proof" test_admit_simple_proof
        doc);

@@ -129,7 +129,10 @@ let map_proof_proposition_in_state
 let all_nodes (p : t) : Syntax_node.t list =
   p.opening :: (p.proof_steps @ [ p.closing.node ])
 
-let proof_nodes (p : t) : Syntax_node.t list = p.opening :: p.proof_steps
+let opening_and_body (p : t) : Syntax_node.t list = p.opening :: p.proof_steps
+
+let body_and_closing (p : t) : Syntax_node.t list =
+  p.proof_steps @ [ p.closing.node ]
 
 let of_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
   let ( let* ) = Result.bind in
