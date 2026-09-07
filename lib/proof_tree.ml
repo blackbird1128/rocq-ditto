@@ -99,7 +99,7 @@ let treeify_proof (doc : Rocq_document.t) (p : Proof.t) :
   match Runner.get_init_state doc p.opening token with
   | Ok init_state ->
       let* steps_with_goals =
-        Runner.proof_steps_with_goalcount token init_state (Proof.proof_nodes p)
+        Runner.proof_steps_with_goalcount token init_state (Proof.all_nodes p)
       in
 
       let parents = Hashtbl.create (List.length steps_with_goals) in

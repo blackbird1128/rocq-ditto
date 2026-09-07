@@ -3,7 +3,13 @@ type proof_status = Admitted | Proved | Aborted
 
 val pp_proof_status : Format.formatter -> proof_status -> unit
 
-type t = private { opening : Syntax_node.t; proof_steps : Syntax_node.t list }
+type closing = { node : Syntax_node.t; status : proof_status }
+
+type t = private {
+  opening : Syntax_node.t;
+  proof_steps : Syntax_node.t list;
+  closing : closing;
+}
 (** Represents a proof in a Coq document. [proof] contains the initial
     proposition and a list of proof steps. *)
 
@@ -62,6 +68,11 @@ val map_proof_proposition_in_state :
   st:Coq.State.t ->
   t ->
   (Transforming_step.t option, Error.t) result
+
+val all_nodes : t -> Syntax_node.t list
+(** Extracts all the nodes from a proof. [all_nodes p] returns a list containing
+    the opening of the proof [p], followed by its proof steps, followed by its
+    closing node *)
 
 val proof_nodes : t -> Syntax_node.t list
 (** Extracts the nodes from a proof. [proof_nodes p] returns a list containing

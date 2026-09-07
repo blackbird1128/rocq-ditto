@@ -140,17 +140,13 @@ let id_transform (_ : Rocq_document.t) (_ : Proof.t) :
 
 let admit_proof (_ : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
-  let proof_close_node_opt =
-    List.find_opt Syntax_node.is_proof_end proof.proof_steps
-  in
-  match proof_close_node_opt with
-  | Some proof_close_node ->
+  match proof.closing.status with
+  | Admitted -> Ok []
+  | _ ->
       let* admitted_node =
-        syntax_node_of_string "Admitted." proof_close_node.range.start
+        syntax_node_of_string "Admitted." proof.closing.node.range.start
       in
-      Ok [ Replace (proof_close_node.id, admitted_node) ]
-  | None ->
-      Error.string_to_or_error "Malformed proof: No closing node is present"
+      Ok [ Replace (proof.closing.node.id, admitted_node) ]
 
 let int_in_range ~min ~max =
   if min > max then invalid_arg "int_in_range";
@@ -161,7 +157,7 @@ let remove_random_step (_ : Rocq_document.t) (proof : Proof.t) :
   let num_steps = List.length proof.proof_steps in
   if num_steps <= 2 then Ok []
   else
-    let rand_num = int_in_range ~min:1 ~max:(num_steps - 2) in
+    let rand_num = int_in_range ~min:1 ~max:(num_steps - 1) in
     let rand_node = List.nth proof.proof_steps rand_num in
     let incorrect_node =
       Syntax_node.syntax_node_of_string "fail." rand_node.range.start
