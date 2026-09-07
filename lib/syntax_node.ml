@@ -68,8 +68,7 @@ let mk_vernac_control ?(loc : Loc.t option)
   let payload = { control; attrs; expr = ve } in
   CAst.make ?loc payload
 
-let inherit_metadata ~(from : t) (node : t) : t =
-  { node with id = from.id; diagnostics = from.diagnostics }
+let inherit_metadata ~(from : t) (node : t) : t = { node with id = from.id }
 
 let are_colliding (a : t) (b : t) : bool =
   Code_range.are_colliding a.range b.range
