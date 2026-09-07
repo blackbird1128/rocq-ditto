@@ -1,7 +1,7 @@
 (library
  (public_name ditto-cli-lib)
  (name ditto_cli_lib)
- (modules cli)
+ (modules cli env)
  (preprocess (pps ppx_deriving.show ppx_deriving.enum))
  (libraries coq-ditto logs logs.fmt )
 )

@@ -1,4 +1,5 @@
 open Ditto_cli_lib.Cli
+open Ditto_cli_lib
 open Ditto
 open Cmdliner
 
@@ -64,7 +65,7 @@ let transform_files (root : string) (dep_files : string list) (prog : string)
         make_args_transform_files prog root verbose save_vo curr_file
       in
       let curr_env =
-        extend_env base_env
+        Env.extend_env base_env
           [
             ("OUTPUT_FILENAME", curr_file);
             ("CURRENT_FILE_COUNT", string_of_int curr_file_count);
@@ -101,7 +102,7 @@ let run_stats (opts : stats_option) : (unit, Error.t) result =
   let format = opts.format in
 
   let env =
-    extend_env (Unix.environment ())
+    Env.extend_env (Unix.environment ())
       [
         ("DITTO_ACTION", "statistics");
         ("DITTO_STATISTIC", statistic);
@@ -143,7 +144,7 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
 
   let spawn_for_file (file : string) =
     let curr_args = make_args_transform_files prog root verbose save_vo file in
-    let curr_env = extend_env env [ ("OUTPUT_FILENAME", file) ] in
+    let curr_env = Env.extend_env env [ ("OUTPUT_FILENAME", file) ] in
     let pid = Process_runner.spawn_process ~env:curr_env ~args:curr_args prog in
     let running_job = { target = file } in
     Hashtbl.add running pid running_job
@@ -230,7 +231,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
   let* _ = validate_transformation_opts opts pathkind in
 
   let base_env =
-    extend_env (Unix.environment ())
+    Env.extend_env (Unix.environment ())
       [
         ("DITTO_ACTION", "transform");
         ("DITTO_TRANSFORMATION", transformation);
@@ -298,7 +299,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
                     dependencies "fcc" length_dep base_env true verbose)
         in
 
-        let env = extend_env base_env [ ("OUTPUT_FILENAME", output) ] in
+        let env = Env.extend_env base_env [ ("OUTPUT_FILENAME", output) ] in
 
         let args =
           make_args_transform_files prog input_dir verbose save_vo input

@@ -52,8 +52,6 @@ type plugin_configuration = private
   | StatisticAction of statistic_configuration
   | TransformationAction of transformation_configuration
 
-type env = private (string * string) list
-
 val create_progress : int -> int -> (progress, Error.t) result
 val camel_to_snake : string -> string
 val transformation_kind_to_string : transformation_kind -> string
@@ -79,24 +77,16 @@ val arg_to_dependencies_action : string -> (dependencies_action, Error.t) result
 val verbosity_of_flags :
   verbose:bool -> quiet:bool -> (verbosity, Error.t) result
 
-val add_to_env_preserving : string array -> string * string -> string array
-val extend_env : string array -> (string * string) list -> string array
-val env_of_array : string array -> (env, Error.t) result
-val get_env : env -> string -> (string, Error.t) result
-val get_env_opt : env -> string -> string option
-val int_of_string_err : string -> (int, Error.t) result
-val get_env_as_bool_default : env -> string -> bool -> (bool, Error.t) result
-
 val parse_transformation_steps :
   string -> (transformation_kind list, Error.t) result
 
 val statistic_configuration_of_env :
-  env -> (statistic_configuration, Error.t) result
+  Env.t -> (statistic_configuration, Error.t) result
 
-val progress_of_env : env -> (progress option, Error.t) result
+val progress_of_env : Env.t -> (progress option, Error.t) result
 
 val transformation_configuration_of_env :
-  env -> (transformation_configuration, Error.t) result
+  Env.t -> (transformation_configuration, Error.t) result
 
 val plugin_configuration_of_env :
   string array -> (plugin_configuration, Error.t) result

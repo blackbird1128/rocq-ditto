@@ -52,8 +52,6 @@ type plugin_configuration =
   | StatisticAction of statistic_configuration
   | TransformationAction of transformation_configuration
 
-type env = (string * string) list
-
 let camel_to_snake (s : string) : string =
   let b = Buffer.create (String.length s * 2) in
   String.iteri
@@ -237,73 +235,6 @@ let verbosity_of_flags ~(verbose : bool) ~(quiet : bool) :
   | false, true -> Ok Quiet
   | false, false -> Ok Normal
 
-(* Already set values take precedence *)
-(* TODO: check if this is the better solution *)
-let add_to_env_preserving (env : string array) (assoc : string * string) :
-    string array =
-  let key, value = assoc in
-  let env_list = Array.to_list env in
-  let assoc_key_repr = Printf.sprintf "%s=" key in
-  let assoc_repr = assoc_key_repr ^ value in
-  match
-    List.find_opt
-      (fun env_val -> String.starts_with ~prefix:assoc_key_repr env_val)
-      env_list
-  with
-  | Some _ -> env
-  | None -> Array.of_list (assoc_repr :: env_list)
-
-(* Already set values take precedence *)
-(* TODO: check if this is the better solution *)
-let extend_env (env_array : string array) (values : (string * string) list) :
-    string array =
-  List.fold_left
-    (fun env_acc assoc -> add_to_env_preserving env_acc assoc)
-    env_array values
-
-let env_of_array (env_array : string array) : (env, Error.t) result =
-  let env_list = Array.to_list env_array in
-  let rec aux (acc : env) = function
-    | [] -> Ok acc
-    | x :: tail -> (
-        let split = String_utils.split_at '=' x in
-        match split with
-        | Ok (key, value) -> aux ((key, value) :: acc) tail
-        | Error _ ->
-            Error.format_to_or_error
-              "Malformed environment: Got %S instead of a value of the shape \
-               \"key=value\""
-              x)
-  in
-  aux [] env_list
-
-let get_env (env : env) (key : string) : (string, Error.t) result =
-  match List.assoc_opt key env with
-  | Some key -> Ok key
-  | None -> Error.format_to_or_error "key: %S not found in environment" key
-
-let get_env_opt (env : env) (key : string) : string option =
-  List.assoc_opt key env
-
-let int_of_string_err (arg : string) : (int, Error.t) result =
-  match int_of_string_opt arg with
-  | Some integer -> Ok integer
-  | None ->
-      Error.format_to_or_error
-        "given string %S is not a valid representation of an integer" arg
-
-let get_env_as_bool_default (env : env) (key : string) (default : bool) :
-    (bool, Error.t) result =
-  match List.assoc_opt key env with
-  | Some env_val -> (
-      match env_val with
-      | "true" -> Ok true
-      | "false" -> Ok false
-      | _ ->
-          Error.format_to_or_error
-            "value %S of key %S can't be converted to a boolean" env_val key)
-  | None -> Ok default
-
 let parse_transformation_steps (arg : string) :
     (transformation_kind list, Error.t) result =
   let split_arg = String.split_on_char ',' arg |> List.map String.trim in
@@ -323,14 +254,14 @@ let parse_transformation_steps (arg : string) :
       (String.concat "\n" transformations_list)
   else Ok (List.map Result.get_ok parsed_transformation_kinds)
 
-let statistic_configuration_of_env (env : env) :
+let statistic_configuration_of_env (env : Env.t) :
     (statistic_configuration, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let* statistic_kind_text = get_env env "DITTO_STATISTIC" in
+  let* statistic_kind_text = Env.get env "DITTO_STATISTIC" in
   let* statistic_kind = arg_to_statistic_kind statistic_kind_text in
 
-  let output_format_text_opt = get_env_opt env "DITTO_STAT_FORMAT" in
+  let output_format_text_opt = Env.get_opt env "DITTO_STAT_FORMAT" in
   let* format_opt =
     match output_format_text_opt with
     | Some text -> Result.map Option.make (arg_to_output_format text)
@@ -352,15 +283,15 @@ let create_progress (current : int) (total : int) : (progress, Error.t) result =
     Error.format_to_or_error
       "current file: %d is greater than total file count: %d" current total
 
-let progress_of_env (env : env) : (progress option, Error.t) result =
+let progress_of_env (env : Env.t) : (progress option, Error.t) result =
   let ( let* ) = Result.bind in
-  let total_file_count_text_opt = get_env_opt env "TOTAL_FILE_COUNT" in
-  let current_file_count_text_opt = get_env_opt env "CURRENT_FILE_COUNT" in
+  let total_file_count_text_opt = Env.get_opt env "TOTAL_FILE_COUNT" in
+  let current_file_count_text_opt = Env.get_opt env "CURRENT_FILE_COUNT" in
 
   match (current_file_count_text_opt, total_file_count_text_opt) with
   | Some current_file_count_text, Some total_file_count_text ->
-      let* current_file_count = int_of_string_err current_file_count_text in
-      let* total_file_count = int_of_string_err total_file_count_text in
+      let* current_file_count = Env.int_of_string_err current_file_count_text in
+      let* total_file_count = Env.int_of_string_err total_file_count_text in
       create_progress current_file_count total_file_count
       |> Result.map Option.make
   | None, None -> Ok None
@@ -371,27 +302,27 @@ let progress_of_env (env : env) : (progress option, Error.t) result =
       Error.string_to_or_error
         "TOTAL_FILE_COUNT provided but CURRENT_FILE_COUNT not found"
 
-let transformation_configuration_of_env (env : env) :
+let transformation_configuration_of_env (env : Env.t) :
     (transformation_configuration, Error.t) result =
   let ( let* ) = Result.bind in
 
   let* progress = progress_of_env env in
 
-  let* verbose = get_env_as_bool_default env "DEBUG_LEVEL" false in
-  let* quiet = get_env_as_bool_default env "QUIET" false in
+  let* verbose = Env.get_as_bool_default env "DEBUG_LEVEL" false in
+  let* quiet = Env.get_as_bool_default env "QUIET" false in
 
   let* verbosity = verbosity_of_flags ~verbose ~quiet in
 
-  let* transformation_steps_env_val = get_env env "DITTO_TRANSFORMATION" in
+  let* transformation_steps_env_val = Env.get env "DITTO_TRANSFORMATION" in
   let* transformation_steps =
     parse_transformation_steps transformation_steps_env_val
   in
 
-  let* reverse_order = get_env_as_bool_default env "REVERSE_ORDER" false in
+  let* reverse_order = Env.get_as_bool_default env "REVERSE_ORDER" false in
 
-  let* output_filename = get_env env "OUTPUT_FILENAME" in
+  let* output_filename = Env.get env "OUTPUT_FILENAME" in
 
-  let* save_vo = get_env_as_bool_default env "SAVE_VO" false in
+  let* save_vo = Env.get_as_bool_default env "SAVE_VO" false in
 
   Ok
     {
@@ -406,9 +337,9 @@ let transformation_configuration_of_env (env : env) :
 let plugin_configuration_of_env (env_array : string array) :
     (plugin_configuration, Error.t) result =
   let ( let* ) = Result.bind in
-  let* env = env_of_array env_array in
+  let* env = Env.of_array env_array in
 
-  let* action_text = get_env env "DITTO_ACTION" in
+  let* action_text = Env.get env "DITTO_ACTION" in
   let normalized_action_text = String.lowercase_ascii action_text in
 
   match normalized_action_text with
