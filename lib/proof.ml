@@ -125,22 +125,19 @@ let map_proof_proposition_in_state
 let proof_nodes (p : t) : Syntax_node.t list = p.opening :: p.proof_steps
 
 let of_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
-  match nodes with
-  | [] | [ _ ] ->
+  match List_utils.split_head_last nodes with
+  | None ->
       Error.string_to_or_error
         ("Not enough elements to create a proof from the nodes.\nnodes: ["
         ^ String.concat " " (List.map (fun node -> Syntax_node.repr node) nodes)
         ^ "]")
-  | opening :: tail ->
+  | Some (opening, body, closing) ->
       if not (Syntax_node.can_open_proof opening) then
         Error.format_to_or_error
           "The provided first node (%s) can't open a proof"
           (Syntax_node.repr opening)
-      else
-        (* there is a last node as there is more than one node in the list, that last node might end the proof or might be unrelated *)
-        let last_node = List_utils.last tail |> Option.get in
-        if not (Syntax_node.can_close_proof last_node) then
-          Error.format_to_or_error
-            "The provided last node (%s) can't close a proof"
-            (Syntax_node.repr last_node)
-        else Ok { opening; proof_steps = tail }
+      else if not (Syntax_node.can_close_proof closing) then
+        Error.format_to_or_error
+          "The provided last node (%s) can't close a proof"
+          (Syntax_node.repr closing)
+      else Ok { opening; proof_steps = body @ [ closing ] }
