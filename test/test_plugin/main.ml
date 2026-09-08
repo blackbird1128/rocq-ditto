@@ -28,10 +28,6 @@ let get_target (uri_str : string) =
   let target_doc = Yojson.Safe.from_file target in
   parse_json_target target_doc
 
-let node (repr : string) : Syntax_node.t =
-  Syntax_node.syntax_node_of_string repr Code_point.dummy
-  |> expect_result_ok ~context:(Printf.sprintf "Creating a node from %s" repr)
-
 let create_fixed_test (test_text : string) (f : Doc.t -> unit -> unit)
     (doc : Doc.t) =
   Alcotest.test_case test_text `Quick (f doc)
