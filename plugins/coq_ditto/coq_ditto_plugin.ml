@@ -1,8 +1,8 @@
 open Fleche
 open Ditto
 open Ditto.Proof
+open Ditto_cli_lib
 open Ditto_cli_lib.Plugin_configuration
-open Ditto_cli_lib.Cli
 
 type scoped_function =
   | ProofScope of
@@ -313,7 +313,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
   let ( let* ) = Result.bind in
   let out = Format.std_formatter in
   let reporter =
-    Logs_fmt.reporter ~pp_header:pp_header_no_app ~app:out ~dst:out ()
+    Logs_fmt.reporter ~pp_header:Cli.pp_header_no_app ~app:out ~dst:out ()
   in
   Logs.set_reporter reporter;
 
@@ -351,9 +351,7 @@ let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
           (String.concat "\n"
              (List.map Diagnostic_utils.diagnostic_to_string limited_errors))
       else
-        let* plugin_configuration =
-          plugin_configuration_of_env (Unix.environment ())
-        in
+        let* plugin_configuration = of_env (Unix.environment ()) in
 
         match plugin_configuration with
         | TransformationAction config -> transformation_action doc ~token config

@@ -289,8 +289,7 @@ let transformation_configuration_of_env (env : Env.t) :
       save_vo;
     }
 
-let plugin_configuration_of_env (env_array : string array) : (t, Error.t) result
-    =
+let of_env (env_array : string array) : (t, Error.t) result =
   let ( let* ) = Result.bind in
   let* env = Env.of_array env_array in
 

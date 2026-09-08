@@ -83,4 +83,4 @@ val progress_of_env : Env.t -> (progress option, Error.t) result
 val transformation_configuration_of_env :
   Env.t -> (transformation_configuration, Error.t) result
 
-val plugin_configuration_of_env : string array -> (t, Error.t) result
+val of_env : string array -> (t, Error.t) result
