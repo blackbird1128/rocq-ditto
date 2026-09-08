@@ -605,37 +605,18 @@ let syntax_node_list_to_raw_tactics (l : t list) :
 
 let apply_tac_thens (a : t) (l : t list)
     ?(start_point : Code_point.t = a.range.start) () : (t, Error.t) result =
-  let* raw_a = require_raw_tactic_expr a in
+  let* cmd_a = require_ltac_command a in
 
   let* raw_tactics_l = syntax_node_list_to_raw_tactics l in
 
-  let args = get_tactic_raw_generic_arguments a in
+  let a_thens_l : Ltac_plugin.Tacexpr.raw_tactic_expr =
+    CAst.make
+      (Ltac_plugin.Tacexpr.TacThens (cmd_a.raw_tactic_expr, raw_tactics_l))
+  in
 
-  match args with
-  | Some [ selector; info; _; use_default ] -> (
-      let extend = Ltac.ltac_tactic_extend_name in
+  let new_cmd = { cmd_a with raw_tactic_expr = a_thens_l } in
 
-      let a_thens_l : Ltac_plugin.Tacexpr.raw_tactic_expr =
-        CAst.make (Ltac_plugin.Tacexpr.TacThens (raw_a, raw_tactics_l))
-      in
-
-      let raw_arg =
-        Raw_gen_args_converter.raw_generic_argument_of_raw_tactic_expr a_thens_l
-      in
-      let new_args = [ selector; info; raw_arg; use_default ] in
-
-      match
-        tactic_raw_generic_arguments_to_syntax_node extend new_args start_point
-      with
-      | Some node -> Ok node
-      | None ->
-          Error.format_to_or_error
-            "failed to create a thens between %s and [%s]" (repr a)
-            (l |> List.map repr |> String.concat "; "))
-  | _ ->
-      Error.string_to_or_error
-        "Failed to extract the expected representation from raw generic \
-         arguments"
+  Ok (ltac_command_to_syntax_node new_cmd start_point)
 
 let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
     () : (t, Error.t) result =
@@ -647,16 +628,9 @@ let apply_tac_then (a : t) (b : t) ?(start_point : Code_point.t = a.range.start)
     Ltac_plugin.Tacexpr.TacThen (command_a.raw_tactic_expr, raw_b) |> CAst.make
   in
 
-  let new_args =
-    Raw_gen_args_converter.ltac_command_to_raw_generic_arguments
-      { command_a with raw_tactic_expr = a_then_b }
-  in
+  let cmd_a_then_b = { command_a with raw_tactic_expr = a_then_b } in
 
-  tactic_raw_generic_arguments_to_syntax_node Ltac.ltac_tactic_extend_name
-    new_args start_point
-  |> Option.cata Result.ok
-       (Error.format_to_or_error "failed to create a then betwen %s and %s"
-          (repr a) (repr b))
+  Ok (ltac_command_to_syntax_node cmd_a_then_b start_point)
 
 let can_open_proof (x : t) : bool =
   is_proof_start x || is_definition_with_proof x
