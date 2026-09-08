@@ -149,8 +149,8 @@ let range ~(start : Code_point.t) ~(end_ : Code_point.t) : Code_range.t =
   Code_range.make start end_
   |> expect_result_ok ~context:"creating a range for testing"
 
-let node (repr : string) : Syntax_node.t =
-  Syntax_node.syntax_node_of_string repr Code_point.dummy
+let node ?(start = Code_point.dummy) (repr : string) : Syntax_node.t =
+  Syntax_node.syntax_node_of_string repr start
   |> expect_result_ok ~context:(Printf.sprintf "Creating a node from %s" repr)
 
 let make_dummy_node_from_repr (start_line : int) (start_char : int)

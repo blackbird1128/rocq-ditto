@@ -4,9 +4,6 @@ open Ditto.Proof
 open Ditto.Syntax_node
 open Ditto_test_support.Test_support
 
-let normalize_strings (strings : string list) : string list =
-  List.map (fun str -> String.trim str) strings
-
 let document_to_range_representation_pairs (doc : Rocq_document.t) :
     (string * Code_range.t) list =
   List.map (fun node -> (Syntax_node.repr node, node.range)) doc.elements
@@ -156,7 +153,8 @@ let test_proof_parsing_name_and_steps_ex2 (doc : Doc.t) () : unit =
     "Theorem modus_ponens:\n  forall A B: Prop, A /\\ (A -> B) -> B."
     (repr proof.opening);
   let proof_steps_normalized =
-    normalize_strings
+    (fun (strings : string list) : string list ->
+      List.map (fun str -> String.trim str) strings)
       (List.map (fun s -> repr s) (Proof.body_and_closing proof))
   in
   Alcotest.(check (list string))
@@ -272,6 +270,13 @@ let test_parsing_unicode (doc : Doc.t) () : unit =
     "The proof prop should be the following: "
     "Lemma demo : forall P Q: Prop, P ∧ Q → Q ∧ P." (repr proof_prop)
 
+let test_cache_hit_simple (doc : Doc.t) () : unit =
+  let _doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let stats = Stats.Global.dump () in
+  Printf.printf "rocq-ditto stats: %s\n" (Stats.Global.to_string stats);
+  Printf.printf "rocq-ditto %s\n" (Memo.GlobalCacheStats.stats ());
+  Alcotest.(check bool) "" true false
+
 let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let reconstructed = Rocq_document.dump_to_string doc in
@@ -281,8 +286,9 @@ let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
     reconstructed
 
 let test_creating_valid_syntax_node_from_string (_ : Doc.t) () : unit =
-  let point = Code_point.origin in
-  let node = Syntax_node.syntax_node_of_string "Compute 1 + 1." point in
+  let node =
+    Syntax_node.syntax_node_of_string "Compute 1 + 1." Code_point.origin
+  in
   let node_repr = Result.map Syntax_node.repr node in
 
   Alcotest.(
@@ -291,9 +297,9 @@ let test_creating_valid_syntax_node_from_string (_ : Doc.t) () : unit =
       "The node should be created without error" (Ok "Compute 1 + 1.") node_repr)
 
 let test_creating_invalid_syntax_node_from_string (_ : Doc.t) () : unit =
-  let point = Code_point.origin in
   let node =
-    Syntax_node.syntax_node_of_string "Compute Illegal grammar" point
+    Syntax_node.syntax_node_of_string "Compute Illegal grammar"
+      Code_point.origin
   in
   let node_repr = Result.map Syntax_node.repr node in
 
@@ -318,11 +324,7 @@ let test_creating_invalid_proof_not_enough_nodes_zero (_ : Doc.t) () : unit =
       proof_status)
 
 let test_creating_invalid_proof_not_enough_nodes_one (_ : Doc.t) () : unit =
-  let valid_start =
-    Syntax_node.syntax_node_of_string "Theorem th : forall n : nat, n = n."
-      Code_point.dummy
-    |> expect_result_ok
-  in
+  let valid_start = node "Theorem th : forall n : nat, n = n." in
 
   let proof = Proof.of_nodes [ valid_start ] in
   let proof_status = Result.map Proof.status proof in
@@ -337,14 +339,9 @@ let test_creating_invalid_proof_not_enough_nodes_one (_ : Doc.t) () : unit =
       proof_status)
 
 let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
-  let invalid_start =
-    Syntax_node.syntax_node_of_string "Compute 1 + 1." Code_point.dummy
-    |> expect_result_ok
-  in
-  let valid_end =
-    Syntax_node.syntax_node_of_string "Qed." Code_point.dummy
-    |> expect_result_ok
-  in
+  let invalid_start = node "Compute 1 + 1" in
+  let valid_end = node "Qed." in
+
   let proof = Proof.of_nodes [ invalid_start; valid_end ] in
 
   let proof_status = Result.map Proof.status proof in
@@ -359,21 +356,9 @@ let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
       proof_status)
 
 let test_creating_a_proof_invalid_closing_node (_ : Doc.t) () : unit =
-  let valid_start =
-    Syntax_node.syntax_node_of_string "Theorem th : forall n : nat, n = n."
-      Code_point.dummy
-    |> expect_result_ok
-  in
-
-  let valid_proof_step =
-    Syntax_node.syntax_node_of_string "easy." Code_point.dummy
-    |> expect_result_ok
-  in
-
-  let invalid_end =
-    Syntax_node.syntax_node_of_string "Compute 1 + 1." Code_point.dummy
-    |> expect_result_ok
-  in
+  let valid_start = node "Theorem th : forall n : nat, n = n." in
+  let valid_proof_step = node "easy." in
+  let invalid_end = node "Compute 1 + 1." in
 
   let proof = Proof.of_nodes [ valid_start; valid_proof_step; invalid_end ] in
 
@@ -417,17 +402,9 @@ let test_of_coq_ast_in_state (doc : Doc.t) () =
     (Syntax_node.repr new_node)
 
 let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
-  let code_point_a = Code_point.origin in
-  let code_point_b =
-    Code_point.make 1 0
-    |> expect_result_ok ~context:"created from positive integers"
-  in
-  let a =
-    Syntax_node.syntax_node_of_string "idtac." code_point_a |> expect_result_ok
-  in
-  let b =
-    Syntax_node.syntax_node_of_string "idtac." code_point_b |> expect_result_ok
-  in
+  let code_point_b = point ~line:1 ~char:0 in
+  let a = node ~start:Code_point.origin "idtac." in
+  let b = node ~start:code_point_b "idtac." in
   let a_then_b = Syntax_node.apply_tac_then a b () in
   let a_then_b_repr = Result.map Syntax_node.repr a_then_b in
 
@@ -438,21 +415,12 @@ let test_creating_simple_a_then_b (_ : Doc.t) () : unit =
       a_then_b_repr)
 
 let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
-  let code_point_a = Code_point.origin in
-  let code_point_b =
-    Code_point.make 1 0
-    |> expect_result_ok ~context:"created from positive integers"
-  in
+  let code_point_b = point ~line:1 ~char:0 in
   let a =
-    Syntax_node.syntax_node_of_string
+    node ~start:Code_point.origin
       "assert (forall A : Prop, (A -> A) /\\ (A -> A)) by (split;auto)."
-      code_point_a
-    |> expect_result_ok
   in
-  let b =
-    Syntax_node.syntax_node_of_string "reflexivity." code_point_b
-    |> expect_result_ok
-  in
+  let b = node ~start:code_point_b "reflexivity." in
 
   let a_then_b = Syntax_node.apply_tac_then a b () in
   let a_then_b_repr = Result.map Syntax_node.repr a_then_b in
@@ -467,19 +435,9 @@ let test_creating_a_then_b_assert_by (_ : Doc.t) () : unit =
       a_then_b_repr)
 
 let test_creating_simple_a_thens_b (_ : Doc.t) () : unit =
-  let code_point_a = Code_point.origin in
-  let code_point_b =
-    Code_point.make 1 0
-    |> expect_result_ok ~context:"created from positive integers"
-  in
-  let a =
-    Syntax_node.syntax_node_of_string "reflexivity." code_point_a
-    |> expect_result_ok
-  in
-  let b =
-    Syntax_node.syntax_node_of_string "reflexivity." code_point_b
-    |> expect_result_ok
-  in
+  let code_point_b = point ~line:1 ~char:0 in
+  let a = node ~start:Code_point.origin "reflexivity." in
+  let b = node ~start:code_point_b "reflexivity." in
   let a_thens_b = Syntax_node.apply_tac_thens a [ b ] () in
   let a_thens_b_repr = Result.map Syntax_node.repr a_thens_b in
 
@@ -490,11 +448,7 @@ let test_creating_simple_a_thens_b (_ : Doc.t) () : unit =
       (Ok "reflexivity; [ reflexivity ].") a_thens_b_repr)
 
 let test_creating_a_thens_nothing (_ : Doc.t) () : unit =
-  let code_point_a = Code_point.origin in
-  let a =
-    Syntax_node.syntax_node_of_string "reflexivity." code_point_a
-    |> expect_result_ok
-  in
+  let a = node ~start:Code_point.origin "reflexivity." in
   let a_thens_nothing = Syntax_node.apply_tac_thens a [] () in
   let a_thens_nothing_repr = Result.map Syntax_node.repr a_thens_nothing in
   Alcotest.(
@@ -504,10 +458,7 @@ let test_creating_a_thens_nothing (_ : Doc.t) () : unit =
       (Ok "reflexivity; [  ].") a_thens_nothing_repr)
 
 let test_get_goal_select_all (_ : Doc.t) () : unit =
-  let node =
-    Syntax_node.syntax_node_of_string "all:simpl." Code_point.dummy
-    |> expect_result_ok
-  in
+  let node = node "all:simpl." in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
 
@@ -518,10 +469,7 @@ let test_get_goal_select_all (_ : Doc.t) () : unit =
     goal_selector
 
 let test_goal_select_nth_selector (_ : Doc.t) () : unit =
-  let node =
-    Syntax_node.syntax_node_of_string "1:simpl." Code_point.dummy
-    |> expect_result_ok
-  in
+  let node = node "1:simpl." in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
 
@@ -534,10 +482,7 @@ let test_goal_select_nth_selector (_ : Doc.t) () : unit =
     expected goal_selector
 
 let test_goal_select_single_range (_ : Doc.t) () : unit =
-  let node =
-    Syntax_node.syntax_node_of_string "1-2:simpl." Code_point.dummy
-    |> expect_result_ok
-  in
+  let node = node "1-2:simpl." in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
 
@@ -551,10 +496,7 @@ let test_goal_select_single_range (_ : Doc.t) () : unit =
     expected goal_selector
 
 let test_goal_select_multiple_selector (_ : Doc.t) () : unit =
-  let node =
-    Syntax_node.syntax_node_of_string "1-2,3-4:simpl." Code_point.dummy
-    |> expect_result_ok
-  in
+  let node = node "1-2,3-4:simpl." in
 
   let goal_selector = Syntax_node.get_goal_selector_opt node in
 
@@ -573,11 +515,7 @@ let test_goal_select_multiple_selector (_ : Doc.t) () : unit =
     expected goal_selector
 
 let test_drop_goal_selector_nth (_ : Doc.t) () : unit =
-  let node =
-    Syntax_node.syntax_node_of_string "1:simpl." Code_point.dummy
-    |> expect_result_ok
-  in
-
+  let node = node "1:simpl." in
   let node_without_selector = Syntax_node.drop_goal_selector node in
 
   let has_goal_selector =
@@ -588,10 +526,7 @@ let test_drop_goal_selector_nth (_ : Doc.t) () : unit =
     check bool "The node selector should be None" true has_goal_selector)
 
 let test_creating_select_already_focused (_ : Doc.t) () : unit =
-  let node =
-    Syntax_node.syntax_node_of_string "reflexivity." Code_point.dummy
-    |> expect_result_ok
-  in
+  let node = node "reflexivity." in
 
   let node_with_select_already_focused_repr =
     Syntax_node.add_goal_selector node Goal_select_view.SelectAlreadyFocused
@@ -671,11 +606,7 @@ let test_selecting_all_goal_with_goal_select (doc : Doc.t) () : unit =
       "All goals should be selected in order" (Ok expected_goals) selected_goals)
 
 let test_detecting_proof_with (_ : Doc.t) () : unit =
-  let point : Code_point.t = Code_point.origin in
-  let node =
-    Syntax_node.syntax_node_of_string "Proof with easy." point
-    |> expect_result_ok
-  in
+  let node = node ~start:Code_point.origin "Proof with easy." in
 
   let is_node_proof_with = Syntax_node.is_proof_with node in
   Alcotest.(
@@ -684,10 +615,7 @@ let test_detecting_proof_with (_ : Doc.t) () : unit =
 
 let test_not_detecting_simple_proof_command_with_proof_with (_ : Doc.t) () :
     unit =
-  let point = Code_point.origin in
-  let node =
-    Syntax_node.syntax_node_of_string "Proof." point |> expect_result_ok
-  in
+  let node = node ~start:Code_point.origin "Proof." in
 
   let is_node_proof_with = Syntax_node.is_proof_with node in
   Alcotest.(
@@ -712,11 +640,7 @@ let test_searching_node (doc : Doc.t) () : unit =
     (Option.map (fun x -> x.id) absurd_node)
 
 let test_reformat_keep_id (_ : Doc.t) () : unit =
-  let starting_point = Code_point.origin in
-
-  let content_node =
-    syntax_node_of_string "Compute 1 + 1." starting_point |> expect_result_ok
-  in
+  let content_node = node "Compute 1 + 1." in
 
   let reformatted_node = Syntax_node.reformat content_node in
   let reformat_id = Result.map (fun x -> x.id) reformatted_node in
@@ -845,10 +769,7 @@ let test_adding_node_on_empty_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point =
-    Code_point.make 1 0
-    |> expect_result_ok ~context:"created from positive integers"
-  in
+  let start_point = point ~line:1 ~char:0 in
 
   let node =
     expect_result_ok
@@ -865,15 +786,8 @@ let test_adding_node_before_busy_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point =
-    Code_point.make 1 0
-    |> expect_result_ok ~context:"created from positive integers"
-  in
-
-  let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string "Compute 2." start_point)
-  in
+  let start_point = point ~line:1 ~char:0 in
+  let node = node ~start:start_point "Compute 2." in
 
   let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -886,16 +800,8 @@ let test_adding_multiple_line_node (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point =
-    Code_point.make 2 0
-    |> expect_result_ok ~context:"created from positive integers"
-  in
-
-  let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string "Compute 1\n        +\n        1."
-         start_point)
-  in
+  let start_point = point ~line:2 ~char:0 in
+  let node = node ~start:start_point "Compute 1\n        +\n        1." in
 
   let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -908,15 +814,8 @@ let test_adding_node_between (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point =
-    Code_point.make 1 11
-    |> expect_result_ok ~context:"created from positive integers"
-  in
-
-  let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string "Compute 2." start_point)
-  in
+  let start_point = point ~line:1 ~char:11 in
+  let node = node ~start:start_point "Compute 2." in
 
   let new_doc =
     Rocq_document.insert_node ~shift_method:ShiftHorizontally node doc
@@ -931,15 +830,8 @@ let test_adding_collision_next_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point =
-    Code_point.make 2 0
-    |> expect_result_ok ~context:"created from positive integers"
-  in
-
-  let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string "Compute 1\n+\n1." start_point)
-  in
+  let start_point = point ~line:2 ~char:0 in
+  let node = node ~start:start_point "Compute 1\n+\n1." in
 
   let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -952,16 +844,8 @@ let test_adding_node_colliding_many (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point =
-    Code_point.make 6 2
-    |> expect_result_ok ~context:"created from positive integers"
-  in
-
-  let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string "Compute 1 +\n  2 + 3 + 4\n  + 5 + 6."
-         start_point)
-  in
+  let start_point = point ~line:6 ~char:2 in
+  let node = node ~start:start_point "Compute 1 +\n  2 + 3 + 4\n  + 5 + 6." in
 
   let new_doc = Rocq_document.insert_node node doc in
   let new_doc_res = Result.map document_to_range_representation_pairs new_doc in
@@ -974,15 +858,8 @@ let test_replacing_single_node_on_line (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let parsed_target = get_target uri_str in
 
-  let start_point =
-    Code_point.make 2 0
-    |> expect_result_ok ~context:"created from positive integers"
-  in
-
-  let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string "Compute 42." start_point)
-  in
+  let start_point = point ~line:2 ~char:0 in
+  let node = node ~start:start_point "Compute 42." in
 
   let second_node_id = (expect_nth_default 1 doc.elements).id in
 
@@ -998,11 +875,7 @@ let test_replacing_first_node_on_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point = point ~line:2 ~char:0 in
-
-  let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string "Compute 123." start_point)
-  in
+  let node = node ~start:start_point "Compute 123." in
 
   let second_node_id = (expect_nth_default 1 doc.elements).id in
 
@@ -1018,11 +891,7 @@ let test_replacing_node_in_middle_of_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point = point ~line:2 ~char:11 in
-
-  let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string "Compute 123456." start_point)
-  in
+  let node = node ~start:start_point "Compute 123456." in
 
   let third_node_id = (expect_nth_default 2 doc.elements).id in
 
@@ -1038,11 +907,7 @@ let test_replacing_node_end_of_line (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point = point ~line:2 ~char:22 in
-
-  let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string "Compute 12345." start_point)
-  in
+  let node = node ~start:start_point "Compute 12345." in
 
   let fourth_node_id = (expect_nth_default 3 doc.elements).id in
 
@@ -1058,11 +923,8 @@ let test_replacing_smaller_node_with_bigger_node (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point = point ~line:1 ~char:0 in
-
   let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string
-         "Theorem th : forall n : nat,\nn + 0 = n." start_point)
+    node ~start:start_point "Theorem th : forall n : nat,\nn + 0 = n."
   in
 
   let first_node_id =
@@ -1081,11 +943,8 @@ let test_replacing_bigger_node_with_smaller_node (doc : Doc.t) () : unit =
   let parsed_target = get_target uri_str in
 
   let start_point = point ~line:1 ~char:0 in
-
   let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string
-         "Theorem th : forall n : nat, n + 0 = n." start_point)
+    node ~start:start_point "Theorem th : forall n : nat, n + 0 = n."
   in
 
   let first_node_id =
@@ -1105,13 +964,11 @@ let test_replacing_block_by_other_block (doc : Doc.t) () : unit =
   let start_point = point ~line:16 ~char:0 in
 
   let node =
-    expect_result_ok
-      (Syntax_node.syntax_node_of_string
-         "Lemma l4_19_stdlib :\n\
-         \  forall A B C C' : Point,\n\
-         \  Bet A C B -> Cong A C A C' -> Cong B C B C' ->\n\
-         \  C = C'."
-         start_point)
+    node ~start:start_point
+      "Lemma l4_19_stdlib :\n\
+      \  forall A B C C' : Point,\n\
+      \  Bet A C B -> Cong A C A C' -> Cong B C B C' ->\n\
+      \  C = C'."
   in
 
   let first_proof =
@@ -1906,6 +1763,8 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_unicode.v"
     (create_fixed_test "test parsing a file containing Unicode"
        test_parsing_unicode doc);
+  Hashtbl.add table "ex_cache_hit_simple.v"
+    (create_fixed_test "ex_cache_hit_simple.v" test_cache_hit_simple doc);
 
   Hashtbl.add table "ex_parsing2.v"
     (create_fixed_test "test names and steps retrival ex 2"
