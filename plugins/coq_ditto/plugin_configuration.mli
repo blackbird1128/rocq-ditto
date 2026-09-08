@@ -84,3 +84,4 @@ val transformation_configuration_of_env :
   Env.t -> (transformation_configuration, Error.t) result
 
 val of_env : string array -> (t, Error.t) result
+val to_env : ?inherited:string array -> t -> string array

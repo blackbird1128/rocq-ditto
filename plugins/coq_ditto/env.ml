@@ -19,7 +19,9 @@ let pp (fmt : Format.formatter) (env : t) =
        pp_key_value)
     env
 
+let empty = []
 let of_assoc_list (a_list : (string * string) list) : t = a_list
+let to_assoc_list (a : t) : (string * string) list = a
 
 (* Already set values take precedence *)
 (* TODO: check if this is the better solution *)

@@ -209,6 +209,10 @@ let parse_transformation_steps (arg : string) :
       (String.concat "\n" transformations_list)
   else Ok (List.map Result.get_ok parsed_transformation_kinds)
 
+let transformation_kind_list_to_string (arg : transformation_kind list) : string
+    =
+  String.concat "," (List.map transformation_kind_to_string arg)
+
 let statistic_configuration_of_env (env : Env.t) :
     (statistic_configuration, Error.t) result =
   let ( let* ) = Result.bind in
@@ -256,6 +260,16 @@ let progress_of_env (env : Env.t) : (progress option, Error.t) result =
   | None, Some _ ->
       Error.string_to_or_error
         "TOTAL_FILE_COUNT provided but CURRENT_FILE_COUNT not found"
+
+let progress_to_env (progress_opt : progress option) : Env.t =
+  match progress_opt with
+  | Some progress ->
+      Env.of_assoc_list
+        [
+          ("CURRENT_FILE_COUNT", string_of_int progress.current_file_count);
+          ("TOTAL_FILE_COUNT", string_of_int progress.total_file_count);
+        ]
+  | None -> Env.empty
 
 let transformation_configuration_of_env (env : Env.t) :
     (transformation_configuration, Error.t) result =
@@ -307,3 +321,30 @@ let of_env (env_array : string array) : (t, Error.t) result =
   | _ ->
       Error.format_to_or_error
         "Unknown action %S, expected one of (transform|statistics)" action_text
+
+let to_env ?(inherited : string array = [||]) (config : t) : string array =
+  match config with
+  | StatisticAction config ->
+      Env.extend_env [||]
+        [
+          ("DITTO_ACTION", "statistics");
+          ("DITTO_STATISTIC", statistic_kind_to_string config.statistic_kind);
+          ("DITTO_STAT_FORMAT", output_format_to_string config.format);
+        ]
+  | TransformationAction config ->
+      let verbose = config.verbosity = Verbose in
+      let quiet = config.verbosity = Quiet in
+
+      Env.extend_env inherited
+        (List.append
+           [
+             ("DITTO_ACTION", "transform");
+             ( "DITTO_TRANSFORMATION",
+               transformation_kind_list_to_string config.transformation_steps );
+             ("SAVE_VO", string_of_bool config.save_vo);
+             ("QUIET", string_of_bool quiet);
+             ("DEBUG_LEVEL", string_of_bool verbose);
+             ("REVERSE_ORDER", string_of_bool config.reverse_order);
+             ("OUTPUT_FILENAME", config.output_filename);
+           ]
+           (Env.to_assoc_list (progress_to_env config.progress)))
