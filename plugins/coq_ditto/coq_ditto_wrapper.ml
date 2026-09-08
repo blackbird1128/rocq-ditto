@@ -360,8 +360,6 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
 
 (* --- Cmdliner definitions ------------------------------------------- *)
 
-let transformation_suggestion = ref None
-
 let transformation_kind_conv =
   let transformations =
     all_transformation_kinds
@@ -384,7 +382,9 @@ let transformation_kind_conv =
         in
         match suggestions with
         | suggestion :: _ ->
-            transformation_suggestion := Some suggestion;
+            let message =
+              message ^ Printf.sprintf "\n\nHint: did you mean '%s'?" suggestion
+            in
             Error message
         | [] -> Error message)
   in
@@ -557,7 +557,4 @@ let cmd =
 
 let () =
   let exit_code = Cmd.eval cmd in
-  Option.iter
-    (fun suggestion -> Printf.eprintf "Hint: did you mean '%s'?\n%!" suggestion)
-    !transformation_suggestion;
   exit exit_code
