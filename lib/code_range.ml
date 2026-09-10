@@ -79,7 +79,8 @@ let of_yojson (json : Yojson.Safe.t) : (t, string) result =
       Error "Invalid Json received in Code_range.of_yojson"
   in
   match assoc with
-  | [ ("start", start_json); ("end_", end_json) ] ->
+  | [ ("start", start_json); ("end_", end_json) ]
+  | [ ("end_", end_json); ("start", start_json) ] ->
       let* start_point = Code_point.of_yojson start_json in
       let* end_point = Code_point.of_yojson end_json in
       make start_point end_point |> Result.map_error Error.to_string_hum

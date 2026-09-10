@@ -255,6 +255,29 @@ let test_of_yojson_simple () =
   Alcotest.check range_testable "a range should be parsed from this Json shape"
     expected parsed
 
+let test_of_yojson_reverse_order () =
+  let json_repr =
+    `Assoc
+      [
+        ("end_", `Assoc [ ("line", `Int 5); ("character", `Int 12) ]);
+        ("start", `Assoc [ ("line", `Int 0); ("character", `Int 10) ]);
+      ]
+  in
+
+  let parsed =
+    of_yojson json_repr
+    |> expect_ok ~context:"expecting parsing to succeed"
+         ~pp_error:Format.pp_print_string
+  in
+
+  let start = point ~line:0 ~char:10 in
+  let end_ = point ~line:5 ~char:12 in
+
+  let expected = range ~start ~end_ in
+
+  Alcotest.check range_testable "a range should be parsed from this Json shape"
+    expected parsed
+
 let test_roundtrip_parsing_json_prop =
   QCheck.Test.make ~count:1000
     ~name:"Json parsing and serialization is round trip"
@@ -384,6 +407,10 @@ let () =
             "test that a range can be parsed from the expected Json \
              representation"
             `Quick test_of_yojson_simple;
+          test_case
+            "test that a range can be parsed from the expected Json fields in \
+             the reverse order"
+            `Quick test_of_yojson_reverse_order;
         ]
         @ qcheck_tests_parsing_json );
       ( "S-exp representation",
