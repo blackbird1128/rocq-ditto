@@ -402,13 +402,13 @@ let get_tacdef_bodies (x : t) : Ltac_plugin.Tacexpr.tacdef_body list option =
 let require_raw_tactic_expr (x : t) :
     (Ltac_plugin.Tacexpr.raw_tactic_expr, Error.t) result =
   match get_tactic_raw_generic_arguments x with
-  | Some args ->
-      Option_utils.to_result
-        (raw_arguments_to_raw_tactic_expr args)
-        ~none:
-          (Error.format_to_or_error
-             "Could extract raw arguments from %s but not convert them to Ltac"
-             (repr x))
+  | Some args -> (
+      match raw_arguments_to_raw_tactic_expr args with
+      | Some raw_tac -> Ok raw_tac
+      | None ->
+          Error.format_to_or_error
+            "Could extract raw arguments from %s but not convert them to Ltac"
+            (repr x))
   | None ->
       Error.format_to_or_error
         "%s isn't convertible to a raw_tactic_expr (It probably isn't Ltac)"
