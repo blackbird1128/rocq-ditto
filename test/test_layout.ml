@@ -12,11 +12,8 @@ let test_prefix_before_newline_count_equal_to_prefix_line =
       "The number of newline in the prefix before is equal to the first node \
        line"
     QCheck.(pair int_pos_mid int_pos_mid)
-    (fun (line, character) ->
-      let p =
-        Code_point.make line character
-        |> expect_result_ok ~context:"created from positive integers"
-      in
+    (fun (line, char) ->
+      let p = point ~line ~char in
       let prefix = Layout.prefix_before p in
       let newline_count =
         String.fold_left
@@ -31,28 +28,22 @@ let test_prefix_before_space_count_equal_to_prefix_char =
       "The number of spaces in the prefix before is equal to the first node \
        char"
     QCheck.(pair int_pos_mid int_pos_mid)
-    (fun (line, character) ->
-      let p =
-        Code_point.make line character
-        |> expect_result_ok ~context:"created from positive integers"
-      in
+    (fun (line, char) ->
+      let p = point ~line ~char in
       let prefix = Layout.prefix_before p in
       let space_count =
         String.fold_left
           (fun count c -> if Char.equal c ' ' then count + 1 else count)
           0 prefix
       in
-      space_count = character)
+      space_count = char)
 
 let test_only_space_and_newline_in_prefix_before =
   QCheck.Test.make ~count:1000
     ~name:"The prefix before is only made of spaces and newlines"
     QCheck.(pair int_pos_mid int_pos_mid)
-    (fun (line, character) ->
-      let p =
-        Code_point.make line character
-        |> expect_result_ok ~context:"created from positive integers"
-      in
+    (fun (line, char) ->
+      let p = point ~line ~char in
       let prefix = Layout.prefix_before p in
       String.for_all (fun c -> Char.equal c ' ' || Char.equal c '\n') prefix)
 

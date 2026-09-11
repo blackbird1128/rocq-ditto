@@ -142,7 +142,7 @@ let check_list_sorted ~(cmp : 'a -> 'a -> int) ~(pp : 'a Fmt.t) (lst : 'a list)
         list_str
 
 let point ~(line : int) ~(char : int) : Code_point.t =
-  Code_point.make line char
+  Code_point.make ~line ~character:char
   |> expect_result_ok ~context:"creating a point for testing"
 
 let range ~(start : Code_point.t) ~(end_ : Code_point.t) : Code_range.t =

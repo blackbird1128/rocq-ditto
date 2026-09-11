@@ -60,7 +60,7 @@ let test_of_sexp_simple () =
   in
 
   let parsed = of_sexp sexp_repr in
-  let expected = make 0 10 in
+  let expected = make ~line:0 ~character:10 in
 
   Alcotest.check
     (result point_testable error_testable)
@@ -71,11 +71,7 @@ let test_roundtrip_parsing_json_prop =
     ~name:"Json parsing and serialization is round tripping"
     QCheck.(pair int_pos int_pos)
     (fun (line, char) ->
-      let point =
-        make line char
-        |> expect_result_ok
-             ~context:"creating a point from positive coordinates"
-      in
+      let point = point ~line ~char in
       let json_repr = to_yojson point in
       let of_json_repr_res = of_yojson json_repr in
       match of_json_repr_res with
@@ -87,12 +83,7 @@ let test_roundtrip_parsing_sexp_prop =
     ~name:"S-exp parsing and serialization is round tripping"
     QCheck.(pair int_pos int_pos)
     (fun (line, char) ->
-      let point =
-        make line char
-        |> expect_result_ok
-             ~context:"creating a point from positive coordinates"
-      in
-
+      let point = point ~line ~char in
       let sexp_repr = sexp_of_t point in
       let of_sexp_repr = of_sexp sexp_repr in
       match of_sexp_repr with

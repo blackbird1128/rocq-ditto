@@ -2,7 +2,7 @@ open Sexplib.Std
 
 type t = { line : int; character : int } [@@deriving sexp_of, to_yojson]
 
-let make (line : int) (character : int) : (t, Error.t) result =
+let make ~(line : int) ~(character : int) : (t, Error.t) result =
   if line < 0 then
     Error.format_to_or_error "Can't create a point (%d,%d) with a negative line"
       line character
@@ -27,7 +27,7 @@ let leq (a : t) (b : t) : bool = compare a b <= 0
 let to_string (x : t) : string = Format.asprintf "%a" pp x
 
 let shift ~(lines : int) ~(chars : int) (x : t) : (t, Error.t) result =
-  make (x.line + lines) (x.character + chars)
+  make ~line:(x.line + lines) ~character:(x.character + chars)
 
 let of_lang_point (x : Lang.Point.t) : t =
   { line = x.line; character = x.character }
@@ -57,7 +57,7 @@ let of_yojson (json : Yojson.Safe.t) : (t, string) result =
   match assoc with
   | [ ("line", `Int line); ("character", `Int character) ]
   | [ ("character", `Int character); ("line", `Int line) ] ->
-      make line character |> Result.map_error Error.to_string_hum
+      make ~line ~character |> Result.map_error Error.to_string_hum
   | _ -> Error "Invalid Json received in Code_point.of_yojson"
 
 let int_of_string_err (arg : string) : (int, Error.t) result =
@@ -78,5 +78,5 @@ let of_sexp (sexp : Sexplib.Sexp.t) : (t, Error.t) result =
       ] ->
       let* line = int_of_string_err line_str in
       let* character = int_of_string_err character_str in
-      make line character
+      make ~line ~character
   | _ -> Error.string_to_or_error "Invalid S-exp received in Code_point.of_sexp"

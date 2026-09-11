@@ -65,7 +65,7 @@ let get_line_col_positions (text : string) (pos : int) :
 
   let line, character = aux 0 0 0 in
   (* Start from line 0, column 0, character 0 *)
-  Code_point.make line character
+  Code_point.make ~line ~character
 
 let mark_string_regions (s : string) : bool array =
   let n = String.length s in
@@ -77,12 +77,12 @@ let mark_string_regions (s : string) : bool array =
       if in_string then
         let acc' = true :: acc in
         if escape then loop (i + 1) true false acc'
-        else
-          begin match c with
+        else begin
+          match c with
           | '\\' -> loop (i + 1) true true acc'
           | '"' -> loop (i + 1) false false acc'
           | _ -> loop (i + 1) true false acc'
-          end
+        end
       else
         (* Outside a string *)
         let acc' = false :: acc in
@@ -272,7 +272,7 @@ let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
     (Syntax_node.t list * Syntax_node.t * Syntax_node.t list) option =
   List_utils.split_around (fun x -> Uuidm.equal x.id target_id) node_list
 
-let shift_block_checked (n_line : int) (n_char : int)
+let shift_block_checked ~(line : int) ~(char : int)
     ?(pred : Syntax_node.t -> bool = fun _ -> true) (nodes : Syntax_node.t list)
     : (Syntax_node.t list, Error.t) result =
   let selected = List.filter pred nodes in
@@ -285,16 +285,15 @@ let shift_block_checked (n_line : int) (n_char : int)
             min acc (min n.range.start.character n.range.end_.character))
           max_int selected
       in
-      if min_char + n_char < 0 then
+      if min_char + char < 0 then
         Error.format_to_or_error
           "Shift would create negative character positions (min_char=%d \
            shift=%d)"
-          min_char n_char
+          min_char char
       else
         List_utils.map_result
           (fun node ->
-            if pred node then
-              Syntax_node.move_by ~lines:n_line ~chars:n_char node
+            if pred node then Syntax_node.move_by ~lines:line ~chars:char node
             else Ok node)
           nodes
 
@@ -440,7 +439,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
               in
               (* For vertical inserts, treat the node as occupying full lines. *)
               let push_lines = delta_lines + 1 in
-              shift_block_checked push_lines 0 after
+              shift_block_checked ~line:push_lines ~char:0 after
           in
           let elements = before @ (new_node :: new_after) in
           let* document_repr = dump_sorted_elements_to_string elements in
@@ -519,7 +518,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
 
         let* shifted_after =
           if delta = 0 then Ok after
-          else shift_block_checked ~pred:predicate 0 delta after
+          else shift_block_checked ~line:0 ~char:delta ~pred:predicate after
         in
         let elements = before @ (replacement :: shifted_after) in
         let* document_repr = dump_sorted_elements_to_string elements in
@@ -545,8 +544,8 @@ let apply_transformation_step (step : Transforming_step.t) (doc : t) :
             (* we don't shift back as by default, equal elements are pushed after *)
             | LineAfter ->
                 Code_point.make
-                  (target.range.end_.line + 1)
-                  target.range.start.character
+                  ~line:(target.range.end_.line + 1)
+                  ~character:target.range.start.character
             | SameLine -> Code_point.shift ~lines:0 ~chars:1 target.range.end_
           in
 

@@ -1,6 +1,6 @@
 type t = private { line : int; character : int } [@@deriving sexp_of, to_yojson]
 
-val make : int -> int -> (t, Error.t) result
+val make : line:int -> character:int -> (t, Error.t) result
 
 val origin : t
 (** The origin point (0, 0) *)
