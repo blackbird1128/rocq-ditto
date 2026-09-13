@@ -13,7 +13,10 @@ val dummy : t
 val pp : Format.formatter -> t -> unit
 val equal : t -> t -> bool
 val compare : t -> t -> int
+val lt : t -> t -> bool
 val leq : t -> t -> bool
+val max : t -> t -> t
+val min : t -> t -> t
 val shift : lines:int -> chars:int -> t -> (t, Error.t) result
 val to_string : t -> string
 val of_lang_point : Lang.Point.t -> t

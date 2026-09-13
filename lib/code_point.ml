@@ -23,7 +23,17 @@ let compare (a : t) (b : t) : int =
   let c = Int.compare a.line b.line in
   if c = 0 then Int.compare a.character b.character else c
 
+let lt (a : t) (b : t) : bool = compare a b < 0
 let leq (a : t) (b : t) : bool = compare a b <= 0
+
+let max (a : t) (b : t) : t =
+  let compared = compare a b in
+  if compared >= 0 then a else b
+
+let min (a : t) (b : t) : t =
+  let compared = compare a b in
+  if compared >= 0 then b else a
+
 let to_string (x : t) : string = Format.asprintf "%a" pp x
 
 let shift ~(lines : int) ~(chars : int) (x : t) : (t, Error.t) result =

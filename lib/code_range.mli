@@ -6,9 +6,14 @@ val pp : Format.formatter -> t -> unit
 val to_string : t -> string
 val equal : t -> t -> bool
 val compare : t -> t -> int
+
+val is_empty : t -> bool
+(** [is_empty range] check if [range] start and end are equal *)
+
 val of_lang_range : Lang.Range.t -> t
+(** [of_lang_range lang_range] converts *)
+
 val extent_of_string : Code_point.t -> string -> t
-val are_flat_ranges_colliding : int * int -> int * int -> bool
 val are_colliding : t -> t -> bool
 val range_contains_other : container:t -> t -> bool
 val of_yojson : Yojson.Safe.t -> (t, string) result
