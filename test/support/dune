@@ -1,4 +1,4 @@
 (library
   (name ditto_test_support)
   (public_name ditto-test-plugin.support)
-  (libraries ditto alcotest fmt uuidm sexplib))
+  (libraries ditto alcotest fmt uuidm sexplib qcheck-core qcheck-alcotest))

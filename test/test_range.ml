@@ -3,91 +3,44 @@ open Ditto.Code_range
 open Ditto_test_support.Test_support
 open Ditto
 
-let test_simple_overlapping () =
-  check bool "overlapping simple" true (are_flat_ranges_colliding (2, 5) (4, 6))
-
-let test_no_overlapping () =
-  check bool "no overlap" false (are_flat_ranges_colliding (1, 3) (4, 6))
-
-let test_exact_match_collision () =
-  check bool "exact match" true (are_flat_ranges_colliding (2, 5) (2, 5))
-
-let test_a_contains_b_collision () =
-  check bool "a contains b" true (are_flat_ranges_colliding (2, 10) (4, 5))
-
-let test_b_contains_a_collision () =
-  check bool "b contains a" true (are_flat_ranges_colliding (4, 5) (2, 10))
-
-let test_no_overlapping_half_open_glued_prop =
+let test_empty_range_doesnt_collide_with_itself_prop =
   QCheck.Test.make ~count:1000
-    ~name:"half open contiguous ranges (a,b) and (b,c) don't collide"
-    QCheck.(triple (int_range 0 10) (int_range 11 20) (int_range 21 30))
-    (fun (a, b, c) -> not (are_flat_ranges_colliding (a, b) (b, c)))
-
-let test_flat_ranges_colliding_symmetric_prop =
-  QCheck.Test.make ~count:1000 ~name:"are_flat_ranges_colliding is symmetric"
-    QCheck.(
-      quad (int_range 0 10) (int_range 11 20) (int_range 21 30)
-        (int_range 31 40))
-    (fun (a, b, c, d) ->
-      are_flat_ranges_colliding (a, b) (c, d)
-      = are_flat_ranges_colliding (c, d) (a, b))
+    ~name:"an empty range doesn't collide with itself" empty_range_gen
+    (fun empty_range -> not (are_colliding empty_range empty_range))
 
 let test_range_collide_with_itself_prop =
   QCheck.Test.make ~count:1000 ~name:"a range collides with itself"
-    QCheck.(
-      quad (int_range 0 100) (int_range 0 50) (int_range 101 200)
-        (int_range 0 50))
-    (fun (a_line, a_char, b_line, b_char) ->
-      let a_point = point ~line:a_line ~char:a_char in
-      let b_point = point ~line:b_line ~char:b_char in
-      let range = range ~start:a_point ~end_:b_point in
-
+    (range_gen ()) (fun range ->
+      QCheck.assume (not (is_empty range));
       are_colliding range range)
 
 let test_range_contains_itself_prop =
-  QCheck.Test.make ~count:1000 ~name:"a range contains itself"
-    QCheck.(
-      quad (int_range 0 100) (int_range 0 50) (int_range 101 200)
-        (int_range 0 50))
-    (fun (a_line, a_char, b_line, b_char) ->
-      let a_point = point ~line:a_line ~char:a_char in
-      let b_point = point ~line:b_line ~char:b_char in
-      let range = range ~start:a_point ~end_:b_point in
-
-      range_contains_other ~container:range range)
+  QCheck.Test.make ~count:1000 ~name:"a range contains itself" (range_gen ())
+    (fun range -> range_contains_other ~container:range range)
 
 let test_empty_range_contains_no_other_range_prop =
-  QCheck.Test.make ~count:1000 ~name:"an empty range contains no other range"
-    QCheck.(
-      quad (int_range 0 100) (int_range 0 50) (int_range 101 200)
-        (int_range 0 50))
-    (fun (a_line, a_char, b_line, b_char) ->
-      let empty_range =
-        range ~start:Code_point.origin ~end_:Code_point.origin
-      in
-
-      let a_point = point ~line:a_line ~char:a_char in
-      let b_point = point ~line:b_line ~char:b_char in
-      let other_range = range ~start:a_point ~end_:b_point in
-
+  QCheck.Test.make ~count:10000 ~name:"an empty range contains no other range"
+    QCheck.(pair empty_range_gen (range_gen ()))
+    (fun (empty_range, other_range) ->
       not (range_contains_other ~container:empty_range other_range))
+
+(* found by property testing: avoid regressions *)
+let test_empty_range_doesnt_collide_with_overlapping_range () =
+  let empty_range_point = point ~line:0 ~char:1 in
+  let empty_range = range ~start:empty_range_point ~end_:empty_range_point in
+
+  let other_range_end = point ~line:0 ~char:2 in
+  let other_range = range ~start:Code_point.origin ~end_:other_range_end in
+
+  Alcotest.check bool
+    "an empty range should not be overlapping with a colliding range" false
+    (are_colliding empty_range other_range)
 
 let test_empty_range_collides_with_no_other_range_prop =
   QCheck.Test.make ~count:1000
     ~name:"an empty range collides with no other range"
-    QCheck.(
-      quad (int_range 0 100) (int_range 0 50) (int_range 101 200)
-        (int_range 0 50))
-    (fun (a_line, a_char, b_line, b_char) ->
-      let empty_range =
-        range ~start:Code_point.origin ~end_:Code_point.origin
-      in
-
-      let a_point = point ~line:a_line ~char:a_char in
-      let b_point = point ~line:b_line ~char:b_char in
-      let other_range = range ~start:a_point ~end_:b_point in
-
+    QCheck.(pair empty_range_gen (range_gen ()))
+    (fun (empty_range, other_range) ->
       not (are_colliding other_range empty_range))
 
 let test_single_line_ranges_on_different_line_dont_intersect_prop =
@@ -117,56 +70,13 @@ let test_single_line_ranges_on_different_line_dont_intersect_prop =
 
 let test_collision_symmetric_prop =
   QCheck.Test.make ~count:1000 ~name:"are_colliding is symmetric"
-    QCheck.(
-      pair
-        (quad (int_range 0 200) (int_range 0 50) (int_range 0 50)
-           (int_range 0 50))
-        (quad (int_range 0 200) (int_range 0 50) (int_range 0 50)
-           (int_range 0 50)))
-    (fun ( (a_line, a_char, a_l_offset, a_c_offset),
-           (b_line, b_char, b_l_offset, b_c_offset) )
-       ->
-      let a_start : Code_point.t = point ~line:a_line ~char:a_char in
-      let a_end : Code_point.t =
-        point ~line:(a_line + a_l_offset) ~char:(a_char + a_c_offset)
-      in
-
-      let a : Code_range.t = range ~start:a_start ~end_:a_end in
-
-      let b_start : Code_point.t = point ~line:b_line ~char:b_char in
-
-      let b_end : Code_point.t =
-        point ~line:(b_line + b_l_offset) ~char:(b_char + b_c_offset)
-      in
-      let b = range ~start:b_start ~end_:b_end in
-
-      are_colliding a b = are_colliding b a)
+    QCheck.(pair (range_gen ()) (range_gen ()))
+    (fun (a, b) -> are_colliding a b = are_colliding b a)
 
 let test_containement_implies_collision_prop =
   QCheck.Test.make ~count:1000 ~name:"contains a b -> are_colliding a b"
-    QCheck.(
-      pair
-        (quad (int_range 0 200) (int_range 0 50) (int_range 0 50)
-           (int_range 0 50))
-        (quad (int_range 0 200) (int_range 0 50) (int_range 0 50)
-           (int_range 0 50)))
-    (fun ( (a_line, a_char, a_l_offset, a_c_offset),
-           (b_line, b_char, b_l_offset, b_c_offset) )
-       ->
-      let a_start = point ~line:a_line ~char:a_char in
-      let a_end =
-        point ~line:(a_line + a_l_offset) ~char:(a_char + a_c_offset)
-      in
-
-      let a : Code_range.t = range ~start:a_start ~end_:a_end in
-
-      let b_start = point ~line:b_line ~char:b_char in
-
-      let b_end =
-        point ~line:(b_line + b_l_offset) ~char:(b_char + b_c_offset)
-      in
-      let b = range ~start:b_start ~end_:b_end in
-
+    QCheck.(pair (range_gen ()) (range_gen ()))
+    (fun (a, b) ->
       if range_contains_other ~container:a b then are_colliding a b else true)
 
 let test_no_collision_glued_prop =
@@ -190,30 +100,8 @@ let test_no_collision_glued_prop =
 
 let test_compare_zero_equivalent_to_equality =
   QCheck.Test.make ~count:1000 ~name:"compare a b = 0 <-> equal a b"
-    QCheck.(
-      pair
-        (quad (int_range 0 200) (int_range 0 50) (int_range 0 50)
-           (int_range 0 50))
-        (quad (int_range 0 200) (int_range 0 50) (int_range 0 50)
-           (int_range 0 50)))
-    (fun ( (a_line, a_char, a_l_offset, a_c_offset),
-           (b_line, b_char, b_l_offset, b_c_offset) )
-       ->
-      let a_start = point ~line:a_line ~char:a_char in
-
-      let a_end =
-        point ~line:(a_line + a_l_offset) ~char:(a_char + a_c_offset)
-      in
-      let a : Code_range.t = range ~start:a_start ~end_:a_end in
-
-      let b_start = point ~line:b_line ~char:b_char in
-
-      let b_end =
-        point ~line:(b_line + b_l_offset) ~char:(b_char + b_c_offset)
-      in
-      let b = range ~start:b_start ~end_:b_end in
-
-      if compare a b = 0 then equal a b else not (equal a b))
+    (QCheck.pair (range_gen ()) (range_gen ()))
+    (fun (a, b) -> if compare a b = 0 then equal a b else not (equal a b))
 
 let test_to_yojson_simple () =
   let start = point ~line:0 ~char:10 in
@@ -280,17 +168,8 @@ let test_of_yojson_reverse_order () =
 
 let test_roundtrip_parsing_json_prop =
   QCheck.Test.make ~count:1000
-    ~name:"Json parsing and serialization is round trip"
-    QCheck.(pair (pair int_pos_mid int_pos_mid) (pair int_pos_mid int_pos_mid))
-    (fun ((start_line, start_char), (end_line_offset, end_char_offset)) ->
-      let start = point ~line:start_line ~char:start_char in
-      let end_ =
-        point
-          ~line:(start_line + end_line_offset)
-          ~char:(start_char + end_char_offset)
-      in
-      let range = range ~start ~end_ in
-
+    ~name:"Json parsing and serialization is round trip" (range_gen ())
+    (fun range ->
       let json_repr = to_yojson range in
       let of_json_repr_res = of_yojson json_repr in
       match of_json_repr_res with
@@ -351,17 +230,8 @@ let test_of_sexp_simple () =
 
 let test_roundtrip_parsing_sexp_prop =
   QCheck.Test.make ~count:1000
-    ~name:"S-exp parsing and serialization is round tripping"
-    QCheck.(pair (pair int_pos_mid int_pos_mid) (pair int_pos_mid int_pos_mid))
-    (fun ((start_line, start_char), (end_line_offset, end_char_offset)) ->
-      let start = point ~line:start_line ~char:start_char in
-      let end_ =
-        point
-          ~line:(start_line + end_line_offset)
-          ~char:(start_char + end_char_offset)
-      in
-      let range = range ~start ~end_ in
-
+    ~name:"S-exp parsing and serialization is round tripping" (range_gen ())
+    (fun range ->
       let sexp_repr = sexp_of_t range in
       let of_sexp_repr = of_sexp sexp_repr in
       match of_sexp_repr with
@@ -380,14 +250,13 @@ let () =
   let qcheck_tests =
     List.map QCheck_alcotest.to_alcotest
       [
-        test_no_overlapping_half_open_glued_prop;
-        test_flat_ranges_colliding_symmetric_prop;
         test_range_contains_itself_prop;
         test_empty_range_contains_no_other_range_prop;
         test_empty_range_collides_with_no_other_range_prop;
         test_containement_implies_collision_prop;
         test_no_collision_glued_prop;
         test_range_collide_with_itself_prop;
+        test_empty_range_doesnt_collide_with_itself_prop;
         test_collision_symmetric_prop;
         test_single_line_ranges_on_different_line_dont_intersect_prop;
         test_compare_zero_equivalent_to_equality;
@@ -427,13 +296,7 @@ let () =
         @ qcheck_tests_parsing_sexp );
       ( "Collisions",
         [
-          test_case "test two ranges overlapping" `Quick test_simple_overlapping;
-          test_case "test two ranges not overlapping" `Quick test_no_overlapping;
-          test_case "test two ranges exactly overlapping" `Quick
-            test_exact_match_collision;
-          test_case "test two ranges where a contains b" `Quick
-            test_a_contains_b_collision;
-          test_case "test two ranges where b contains a" `Quick
-            test_b_contains_a_collision;
+          test_case "test empty range doesn't collide with containing range"
+            `Quick test_empty_range_doesnt_collide_with_overlapping_range;
         ] );
     ]

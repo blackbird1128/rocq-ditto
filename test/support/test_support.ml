@@ -196,3 +196,38 @@ let print_tree ?(prefix = "") (sexp : Sexplib.Sexp.t) : unit =
           lst
   in
   aux prefix (simplify sexp)
+
+let point_of_pair (line, char) = point ~line ~char
+
+let ordered_range (a : Code_point.t) (b : Code_point.t) : Code_range.t =
+  let start, end_ = if Code_point.compare a b <= 0 then (a, b) else (b, a) in
+  range ~start ~end_
+
+let point_in_range_gen ?(line_start : int = 0) ~(line_end : int)
+    ?(char_start : int = 0) ~(char_end : int) () : Code_point.t QCheck.arbitrary
+    =
+  QCheck.map
+    ~rev:(fun (p : Code_point.t) -> (p.line, p.character))
+    point_of_pair
+    (QCheck.pair
+       (QCheck.int_range line_start line_end)
+       (QCheck.int_range char_start char_end))
+
+let point_gen : Code_point.t QCheck.arbitrary =
+  QCheck.map
+    ~rev:(fun (p : Code_point.t) -> (p.line, p.character))
+    point_of_pair
+    (QCheck.pair QCheck.int_pos QCheck.int_pos)
+
+let range_gen ?(point : Code_point.t QCheck.arbitrary = point_gen) () :
+    Code_range.t QCheck.arbitrary =
+  QCheck.map
+    ~rev:(fun (r : Code_range.t) -> (r.start, r.end_))
+    (fun (a, b) -> ordered_range a b)
+    (QCheck.pair point point)
+
+let empty_range_gen : Code_range.t QCheck.arbitrary =
+  QCheck.map
+    ~rev:(fun (r : Code_range.t) -> r.start)
+    (fun (p : Code_point.t) -> range ~start:p ~end_:p)
+    point_gen

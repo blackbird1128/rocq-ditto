@@ -68,10 +68,8 @@ let test_of_sexp_simple () =
 
 let test_roundtrip_parsing_json_prop =
   QCheck.Test.make ~count:1000
-    ~name:"Json parsing and serialization is round tripping"
-    QCheck.(pair int_pos int_pos)
-    (fun (line, char) ->
-      let point = point ~line ~char in
+    ~name:"Json parsing and serialization is round tripping" point_gen
+    (fun point ->
       let json_repr = to_yojson point in
       let of_json_repr_res = of_yojson json_repr in
       match of_json_repr_res with
@@ -80,10 +78,8 @@ let test_roundtrip_parsing_json_prop =
 
 let test_roundtrip_parsing_sexp_prop =
   QCheck.Test.make ~count:1000
-    ~name:"S-exp parsing and serialization is round tripping"
-    QCheck.(pair int_pos int_pos)
-    (fun (line, char) ->
-      let point = point ~line ~char in
+    ~name:"S-exp parsing and serialization is round tripping" point_gen
+    (fun point ->
       let sexp_repr = sexp_of_t point in
       let of_sexp_repr = of_sexp sexp_repr in
       match of_sexp_repr with
@@ -112,11 +108,7 @@ let test_advance_by_empty_string_is_identity_prop =
   QCheck.Test.make ~count:1000
     ~name:
       "Advancing a point by an empty string should leave the point at the \
-       start position"
-    QCheck.(pair int_pos int_pos)
-    (fun (line, char) ->
-      let point = point ~line ~char in
-
+       start position" point_gen (fun point ->
       let moved = advance_by_text point "" in
       equal point moved)
 
@@ -126,10 +118,8 @@ let test_advance_by_number_of_newline_in_text_prop =
       "Advancing a point by a string should increase the line count by the \
        number of newlines (\n\
        )"
-    QCheck.(pair (pair int_pos int_pos) string_printable)
-    (fun ((line, char), text) ->
-      let start_point = point ~line ~char in
-
+    QCheck.(pair point_gen string_printable)
+    (fun (start_point, text) ->
       let number_newline =
         String.fold_left
           (fun count char -> if char = '\n' then count + 1 else count)
@@ -149,13 +139,21 @@ let test_advance_without_newline_only_move_char_prop =
     ~name:
       "Advancing a point by a string without newlines should only move the \
        number of chars"
-    QCheck.(pair (pair int_pos int_pos) string_printable)
-    (fun ((line, char), text) ->
+    QCheck.(pair point_gen string_printable)
+    (fun (start_point, text) ->
       QCheck.assume (not (String.exists (fun c -> c = '\n') text));
-      let start_point = point ~line ~char in
 
       let moved = advance_by_text start_point text in
       start_point.line = moved.line)
+
+let test_advance_by_composition_law_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"advance p (a ^ b) = advance (advance p a) b"
+    QCheck.(triple point_gen string_printable string_printable)
+    (fun (p, text_a, text_b) ->
+      equal
+        (advance_by_text p (text_a ^ text_b))
+        (advance_by_text (advance_by_text p text_a) text_b))
 
 let () =
   let qcheck_tests_parsing_json =
@@ -172,6 +170,7 @@ let () =
         test_advance_by_empty_string_is_identity_prop;
         test_advance_by_number_of_newline_in_text_prop;
         test_advance_without_newline_only_move_char_prop;
+        test_advance_by_composition_law_prop;
       ]
   in
 
