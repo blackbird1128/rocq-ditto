@@ -270,13 +270,6 @@ let test_parsing_unicode (doc : Doc.t) () : unit =
     "The proof prop should be the following: "
     "Lemma demo : forall P Q: Prop, P ∧ Q → Q ∧ P." (repr proof_prop)
 
-let test_cache_hit_simple (doc : Doc.t) () : unit =
-  let _doc = Rocq_document.parse_document doc |> expect_result_ok in
-  let stats = Stats.Global.dump () in
-  Printf.printf "rocq-ditto stats: %s\n" (Stats.Global.to_string stats);
-  Printf.printf "rocq-ditto %s\n" (Memo.GlobalCacheStats.stats ());
-  Alcotest.(check bool) "" true false
-
 let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
   let doc = Rocq_document.parse_document doc |> expect_result_ok in
   let reconstructed = Rocq_document.dump_to_string doc in
@@ -339,7 +332,7 @@ let test_creating_invalid_proof_not_enough_nodes_one (_ : Doc.t) () : unit =
       proof_status)
 
 let test_creating_a_proof_invalid_starting_node (_ : Doc.t) () : unit =
-  let invalid_start = node "Compute 1 + 1" in
+  let invalid_start = node "Compute 1 + 1." in
   let valid_end = node "Qed." in
 
   let proof = Proof.of_nodes [ invalid_start; valid_end ] in
@@ -1763,8 +1756,6 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_unicode.v"
     (create_fixed_test "test parsing a file containing Unicode"
        test_parsing_unicode doc);
-  Hashtbl.add table "ex_cache_hit_simple.v"
-    (create_fixed_test "ex_cache_hit_simple.v" test_cache_hit_simple doc);
 
   Hashtbl.add table "ex_parsing2.v"
     (create_fixed_test "test names and steps retrival ex 2"
