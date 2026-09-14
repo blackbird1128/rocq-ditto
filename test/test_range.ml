@@ -5,22 +5,23 @@ open Ditto
 
 let test_empty_range_doesnt_collide_with_itself_prop =
   QCheck.Test.make ~count:1000
-    ~name:"an empty range doesn't collide with itself" empty_range_gen
+    ~name:"an empty range doesn't collide with itself" empty_range_arbitrary
     (fun empty_range -> not (are_colliding empty_range empty_range))
 
 let test_range_collide_with_itself_prop =
   QCheck.Test.make ~count:1000 ~name:"a range collides with itself"
-    (range_gen ()) (fun range ->
+    (range_arbitrary ()) (fun range ->
       QCheck.assume (not (is_empty range));
       are_colliding range range)
 
 let test_range_contains_itself_prop =
-  QCheck.Test.make ~count:1000 ~name:"a range contains itself" (range_gen ())
-    (fun range -> range_contains_other ~container:range range)
+  QCheck.Test.make ~count:1000 ~name:"a range contains itself"
+    (range_arbitrary ()) (fun range ->
+      range_contains_other ~container:range range)
 
 let test_empty_range_contains_no_other_range_prop =
   QCheck.Test.make ~count:10000 ~name:"an empty range contains no other range"
-    QCheck.(pair empty_range_gen (range_gen ()))
+    QCheck.(pair empty_range_arbitrary (range_arbitrary ()))
     (fun (empty_range, other_range) ->
       not (range_contains_other ~container:empty_range other_range))
 
@@ -39,7 +40,7 @@ let test_empty_range_doesnt_collide_with_overlapping_range () =
 let test_empty_range_collides_with_no_other_range_prop =
   QCheck.Test.make ~count:1000
     ~name:"an empty range collides with no other range"
-    QCheck.(pair empty_range_gen (range_gen ()))
+    QCheck.(pair empty_range_arbitrary (range_arbitrary ()))
     (fun (empty_range, other_range) ->
       not (are_colliding other_range empty_range))
 
@@ -70,12 +71,12 @@ let test_single_line_ranges_on_different_line_dont_intersect_prop =
 
 let test_collision_symmetric_prop =
   QCheck.Test.make ~count:1000 ~name:"are_colliding is symmetric"
-    QCheck.(pair (range_gen ()) (range_gen ()))
+    QCheck.(pair (range_arbitrary ()) (range_arbitrary ()))
     (fun (a, b) -> are_colliding a b = are_colliding b a)
 
 let test_containement_implies_collision_prop =
   QCheck.Test.make ~count:1000 ~name:"contains a b -> are_colliding a b"
-    QCheck.(pair (range_gen ()) (range_gen ()))
+    QCheck.(pair (range_arbitrary ()) (range_arbitrary ()))
     (fun (a, b) ->
       if range_contains_other ~container:a b then are_colliding a b else true)
 
@@ -100,7 +101,7 @@ let test_no_collision_glued_prop =
 
 let test_compare_zero_equivalent_to_equality =
   QCheck.Test.make ~count:1000 ~name:"compare a b = 0 <-> equal a b"
-    (QCheck.pair (range_gen ()) (range_gen ()))
+    (QCheck.pair (range_arbitrary ()) (range_arbitrary ()))
     (fun (a, b) -> if compare a b = 0 then equal a b else not (equal a b))
 
 let test_to_yojson_simple () =
@@ -168,7 +169,7 @@ let test_of_yojson_reverse_order () =
 
 let test_roundtrip_parsing_json_prop =
   QCheck.Test.make ~count:1000
-    ~name:"Json parsing and serialization is round trip" (range_gen ())
+    ~name:"Json parsing and serialization is round trip" (range_arbitrary ())
     (fun range ->
       let json_repr = to_yojson range in
       let of_json_repr_res = of_yojson json_repr in
@@ -230,8 +231,8 @@ let test_of_sexp_simple () =
 
 let test_roundtrip_parsing_sexp_prop =
   QCheck.Test.make ~count:1000
-    ~name:"S-exp parsing and serialization is round tripping" (range_gen ())
-    (fun range ->
+    ~name:"S-exp parsing and serialization is round tripping"
+    (range_arbitrary ()) (fun range ->
       let sexp_repr = sexp_of_t range in
       let of_sexp_repr = of_sexp sexp_repr in
       match of_sexp_repr with

@@ -46,7 +46,7 @@ val sexp_of_proof_tree : Syntax_node.t Nary_tree.t -> Sexplib.Sexp.t
 val simplify : Sexplib.Sexp.t -> Sexplib.Sexp.t
 val print_tree : ?prefix:string -> Sexplib.Sexp.t -> unit
 
-val point_in_range_gen :
+val point_in_range_arbitrary :
   ?line_start:int ->
   line_end:int ->
   ?char_start:int ->
@@ -54,9 +54,9 @@ val point_in_range_gen :
   unit ->
   Code_point.t QCheck.arbitrary
 
-val point_gen : Code_point.t QCheck.arbitrary
+val point_arbitrary : Code_point.t QCheck.arbitrary
 
-val range_gen :
+val range_arbitrary :
   ?point:Code_point.t QCheck.arbitrary -> unit -> Code_range.t QCheck.arbitrary
 
-val empty_range_gen : Code_range.t QCheck.arbitrary
+val empty_range_arbitrary : Code_range.t QCheck.arbitrary
