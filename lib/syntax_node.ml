@@ -68,7 +68,7 @@ let mk_vernac_control ?(loc : Loc.t option)
   let payload = { control; attrs; expr = ve } in
   CAst.make ?loc payload
 
-let inherit_metadata ~(from : t) (node : t) : t = { node with id = from.id }
+let inherit_id ~(from : t) (node : t) : t = { node with id = from.id }
 
 let are_colliding (a : t) (b : t) : bool =
   Code_range.are_colliding a.range b.range
@@ -183,7 +183,7 @@ let reformat (x : t) : (t, Error.t) result =
   | Vernac ast ->
       let start_point = x.range.start in
       let ast_node = of_coq_ast ast.v start_point in
-      Ok (inherit_metadata ~from:x ast_node)
+      Ok (inherit_id ~from:x ast_node)
       (* we return the same id, doesn't matter in the order of operation we do *)
   | Comment ->
       Error.string_to_or_error "The node need to have an AST to be reformatted"
@@ -511,12 +511,12 @@ let raw_tactic_expr_to_syntax_node_in_state ~(token : Coq.Limits.Token.t)
 
 let drop_goal_selector (x : t) : t =
   match get_ltac_command x with
-  | Some { info_level; raw_tactic_expr; use_default; _ } ->
+  | Some { selector = Some _; info_level; raw_tactic_expr; use_default } ->
       let args =
         { selector = None; info_level; raw_tactic_expr; use_default }
       in
 
-      ltac_command_to_syntax_node args x.range.start |> inherit_metadata ~from:x
+      ltac_command_to_syntax_node args x.range.start |> inherit_id ~from:x
   | _ -> x
 
 let add_goal_selector (x : t) (selector : Goal_select_view.t) :
@@ -529,9 +529,7 @@ let add_goal_selector (x : t) (selector : Goal_select_view.t) :
         (Goal_select_view.to_string existing)
   | None ->
       let cmd = { cmd with selector = Some selector } in
-      Ok
-        (ltac_command_to_syntax_node cmd x.range.start
-        |> inherit_metadata ~from:x)
+      Ok (ltac_command_to_syntax_node cmd x.range.start |> inherit_id ~from:x)
 
 let get_alias_kername (x : t) : Names.KerName.t option =
   Option.bind (get_raw_tactic_expr x) Ltac.get_alias_kername
