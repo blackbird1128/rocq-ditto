@@ -41,6 +41,7 @@ type transformation_configuration = {
   reverse_order : bool;
   output_filename : string;
   save_vo : bool;
+  summary : bool;
 }
 
 type statistic_configuration = {
@@ -294,6 +295,8 @@ let transformation_configuration_of_env (env : Env.t) :
 
   let* save_vo = Env.get_as_bool_default env "SAVE_VO" false in
 
+  let* summary = Env.get_as_bool_default env "SUMMARY" false in
+
   Ok
     {
       progress;
@@ -302,6 +305,7 @@ let transformation_configuration_of_env (env : Env.t) :
       reverse_order;
       output_filename;
       save_vo;
+      summary;
     }
 
 let of_env (env_array : string array) : (t, Error.t) result =

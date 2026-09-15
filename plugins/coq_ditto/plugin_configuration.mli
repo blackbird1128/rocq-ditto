@@ -41,6 +41,7 @@ type transformation_configuration = private {
   reverse_order : bool;
   output_filename : string;
   save_vo : bool;
+  summary : bool;
 }
 
 type statistic_configuration = private {

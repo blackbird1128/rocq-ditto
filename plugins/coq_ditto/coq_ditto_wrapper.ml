@@ -12,6 +12,7 @@ type transformation_options = {
   quiet : bool;
   save_vo : bool;
   reverse_order : bool;
+  summary : bool;
   dependencies_action : dependencies_action;
   jobs : int option;
 }
@@ -209,6 +210,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
   and quiet = opts.quiet
   and save_vo = opts.save_vo
   and reverse_order = opts.reverse_order
+  and summary = opts.summary
   and jobs_opt = opts.jobs in
 
   let out = Format.std_formatter in
@@ -240,6 +242,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
         ("SAVE_VO", string_of_bool save_vo);
         ("QUIET", string_of_bool quiet);
         ("REVERSE_ORDER", string_of_bool reverse_order);
+        ("SUMMARY", string_of_bool summary);
       ]
   in
 
@@ -469,6 +472,11 @@ let reverse_order_t =
           "Reverse the order of proof processing to improve cache hits (may \
            produce invalid output).")
 
+let summary_t =
+  Arg.(
+    value & flag
+    & info [ "s"; "summary" ] ~doc:"Output the number of emitted steps")
+
 let positive_int =
   let parse s =
     match int_of_string_opt s with
@@ -486,7 +494,7 @@ let jobs_t =
 
 let transformation_options_t =
   let combine input output transformation verbose quiet save_vo reverse_order
-      dependencies_action jobs =
+      summary dependencies_action jobs =
     {
       input;
       output;
@@ -495,13 +503,14 @@ let transformation_options_t =
       quiet;
       save_vo;
       reverse_order;
+      summary;
       dependencies_action;
       jobs;
     }
   in
   Term.(
     const combine $ input_t $ output_t $ transformation_t $ verbose_t $ quiet_t
-    $ save_vo_t $ reverse_order_t $ dependencies_action_t $ jobs_t)
+    $ save_vo_t $ reverse_order_t $ summary_t $ dependencies_action_t $ jobs_t)
 
 let statistic_t =
   Arg.(
