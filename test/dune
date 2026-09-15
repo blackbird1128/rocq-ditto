@@ -20,7 +20,7 @@
  (name test_comment_scanner)
  (package coq-ditto)
  (modules test_comment_scanner)
- (libraries ditto ditto_test_support alcotest))
+ (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
   
 (test
  (name test_list_utils)

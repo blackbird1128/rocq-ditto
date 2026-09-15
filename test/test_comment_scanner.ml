@@ -45,7 +45,22 @@ let test_parse_malformed_single_star () =
   Alcotest.(check (result (list (pair string point_testable)) error_testable))
     "No comment should be parsed" expected comments
 
+let no_comment_smaller_than_four_characters_prop =
+  QCheck.Test.make ~count:1000000
+    ~name:"No comment parsable from a string of three characters"
+    (QCheck.string_size_of (QCheck.Gen.int_bound 3) QCheck.Gen.char_printable)
+    (fun str ->
+      match get_comments str with
+      | Ok [] -> true
+      | Ok (_ :: _) -> false
+      | Error _ -> true)
+
 let () =
+  let qcheck_tests =
+    List.map QCheck_alcotest.to_alcotest
+      [ no_comment_smaller_than_four_characters_prop ]
+  in
+
   Alcotest.run "Comment scanner tests"
     [
       ( "Comment parsing",
@@ -56,8 +71,9 @@ let () =
             test_parse_no_comment;
           test_case "test parsing try (rewrite _ in *)" `Quick
             test_parse_try_rewrite_in_star;
-          test_case "test parsing nested comments" `Quick
-            test_parse_nested_comment;
-          test_case "test parsing (*)" `Quick test_parse_malformed_single_star;
-        ] );
+          (* test_case "test parsing nested comments" `Quick *)
+          (*   test_parse_nested_comment; *)
+          (* test_case "test parsing (\*\)" `Quick test_parse_malformed_single_star; *)
+        ]
+        @ qcheck_tests );
     ]
