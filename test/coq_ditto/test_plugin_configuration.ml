@@ -1,5 +1,23 @@
 open Ditto_cli_lib.Plugin_configuration
 
+(* let dependencies_action_gen = *)
+(*   QCheck.Gen.oneof_list [ NoAction; CompileDependencies; TransformDependencies ] *)
+
+let output_format_gen = QCheck.Gen.oneof_list [ Text; Json ]
+
+let output_format_arbitrary =
+  QCheck.make ~print:output_format_to_string output_format_gen
+
+let transformation_kind_gen = QCheck.Gen.oneof_list all_transformation_kinds
+
+let transformation_kind_arbitrary =
+  QCheck.make ~print:transformation_kind_to_string transformation_kind_gen
+
+let statistic_kind_gen = QCheck.Gen.oneof_list all_statistic_kinds
+
+let statistic_kind_arbitrary =
+  QCheck.make ~print:statistic_kind_to_string statistic_kind_gen
+
 let test_camel_to_snake_simple () =
   Alcotest.(check string)
     "A string in Camel Case should be converted to snake_case" "snake_case"
@@ -14,6 +32,35 @@ let test_snake_case_to_snake_empty () =
   Alcotest.(check string)
     "An empty string should remain empty after camel to snake case" ""
     (camel_to_snake "")
+
+let test_output_format_parsing_roundtrip_prop =
+  QCheck.Test.make ~count:1000 ~name:"parsing an output format roundtrip"
+    output_format_arbitrary (fun output_format ->
+      let repr = output_format_to_string output_format in
+      let parsed_res = arg_to_output_format repr in
+      match parsed_res with
+      | Ok parsed -> parsed = output_format
+      | Error _ -> false)
+
+let test_transformation_kind_parsing_roundtrip_prop =
+  QCheck.Test.make ~count:1000 ~name:"parsing a transformation kind roundtrip"
+    transformation_kind_arbitrary (fun transformation_kind ->
+      let repr = transformation_kind_to_string transformation_kind in
+      let parsed_res = arg_to_transformation_kind repr in
+      match parsed_res with
+      | Ok parsed -> parsed = transformation_kind
+      | Error _ -> false)
+
+let test_transformation_steps_parsing_roundtrip_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"parsing a transformation steps list roundtrip"
+    QCheck.(list transformation_kind_arbitrary)
+    (fun l ->
+      let l_repr = transformation_steps_to_string l in
+      let parsed_res = parse_transformation_steps l_repr in
+      match parsed_res with
+      | Ok parsed -> List.equal ( = ) parsed l
+      | Error _ -> false)
 
 let test_camel_to_snake_case_idempotent_prop =
   QCheck.Test.make ~count:1000
@@ -56,6 +103,8 @@ let () =
     List.map QCheck_alcotest.to_alcotest
       [
         test_camel_to_snake_case_idempotent_prop;
+        test_transformation_steps_parsing_roundtrip_prop;
+        test_output_format_parsing_roundtrip_prop;
         test_create_progress_negative_start_fail_prop;
         test_create_progress_negative_total_fail_prop;
         test_create_progress_total_is_zero_fail_prop;
