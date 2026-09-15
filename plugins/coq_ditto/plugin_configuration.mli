@@ -75,6 +75,8 @@ val verbosity_of_flags :
 val parse_transformation_steps :
   string -> (transformation_kind list, Error.t) result
 
+val transformation_steps_to_string : transformation_kind list -> string
+
 val statistic_configuration_of_env :
   Env.t -> (statistic_configuration, Error.t) result
 

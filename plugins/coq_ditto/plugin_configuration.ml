@@ -192,25 +192,26 @@ let verbosity_of_flags ~(verbose : bool) ~(quiet : bool) :
 
 let parse_transformation_steps (arg : string) :
     (transformation_kind list, Error.t) result =
-  let split_arg = String.split_on_char ',' arg |> List.map String.trim in
-  let parsed_transformation_kinds =
-    List.map arg_to_transformation_kind split_arg
-  in
-  if List.exists Result.is_error parsed_transformation_kinds then
-    let not_recognized =
-      String.concat "\n"
-        (List.map
-           (fun x -> Error.to_string_hum (Result.get_error x))
-           ((List.filter Result.is_error) parsed_transformation_kinds))
+  if String.equal (String.trim arg) "" then Ok []
+  else
+    let split_arg = String.split_on_char ',' arg |> List.map String.trim in
+    let parsed_transformation_kinds =
+      List.map arg_to_transformation_kind split_arg
     in
-    Error.format_to_or_error
-      "Transformations not recognized:\n%s\nRecognized transformations: %s"
-      not_recognized
-      (String.concat "\n" transformations_list)
-  else Ok (List.map Result.get_ok parsed_transformation_kinds)
+    if List.exists Result.is_error parsed_transformation_kinds then
+      let not_recognized =
+        String.concat "\n"
+          (List.map
+             (fun x -> Error.to_string_hum (Result.get_error x))
+             ((List.filter Result.is_error) parsed_transformation_kinds))
+      in
+      Error.format_to_or_error
+        "Transformations not recognized:\n%s\nRecognized transformations: %s"
+        not_recognized
+        (String.concat "\n" transformations_list)
+    else Ok (List.map Result.get_ok parsed_transformation_kinds)
 
-let transformation_kind_list_to_string (arg : transformation_kind list) : string
-    =
+let transformation_steps_to_string (arg : transformation_kind list) : string =
   String.concat "," (List.map transformation_kind_to_string arg)
 
 let statistic_configuration_of_env (env : Env.t) :
@@ -340,7 +341,7 @@ let to_env ?(inherited : string array = [||]) (config : t) : string array =
            [
              ("DITTO_ACTION", "transform");
              ( "DITTO_TRANSFORMATION",
-               transformation_kind_list_to_string config.transformation_steps );
+               transformation_steps_to_string config.transformation_steps );
              ("SAVE_VO", string_of_bool config.save_vo);
              ("QUIET", string_of_bool quiet);
              ("DEBUG_LEVEL", string_of_bool verbose);
