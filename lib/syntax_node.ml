@@ -495,15 +495,14 @@ let tacdef_body_list_to_syntax_node
 
 let raw_tactic_expr_to_syntax_node
     (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
-    ?(selector : Goal_select_view.t option) ?(info_level : int option = None)
+    ?(selector : Goal_select_view.t option) ?(info_level : int option)
     ?(use_default = false) (starting_point : Code_point.t) : t =
   let cmd = { selector; info_level; raw_tactic_expr = raw_expr; use_default } in
-  let tac = ltac_command_to_syntax_node cmd starting_point in
-  tac
+  ltac_command_to_syntax_node cmd starting_point
 
 let raw_tactic_expr_to_syntax_node_in_state ~(token : Coq.Limits.Token.t)
     ~(st : Coq.State.t) (raw_expr : Ltac_plugin.Tacexpr.raw_tactic_expr)
-    ?(selector : Goal_select_view.t option) ?(info_level = None)
+    ?(selector : Goal_select_view.t option) ?(info_level : int option)
     ?(use_default = false) (starting_point : Code_point.t) : (t, Error.t) result
     =
   let cmd = { selector; info_level; raw_tactic_expr = raw_expr; use_default } in

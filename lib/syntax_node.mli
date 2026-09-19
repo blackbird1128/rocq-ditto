@@ -163,7 +163,7 @@ val tacdef_body_list_to_syntax_node :
 val raw_tactic_expr_to_syntax_node :
   Ltac_plugin.Tacexpr.raw_tactic_expr ->
   ?selector:Goal_select_view.t ->
-  ?info_level:int option ->
+  ?info_level:int ->
   ?use_default:bool ->
   Code_point.t ->
   t
@@ -173,7 +173,7 @@ val raw_tactic_expr_to_syntax_node_in_state :
   st:Coq.State.t ->
   Ltac_plugin.Tacexpr.raw_tactic_expr ->
   ?selector:Goal_select_view.t ->
-  ?info_level:int option ->
+  ?info_level:int ->
   ?use_default:bool ->
   Code_point.t ->
   (t, Error.t) result
