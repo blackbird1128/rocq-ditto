@@ -40,8 +40,6 @@ let require_prefix_rules : (string * string) list =
       "GeoCoq.Constructive.Parallel_postulates" );
     ("GeoCoq.Main.Tactics", "GeoCoq.Constructive.Tactics");
     ("GeoCoq.Axioms.Definitions", "GeoCoq.Constructive.Prelude.Definitions");
-    ( "GeoCoq.Axioms.continuity_axioms",
-      "GeoCoq.Constructive.Prelude.continuity_axioms" );
     ( "GeoCoq.Axioms.parallel_postulates",
       "GeoCoq.Constructive.Prelude.parallel_postulates" );
   ]
