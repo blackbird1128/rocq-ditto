@@ -659,32 +659,6 @@ let replace_destruct_fun_with_stab_destruct
       | _ -> x)
   | _ -> x
 
-let replace_induction_by_stab_eq_point (x : Ltac_plugin.Tacexpr.raw_tactic_expr)
-    : Ltac_plugin.Tacexpr.raw_tactic_expr =
-  match x.v with
-  | TacAtom (TacInductionDestruct (true, false, ([ induction_clause_head ], _)))
-    -> (
-      let (_, core_destruction_arg), _, _ = induction_clause_head in
-      match core_destruction_arg with
-      | ElimOnConstr (constrexpr, NoBindings)
-        when is_constrexpr_c_app_named constrexpr "eq_dec_points" -> (
-          let fun_args = get_func_args constrexpr in
-          let fun_args_str =
-            List.map
-              (fun x ->
-                get_cref_qualid x |> Option.get |> Libnames.string_of_qualid)
-              fun_args
-          in
-          let stab_eq_str =
-            "stab_eq_point " ^ String.concat " " fun_args_str ^ "; intros ?H."
-          in
-
-          match Syntax_node.string_to_raw_tactic_expr stab_eq_str with
-          | Ok expr -> expr
-          | Error _ -> x)
-      | _ -> x)
-  | _ -> x
-
 let rec update_replaces (l : Transforming_step.t list) =
   match l with
   | [] -> []
@@ -998,20 +972,10 @@ let constructivise_doc (doc : Rocq_document.t) :
 
   let stage_4 =
     make_stage "stage4" (fun doc ->
-        let replace_induction_by_stab_eq_point_steps =
-          map_raw_tactic_expr_steps replace_induction_by_stab_eq_point doc
-        in
-
         let replace_elim_with_stab_elim_steps =
           map_raw_tactic_expr_steps replace_elim_with_stab_elim doc
         in
-
-        Ok
-          (List.concat
-             [
-               replace_induction_by_stab_eq_point_steps;
-               replace_elim_with_stab_elim_steps;
-             ]))
+        Ok replace_elim_with_stab_elim_steps)
   in
 
   let stage_5 : stage =
