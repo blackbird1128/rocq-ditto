@@ -62,6 +62,15 @@ let test_transformation_steps_parsing_roundtrip_prop =
       | Ok parsed -> List.equal ( = ) parsed l
       | Error _ -> false)
 
+let test_statistic_kind_parsing_roundtrip_prop =
+  QCheck.Test.make ~count:1000 ~name:"parsing a statistic kind roundtrip"
+    statistic_kind_arbitrary (fun statistic_kind ->
+      let repr = statistic_kind_to_string statistic_kind in
+      let parsed_res = arg_to_statistic_kind repr in
+      match parsed_res with
+      | Ok parsed -> parsed = statistic_kind
+      | Error _ -> false)
+
 let test_camel_to_snake_case_idempotent_prop =
   QCheck.Test.make ~count:1000
     ~name:
@@ -103,8 +112,10 @@ let () =
     List.map QCheck_alcotest.to_alcotest
       [
         test_camel_to_snake_case_idempotent_prop;
+        test_transformation_kind_parsing_roundtrip_prop;
         test_transformation_steps_parsing_roundtrip_prop;
         test_output_format_parsing_roundtrip_prop;
+        test_statistic_kind_parsing_roundtrip_prop;
         test_create_progress_negative_start_fail_prop;
         test_create_progress_negative_total_fail_prop;
         test_create_progress_total_is_zero_fail_prop;
