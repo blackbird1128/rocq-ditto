@@ -81,6 +81,7 @@ val transformation_steps_to_string : transformation_kind list -> string
 val statistic_configuration_of_env :
   Env.t -> (statistic_configuration, Error.t) result
 
+val statistic_configuration_to_env : statistic_configuration -> Env.t
 val progress_of_env : Env.t -> (progress option, Error.t) result
 
 val transformation_configuration_of_env :

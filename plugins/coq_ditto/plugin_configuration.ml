@@ -232,6 +232,14 @@ let statistic_configuration_of_env (env : Env.t) :
 
   Ok { statistic_kind; format }
 
+let statistic_configuration_to_env (config : statistic_configuration) : Env.t =
+  Env.of_assoc_list
+    [
+      ("DITTO_ACTION", "statistics");
+      ("DITTO_STATISTIC", statistic_kind_to_string config.statistic_kind);
+      ("DITTO_STAT_FORMAT", output_format_to_string config.format);
+    ]
+
 let create_progress (current : int) (total : int) : (progress, Error.t) result =
   if current < 0 then
     Error.format_to_or_error "Provided current file count: %d is lesser than 0"
@@ -330,7 +338,7 @@ let of_env (env_array : string array) : (t, Error.t) result =
 let to_env ?(inherited : string array = [||]) (config : t) : string array =
   match config with
   | StatisticAction config ->
-      Env.extend_env [||]
+      Env.extend_env inherited
         [
           ("DITTO_ACTION", "statistics");
           ("DITTO_STATISTIC", statistic_kind_to_string config.statistic_kind);
