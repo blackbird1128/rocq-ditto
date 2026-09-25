@@ -71,9 +71,9 @@ let () =
             test_parse_no_comment;
           test_case "test parsing try (rewrite _ in *)" `Quick
             test_parse_try_rewrite_in_star;
-          (* test_case "test parsing nested comments" `Quick *)
-          (*   test_parse_nested_comment; *)
-          (* test_case "test parsing (\*\)" `Quick test_parse_malformed_single_star; *)
+          test_case "test parsing nested comments" `Quick
+            test_parse_nested_comment;
+          test_case "test parsing (*)" `Quick test_parse_malformed_single_star;
         ]
         @ qcheck_tests );
     ]
