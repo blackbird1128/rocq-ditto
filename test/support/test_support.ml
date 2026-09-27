@@ -153,8 +153,8 @@ let node ?(start = Code_point.dummy) (repr : string) : Syntax_node.t =
   Syntax_node.syntax_node_of_string repr start
   |> expect_result_ok ~context:(Printf.sprintf "Creating a node from %s" repr)
 
-let make_dummy_node_from_repr (start_line : int) (start_char : int)
-    (repr : string) : Syntax_node.t =
+let comment_node_at (start_line : int) (start_char : int) (repr : string) :
+    Syntax_node.t =
   let start_point : Code_point.t = point ~line:start_line ~char:start_char in
 
   Syntax_node.comment_of_string repr start_point

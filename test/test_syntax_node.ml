@@ -43,11 +43,11 @@ let test_reformat_comment_node () : unit =
     reformat_id
 
 let test_sorting_nodes () : unit =
-  let node1 = make_dummy_node_from_repr 0 0 "(* aaaaaa *)" in
+  let node1 = comment_node_at 0 0 "(* aaaaaa *)" in
   (* your example *)
-  let node2 = make_dummy_node_from_repr 0 14 "(*\n*)" in
+  let node2 = comment_node_at 0 14 "(*\n*)" in
   (* overlaps with node1 *)
-  let node3 = make_dummy_node_from_repr 2 0 "(* aaaa *)" in
+  let node3 = comment_node_at 2 0 "(* aaaa *)" in
   (* does not overlap *)
 
   let sorted = List.sort Syntax_node.compare [ node2; node3; node1 ] in
@@ -62,8 +62,8 @@ let test_sorting_nodes () : unit =
     "The nodes should be ordered correctly" expected ids
 
 let test_colliding_nodes_no_common_lines () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 "(* aaaaaa *)" in
-  let other_node = make_dummy_node_from_repr 1 0 "(* aaaa *)" in
+  let target_node = comment_node_at 0 0 "(* aaaaaa *)" in
+  let other_node = comment_node_at 1 0 "(* aaaa *)" in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -74,8 +74,8 @@ let test_colliding_nodes_no_common_lines () : unit =
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
 let test_colliding_nodes_common_line_no_collision () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 "(*l*)" in
-  let other_node = make_dummy_node_from_repr 0 20 "(*r*)" in
+  let target_node = comment_node_at 0 0 "(*l*)" in
+  let other_node = comment_node_at 0 20 "(*r*)" in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -86,8 +86,8 @@ let test_colliding_nodes_common_line_no_collision () : unit =
     "the two nodes should not be colliding" [] colliding_nodes_ids
 
 let test_colliding_nodes_common_line_collision () : unit =
-  let target_node = make_dummy_node_from_repr 0 0 "(* hello *)" in
-  let other_node = make_dummy_node_from_repr 0 3 "(* world *)" in
+  let target_node = comment_node_at 0 0 "(* hello *)" in
+  let other_node = comment_node_at 0 3 "(* world *)" in
 
   let colliding_nodes_ids =
     Syntax_node.colliding_nodes target_node [ other_node ]
@@ -99,11 +99,10 @@ let test_colliding_nodes_common_line_collision () : unit =
 
 let test_colliding_nodes_multiple_common_lines_collision () : unit =
   let target_node =
-    make_dummy_node_from_repr 0 0
-      "(*aaaaaaaaa\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa*)"
+    comment_node_at 0 0 "(*aaaaaaaaa\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa*)"
   in
   let other_node =
-    make_dummy_node_from_repr 1 12
+    comment_node_at 1 12
       "(*aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaaaaaaa*)"
   in
 
@@ -114,6 +113,10 @@ let test_colliding_nodes_multiple_common_lines_collision () : unit =
 
   Alcotest.(check (list uuidm_testable))
     "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
+
+(* let test_move_to_single_line_node () : unit = *)
+(*   let start_point = point ~line:3 ~char:4 in *)
+(*   let moved_node = comment_node ~start:start_point *)
 
 let tests =
   [
