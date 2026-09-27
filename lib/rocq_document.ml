@@ -94,8 +94,8 @@ let parse_document (doc : Fleche.Doc.t) : (t, Error.t) result =
 
   Ok { elements = all_nodes; document_repr; filename; root_state = doc.root }
 
-let dump_sorted_elements_to_string (sorted : Syntax_node.t list) :
-    (string, Error.t) result =
+let dump_sorted_elements_to_string ?(initial_capacity = 256)
+    (sorted : Syntax_node.t list) : (string, Error.t) result =
   let append_first (buf : Buffer.t) (node : Syntax_node.t) : unit =
     Buffer.add_string buf (Layout.prefix_before node.range.start);
     Buffer.add_string buf (Syntax_node.repr node)
@@ -115,7 +115,7 @@ let dump_sorted_elements_to_string (sorted : Syntax_node.t list) :
   match sorted with
   | [] -> Ok ""
   | first :: tail ->
-      let buf = Buffer.create 256 in
+      let buf = Buffer.create initial_capacity in
       append_first buf first;
       aux tail buf first
 
@@ -263,26 +263,30 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
   let* elements =
     remove_node_from_elements ~target_id ~remove_method doc.elements
   in
-  let* document_repr = dump_sorted_elements_to_string elements in
+  let* document_repr =
+    dump_sorted_elements_to_string
+      ~initial_capacity:(String.length doc.document_repr)
+      elements
+  in
   Ok { doc with elements; document_repr }
 
 let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
   let sorted = doc.elements in
-  let before, after =
+  let before, previous, after =
     match shift_method with
     | ShiftVertically ->
-        List_utils.split_while
+        List_utils.split_while_with_last
           (fun node -> node.range.start.line < new_node.range.start.line)
           sorted
     | ShiftHorizontally ->
-        List_utils.split_while
+        List_utils.split_while_with_last
           (fun node ->
             Code_point.compare node.range.start new_node.range.start < 0)
           sorted
   in
 
-  match List_utils.last before with
+  match previous with
   | Some prev when not (Code_point.leq prev.range.end_ new_node.range.start) ->
       Error.format_to_or_error
         "insert_node: new node starts before previous ends\n\
@@ -331,7 +335,11 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
                   after
             in
             let elements = before @ (new_node :: new_after) in
-            let* document_repr = dump_sorted_elements_to_string elements in
+            let* document_repr =
+              dump_sorted_elements_to_string
+                ~initial_capacity:(String.length doc.document_repr)
+                elements
+            in
             Ok { doc with elements; document_repr }
       | ShiftVertically ->
           (* Push down only if we overlap the next node; and push by number of
@@ -353,7 +361,11 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
               shift_block_checked ~line:push_lines ~char:0 after
           in
           let elements = before @ (new_node :: new_after) in
-          let* document_repr = dump_sorted_elements_to_string elements in
+          let* document_repr =
+            dump_sorted_elements_to_string
+              ~initial_capacity:(String.length doc.document_repr)
+              elements
+          in
           Ok { doc with elements; document_repr })
 
 let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
@@ -402,7 +414,11 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
             after
         in
         let elements = before @ (replacement :: shifted_after) in
-        let* document_repr = dump_sorted_elements_to_string elements in
+        let* document_repr =
+          dump_sorted_elements_to_string
+            ~initial_capacity:(String.length doc.document_repr)
+            elements
+        in
         Ok { doc with elements; document_repr }
       else
         let before, after =
@@ -430,7 +446,11 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
           else shift_block_checked ~line:0 ~char:delta ~pred:predicate after
         in
         let elements = before @ (replacement :: shifted_after) in
-        let* document_repr = dump_sorted_elements_to_string elements in
+        let* document_repr =
+          dump_sorted_elements_to_string
+            ~initial_capacity:(String.length doc.document_repr)
+            elements
+        in
         Ok { doc with elements; document_repr }
 
 let apply_transformation_step (step : Transforming_step.t) (doc : t) :
