@@ -28,31 +28,27 @@ let pp (fmt : Format.formatter) (doc : t) : unit =
 type proof_state = OutsideProof | InsideProof of Syntax_node.t list
 
 let get_proofs (doc : t) : (Proof.t list, Error.t) result =
-  let rec aux (nodes : Syntax_node.t list)
-      (proofs_acc : (Proof.t, Error.t) result list) (cur_state : proof_state) :
-      (Proof.t, Error.t) result list =
-    match nodes with
-    | [] -> proofs_acc
-    | x :: tail -> (
+  let* proofs, _ =
+    List_utils.fold_left_result
+      (fun (proofs_acc, cur_state) x ->
         if Syntax_node.can_open_proof x then
-          aux tail proofs_acc (InsideProof [ x ])
+          Ok (proofs_acc, InsideProof [ x ])
         else if Syntax_node.can_close_proof x then
           match cur_state with
           | OutsideProof ->
-              aux tail proofs_acc OutsideProof
+              Ok (proofs_acc, OutsideProof)
               (* TODO: proper handling of Program and Obligation *)
           | InsideProof cur_proof_acc ->
-              let proof = Proof.of_nodes (List.rev (x :: cur_proof_acc)) in
-              aux tail (proof :: proofs_acc) OutsideProof
+              let* proof = Proof.of_nodes (List.rev (x :: cur_proof_acc)) in
+              Ok (proof :: proofs_acc, OutsideProof)
         else
           match cur_state with
-          | OutsideProof -> aux tail proofs_acc OutsideProof
+          | OutsideProof -> Ok (proofs_acc, OutsideProof)
           | InsideProof cur_proof_acc ->
-              aux tail proofs_acc (InsideProof (x :: cur_proof_acc)))
+              Ok (proofs_acc, InsideProof (x :: cur_proof_acc)))
+      ([], OutsideProof) doc.elements
   in
-
-  let res = aux doc.elements [] OutsideProof in
-  List.rev res |> List_utils.result_all
+  Ok (List.rev proofs)
 
 let range_contains_node (container : Syntax_node.t) (candidate : Syntax_node.t)
     : bool =
