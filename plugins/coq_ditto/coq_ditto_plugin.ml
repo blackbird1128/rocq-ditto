@@ -227,13 +227,7 @@ let save_vo_to_file (filename : string) (doc : Rocq_document.t)
 
   let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc_uri in
   let in_file = Lang.LUri.File.to_string_file uri in
-  let* state =
-    match List_utils.last doc.elements with
-    | Some last ->
-        let* st = Runner.get_init_state doc last token in
-        Runner.run_node token st last
-    | None -> Ok doc.root_state
-  in
+  let* state = Runner.get_state_after doc.root_state token doc.elements in
 
   let res =
     Coq.Save.save_vo ~token ~st:state ~ldir ~in_file |> Error.protect_to_result
