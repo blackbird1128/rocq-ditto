@@ -43,19 +43,13 @@ let of_lang_point (x : Lang.Point.t) : t =
   { line = x.line; character = x.character }
 
 let advance_by_text (x : t) (str : string) : t =
-  let number_line_jump =
-    String.fold_left
-      (fun count char -> if char = '\n' then count + 1 else count)
-      0 str
+  let length = String.length str in
+  let rec advance index line character =
+    if index = length then { line; character }
+    else if str.[index] = '\n' then advance (index + 1) (line + 1) 0
+    else advance (index + 1) line (character + 1)
   in
-  let last_jump = String.rindex_opt str '\n' in
-  let offset_length = String.length str in
-  {
-    line = x.line + number_line_jump;
-    character =
-      (if number_line_jump > 0 then String.length str - Option.get last_jump - 1
-       else x.character + offset_length);
-  }
+  advance 0 x.line x.character
 
 let of_yojson (json : Yojson.Safe.t) : (t, string) result =
   let ( let* ) = Result.bind in
