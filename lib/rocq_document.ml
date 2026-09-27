@@ -370,16 +370,12 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
 
 let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
     (t, Error.t) result =
-  match element_with_id_opt target_id doc with
+  match split_around_id target_id doc.elements with
   | None ->
       Error.format_to_or_error "The target node with id: %s doesn't exist"
         (Uuidm.to_string target_id)
-  | Some target ->
+  | Some (before, target, after) ->
       let replacement = Syntax_node.move_to target.range.start replacement in
-      let* elements_without_target =
-        remove_node_from_elements ~target_id:target.id ~remove_method:LeaveBlank
-          doc.elements
-      in
 
       let is_single_line =
         replacement.range.start.line = replacement.range.end_.line
@@ -396,12 +392,6 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
           replacement.range.end_.character - target.range.end_.character
         in
 
-        let before, after =
-          List_utils.split_while
-            (fun node ->
-              Code_point.compare node.range.start replacement.range.start < 0)
-            elements_without_target
-        in
         let* shifted_after =
           List_utils.map_result
             (fun node ->
@@ -421,12 +411,6 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         in
         Ok { doc with elements; document_repr }
       else
-        let before, after =
-          List_utils.split_while
-            (fun node ->
-              Code_point.compare node.range.start replacement.range.start < 0)
-            elements_without_target
-        in
         let old_width =
           target.range.end_.character - target.range.start.character
         in
