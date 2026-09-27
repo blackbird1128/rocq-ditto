@@ -2107,43 +2107,103 @@ let check_test_files_exist
   in
   List.of_seq file_keys |> aux
 
+type progress = { completed : int; failures : int }
+type test_outcome = Passed | Failed
+
+let progress = ref { completed = 0; failures = 0 }
+
+let total_files =
+  match Sys.getenv_opt "DITTO_TEST_COUNT" with
+  | None -> 1
+  | Some value -> (
+      match int_of_string_opt value with
+      | Some count when count > 0 -> count
+      | _ ->
+          invalid_arg
+            (Printf.sprintf "DITTO_TEST_COUNT must be positive, got %S" value))
+
+let finish_alcotest_output () =
+  Format.fprintf Format.std_formatter "\n%!";
+  Format.pp_print_flush Format.err_formatter ();
+  flush_all ()
+
+let run_file_tests (filename : string) file_tests =
+  match file_tests with
+  | [] ->
+      Printf.eprintf "No tests registered for %s\n%!" filename;
+      Failed
+  | _ -> (
+      try
+        Alcotest.run ~and_exit:false ~bail:false ~compact:false
+          ~argv:[| "ignored"; "--color=auto" |]
+          ("document tests: " ^ filename)
+          [ ("document tests", file_tests) ];
+        finish_alcotest_output ();
+        Passed
+      with Alcotest.Test_error ->
+        finish_alcotest_output ();
+        Failed)
+
+let advance outcome state =
+  {
+    completed = state.completed + 1;
+    failures = (state.failures + match outcome with Passed -> 0 | Failed -> 1);
+  }
+
+let record_outcome outcome =
+  let next = advance outcome !progress in
+  progress := next;
+  if next.completed = total_files then exit (if next.failures = 0 then 0 else 1)
+  else if next.completed > total_files then
+    failwith "Received more documents than DITTO_TEST_COUNT"
+
 let test_runner ~io:_ ~token:_ ~(doc : Doc.t) =
-  let test_hash_table = Hashtbl.create 100 in
+  let test_table = Hashtbl.create 100 in
+  setup_test_table test_table doc;
 
-  Logs.set_reporter (Logs_fmt.reporter ());
+  let uri = Lang.LUri.File.to_string_uri doc.uri in
+  let filename = Filename.basename uri in
+  let file_tests = Hashtbl.find_all test_table filename in
 
-  Logs.set_level (Some Logs.Debug);
+  run_file_tests filename file_tests |> record_outcome
 
-  let uri_str = Lang.LUri.File.to_string_uri doc.uri in
-  let uri_name_str = Filename.basename uri_str in
+(* let test_runner ~io:_ ~token:_ ~(doc : Doc.t) = *)
+(*   let test_hash_table = Hashtbl.create 100 in *)
 
-  setup_test_table test_hash_table doc;
-  let file_tests = Hashtbl.find_all test_hash_table uri_name_str in
-  let _ =
-    match check_test_files_exist test_hash_table with
-    | Ok _ -> ()
-    | Error err ->
-        Printf.eprintf "%s" (Error.to_string_hum err);
-        exit 1
-  in
+(*   Logs.set_reporter (Logs_fmt.reporter ()); *)
 
-  let tests = [ ("parsing tests", file_tests) ] in
-  if List.length file_tests > 0 then (
-    print_endline
-      ("Running "
-      ^ string_of_int (List.length file_tests)
-      ^ " file test for: " ^ uri_name_str);
-    flush_all ();
+(*   Logs.set_level (Some Logs.Debug); *)
 
-    Alcotest.run ~and_exit:true ~bail:false
-      ~argv:[| "ignored"; "--color=auto" |]
-      "document parsing and modification tests" tests)
-  else
-    Printf.eprintf
-      "File %s doesn't have any associated tests, associate at least a test \
-       with it or remove it from test/fixtures/unit_test_fixtures."
-      uri_name_str;
-  exit 1
+(*   let uri_str = Lang.LUri.File.to_string_uri doc.uri in *)
+(*   let uri_name_str = Filename.basename uri_str in *)
+
+(*   setup_test_table test_hash_table doc; *)
+(*   let file_tests = Hashtbl.find_all test_hash_table uri_name_str in *)
+(*   let _ = *)
+(*     match check_test_files_exist test_hash_table with *)
+(*     | Ok _ -> () *)
+(*     | Error err -> *)
+(*         Printf.eprintf "%s" (Error.to_string_hum err); *)
+(*         exit 1 *)
+(*   in *)
+
+(*   let tests = [ ("parsing tests", file_tests) ] in *)
+(*   if List.length file_tests > 0 then ( *)
+(*     print_endline *)
+(*       ("Running " *)
+(*       ^ string_of_int (List.length file_tests) *)
+(*       ^ " file test for: " ^ uri_name_str); *)
+(*     flush_all (); *)
+
+(*     Alcotest.run ~and_exit:true ~bail:false *)
+(*       ~argv:[| "ignored"; "--color=auto" |] *)
+(*       "document parsing and modification tests" tests) *)
+(*   else *)
+(*     Printf.eprintf *)
+(*       "File %s doesn't have any associated tests, associate at least a test \ *)
+(*        with it or remove it from test/fixtures/unit_test_fixtures." *)
+(*       uri_name_str; *)
+(*   exit 1 *)
 
 let main () = Theory.Register.Completed.add test_runner
 let () = main ()
