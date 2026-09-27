@@ -160,6 +160,10 @@ let comment_node_at (start_line : int) (start_char : int) (repr : string) :
   Syntax_node.comment_of_string repr start_point
   |> expect_result_ok ~context:"Error creating a dummy node from representation"
 
+let comment_node ?(start = Code_point.dummy) (repr : string) : Syntax_node.t =
+  Syntax_node.comment_of_string repr start
+  |> expect_result_ok ~context:(Printf.sprintf "Creating a node from %s" repr)
+
 let sexp_of_syntax_node (x : Syntax_node.t) : Sexplib.Sexp.t =
   let open Sexplib in
   Sexp.(Atom (Syntax_node.repr x))

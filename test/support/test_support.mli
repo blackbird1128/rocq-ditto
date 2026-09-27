@@ -41,6 +41,7 @@ val point : line:int -> char:int -> Code_point.t
 val range : start:Code_point.t -> end_:Code_point.t -> Code_range.t
 val node : ?start:Code_point.t -> string -> Syntax_node.t
 val comment_node_at : int -> int -> string -> Syntax_node.t
+val comment_node : ?start:Code_point.t -> string -> Syntax_node.t
 val sexp_of_syntax_node : Syntax_node.t -> Sexplib.Sexp.t
 val sexp_of_proof_tree : Syntax_node.t Nary_tree.t -> Sexplib.Sexp.t
 val simplify : Sexplib.Sexp.t -> Sexplib.Sexp.t

@@ -114,9 +114,62 @@ let test_colliding_nodes_multiple_common_lines_collision () : unit =
   Alcotest.(check (list uuidm_testable))
     "the two nodes should be colliding" [ other_node.id ] colliding_nodes_ids
 
-(* let test_move_to_single_line_node () : unit = *)
-(*   let start_point = point ~line:3 ~char:4 in *)
-(*   let moved_node = comment_node ~start:start_point *)
+let test_move_to_single_line_node_horizontal_move () : unit =
+  let start_point = point ~line:3 ~char:4 in
+  let comment_repr = "(* hello world *)" in
+
+  let node_to_move = comment_node ~start:start_point comment_repr in
+  let destination = point ~line:3 ~char:7 in
+
+  let moved_node = Syntax_node.move_to destination node_to_move in
+  let expected_range =
+    range ~start:destination ~end_:(point ~line:3 ~char:24)
+  in
+
+  Alcotest.(check range_testable)
+    "The two ranges should be equal" expected_range moved_node.range
+
+let test_move_to_single_line_node_vertical_move () : unit =
+  let start_point = point ~line:3 ~char:4 in
+  let comment_repr = "(* hello world  *)" in
+
+  let node_to_move = comment_node ~start:start_point comment_repr in
+  let destination = point ~line:5 ~char:5 in
+
+  let moved_node = Syntax_node.move_to destination node_to_move in
+  let expected_range =
+    range ~start:destination ~end_:(point ~line:5 ~char:23)
+  in
+
+  Alcotest.(check range_testable)
+    "The two ranges should be equal" expected_range moved_node.range
+
+let test_move_to_multiline_node_horizontal_move () : unit =
+  let start_point = point ~line:3 ~char:4 in
+  let comment_repr = "(* hello world\nfrom a multi-lines comment *)" in
+
+  let node_to_move = comment_node ~start:start_point comment_repr in
+
+  let destination = point ~line:3 ~char:7 in
+
+  let moved_node = Syntax_node.move_to destination node_to_move in
+  let expected_range =
+    range ~start:destination ~end_:(point ~line:4 ~char:29)
+  in
+
+  Alcotest.(check range_testable)
+    "The two ranges should be equal" expected_range moved_node.range
+
+let test_move_to_range_prop =
+  QCheck.Test.make ~count:1000
+    ~name:"move_to computes the range from the destination and representation"
+    QCheck.(pair comment_node_arbitrary point_arbitrary)
+    (fun (node, destination) ->
+      let moved = Syntax_node.move_to destination node in
+      let expected =
+        Code_range.extent_of_string destination (Syntax_node.repr node)
+      in
+      Code_range.equal moved.range expected && Uuidm.equal moved.id node.id)
 
 let tests =
   [
@@ -143,6 +196,15 @@ let tests =
         Alcotest.test_case
           "Check that two nodes overlapping on multiple lines are colliding"
           `Quick test_colliding_nodes_multiple_common_lines_collision;
+        Alcotest.test_case
+          "Test moving a single-line node horizontally" `Quick
+          test_move_to_single_line_node_horizontal_move;
+        Alcotest.test_case
+          "Test moving a single-line node vertically" `Quick
+          test_move_to_single_line_node_vertical_move;
+        Alcotest.test_case "Test moving a multiline node horizontally" `Quick
+          test_move_to_multiline_node_horizontal_move;
+        QCheck_alcotest.to_alcotest test_move_to_range_prop;
       ] );
   ]
 
