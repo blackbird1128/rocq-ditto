@@ -17,12 +17,17 @@ let apply_stage (doc : Rocq_document.t) (st : stage) :
 let run_pipeline (doc : Rocq_document.t) (stages : stage list) :
     (Rocq_document.t * Transforming_step.t list, Error.t) result =
   let ( let* ) = Result.bind in
-  List.fold_left
-    (fun (acc : (Rocq_document.t * Transforming_step.t list, Error.t) result) st
-       ->
-      let* doc_acc, steps_acc = acc in
-      let* steps = st.build_steps doc_acc in
-      let doc' = Rocq_document.apply_transformations_steps steps doc_acc in
-      Result.product doc' (Ok (steps_acc @ steps)))
-    (Ok (doc, []))
-    stages
+  let* doc, rev_steps =
+    List.fold_left
+      (fun
+        (acc : (Rocq_document.t * Transforming_step.t list, Error.t) result)
+        st
+      ->
+        let* doc_acc, rev_steps_acc = acc in
+        let* steps = st.build_steps doc_acc in
+        let* doc' = Rocq_document.apply_transformations_steps steps doc_acc in
+        Ok (doc', List.rev_append steps rev_steps_acc))
+      (Ok (doc, []))
+      stages
+  in
+  Ok (doc, List.rev rev_steps)
