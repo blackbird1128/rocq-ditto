@@ -31,8 +31,7 @@ let get_proofs (doc : t) : (Proof.t list, Error.t) result =
   let* proofs, _ =
     List_utils.fold_left_result
       (fun (proofs_acc, cur_state) x ->
-        if Syntax_node.can_open_proof x then
-          Ok (proofs_acc, InsideProof [ x ])
+        if Syntax_node.can_open_proof x then Ok (proofs_acc, InsideProof [ x ])
         else if Syntax_node.can_close_proof x then
           match cur_state with
           | OutsideProof ->
@@ -126,7 +125,8 @@ let dump_elements_to_string (elements : Syntax_node.t list) :
   dump_sorted_elements_to_string sorted
 
 let dump_to_string (doc : t) : (string, Error.t) result =
-  dump_elements_to_string doc.elements
+  (* For now, this is maintained by every other functions *)
+  Ok doc.document_repr
 
 let element_with_id_opt (element_id : Uuidm.t) (doc : t) : Syntax_node.t option
     =
@@ -261,8 +261,6 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
 
 let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
-  let* new_node = validate new_node in
-
   let sorted = doc.elements in
   let before, after =
     match shift_method with
@@ -359,8 +357,6 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         (Uuidm.to_string target_id)
   | Some target ->
       let replacement = Syntax_node.move_to target.range.start replacement in
-      let* replacement = validate replacement in
-
       let* doc_removed =
         remove_node_with_id ~remove_method:LeaveBlank target.id doc
       in
