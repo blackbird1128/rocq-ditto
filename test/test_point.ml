@@ -134,7 +134,7 @@ let test_advance_by_number_of_newline_in_text_prop =
       "Advancing a point by a string should increase the line count by the \
        number of newlines (\n\
        )"
-    QCheck.(pair point_arbitrary string_printable)
+    QCheck.(pair point_arbitrary text_with_newlines_arbitrary)
     (fun (start_point, text) ->
       let number_newline =
         String.fold_left
@@ -160,12 +160,28 @@ let test_advance_without_newline_only_move_char_prop =
       QCheck.assume (not (String.exists (fun c -> c = '\n') text));
 
       let moved = advance_by_text start_point text in
-      start_point.line = moved.line)
+      start_point.line = moved.line
+      && moved.character = start_point.character + String.length text)
+
+let test_advance_by_newline_resets_character_prop =
+  QCheck.Test.make ~count:1000
+    ~name:
+      "advancing past a newline resets the character before advancing by the \
+       suffix"
+    QCheck.(
+      triple point_arbitrary single_line_text_arbitrary
+        single_line_text_arbitrary)
+    (fun (start_point, prefix, suffix) ->
+      let moved = advance_by_text start_point (prefix ^ "\n" ^ suffix) in
+      moved.line = start_point.line + 1
+      && moved.character = String.length suffix)
 
 let test_advance_by_composition_law_prop =
   QCheck.Test.make ~count:1000
     ~name:"advance p (a ^ b) = advance (advance p a) b"
-    QCheck.(triple point_arbitrary string_printable string_printable)
+    QCheck.(
+      triple point_arbitrary text_with_newlines_arbitrary
+        text_with_newlines_arbitrary)
     (fun (p, text_a, text_b) ->
       equal
         (advance_by_text p (text_a ^ text_b))
@@ -187,6 +203,7 @@ let () =
         test_advance_by_number_of_newline_in_text_prop;
         test_advance_by_trailing_newline_resets_character_prop;
         test_advance_without_newline_only_move_char_prop;
+        test_advance_by_newline_resets_character_prop;
         test_advance_by_composition_law_prop;
       ]
   in

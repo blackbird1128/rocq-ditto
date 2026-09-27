@@ -56,6 +56,8 @@ val point_in_range_arbitrary :
   Code_point.t QCheck.arbitrary
 
 val point_arbitrary : Code_point.t QCheck.arbitrary
+val text_with_newlines_arbitrary : string QCheck.arbitrary
+val single_line_text_arbitrary : string QCheck.arbitrary
 val comment_node_arbitrary : Syntax_node.t QCheck.arbitrary
 
 val range_arbitrary :
