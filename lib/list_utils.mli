@@ -4,6 +4,10 @@ val drop : int -> 'a list -> 'a list
 val take_while : ('a -> bool) -> 'a list -> 'a list
 val drop_while : ('a -> bool) -> 'a list -> 'a list
 val split_while : ('a -> bool) -> 'a list -> 'a list * 'a list
+
+val split_while_with_last :
+  ('a -> bool) -> 'a list -> 'a list * 'a option * 'a list
+
 val split_around : ('a -> bool) -> 'a list -> ('a list * 'a * 'a list) option
 val last : 'a list -> 'a option
 val last_and_len : 'a list -> 'a option * int
