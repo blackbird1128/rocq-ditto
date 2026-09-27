@@ -104,6 +104,22 @@ let test_advance_by_text_simple_one_newline () =
   check point_testable "the point should advance to the expected point" expected
     (advance_by_text start_point text)
 
+let test_advance_by_trailing_newline_resets_character_prop =
+  QCheck.Test.make ~count:1000
+    ~name:
+      "advancing by a trailing newline resets the character position to zero"
+    QCheck.(pair point_arbitrary string_printable)
+    (fun (start_point, text) ->
+      let trailing_newline_text = text ^ "\n" in
+      let moved_by_text = advance_by_text start_point text in
+      let moved_by_trailing_newline_text =
+        advance_by_text start_point trailing_newline_text
+      in
+
+      let expected = point ~line:(moved_by_text.line + 1) ~char:0 in
+
+      equal expected moved_by_trailing_newline_text)
+
 let test_advance_by_empty_string_is_identity_prop =
   QCheck.Test.make ~count:1000
     ~name:
@@ -169,6 +185,7 @@ let () =
       [
         test_advance_by_empty_string_is_identity_prop;
         test_advance_by_number_of_newline_in_text_prop;
+        test_advance_by_trailing_newline_resets_character_prop;
         test_advance_without_newline_only_move_char_prop;
         test_advance_by_composition_law_prop;
       ]
