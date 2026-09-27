@@ -203,9 +203,10 @@ let shift_block_checked ~(line : int) ~(char : int)
             else Ok node)
           nodes
 
-let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
-    (doc : t) : (t, Error.t) result =
-  match split_around_id target_id doc.elements with
+let remove_node_from_elements ~(target_id : Uuidm.t)
+    ~(remove_method : remove_method) (elements : Syntax_node.t list) :
+    (Syntax_node.t list, Error.t) result =
+  match split_around_id target_id elements with
   | None ->
       Error.format_to_or_error
         "The element with id: %s wasn't found in the document"
@@ -255,9 +256,15 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
                     (Syntax_node.move_by ~lines:dl ~chars:0)
                     after)
       in
-      let elements = before @ shifted_after in
-      let* document_repr = dump_sorted_elements_to_string elements in
-      Ok { doc with elements; document_repr }
+      Ok (before @ shifted_after)
+
+let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
+    (doc : t) : (t, Error.t) result =
+  let* elements =
+    remove_node_from_elements ~target_id ~remove_method doc.elements
+  in
+  let* document_repr = dump_sorted_elements_to_string elements in
+  Ok { doc with elements; document_repr }
 
 let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
@@ -357,8 +364,9 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         (Uuidm.to_string target_id)
   | Some target ->
       let replacement = Syntax_node.move_to target.range.start replacement in
-      let* doc_removed =
-        remove_node_with_id ~remove_method:LeaveBlank target.id doc
+      let* elements_without_target =
+        remove_node_from_elements ~target_id:target.id ~remove_method:LeaveBlank
+          doc.elements
       in
 
       let is_single_line =
@@ -375,12 +383,12 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         let end_char_delta =
           replacement.range.end_.character - target.range.end_.character
         in
-        let sorted = doc_removed.elements in
+
         let before, after =
           List_utils.split_while
             (fun node ->
               Code_point.compare node.range.start replacement.range.start < 0)
-            sorted
+            elements_without_target
         in
         let* shifted_after =
           List_utils.map_result
@@ -397,12 +405,11 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
         let* document_repr = dump_sorted_elements_to_string elements in
         Ok { doc with elements; document_repr }
       else
-        let sorted = doc_removed.elements in
         let before, after =
           List_utils.split_while
             (fun node ->
               Code_point.compare node.range.start replacement.range.start < 0)
-            sorted
+            elements_without_target
         in
         let old_width =
           target.range.end_.character - target.range.start.character
