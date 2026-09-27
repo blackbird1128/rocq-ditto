@@ -3,7 +3,7 @@ type proof_status = Admitted | Proved | Aborted
 
 val pp_proof_status : Format.formatter -> proof_status -> unit
 
-type closing = { node : Syntax_node.t; status : proof_status }
+type closing = private { node : Syntax_node.t; status : proof_status }
 
 type t = private {
   opening : Syntax_node.t;
