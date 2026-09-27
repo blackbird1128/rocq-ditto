@@ -120,10 +120,9 @@ let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
   let* nodes_before, _ = Rocq_document.split_at_id node.id doc in
   get_state_after doc.root_state token nodes_before
 
-let get_hypothesis_names (goal : string Coq.Goals.Reified_goal.t) : string list
-    =
+let get_hypothesis_names (goal : 'a Coq.Goals.Reified_goal.t) : string list =
   List.concat_map
-    (fun (hyp : string Coq.Goals.Reified_goal.hyp) -> hyp.names)
+    (fun (hyp : 'a Coq.Goals.Reified_goal.hyp) -> hyp.names)
     goal.hyps
 
 let count_goals (st : Coq.State.t) : int =
@@ -176,10 +175,10 @@ let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
   | Ok None -> Error.string_to_or_error "zero goal at this state"
   | Error err -> Error err
 
-let goal_hyps_at_state (state : Coq.State.t) (token : Coq.Limits.Token.t) :
-    (string list list, Error.t) result =
-  reified_goals_at_state token state
-  |> Result.map (List.map get_hypothesis_names)
+let goal_hyps_at_state (state : Coq.State.t) : string list list =
+  match Fleche.Info.Goals.get_goals_unit ~st:state with
+  | None -> []
+  | Some goals -> List.map get_hypothesis_names goals.goals
 
 (* TODO: relocate somewhere better ? *)
 let get_new_vars ?(keep : string list = [])

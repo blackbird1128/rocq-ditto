@@ -1386,22 +1386,12 @@ let introduced_induction_hypothesis ~(old_goals_vars : string list list)
 let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
     (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
-  let token = Coq.Limits.Token.create () in
-
   match tacexpr.v with
   | Tacexpr.TacAtom
       (Tacexpr.TacInductionDestruct
          (true, false, (induction_clause_l, with_bindings))) ->
-      let old_goals_vars =
-        Runner.goal_hyps_at_state state_before token
-        |> Result.map_error (fun _ -> [])
-        |> Result.retract
-      in
-      let new_goals_vars =
-        Runner.goal_hyps_at_state state_after token
-        |> Result.map_error (fun _ -> [])
-        |> Result.retract
-      in
+      let old_goals_vars = Runner.goal_hyps_at_state state_before in
+      let new_goals_vars = Runner.goal_hyps_at_state state_after in
       if introduced_induction_hypothesis ~old_goals_vars ~new_goals_vars then
         tacexpr
       else
@@ -1424,8 +1414,6 @@ let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
 let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
     (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
-  let token = Coq.Limits.Token.create () in
-
   match tacexpr.v with
   | Ltac_plugin.Tacexpr.TacAlias (kername, []) -> (
       let label = Names.Label.to_string (Names.KerName.label kername) in
@@ -1436,16 +1424,8 @@ let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
       in
       if not is_intro then tacexpr
       else
-        let old_goals_vars =
-          Runner.goal_hyps_at_state state_before token
-          |> Result.map_error (fun _ -> [])
-          |> Result.retract
-        in
-        let new_goals_vars =
-          Runner.goal_hyps_at_state state_after token
-          |> Result.map_error (fun _ -> [])
-          |> Result.retract
-        in
+        let old_goals_vars = Runner.goal_hyps_at_state state_before in
+        let new_goals_vars = Runner.goal_hyps_at_state state_after in
 
         match
           Runner.get_new_vars (Some old_goals_vars) (Some new_goals_vars)
