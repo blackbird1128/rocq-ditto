@@ -219,6 +219,21 @@ let point_arbitrary : Code_point.t QCheck.arbitrary =
     point_of_pair
     (QCheck.pair QCheck.int_pos QCheck.int_pos)
 
+let comment_node_arbitrary : Syntax_node.t QCheck.arbitrary =
+  let body_arbitrary =
+    QCheck.string_of
+      QCheck.Gen.(oneof_weighted [ (9, char_printable); (1, return '\n') ])
+  in
+  QCheck.map
+    ~rev:(fun (node : Syntax_node.t) ->
+      let repr = Syntax_node.repr node in
+      let body = String.sub repr 2 (String.length repr - 4) in
+      (node.range.start, body))
+    (fun (start, body) ->
+      Syntax_node.comment_of_string ("(*" ^ body ^ "*)") start
+      |> expect_result_ok ~context:"creating an arbitrary comment node")
+    (QCheck.pair point_arbitrary body_arbitrary)
+
 let range_arbitrary ?(point : Code_point.t QCheck.arbitrary = point_arbitrary)
     () : Code_range.t QCheck.arbitrary =
   QCheck.map

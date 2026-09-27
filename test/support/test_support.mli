@@ -55,6 +55,7 @@ val point_in_range_arbitrary :
   Code_point.t QCheck.arbitrary
 
 val point_arbitrary : Code_point.t QCheck.arbitrary
+val comment_node_arbitrary : Syntax_node.t QCheck.arbitrary
 
 val range_arbitrary :
   ?point:Code_point.t QCheck.arbitrary -> unit -> Code_range.t QCheck.arbitrary
