@@ -181,16 +181,23 @@ let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
 let shift_block_checked ~(line : int) ~(char : int)
     ?(pred : Syntax_node.t -> bool = fun _ -> true) (nodes : Syntax_node.t list)
     : (Syntax_node.t list, Error.t) result =
-  let selected = List.filter pred nodes in
-  match selected with
-  | [] -> Ok nodes
-  | _ ->
-      let min_char =
-        List.fold_left
-          (fun acc n ->
-            min acc (min n.range.start.character n.range.end_.character))
-          max_int selected
-      in
+  let min_char =
+    List.fold_left
+      (fun acc n ->
+        if pred n then
+          let node_min =
+            min n.range.start.character n.range.end_.character
+          in
+          Some
+            (match acc with
+            | None -> node_min
+            | Some current_min -> min current_min node_min)
+        else acc)
+      None nodes
+  in
+  match min_char with
+  | None -> Ok nodes
+  | Some min_char ->
       if min_char + char < 0 then
         Error.format_to_or_error
           "Shift would create negative character positions (min_char=%d \
