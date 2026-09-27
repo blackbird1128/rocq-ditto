@@ -189,8 +189,25 @@ let reformat (x : t) : (t, Error.t) result =
       Error.string_to_or_error "The node need to have an AST to be reformatted"
 
 let move_to (destination : Code_point.t) (x : t) : t =
-  let new_range = Code_range.extent_of_string destination (repr x) in
-  { x with range = new_range }
+  let old_start = x.range.start in
+  let old_end = x.range.end_ in
+  let line_count = old_end.line - old_start.line in
+
+  let character_shift =
+    if line_count = 0 then old_end.character - old_start.character
+    else old_end.character - destination.character
+  in
+
+  (* Syntax nodes have valid ranges and [destination] must be a real source
+     position. Therefore both checked constructions below must succeed. *)
+  (* TODO: Avoid get_ok *)
+  let end_ =
+    Code_point.shift ~lines:line_count ~chars:character_shift destination
+    |> Result.get_ok
+  in
+  let range = Code_range.make destination end_ |> Result.get_ok in
+
+  { x with range }
 
 let move_by ~(lines : int) ~(chars : int) (node : t) : (t, Error.t) result =
   let* shifted = Code_point.shift ~lines ~chars node.range.start in
