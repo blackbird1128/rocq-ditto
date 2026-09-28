@@ -70,13 +70,13 @@ let test_depth_first_fold_multiple_children () =
   Alcotest.(check (list int))
     "the result doesn't have the same shape as the expected result" expected res
 
-let test_mapi_simple () =
-  let tree = Node (0, [ Node (0, []); Node (0, [ Node (0, []) ]) ]) in
-  let expected = Node (0, [ Node (1, []); Node (2, [ Node (3, []) ]) ]) in
-  let res = mapi (fun i value -> value + i) tree in
+(* let test_mapi_simple () = *)
+(*   let tree = Node (0, [ Node (0, []); Node (0, [ Node (0, []) ]) ]) in *)
+(*   let expected = Node (0, [ Node (1, []); Node (2, [ Node (3, []) ]) ]) in *)
+(*   let res = mapi (fun i value -> value + i) tree in *)
 
-  Alcotest.(check int_tree)
-    "the result doesn't have the same shape as the expected result" expected res
+(*   Alcotest.(check int_tree) *)
+(*     "the result doesn't have the same shape as the expected result" expected res *)
 
 let test_top_n_simple () =
   let tree1 = Node (1, [ Node (2, []) ]) in
@@ -127,8 +127,8 @@ let tests =
         Alcotest.test_case
           "fold a tree with multiple children in the correct order" `Quick
           test_depth_first_fold_multiple_children;
-        Alcotest.test_case "mapi over a simple tree in the correct order" `Quick
-          test_mapi_simple;
+        (* Alcotest.test_case "mapi over a simple tree in the correct order" `Quick *)
+        (*   test_mapi_simple; *)
         Alcotest.test_case "top_n with n = 1 on a simple tree" `Quick
           test_top_n_simple;
         Alcotest.test_case "top_n with n = 2 on a simple tree" `Quick

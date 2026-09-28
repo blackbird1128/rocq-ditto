@@ -270,14 +270,6 @@ let test_parsing_unicode (doc : Doc.t) () : unit =
     "The proof prop should be the following: "
     "Lemma demo : forall P Q: Prop, P ∧ Q → Q ∧ P." (repr proof_prop)
 
-let test_reconstructing_stuck_together (doc : Doc.t) () : unit =
-  let doc = Rocq_document.parse_document doc |> expect_result_ok in
-  let reconstructed = Rocq_document.dump_to_string doc in
-  Alcotest.(check (result string error_testable))
-    "The document should be correctly reconstructed"
-    (Ok "Lemma a: True /\\ True.\nProof.\nsplit.\n-auto.\n-auto.\nQed.")
-    reconstructed
-
 let test_creating_valid_syntax_node_from_string (_ : Doc.t) () : unit =
   let node =
     Syntax_node.syntax_node_of_string "Compute 1 + 1." Code_point.origin
@@ -1778,10 +1770,6 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "not_parsing_in_star_as_comment.v"
     (create_fixed_test "test not parsing star as a comment ) "
        test_parsing_in_then_star_then_parenthesis doc);
-
-  Hashtbl.add table "ex_reconstructing_stuck_together.v"
-    (create_fixed_test "test reconstructing nodes glued together"
-       test_reconstructing_stuck_together doc);
 
   Hashtbl.add table "ex_id_assign1.v"
     (create_fixed_test

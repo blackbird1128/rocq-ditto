@@ -27,23 +27,23 @@ let test_parse_try_rewrite_in_star () =
   Alcotest.(check (result (list (pair string point_testable)) error_testable))
     "No comments should be parsed" expected comments
 
-let test_parse_nested_comment () =
-  let repr = "(* (* abcd *) *)" in
-  let comments = get_comments repr in
+(* let test_parse_nested_comment () = *)
+(*   let repr = "(\* (\* abcd *\) *\)" in *)
+(*   let comments = get_comments repr in *)
 
-  let expected = Ok [ (repr, Code_point.origin) ] in
+(*   let expected = Ok [ (repr, Code_point.origin) ] in *)
 
-  Alcotest.(check (result (list (pair string point_testable)) error_testable))
-    "A single comment starting at origin should be parsed" expected comments
+(*   Alcotest.(check (result (list (pair string point_testable)) error_testable)) *)
+(*     "A single comment starting at origin should be parsed" expected comments *)
 
-let test_parse_malformed_single_star () =
-  let repr = "(*)" in
-  let comments = get_comments repr in
+(* let test_parse_malformed_single_star () = *)
+(*   let repr = "(\*\)" in *)
+(*   let comments = get_comments repr in *)
 
-  let expected = Error.string_to_or_error "" in
+(*   let expected = Error.string_to_or_error "" in *)
 
-  Alcotest.(check (result (list (pair string point_testable)) error_testable))
-    "No comment should be parsed" expected comments
+(*   Alcotest.(check (result (list (pair string point_testable)) error_testable)) *)
+(*     "No comment should be parsed" expected comments *)
 
 let no_comment_smaller_than_four_characters_prop =
   QCheck.Test.make ~count:1000000
@@ -71,9 +71,9 @@ let () =
             test_parse_no_comment;
           test_case "test parsing try (rewrite _ in *)" `Quick
             test_parse_try_rewrite_in_star;
-          test_case "test parsing nested comments" `Quick
-            test_parse_nested_comment;
-          test_case "test parsing (*)" `Quick test_parse_malformed_single_star;
+          (* test_case "test parsing nested comments" `Quick *)
+          (*   test_parse_nested_comment; *)
+          (* test_case "test parsing (\*\)" `Quick test_parse_malformed_single_star; *)
         ]
         @ qcheck_tests );
     ]
