@@ -201,6 +201,15 @@ let run_parallel ~(jobs : int) ~(prog : string) ~(env : string array)
 
   loop ()
 
+let with_dependencies ~(input_file : string) ~(project_dir : string) run =
+  let ( let* ) = Result.bind in
+  let* project = Project.require_project project_dir in
+  let* dep_graph = Compile.coqproject_to_dep_graph project in
+  let* dependencies =
+    Dependency_graph.get_file_dependencies input_file dep_graph
+  in
+  run (Project.directory project) dependencies
+
 let transform_project (opts : transformation_options) : (unit, Error.t) result =
   let ( let* ) = Result.bind in
   let input = opts.input
@@ -258,7 +267,6 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
         Error.string_to_or_error "Input must be an existing file"
       else
         let coqproject_opt = Project.find_project input in
-
         let input_dir =
           match coqproject_opt with
           | Some project -> Project.directory project
@@ -268,39 +276,19 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
         let* _ =
           match opts.dependencies_action with
           | NoAction -> Ok ()
-          | CompileDependencies -> (
-              match coqproject_opt with
-              | None ->
-                  Error.string_to_or_error
-                    "No _CoqProject or _RocqProject found, impossible to run a \
-                     dependency action"
-              | Some project ->
-                  let* dep_graph = Compile.coqproject_to_dep_graph project in
-                  let* dependencies =
-                    Dependency_graph.get_file_dependencies input dep_graph
-                  in
+          | CompileDependencies ->
+              with_dependencies ~input_file:input ~project_dir:input_dir
+                (fun project deps ->
                   Printf.printf "Compiling %d dependencies\n%!"
-                    (List.length dependencies);
-                  compile_files dependencies
-                    (Project.directory project)
-                    (Unix.environment ()))
-          | TransformDependencies -> (
-              match coqproject_opt with
-              | None ->
-                  Error.string_to_or_error
-                    "No _CoqProject or _RocqProject found, impossible to run a \
-                     dependency action"
-              | Some project ->
-                  let* dep_graph = Compile.coqproject_to_dep_graph project in
-                  let* dependencies =
-                    Dependency_graph.get_file_dependencies input dep_graph
-                  in
-                  let length_dep = List.length dependencies in
+                    (List.length deps);
+                  compile_files deps project (Unix.environment ()))
+          | TransformDependencies ->
+              with_dependencies ~input_file:input ~project_dir:input_dir
+                (fun project deps ->
+                  let length_dep = List.length deps in
                   Printf.printf "Transforming %d dependencies\n%!" length_dep;
-
-                  transform_files
-                    (Project.directory project)
-                    dependencies "fcc" length_dep base_env true verbose)
+                  transform_files project deps "fcc" length_dep base_env true
+                    verbose)
         in
 
         let env = Env.extend_env base_env [ ("OUTPUT_FILENAME", output) ] in

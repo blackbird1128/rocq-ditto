@@ -4,6 +4,7 @@ val path : t -> string
 val directory : t -> string
 val filename : t -> string
 val find_project : string -> t option
+val require_project : string -> (t, Error.t) result
 
 val resolve_project_path : string -> (t, Error.t) result
 (** [resolve_project_path path] checks that the provided path is either a path

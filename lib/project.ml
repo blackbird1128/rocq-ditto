@@ -24,6 +24,12 @@ let rec find_project (dir : string) : t option =
   else if dir = "/" || dir = "." then None
   else find_project (Filename.dirname dir)
 
+let require_project (dir : string) : (t, Error.t) result =
+  match find_project dir with
+  | Some project -> Ok project
+  | None ->
+      Error.format_to_or_error "No _CoqProject or _RocqProject found in %s" dir
+
 let resolve_project_path (path : string) : (t, Error.t) result =
   if not (Sys.file_exists path) then
     Error.string_to_or_error
