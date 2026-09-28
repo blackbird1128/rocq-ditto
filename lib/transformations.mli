@@ -55,6 +55,7 @@ val turn_into_oneliner :
 val rewrite_node_tacexpr :
   Coq.Limits.Token.t ->
   Coq.State.t ->
+  ?needs_state:(Ltac_plugin.Tacexpr.raw_tactic_expr -> bool) ->
   f:
     (Coq.State.t ->
     Coq.State.t ->

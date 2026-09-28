@@ -1332,6 +1332,7 @@ let explicit_fresh_variables (doc : Rocq_document.t) (proof : Proof.t) :
 
 let rewrite_node_tacexpr (token : Coq.Limits.Token.t)
     (state_before : Coq.State.t)
+    ?(needs_state : Ltac_plugin.Tacexpr.raw_tactic_expr -> bool = fun _ -> true)
     ~(f :
        Coq.State.t ->
        Coq.State.t ->
@@ -1344,8 +1345,8 @@ let rewrite_node_tacexpr (token : Coq.Limits.Token.t)
       let selector_view = Syntax_node.get_goal_selector_opt node in
       let selector = Option.map Goal_select_view.to_goal_select selector_view in
       let* new_tacexpr =
-        Tacexpr_map.tacexpr_map_with_states token ?selector state_before tacexpr
-          f
+        Tacexpr_map.tacexpr_map_with_states token ?selector ~needs_state
+          state_before tacexpr f
       in
       if new_tacexpr = tacexpr then Ok node
       else
@@ -1383,6 +1384,12 @@ let introduced_induction_hypothesis ~(old_goals_vars : string list list)
         (List.exists (fun vars -> String.starts_with ~prefix:"IH" vars))
         new_vars_per_goal
 
+let is_induction_to_destruct_candidate
+    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) : bool =
+  match tacexpr.v with
+  | Tacexpr.TacAtom (Tacexpr.TacInductionDestruct (true, false, _)) -> true
+  | _ -> false
+
 let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
     (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -1405,6 +1412,7 @@ let replace_induction_by_destruct_in_node (token : Coq.Limits.Token.t)
     (state_before : Coq.State.t) (node : Syntax_node.t) :
     (Syntax_node.t, Error.t) result =
   rewrite_node_tacexpr token state_before node
+    ~needs_state:is_induction_to_destruct_candidate
     ~f:map_induction_to_destruct_in_tacexpr
 
 let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
@@ -1543,6 +1551,13 @@ let fill_args (args : args list)
   | ImplicitBindings implicit_binds -> fill_implicit_holes args implicit_binds
   | ExplicitBindings _ -> args
 
+let is_explicit_apply_candidate
+    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) : bool =
+  let open Ltac_plugin in
+  match tacexpr.v with
+  | Tacexpr.TacAtom (TacApply (_, _, _, [])) -> true
+  | _ -> false
+
 (** map apply to explicit apply *)
 let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
     (_state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -1663,6 +1678,7 @@ let explicit_apply_in_node (token : Coq.Limits.Token.t)
     (state_before : Coq.State.t) (node : Syntax_node.t) :
     (Syntax_node.t, Error.t) result =
   rewrite_node_tacexpr token state_before node
+    ~needs_state:is_explicit_apply_candidate
     ~f:map_apply_to_explicit_apply_in_tacexpr
 
 let explicit_apply (doc : Rocq_document.t) (proof : Proof.t) :

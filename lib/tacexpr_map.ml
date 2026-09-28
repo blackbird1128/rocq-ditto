@@ -645,7 +645,9 @@ let prefix_before ~eq ~target e = prefix_until ~hit:Before ~eq ~target e
 let prefix_including ~eq ~target e = prefix_until ~hit:Include ~eq ~target e
 
 let tacexpr_map_with_states (token : Coq.Limits.Token.t)
-    ?(selector : Goal_select.t option) (state_before : Coq.State.t)
+    ?(selector : Goal_select.t option)
+    ?(needs_state : Tacexpr.raw_tactic_expr -> bool = fun _ -> true)
+    (state_before : Coq.State.t)
     (tacexpr : Tacexpr.raw_tactic_expr)
     (f :
       Coq.State.t ->
@@ -655,20 +657,22 @@ let tacexpr_map_with_states (token : Coq.Limits.Token.t)
   let ( let* ) = Result.bind in
   tacexpr_map_result
     (fun subexpr ->
-      match prefix_before ~eq:( = ) ~target:subexpr tacexpr with
-      | None -> Ok subexpr
-      | Some prefix_before -> (
-          match prefix_including ~eq:( = ) ~target:subexpr tacexpr with
-          | None -> Ok subexpr
-          | Some prefix_including ->
-              let* sub_before =
-                Runner.run_raw_tactic_expr token ?selector state_before
-                  prefix_before
-              in
+      if not (needs_state subexpr) then Ok subexpr
+      else
+        match prefix_before ~eq:( = ) ~target:subexpr tacexpr with
+        | None -> Ok subexpr
+        | Some prefix_before -> (
+            match prefix_including ~eq:( = ) ~target:subexpr tacexpr with
+            | None -> Ok subexpr
+            | Some prefix_including ->
+                let* sub_before =
+                  Runner.run_raw_tactic_expr token ?selector state_before
+                    prefix_before
+                in
 
-              let* sub_after =
-                Runner.run_raw_tactic_expr token ?selector state_before
-                  prefix_including
-              in
-              Ok (f sub_before sub_after subexpr)))
+                let* sub_after =
+                  Runner.run_raw_tactic_expr token ?selector state_before
+                    prefix_including
+                in
+                Ok (f sub_before sub_after subexpr)))
     tacexpr

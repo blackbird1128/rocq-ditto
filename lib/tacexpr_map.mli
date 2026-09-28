@@ -47,6 +47,7 @@ val prefix_including :
 val tacexpr_map_with_states :
   Coq.Limits.Token.t ->
   ?selector:Goal_select.t ->
+  ?needs_state:(Tacexpr.raw_tactic_expr -> bool) ->
   Coq.State.t ->
   Tacexpr.raw_tactic_expr ->
   (Coq.State.t ->
@@ -55,4 +56,6 @@ val tacexpr_map_with_states :
   Tacexpr.raw_tactic_expr) ->
   (Tacexpr.raw_tactic_expr, Error.t) result
 (** Map a [raw_tactic_expr] while automatically computing the state before and
-    after the current subexpr when calling [f], *)
+    after the current subexpression when calling [f]. [f] is called only for
+    subexpressions accepted by [needs_state], which defaults to accepting every
+    subexpression. *)
