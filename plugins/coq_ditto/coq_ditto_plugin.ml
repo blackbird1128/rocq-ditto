@@ -107,25 +107,35 @@ let print_current_running (proof_count : int) (proof_total : int)
         proof_name (proof_count + 1) proof_total
   | Quiet -> ()
 
+type summarized_document = {
+  doc : Rocq_document.t;
+  summary : Run_summary.t;
+}
+
 let apply_steps
     (transformation_steps : (Transforming_step.t list, Error.t) result)
-    (curr_doc : Rocq_document.t) (proof_count : int)
-    (curr_summary : Run_summary.t) (proof : Proof.t) :
-    (Rocq_document.t, Error.t) result
+    (curr_state : summarized_document) (proof_count : int) (proof : Proof.t) :
+    (summarized_document, Error.t) result
     * int
-    * Rocq_document.t
-    * Run_summary.t
+    * summarized_document
     * Proof.t option =
   match transformation_steps with
   | Ok steps ->
-      let steps_summary = Run_summary.of_step_list steps in
-      let new_summary = Run_summary.add curr_summary steps_summary in
-      ( Rocq_document.apply_transformations_steps steps curr_doc,
+      let result =
+        Rocq_document.apply_transformations_steps steps curr_state.doc
+        |> Result.map (fun doc ->
+            {
+              doc;
+              summary =
+                Run_summary.add curr_state.summary
+                  (Run_summary.of_step_list steps);
+            })
+      in
+      ( result,
         proof_count + 1,
-        curr_doc,
-        new_summary,
+        curr_state,
         Some proof )
-  | Error err -> (Error err, proof_count, curr_doc, curr_summary, Some proof)
+  | Error err -> (Error err, proof_count, curr_state, Some proof)
 
 let display_transformation_error (prev_proof : Proof.t option)
     (transformation_kind : transformation_kind) (err : Error.t) =
@@ -151,24 +161,22 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
   let first_proof = List_utils.head_opt proof_list in
   let token = Coq.Limits.Token.create () in
   let empty_summary = Run_summary.empty in
+  let initial_state = { doc = doc_acc; summary = empty_summary } in
 
-  let res, _, _, full_summary, prev_proof =
+  let res, _, _, prev_proof =
     List.fold_left
-      (fun ( doc_acc_bis,
-             proof_count,
-             prev_doc,
-             summary_acc,
-             (prev_proof : Proof.t option) ) proof ->
-        let curr_doc =
+      (fun (doc_acc_bis, proof_count, prev_state, (prev_proof : Proof.t option))
+           proof ->
+        let curr_state =
           match doc_acc_bis with
-          | Ok curr_doc -> curr_doc
+          | Ok curr_state -> curr_state
           | Error err ->
               display_transformation_error prev_proof transformation_kind err;
-              prev_doc
+              prev_state
         in
 
         let status_before =
-          Runner.get_init_state curr_doc proof.opening token
+          Runner.get_init_state curr_state.doc proof.opening token
         in
         let proof_name =
           Option.default "anonymous"
@@ -179,12 +187,8 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
         Printf.printf "\n%!";
         match status_before with
         | Ok _ ->
-            let transformation_steps = transformation curr_doc proof in
-            let new_doc =
-              apply_steps transformation_steps curr_doc proof_count summary_acc
-                proof
-            in
-            new_doc
+            let transformation_steps = transformation curr_state.doc proof in
+            apply_steps transformation_steps curr_state proof_count proof
         | Error _ ->
             let prev_proof_name =
               Option.map
@@ -197,14 +201,13 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
             Printf.printf
               "Invalid state after transforming proof %s, canceling it \n"
               prev_proof_name;
-            let transformation_steps = transformation prev_doc proof in
-            apply_steps transformation_steps prev_doc proof_count summary_acc
-              proof)
-      (Ok doc_acc, 0, doc_acc, empty_summary, first_proof)
+            let transformation_steps = transformation prev_state.doc proof in
+            apply_steps transformation_steps prev_state proof_count proof)
+      (Ok initial_state, 0, initial_state, first_proof)
       proof_list
   in
   match res with
-  | Ok res -> (res, full_summary)
+  | Ok { doc; summary } -> (doc, summary)
   | Error err ->
       display_transformation_error prev_proof transformation_kind err;
       (doc_acc, empty_summary)
@@ -308,13 +311,15 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
                   local_apply_proof_transformation doc_acc trans
                     transformation_kind proof_list config.verbosity
                 in
-                Printf.printf "%s\n" (Run_summary.to_string summary);
+                if config.summary then
+                  Printf.printf "%s\n" (Run_summary.to_string summary);
                 Ok doc
             | DocScope trans ->
                 let* doc, summary =
                   local_apply_doc_transformation doc_acc trans
                 in
-                Printf.printf "%s\n" (Run_summary.to_string summary);
+                if config.summary then
+                  Printf.printf "%s\n" (Run_summary.to_string summary);
                 Ok doc)
         | Error err, _ -> Error err)
       (Ok parsed_document) scoped_transformations
