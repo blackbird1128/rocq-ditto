@@ -1,40 +1,45 @@
-let get_line_col_positions (text : string) (pos : int) :
-    (Code_point.t, Error.t) result =
-  let rec aux line col index =
-    if index = pos then (line, col)
-    else if index >= String.length text then (line, col)
-    else if text.[index] = '\n' then aux (line + 1) 0 (index + 1)
-    else aux line (col + 1) (index + 1)
+let line_starts (text : string) : int array =
+  let length = String.length text in
+  let rec scan index starts =
+    if index = length then Array.of_list (List.rev starts)
+    else if text.[index] = '\n' then scan (index + 1) ((index + 1) :: starts)
+    else scan (index + 1) starts
   in
+  scan 0 [ 0 ]
 
-  let line, character = aux 0 0 0 in
-  (* Start from line 0, column 0, character 0 *)
-  Code_point.make ~line ~character
+let get_line_col_positions (starts : int array) (pos : int) :
+    (Code_point.t, Error.t) result =
+  let rec find_line low high =
+    if low = high then low
+    else
+      let mid = (low + high + 1) / 2 in
+      if starts.(mid) <= pos then find_line mid high
+      else find_line low (mid - 1)
+  in
+  let line = find_line 0 (Array.length starts - 1) in
+  Code_point.make ~line ~character:(pos - starts.(line))
 
 let mark_string_regions (s : string) : bool array =
   let n = String.length s in
-  let rec loop i in_string escape acc =
-    if i = n then Array.of_list (List.rev acc)
-    else
+  let marks = Array.make n false in
+  let rec loop i in_string escape =
+    if i < n then (
       let c = s.[i] in
-
+      marks.(i) <- in_string;
       if in_string then
-        let acc' = true :: acc in
-        if escape then loop (i + 1) true false acc'
-        else begin
+        if escape then loop (i + 1) true false
+        else
           match c with
-          | '\\' -> loop (i + 1) true true acc'
-          | '"' -> loop (i + 1) false false acc'
-          | _ -> loop (i + 1) true false acc'
-        end
+          | '\\' -> loop (i + 1) true true
+          | '"' -> loop (i + 1) false false
+          | _ -> loop (i + 1) true false
       else
-        (* Outside a string *)
-        let acc' = false :: acc in
         match c with
-        | '"' -> loop (i + 1) true false acc'
-        | _ -> loop (i + 1) false false acc'
+        | '"' -> loop (i + 1) true false
+        | _ -> loop (i + 1) false false)
   in
-  loop 0 false false []
+  loop 0 false false;
+  marks
 
 let get_comments (content : string) :
     ((string * Code_point.t) list, Error.t) result =
@@ -69,7 +74,8 @@ let get_comments (content : string) :
             | (idx1, '*'), (idx2, ')') -> (
                 match stack with
                 | ((idx3, '('), (idx4, '*')) :: t ->
-                    Ok (t, ((idx3, idx4), (idx1, idx2)) :: res)
+                    if idx1 <= idx4 then acc
+                    else Ok (t, ((idx3, idx4), (idx1, idx2)) :: res)
                 | [] ->
                     acc
                     (* we might have encountered: try (rewrite IHn in *\) for example *)
@@ -80,12 +86,16 @@ let get_comments (content : string) :
       pairs
   in
 
-  List_utils.map_result
-    (fun ((a, _), (_, d)) ->
-      let len = d - a + 1 in
-      let str = String.sub content a len in
-      let start_res = get_line_col_positions content a in
-      match start_res with
-      | Ok start -> Ok (str, start)
-      | Error err -> Error err)
-    res
+  match res with
+  | [] -> Ok []
+  | _ ->
+      let starts = line_starts content in
+      List_utils.map_result
+        (fun ((a, _), (_, d)) ->
+          let len = d - a + 1 in
+          let str = String.sub content a len in
+          let start_res = get_line_col_positions starts a in
+          match start_res with
+          | Ok start -> Ok (str, start)
+          | Error err -> Error err)
+        res
