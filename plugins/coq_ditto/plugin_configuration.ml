@@ -305,16 +305,19 @@ let transformation_configuration_of_env (env : Env.t) :
 
   let* summary = Env.get_as_bool_default env "SUMMARY" false in
 
-  Ok
-    {
-      progress;
-      verbosity;
-      transformation_steps;
-      reverse_order;
-      output_filename;
-      save_vo;
-      summary;
-    }
+  if verbosity = Quiet && summary then
+    Error.string_to_or_error "Cannot use both --summary and --quiet"
+  else
+    Ok
+      {
+        progress;
+        verbosity;
+        transformation_steps;
+        reverse_order;
+        output_filename;
+        save_vo;
+        summary;
+      }
 
 let of_env (env_array : string array) : (t, Error.t) result =
   let ( let* ) = Result.bind in
