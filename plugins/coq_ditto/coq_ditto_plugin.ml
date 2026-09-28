@@ -185,24 +185,25 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
         print_current_running proof_count proof_total proof_name
           transformation_kind verbosity;
         Printf.printf "\n%!";
-        match status_before with
-        | Ok _ ->
-            let transformation_steps = transformation curr_state.doc proof in
-            apply_steps transformation_steps curr_state proof_count proof
-        | Error _ ->
-            let prev_proof_name =
-              Option.map
-                (fun p ->
-                  Proof.get_proof_name p |> Option.map Names.Id.to_string)
-                prev_proof
-              |> Option.flatten
-              |> Option.default "No previous proof ? This might be a bug\n"
-            in
-            Printf.printf
-              "Invalid state after transforming proof %s, canceling it \n"
-              prev_proof_name;
-            let transformation_steps = transformation prev_state.doc proof in
-            apply_steps transformation_steps prev_state proof_count proof)
+        let selected_state =
+          match status_before with
+          | Ok _ -> curr_state
+          | Error _ ->
+              let prev_proof_name =
+                Option.map
+                  (fun p ->
+                    Proof.get_proof_name p |> Option.map Names.Id.to_string)
+                  prev_proof
+                |> Option.flatten
+                |> Option.default "No previous proof ? This might be a bug\n"
+              in
+              Printf.printf
+                "Invalid state after transforming proof %s, canceling it \n"
+                prev_proof_name;
+              prev_state
+        in
+        let transformation_steps = transformation selected_state.doc proof in
+        apply_steps transformation_steps selected_state proof_count proof)
       (Ok initial_state, 0, initial_state, first_proof)
       proof_list
   in
