@@ -206,21 +206,25 @@ constructivisation-print-destruct-target: build
 %.v.target.json: %.v
 	dune exec fcc -- --plugin=target-generator-plugin $< 2>/dev/null
 
+
+TEST_FILES := $(shell find test/fixtures/unit_test_fixtures \
+	-not -name '*_target.v' \
+	-not -path '*/ignore/*' \
+	-name '*.v' | sort)
+
+
 test: $(V_TARGET_GEN)
 	dune build
 	@failed=0; \
-	for file in $$(find test/fixtures/unit_test_fixtures \
-		-not -name '*_target.v' \
-		-not -path '*/ignore/*' \
-		-name '*.v' | sort); do \
-		echo "TEST $$file"; \
-		if ! dune exec --profile=release fcc -- \
-			--display=quiet --plugin=ditto-test-plugin "$$file"; then \
-			failed=1; \
-		fi; \
-	done; \
+	if ! FCC_TEST=1 DITTO_TEST_COUNT=$(words $(TEST_FILES)) \
+	dune exec --profile=release fcc -- \
+		--display=quiet \
+		--plugin=ditto-test-plugin \
+		$(TEST_FILES); then \
+	failed=1; \
+	fi; \
 	if ! dune runtest; then \
-		failed=1; \
+	failed=1; \
 	fi; \
 	exit $$failed
 
