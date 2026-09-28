@@ -107,10 +107,7 @@ let print_current_running (proof_count : int) (proof_total : int)
         proof_name (proof_count + 1) proof_total
   | Quiet -> ()
 
-type summarized_document = {
-  doc : Rocq_document.t;
-  summary : Run_summary.t;
-}
+type summarized_document = { doc : Rocq_document.t; summary : Run_summary.t }
 
 let apply_steps
     (transformation_steps : (Transforming_step.t list, Error.t) result)
@@ -131,10 +128,7 @@ let apply_steps
                   (Run_summary.of_step_list steps);
             })
       in
-      ( result,
-        proof_count + 1,
-        curr_state,
-        Some proof )
+      (result, proof_count + 1, curr_state, Some proof)
   | Error err -> (Error err, proof_count, curr_state, Some proof)
 
 let display_transformation_error (prev_proof : Proof.t option)
@@ -291,7 +285,7 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
       config.transformation_steps
   in
 
-  let res =
+  let* res =
     List.fold_left
       (fun (doc_acc : (Rocq_document.t, Error.t) result)
            (transformation_kind, transformation) ->
@@ -326,19 +320,12 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
       (Ok parsed_document) scoped_transformations
   in
 
-  match (res, config.save_vo) with
-  | Ok res, false ->
-      print_info config.output_filename config.verbosity;
-      (* new document repr was computed when applying transformation steps *)
-      let doc_repr = res.document_repr in
-      Filesystem.write_file config.output_filename doc_repr;
-      Ok ()
-  | Ok res, true ->
-      print_info config.output_filename config.verbosity;
-      let* doc_repr = Rocq_document.dump_to_string res in
-      Filesystem.write_file config.output_filename doc_repr;
-      save_vo_to_file config.output_filename res doc.uri token
-  | Error err, _ -> Error err
+  print_info config.output_filename config.verbosity;
+  let* doc_repr = Rocq_document.dump_to_string res in
+  Filesystem.write_file config.output_filename doc_repr;
+  if config.save_vo then
+    save_vo_to_file config.output_filename res doc.uri token
+  else Ok ()
 
 let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
     (unit, Error.t) result =
