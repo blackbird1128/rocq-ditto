@@ -302,16 +302,16 @@ let flatten_goal_selectors (doc : Rocq_document.t) (proof : Proof.t) :
 let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
   let token = Coq.Limits.Token.create () in
-  let rec aux state (acc_intro, acc_steps) nodes =
+  let rec aux state (acc_intro, rev_steps) nodes =
     match nodes with
-    | [] -> acc_steps
+    | [] -> List.rev rev_steps
     | x :: tail ->
         let state_node = Result.get_ok (Runner.run_node token state x) in
         if
           String.starts_with ~prefix:"intro." (repr x)
           && not (String.contains (repr x) ';')
-        then aux state_node (x :: acc_intro, acc_steps) tail
-        else if List.length acc_intro > 0 then
+        then aux state_node (x :: acc_intro, rev_steps) tail
+        else if acc_intro <> [] then
           let steps =
             List.mapi
               (fun i node ->
@@ -325,8 +325,8 @@ let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
                 else Remove node.id)
               acc_intro
           in
-          aux state_node ([], acc_steps @ steps) tail
-        else aux state_node ([], acc_steps) tail
+          aux state_node ([], List.rev_append steps rev_steps) tail
+        else aux state_node ([], rev_steps) tail
   in
 
   match get_init_state doc proof.opening token with
@@ -465,6 +465,9 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
             let depth_tuples =
               List.map (fun tac -> (count_leading_spaces tac, tac)) rest_cleaned
             in
+            let depth_tuples_with_default =
+              Array.of_list ((-1, "idtac") :: depth_tuples)
+            in
 
             let depth_tuples_nodes_rev =
               List.rev_map
@@ -492,27 +495,31 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
 
             let parents = Hashtbl.create (List.length depth_tuples_nodes_rev) in
 
-            List.iteri
-              (fun i (current_depth, current_node) ->
-                let next_nodes =
-                  List_utils.drop i depth_tuple_nodes_rev_indexed
-                in
-
-                let prev_node_tuple =
-                  Option.default default_node_tuple
-                    (List.find_opt
-                       (fun (depth, _, _) -> depth < current_depth)
-                       next_nodes)
-                in
-                let prev_node_depth, prev_node, prev_node_index =
-                  prev_node_tuple
-                in
-
-                if current_depth > prev_node_depth then
-                  Hashtbl.add parents
-                    (prev_node_index, prev_node)
-                    (i, current_node))
-              depth_tuples_nodes_rev;
+            let rec discard_deeper_or_equal current_depth = function
+              | (depth, _, _) :: tail when depth >= current_depth ->
+                  discard_deeper_or_equal current_depth tail
+              | stack -> stack
+            in
+            let rec parent_links stack links = function
+              | [] -> links
+              | ((current_depth, current_node, i) as current) :: tail ->
+                  let stack = discard_deeper_or_equal current_depth stack in
+                  let prev_node_depth, prev_node, prev_node_index =
+                    match stack with
+                    | parent :: _ -> parent
+                    | [] -> default_node_tuple
+                  in
+                  let links =
+                    if current_depth > prev_node_depth then
+                      ((prev_node_index, prev_node), (i, current_node))
+                      :: links
+                    else links
+                  in
+                  parent_links (current :: stack) links tail
+            in
+            parent_links [] [] (List.rev depth_tuple_nodes_rev_indexed)
+            |> List.iter (fun (parent, child) ->
+                   Hashtbl.add parents parent child);
 
             let tree =
               Proof_tree.proof_tree_from_parents
@@ -523,9 +530,7 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
             let tree_with_depths =
               Nary_tree.mapi
                 (fun i node ->
-                  let matching_tuple =
-                    List.nth ((-1, "idtac") :: depth_tuples) i
-                  in
+                  let matching_tuple = depth_tuples_with_default.(i) in
                   (node, fst matching_tuple + 1))
                 tree
             in
