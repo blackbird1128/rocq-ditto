@@ -34,7 +34,7 @@ let rec cases_pattern_expr_map m (cp : cases_pattern_expr) =
         CPatCast (cases_pattern_expr_map m p, constr_expr_map m e)
     | CPatAtom _ | CPatPrim _ -> cp.v
   in
-  v |> CAst.make
+  CAst.make ?loc:cp.loc v
 
 and local_binder_expr_map m = function
   | CLocalAssum (ids, k, b, ty) -> CLocalAssum (ids, k, b, constr_expr_map m ty)
@@ -52,7 +52,7 @@ and fixpoint_order_expr_map m (fo : ditto_fixpoint_order_expr) =
         CMeasureRec
           (id, constr_expr_map m measure, Option.map (constr_expr_map m) rel_opt)
   in
-  v |> CAst.make
+  CAst.make ?loc:fo.loc v
 
 and constr_expr_map (m : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (term : Constrexpr.constr_expr) : Constrexpr.constr_expr =
@@ -120,7 +120,7 @@ and constr_expr_map (m : Constrexpr.constr_expr -> Constrexpr.constr_expr)
 
                 ( List.map (List.map (cases_pattern_expr_map m)) pats,
                   constr_expr_map m body )
-                |> CAst.make)
+                |> CAst.make ?loc:b.loc)
               branches )
     | CLetTuple (ids, (na, ret_ty_opt), scrut, body) ->
         CLetTuple
@@ -157,4 +157,4 @@ and constr_expr_map (m : Constrexpr.constr_expr -> Constrexpr.constr_expr)
         term.v
   in
 
-  m (res |> CAst.make)
+  m (CAst.make ?loc:term.loc res)

@@ -21,6 +21,12 @@
  (package coq-ditto)
  (modules test_comment_scanner)
  (libraries ditto ditto_test_support alcotest qcheck-core qcheck-alcotest))
+
+(test
+ (name test_constrexpr_map)
+ (package coq-ditto)
+ (modules test_constrexpr_map)
+ (libraries ditto alcotest))
   
 (test
  (name test_list_utils)
