@@ -81,6 +81,7 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   | AddProofNodeIfMissingDoc ->
       DocScope Transformations.add_proof_node_if_missing_doc
   | RemoveProofWith -> ProofScope Transformations.remove_proof_with
+  | RemoveProofWithDoc -> DocScope Transformations.remove_proof_with_doc
   | ConstructiviseGeocoq -> DocScope Constructivisation.constructivise_doc
   | RocqToLean -> DocScope Rocq_to_lean.rocq_to_lean
   | IdProofTransformation -> ProofScope Transformations.id_transform

@@ -949,6 +949,11 @@ let remove_proof_with (_ : Rocq_document.t) (proof : Proof.t) :
       List_utils.result_all (proof_node_replace :: steps)
   | None -> Ok []
 
+let remove_proof_with_doc (doc : Rocq_document.t) :
+    (Transforming_step.t list, Error.t) result =
+  let* proofs = Rocq_document.get_proofs doc in
+  List_utils.concat_map_result (fun proof -> remove_proof_with doc proof) proofs
+
 let turn_into_oneliner (_ : Rocq_document.t)
     (proof_tree : Syntax_node.t Nary_tree.t) :
     (Transforming_step.t list, Error.t) result =

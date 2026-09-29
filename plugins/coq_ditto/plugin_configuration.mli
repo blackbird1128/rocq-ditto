@@ -13,6 +13,7 @@ type transformation_kind =
   | AddProofNodeIfMissing
   | AddProofNodeIfMissingDoc
   | RemoveProofWith
+  | RemoveProofWithDoc
   | IdProofTransformation
   | IdDocTransformation
   | ConstructiviseGeocoq

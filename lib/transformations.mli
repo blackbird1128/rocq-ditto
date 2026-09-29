@@ -44,6 +44,9 @@ val rename_definition :
 val remove_proof_with :
   Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result
 
+val remove_proof_with_doc :
+  Rocq_document.t -> (Transforming_step.t list, Error.t) result
+
 val flatten_goal_selectors :
   Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result
 

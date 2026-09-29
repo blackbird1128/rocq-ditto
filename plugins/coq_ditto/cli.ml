@@ -29,6 +29,10 @@ let transformation_help_fun (kind : Plugin_configuration.transformation_kind) :
     | RemoveProofWith ->
         "Remove all proofs containing \"Proof with X\" by replacing each \
          \"tactic...\" with \"tactic;X.\" "
+    | RemoveProofWithDoc ->
+        "Experimental: Remove all proofs containing \"Proof with X\" by \
+         replacing each \"tactic...\" with \"tactic;X.\"  Doc version to check \
+         for optimization opportunities "
     | ReplaceInductionWithDestruct ->
         "Experimental: Replace induction with destruct when no induction \
          hypothesis is generated"
