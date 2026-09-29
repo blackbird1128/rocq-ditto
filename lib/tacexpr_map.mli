@@ -59,3 +59,12 @@ val tacexpr_map_with_states :
     after the current subexpression when calling [f]. [f] is called only for
     subexpressions accepted by [needs_state], which defaults to accepting every
     subexpression. *)
+
+val tacexpr_map_with_state_before :
+  Coq.Limits.Token.t ->
+  ?selector:Goal_select.t ->
+  ?needs_state:(Tacexpr.raw_tactic_expr -> bool) ->
+  Coq.State.t ->
+  Tacexpr.raw_tactic_expr ->
+  (Coq.State.t -> Tacexpr.raw_tactic_expr -> Tacexpr.raw_tactic_expr) ->
+  (Tacexpr.raw_tactic_expr, Error.t) result

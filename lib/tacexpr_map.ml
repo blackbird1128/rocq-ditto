@@ -647,13 +647,12 @@ let prefix_including ~eq ~target e = prefix_until ~hit:Include ~eq ~target e
 let tacexpr_map_with_states (token : Coq.Limits.Token.t)
     ?(selector : Goal_select.t option)
     ?(needs_state : Tacexpr.raw_tactic_expr -> bool = fun _ -> true)
-    (state_before : Coq.State.t)
-    (tacexpr : Tacexpr.raw_tactic_expr)
+    (state_before : Coq.State.t) (tacexpr : Tacexpr.raw_tactic_expr)
     (f :
       Coq.State.t ->
       Coq.State.t ->
       Tacexpr.raw_tactic_expr ->
-      Tacexpr.raw_tactic_expr) =
+      Tacexpr.raw_tactic_expr) : (Tacexpr.raw_tactic_expr, Error.t) result =
   let ( let* ) = Result.bind in
   tacexpr_map_result
     (fun subexpr ->
@@ -675,4 +674,24 @@ let tacexpr_map_with_states (token : Coq.Limits.Token.t)
                     prefix_including
                 in
                 Ok (f sub_before sub_after subexpr)))
+    tacexpr
+
+let tacexpr_map_with_state_before (token : Coq.Limits.Token.t)
+    ?(selector : Goal_select.t option)
+    ?(needs_state : Tacexpr.raw_tactic_expr -> bool = fun _ -> true)
+    (state_before : Coq.State.t) (tacexpr : Tacexpr.raw_tactic_expr)
+    (f : Coq.State.t -> Tacexpr.raw_tactic_expr -> Tacexpr.raw_tactic_expr) :
+    (Tacexpr.raw_tactic_expr, Error.t) result =
+  let ( let* ) = Result.bind in
+  tacexpr_map_result
+    (fun subexpr ->
+      if not (needs_state subexpr) then Ok subexpr
+      else
+        match prefix_before ~eq:( = ) ~target:subexpr tacexpr with
+        | None -> Ok subexpr
+        | Some prefix ->
+            let* before =
+              Runner.run_raw_tactic_expr token ?selector state_before prefix
+            in
+            Ok (f before subexpr))
     tacexpr
