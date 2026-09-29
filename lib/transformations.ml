@@ -511,15 +511,14 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
                   in
                   let links =
                     if current_depth > prev_node_depth then
-                      ((prev_node_index, prev_node), (i, current_node))
-                      :: links
+                      ((prev_node_index, prev_node), (i, current_node)) :: links
                     else links
                   in
                   parent_links (current :: stack) links tail
             in
             parent_links [] [] (List.rev depth_tuple_nodes_rev_indexed)
             |> List.iter (fun (parent, child) ->
-                   Hashtbl.add parents parent child);
+                Hashtbl.add parents parent child);
 
             let tree =
               Proof_tree.proof_tree_from_parents
@@ -1395,6 +1394,18 @@ let is_induction_to_destruct_candidate
   | Tacexpr.TacAtom (Tacexpr.TacInductionDestruct (true, false, _)) -> true
   | _ -> false
 
+let proof_contains_induction_candidate (p : Proof.t) : bool =
+  List.exists
+    (fun node ->
+      match Syntax_node.get_raw_tactic_expr node with
+      | Some expr ->
+          Tacexpr_map.tacexpr_fold
+            (fun found subexpr ->
+              found || is_induction_to_destruct_candidate subexpr)
+            false expr
+      | None -> false)
+    (Proof.all_nodes p)
+
 let map_induction_to_destruct_in_tacexpr (state_before : Coq.State.t)
     (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
@@ -1422,7 +1433,9 @@ let replace_induction_by_destruct_in_node (token : Coq.Limits.Token.t)
 
 let replace_induction_by_destruct_when_possible (doc : Rocq_document.t)
     (proof : Proof.t) : (Transforming_step.t list, Error.t) result =
-  rewrite_proof_nodes doc proof ~rewrite:replace_induction_by_destruct_in_node
+  if proof_contains_induction_candidate proof then
+    rewrite_proof_nodes doc proof ~rewrite:replace_induction_by_destruct_in_node
+  else Ok []
 
 let map_intro_to_explicit_intro_in_tacexpr (state_before : Coq.State.t)
     (state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -1556,12 +1569,23 @@ let fill_args (args : args list)
   | ImplicitBindings implicit_binds -> fill_implicit_holes args implicit_binds
   | ExplicitBindings _ -> args
 
-let is_explicit_apply_candidate
-    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) : bool =
+let is_explicit_apply_candidate (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
+    : bool =
   let open Ltac_plugin in
   match tacexpr.v with
   | Tacexpr.TacAtom (TacApply (_, _, _, [])) -> true
   | _ -> false
+
+let proof_contains_explicit_apply_candidate (p : Proof.t) : bool =
+  List.exists
+    (fun node ->
+      match Syntax_node.get_raw_tactic_expr node with
+      | Some expr ->
+          Tacexpr_map.tacexpr_fold
+            (fun found subexpr -> found || is_explicit_apply_candidate subexpr)
+            false expr
+      | None -> false)
+    (Proof.all_nodes p)
 
 (** map apply to explicit apply *)
 let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
@@ -1688,7 +1712,9 @@ let explicit_apply_in_node (token : Coq.Limits.Token.t)
 
 let explicit_apply (doc : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
-  rewrite_proof_nodes doc proof ~rewrite:explicit_apply_in_node
+  if proof_contains_explicit_apply_candidate proof then
+    rewrite_proof_nodes doc proof ~rewrite:explicit_apply_in_node
+  else Ok []
 
 let apply_doc_transformation
     (transformation :
