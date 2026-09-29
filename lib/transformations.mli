@@ -86,6 +86,9 @@ val explicit_apply :
 val add_proof_node_if_missing :
   Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result
 
+val add_proof_node_if_missing_doc :
+  Rocq_document.t -> (Transforming_step.t list, Error.t) result
+
 val apply_doc_transformation :
   (Rocq_document.t -> (Transforming_step.t list, Error.t) result) ->
   Rocq_document.t ->

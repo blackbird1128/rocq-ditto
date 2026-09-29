@@ -24,6 +24,7 @@ type transformation_kind =
   | ExplicitIdentInIntro
   | ExplicitApply
   | AddProofNodeIfMissing
+  | AddProofNodeIfMissingDoc
   | RemoveProofWith
   | IdProofTransformation
   | IdDocTransformation

@@ -1761,12 +1761,16 @@ let apply_proof_tree_transformation
       | err -> err)
     (Ok doc) proof_trees
 
+let needs_proof_node (proof : Proof.t) =
+  match proof.proof_steps with
+  | [] -> false
+  | first :: _ -> not (Syntax_node.is_proof_command first)
+
 let add_proof_node_if_missing (_ : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
   match proof.proof_steps with
-  | first_node :: _ -> (
-      if Syntax_node.is_proof_command first_node then Ok []
-      else
+  | _ :: _ ->
+      if needs_proof_node proof then
         let proof_node =
           Syntax_node.syntax_node_of_string "Proof." Code_point.dummy
         in
@@ -1776,5 +1780,16 @@ let add_proof_node_if_missing (_ : Rocq_document.t) (proof : Proof.t) :
         | Error err ->
             Error.format_to_or_error
               "Error when creating a Proof node, this should never happen:\n%s"
-              (Error.to_string_hum err))
+              (Error.to_string_hum err)
+      else Ok []
   | _ -> Ok []
+
+(* TODO: Avoid having to have this sort of silly optimization because we re-compute init state like crazy in Proof transformations execution *)
+let add_proof_node_if_missing_doc (doc : Rocq_document.t) :
+    (Transforming_step.t list, Error.t) result =
+  let* proofs = Rocq_document.get_proofs doc in
+  if List.exists needs_proof_node proofs then
+    List_utils.concat_map_result
+      (fun proof -> add_proof_node_if_missing doc proof)
+      proofs
+  else Ok []
