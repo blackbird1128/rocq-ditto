@@ -15,11 +15,12 @@ let ltac_definition_extend_name : Vernacexpr.extend_name =
   }
 
 let corelib_init_ltac_dirpath =
+  (* DirPath.make expects components in reverse order. *)
   Names.DirPath.make
     [
-      Names.Id.of_string "Corelib";
-      Names.Id.of_string "Init";
       Names.Id.of_string "Ltac";
+      Names.Id.of_string "Init";
+      Names.Id.of_string "Corelib";
     ]
 
 let corelib_init_ltac_modpath = Names.ModPath.MPfile corelib_init_ltac_dirpath
