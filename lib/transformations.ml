@@ -1767,9 +1767,15 @@ let apply_proof_tree_transformation
     (Ok doc) proof_trees
 
 let needs_proof_node (proof : Proof.t) =
-  match proof.proof_steps with
-  | [] -> false
-  | first :: _ -> not (Syntax_node.is_proof_command first)
+  let first_non_comment_node =
+    List.find_opt
+      (fun node -> not (Syntax_node.is_comment node))
+      proof.proof_steps
+  in
+
+  match first_non_comment_node with
+  | None -> false
+  | Some first -> not (Syntax_node.is_proof_command first)
 
 let add_proof_node_if_missing (_ : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
