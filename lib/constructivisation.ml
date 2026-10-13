@@ -276,6 +276,48 @@ let replace_contexts (doc : Rocq_document.t) :
   in
   List_utils.concat_result a
 
+let replace_euclid_proof (doc : Rocq_document.t) :
+    (Transforming_step.t list, Error.t) result =
+  if String.equal (Filename.basename doc.filename) "Ch12_parallel_inter_dec.v"
+  then
+    let* proofs = Rocq_document.get_proofs doc in
+    let parallel_uniqueness_proof =
+      List.find_opt
+        (fun p ->
+          match Proof.get_proof_name p with
+          | Some name ->
+              let name_str = Names.Id.to_string name in
+              String.equal name_str "parallel_uniqueness"
+          | None -> false)
+        proofs
+      |> Option.get
+    in
+
+    let* exact_playfair_node =
+      Syntax_node.syntax_node_of_string "exact playfair." Code_point.dummy
+    in
+
+    let remove_all_steps_pu =
+      Proof.body_and_closing parallel_uniqueness_proof
+      |> List.filter_map (fun (step : Syntax_node.t) ->
+          if
+            Syntax_node.can_open_proof step
+            || Syntax_node.is_proof_command step
+            || Syntax_node.can_close_proof step
+          then None
+          else Some (Remove step.id))
+      |> List.rev
+    in
+    let proof_command =
+      List.find Syntax_node.is_proof_command
+        (Proof.body_and_closing parallel_uniqueness_proof)
+    in
+    let attach_step =
+      Attach (exact_playfair_node, LineAfter, proof_command.id)
+    in
+    Ok (remove_all_steps_pu @ [ attach_step ])
+  else Ok []
+
 let attach_node_after_pred_in_file (doc : Rocq_document.t)
     (node : Syntax_node.t) (filename : string) ?(reverse = false)
     (pred : Syntax_node.t -> bool) : (Transforming_step.t list, Error.t) result
@@ -701,8 +743,8 @@ let collect_named_section_ids (section_names : string list)
   let rec aux nodes (current : string option) acc =
     match nodes with
     | [] -> Ok (current, List.rev acc)
-    | node :: tail -> begin
-        match current with
+    | node :: tail ->
+        begin match current with
         | None -> (
             match section_marker node with
             | Some (`Begin name) when is_target name ->
@@ -715,7 +757,7 @@ let collect_named_section_ids (section_names : string list)
                 aux tail None acc'
             | _ -> aux tail (Some name) acc'
             end
-      end
+        end
   in
   let* open_section, ids = aux doc.elements None [] in
   match open_section with
@@ -843,6 +885,8 @@ let constructivise_doc (doc : Rocq_document.t) :
 
         let* replace_cong_theory_steps = replace_cong_theory doc in
 
+        let* replace_euclid_proof_steps = replace_euclid_proof doc in
+
         let* replace_congr_steps = replace_congr doc in
 
         let* replace_require_steps =
@@ -878,6 +922,7 @@ let constructivise_doc (doc : Rocq_document.t) :
                prove_decidability_proofs_steps;
                replace_cong_theory_steps;
                replace_congr_steps;
+               replace_euclid_proof_steps;
                attach_congrc_to_file_steps;
                attach_upper_dim_import_to_ch10_line_refl_2_steps;
                attach_euclid_import_to_ch12_parallel_inter_dec_steps;
