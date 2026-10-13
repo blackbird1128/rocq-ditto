@@ -142,12 +142,12 @@ let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
             neighbors
         in
 
-        let normalized_out =
-          Filesystem.normalize_path ~containing_dir:output_folder
-            (Ninja.Path.to_string output_filepath)
+        let normalized_input =
+          Filesystem.normalize_path ~containing_dir:(Project.directory project)
+            file
         in
 
-        if transformed_files = [] || List.mem normalized_out transformed_files
+        if transformed_files = [] || List.mem normalized_input transformed_files
         then
           [
             Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
