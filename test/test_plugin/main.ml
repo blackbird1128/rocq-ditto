@@ -1120,7 +1120,15 @@ let test_add_proof_node_simple_proof (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.add_proof_node_if_missing ()
 
 let test_add_proof_node_empty_proof (doc : Doc.t) () : unit =
-  test_proof_transformation doc Transformations.add_proof_node_if_missing ()
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let new_doc =
+    Transformations.apply_proof_transformation
+      Transformations.add_proof_node_if_missing doc
+  in
+  Alcotest.(check (result (list (pair string range_testable)) error_testable))
+    "An empty or comment-only proof body should remain unchanged"
+    (Ok (document_to_range_representation_pairs doc))
+    (Result.map document_to_range_representation_pairs new_doc)
 
 let test_admit_simple_proof (doc : Doc.t) () : unit =
   test_proof_transformation doc Transformations.admit_proof ()
@@ -1868,6 +1876,18 @@ let setup_test_table table (doc : Doc.t) =
   Hashtbl.add table "ex_add_proof_node_simple.v"
     (create_fixed_test "test adding a Proof node to a simple proof"
        test_add_proof_node_simple_proof doc);
+  Hashtbl.add table "ex_add_proof_node_comment_before_existing.v"
+    (create_fixed_test "test preserving a Proof node after a comment"
+       test_add_proof_node_simple_proof doc);
+  Hashtbl.add table "ex_add_proof_node_comment_before_tac.v"
+    (create_fixed_test "test adding a Proof node before a comment and tactic"
+       test_add_proof_node_simple_proof doc);
+  Hashtbl.add table "ex_add_proof_node_empty.v"
+    (create_fixed_test "test preserving an empty proof body"
+       test_add_proof_node_empty_proof doc);
+  Hashtbl.add table "ex_add_proof_node_comment_empty.v"
+    (create_fixed_test "test preserving a comment-only proof body"
+       test_add_proof_node_empty_proof doc);
 
   Hashtbl.add table "ex_admit_transform_simple.v"
     (create_fixed_test "test admitting a simple proof" test_admit_simple_proof
