@@ -772,20 +772,30 @@ let remove_named_sections (section_names : string list) (doc : Rocq_document.t)
 
 let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
-  let remove_all_steps_except_qed =
+  let remove_steps =
     List.filter_map
       (fun (step : Syntax_node.t) ->
-        if Syntax_node.can_close_proof step then None else Some (Remove step.id))
+        if Syntax_node.is_proof_command step || Syntax_node.can_close_proof step
+        then None
+        else Some (Remove step.id))
       proof.proof_steps
   in
-
+  let* proof_command, insert_proof_steps =
+    match List.find_opt Syntax_node.is_proof_command proof.proof_steps with
+    | Some proof_command -> Ok (proof_command, [])
+    | None ->
+        let* proof_command =
+          Syntax_node.syntax_node_of_string "Proof." Code_point.dummy
+        in
+        Ok
+          (proof_command, [ Attach (proof_command, LineAfter, proof.opening.id) ])
+  in
   let* solve_dec_node =
     Syntax_node.syntax_node_of_string "solve_dec." Code_point.dummy
   in
-
   Ok
-    (remove_all_steps_except_qed
-    @ [ Attach (solve_dec_node, LineAfter, proof.opening.id) ])
+    (remove_steps @ insert_proof_steps
+    @ [ Attach (solve_dec_node, LineAfter, proof_command.id) ])
 
 let get_proofs_named (proofs : Proof.t list) (names : string list) =
   List.filter
