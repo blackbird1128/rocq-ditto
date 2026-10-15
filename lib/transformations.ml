@@ -1594,7 +1594,7 @@ let proof_contains_explicit_apply_candidate (p : Proof.t) : bool =
 
 (** map apply to explicit apply *)
 let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
-    (_state_after : Coq.State.t) (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
+    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
     : Ltac_plugin.Tacexpr.raw_tactic_expr =
   let open Ltac_plugin in
   let token = Coq.Limits.Token.create () in
@@ -1711,9 +1711,21 @@ let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
 let explicit_apply_in_node (token : Coq.Limits.Token.t)
     (state_before : Coq.State.t) (node : Syntax_node.t) :
     (Syntax_node.t, Error.t) result =
-  rewrite_node_tacexpr token state_before node
-    ~needs_state:is_explicit_apply_candidate
-    ~f:map_apply_to_explicit_apply_in_tacexpr
+  match Syntax_node.get_raw_tactic_expr node with
+  | None -> Ok node
+  | Some tacexpr ->
+      let selector_view = Syntax_node.get_goal_selector_opt node in
+      let selector = Option.map Goal_select_view.to_goal_select selector_view in
+      let* new_tacexpr =
+        Tacexpr_map.tacexpr_map_with_state_before token ?selector
+          ~needs_state:is_explicit_apply_candidate state_before tacexpr
+          map_apply_to_explicit_apply_in_tacexpr
+      in
+      if new_tacexpr = tacexpr then Ok node
+      else
+        Ok
+          (Syntax_node.raw_tactic_expr_to_syntax_node new_tacexpr
+             ?selector:selector_view node.range.start)
 
 let explicit_apply (doc : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
