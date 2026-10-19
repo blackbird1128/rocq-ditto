@@ -89,6 +89,9 @@ let find_index (f : 'a -> bool) (xs : 'a list) : int option =
 let find_last_opt (p : 'a -> bool) (l : 'a list) : 'a option =
   List.fold_left (fun acc x -> if p x then Some x else acc) None l
 
+let count (p : 'a -> bool) (l : 'a list) : int =
+  List.fold_left (fun acc x -> if p x then acc + 1 else acc) 0 l
+
 let dedup (l : 'a list) : 'a list =
   let seen = Hashtbl.create 16 in
   let rec aux acc = function

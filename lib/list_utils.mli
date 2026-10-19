@@ -15,6 +15,7 @@ val split_last : 'a list -> ('a list * 'a) option
 val split_head_last : 'a list -> ('a * 'a list * 'a) option
 val find_index : ('a -> bool) -> 'a list -> int option
 val find_last_opt : ('a -> bool) -> 'a list -> 'a option
+val count : ('a -> bool) -> 'a list -> int
 val dedup : 'a list -> 'a list
 val option_all : 'a option list -> 'a list option
 
