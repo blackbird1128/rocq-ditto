@@ -9,39 +9,13 @@ type scoped_function =
       (Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result)
   | DocScope of (Rocq_document.t -> (Transforming_step.t list, Error.t) result)
 
-type 'a scoped_statistic =
-  | ProofScope of (Rocq_document.t -> Proof.t -> ('a, Error.t) result)
-  | DocScope of (Rocq_document.t -> ('a, Error.t) result)
-
-type 'a statistic = {
-  name : string;
-  scope : 'a scoped_statistic;
-  empty : 'a;
-  combine : 'a -> 'a -> 'a;
-  pp : Format.formatter -> 'a -> unit;
-  to_json : 'a -> Yojson.Safe.t;
-}
-
-let run_statistic (doc : Rocq_document.t) (statistic : 'a statistic) :
-    ('a, Error.t) result =
-  let ( let* ) = Result.bind in
-  match statistic.scope with
-  | ProofScope compute ->
-      let* proofs = Rocq_document.get_proofs doc in
-      List_utils.fold_left_result
-        (fun acc p ->
-          let* compute_res = compute doc p in
-          Ok (statistic.combine acc compute_res))
-        statistic.empty proofs
-  | DocScope compute -> compute doc
-
 let print_induction_count (formatter : Format.formatter) (count : int) =
   Format.fprintf formatter "induction count: %s" (string_of_int count)
 
 let induction_count_to_json (count : int) : Yojson.Safe.t =
   `Assoc [ ("count", `Int count) ]
 
-let statistic_kind_to_statistic (kind : statistic_kind) : 'a statistic =
+let statistic_kind_to_statistic (kind : statistic_kind) : 'a Statistics.t =
   match kind with
   | CountInduction ->
       {
@@ -230,7 +204,7 @@ let statistic_action (doc : Fleche.Doc.t) (config : statistic_configuration) =
       (statistic_kind_to_string config.statistic_kind);
 
   let statistic = statistic_kind_to_statistic config.statistic_kind in
-  let* value = run_statistic parsed_doc statistic in
+  let* value = Statistics.run parsed_doc statistic in
   (match config.format with
   | Text -> Format.printf "%a@." statistic.pp value
   | Json ->

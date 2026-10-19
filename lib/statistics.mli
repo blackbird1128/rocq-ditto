@@ -1,1 +1,17 @@
+type 'a scoped_statistic =
+  | ProofScope of (Rocq_document.t -> Proof.t -> ('a, Error.t) result)
+  | DocScope of (Rocq_document.t -> ('a, Error.t) result)
+
+type 'a t = {
+  name : string;
+  scope : 'a scoped_statistic;
+  empty : 'a;
+  combine : 'a -> 'a -> 'a;
+  pp : Format.formatter -> 'a -> unit;
+  to_json : 'a -> Yojson.Safe.t;
+}
+
+type packed = Statistic : 'a t -> packed
+
+val run : Rocq_document.t -> 'a t -> ('a, Error.t) result
 val count_induction : Rocq_document.t -> (int, Error.t) result
