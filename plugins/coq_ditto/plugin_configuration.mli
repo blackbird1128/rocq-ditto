@@ -20,7 +20,7 @@ type transformation_kind =
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
 
-type statistic_kind = CountInduction
+type statistic_kind = CountInduction | CountProofStatus
 [@@deriving show { with_path = false }, enum]
 
 type dependencies_action =

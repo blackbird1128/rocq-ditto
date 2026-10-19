@@ -15,17 +15,28 @@ let print_induction_count (formatter : Format.formatter) (count : int) =
 let induction_count_to_json (count : int) : Yojson.Safe.t =
   `Assoc [ ("count", `Int count) ]
 
-let statistic_kind_to_statistic (kind : statistic_kind) : 'a Statistics.t =
+let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
   match kind with
   | CountInduction ->
-      {
-        name = "count induction";
-        scope = DocScope Statistics.count_induction;
-        empty = 0;
-        combine = ( + );
-        pp = print_induction_count;
-        to_json = induction_count_to_json;
-      }
+      Statistics.Statistic
+        {
+          name = "count induction";
+          scope = DocScope Statistics.count_induction;
+          empty = 0;
+          combine = ( + );
+          pp = print_induction_count;
+          to_json = induction_count_to_json;
+        }
+  | CountProofStatus ->
+      Statistics.Statistic
+        {
+          name = "count proof status";
+          scope = DocScope Statistics.count_proof_status;
+          empty = { proved = 0; admitted = 0 };
+          combine = Statistics.add_proof_status_count;
+          pp = Statistics.pp_proof_status_count;
+          to_json = Statistics.proof_status_count_to_json;
+        }
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :
     (Syntax_node.t Nary_tree.t, Error.t) result =
@@ -203,14 +214,16 @@ let statistic_action (doc : Fleche.Doc.t) (config : statistic_configuration) =
     Printf.printf "applying statistic : %s\n"
       (statistic_kind_to_string config.statistic_kind);
 
-  let statistic = statistic_kind_to_statistic config.statistic_kind in
-  let* value = Statistics.run parsed_doc statistic in
+  let (Statistics.Statistic stat) =
+    statistic_kind_to_statistic config.statistic_kind
+  in
+  let* value = Statistics.run parsed_doc stat in
   (match config.format with
-  | Text -> Format.printf "%a@." statistic.pp value
+  | Text -> Format.printf "%a@." stat.pp value
   | Json ->
       Format.printf "%a@."
         (Yojson.Safe.pretty_print ~std:false)
-        (statistic.to_json value));
+        (stat.to_json value));
   Ok ()
 
 let save_vo_to_file (filename : string) (doc : Rocq_document.t)
