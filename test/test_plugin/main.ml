@@ -1244,6 +1244,25 @@ let test_replace_induction_by_destruct_intro_pattern (doc : Doc.t) () : unit =
   test_proof_transformation doc
     Transformations.replace_induction_by_destruct_when_possible ()
 
+let fake_clock =
+  let time = ref 0.0 in
+  fun () ->
+    let current = !time in
+    time := current +. 0.25;
+    current
+
+let test_add_time_taken_simple (doc : Doc.t) () : unit =
+  let mock_test_add_time_take =
+    Transformations.fold_add_time_taken_with_clock ~now:fake_clock
+  in
+  test_proof_transformation doc mock_test_add_time_take ()
+
+let test_add_time_taken_multi_nodes_line (doc : Doc.t) () : unit =
+  let mock_test_add_time_take =
+    Transformations.fold_add_time_taken_with_clock ~now:fake_clock
+  in
+  test_proof_transformation doc mock_test_add_time_take ()
+
 let test_renaming_def_in_proof_steps (doc : Doc.t) () : unit =
   Unix.putenv "DITTO_ARG0"
     "./test/fixtures/unit_test_fixtures/specs_rename_test.json";
@@ -2011,6 +2030,13 @@ let setup_test_table table (doc : Doc.t) =
     (create_fixed_test "test removing \"Proof with\" with multiple elipsises"
        test_remove_proof_with_multiple doc);
 
+  Hashtbl.add table "ex_add_time_taken_simple.v"
+    (create_fixed_test "test adding time taken on a simple proof"
+       test_add_time_taken_simple doc);
+  Hashtbl.add table "ex_add_time_taken_multi_nodes_line.v"
+    (create_fixed_test "test adding time taken with multiple node in a line"
+       test_add_time_taken_multi_nodes_line doc);
+
   Hashtbl.add table "ex_rename_definition_in_proof_steps.v"
     (create_fixed_test "test renaming definition Foo to Bar in proof steps"
        test_renaming_def_in_proof_steps doc);
@@ -2087,10 +2113,9 @@ let setup_test_table table (doc : Doc.t) =
   (* Hashtbl.add table "ex_goal_select_flattening_all.v" *)
   (*   (create_fixed_test "test flattening an 'all' goal selector by duplication" *)
   (*      test_flattening_goal_select_all doc); *)
-
-  (* Hashtbl.add table "ex_auto3.v" *)
-  (*   (create_fixed_test "test replacing auto with zarith" *)
-  (* test_replace_auto_using_zarith_by_steps doc); *)
+  Hashtbl.add table "ex_auto3.v"
+    (create_fixed_test "test replacing auto with zarith"
+       test_replace_auto_using_zarith_by_steps doc);
   (* Hashtbl.add table "ex_auto4.v" *)
   (*   (create_fixed_test "test replacing auto with backtracking by steps" *)
   (*      test_replace_auto_with_backtracking doc); *)
