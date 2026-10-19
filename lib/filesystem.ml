@@ -64,7 +64,7 @@ let rec copy_dir (src : string) (dst : string) (filenames_to_copy : string list)
     | entry -> (
         if entry = "." || entry = ".." then loop ()
         else if entry = ".git" then (
-          Printf.printf
+          Printf.eprintf
             "Warning: ignoring .git when copying input directory\n%!";
           loop ())
         else

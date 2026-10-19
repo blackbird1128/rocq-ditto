@@ -86,11 +86,11 @@ let print_current_running (proof_count : int) (proof_total : int)
     (verbosity : verbosity) =
   match verbosity with
   | Verbose ->
-      Printf.printf "Running transformation %s on %-20s (%d/%d)%!\n%!"
+      Printf.eprintf "Running transformation %s on %-20s (%d/%d)%!\n%!"
         (transformation_kind_to_string transformation_kind)
         proof_name (proof_count + 1) proof_total
   | Normal ->
-      Printf.printf "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
+      Printf.eprintf "\027[2K\rRunning transformation %s on %-20s(%d/%d)%!"
         (transformation_kind_to_string transformation_kind)
         proof_name (proof_count + 1) proof_total
   | Quiet -> ()
@@ -166,7 +166,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
         in
         print_current_running proof_count proof_total proof_name
           transformation_kind verbosity;
-        Printf.printf "\n%!";
+        Printf.eprintf "\n%!";
         let selected_state =
           match status_before with
           | Ok _ -> curr_state
@@ -179,7 +179,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
                 |> Option.flatten
                 |> Option.default "No previous proof ? This might be a bug\n"
               in
-              Printf.printf
+              Printf.eprintf
                 "Invalid state after transforming proof %s, canceling it \n"
                 prev_proof_name;
               prev_state
@@ -196,13 +196,13 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
       (doc_acc, empty_summary)
 
 let print_info (filename : string) (verbosity : verbosity) : unit =
-  Printf.printf "\nAll transformations applied, writing to file %s\n%!" filename;
+  Printf.eprintf "\nAll transformations applied, writing to file %s\n%!" filename;
 
   match verbosity with
   | Verbose ->
       let stats = Stats.Global.dump () in
-      Printf.printf "rocq-ditto stats: %s\n" (Stats.Global.to_string stats);
-      Printf.printf "rocq-ditto %s\n" (Memo.GlobalCacheStats.stats ())
+      Printf.eprintf "rocq-ditto stats: %s\n" (Stats.Global.to_string stats);
+      Printf.eprintf "rocq-ditto %s\n" (Memo.GlobalCacheStats.stats ())
   | _ -> ()
 
 let statistic_action (doc : Fleche.Doc.t) (config : statistic_configuration) =
@@ -211,7 +211,7 @@ let statistic_action (doc : Fleche.Doc.t) (config : statistic_configuration) =
   let* parsed_doc = Rocq_document.parse_document doc in
 
   if config.format = Text then
-    Printf.printf "applying statistic : %s\n"
+    Printf.eprintf "applying statistic : %s\n"
       (statistic_kind_to_string config.statistic_kind);
 
   let (Statistics.Statistic stat) =
@@ -230,7 +230,7 @@ let save_vo_to_file (filename : string) (doc : Rocq_document.t)
     (doc_uri : Lang.LUri.File.t) (token : Coq.Limits.Token.t) :
     (unit, Error.t) result =
   let ( let* ) = Result.bind in
-  Printf.printf "Saving vo: ";
+  Printf.eprintf "Saving vo: ";
   let* uri =
     Lang.LUri.of_string filename
     |> Lang.LUri.File.of_uri
@@ -244,7 +244,7 @@ let save_vo_to_file (filename : string) (doc : Rocq_document.t)
   let res =
     Coq.Save.save_vo ~token ~st:state ~ldir ~in_file |> Error.protect_to_result
   in
-  Result.iter (fun _ -> Printf.printf "vo saved successfully\n") res;
+  Result.iter (fun _ -> Printf.eprintf "vo saved successfully\n") res;
   res
 
 let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
@@ -262,10 +262,10 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
   let _ =
     match config.progress with
     | Some { current_file_count; total_file_count } ->
-        Printf.printf
+        Printf.eprintf
           "Running rocq-ditto on %s (file %d/%d in the project) \n%!" uri_str
           current_file_count total_file_count
-    | None -> Printf.printf "running rocq-ditto on %s\n%!" uri_str
+    | None -> Printf.eprintf "running rocq-ditto on %s\n%!" uri_str
   in
 
   let* parsed_document = Rocq_document.parse_document doc in
@@ -283,7 +283,7 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
         | Ok doc_acc, scoped_trans -> (
             match scoped_trans with
             | ProofScope trans ->
-                Printf.printf "applying transformation : %s\n"
+                Printf.eprintf "applying transformation : %s\n"
                   (transformation_kind_to_string transformation_kind);
 
                 let* proof_list =
@@ -297,14 +297,14 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
                     transformation_kind proof_list config.verbosity
                 in
                 if config.summary then
-                  Printf.printf "%s\n" (Run_summary.to_string summary);
+                  Printf.eprintf "%s\n" (Run_summary.to_string summary);
                 Ok doc
             | DocScope trans ->
                 let* doc, summary =
                   local_apply_doc_transformation doc_acc trans
                 in
                 if config.summary then
-                  Printf.printf "%s\n" (Run_summary.to_string summary);
+                  Printf.eprintf "%s\n" (Run_summary.to_string summary);
                 Ok doc)
         | Error err, _ -> Error err)
       (Ok parsed_document) scoped_transformations
@@ -320,7 +320,7 @@ let transformation_action (doc : Fleche.Doc.t) ~(token : Coq.Limits.Token.t)
 let ditto_plugin ~io:_ ~(token : Coq.Limits.Token.t) ~(doc : Doc.t) :
     (unit, Error.t) result =
   let ( let* ) = Result.bind in
-  let out = Format.std_formatter in
+  let out = Format.err_formatter in
   let reporter =
     Logs_fmt.reporter ~pp_header:Cli.pp_header_no_app ~app:out ~dst:out ()
   in

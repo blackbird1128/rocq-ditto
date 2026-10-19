@@ -77,7 +77,7 @@ let transform_files (root : string) (dep_files : string list) (prog : string)
       let* _status =
         Process_runner.run_process_loud ~env:curr_env ~args:curr_args prog
       in
-      Printf.printf "\n%!";
+      Printf.eprintf "\n%!";
       Ok (curr_file_count + 1))
     1 dep_files
   |> Result.map (fun _ -> ())
@@ -88,7 +88,7 @@ let compile_files (files : string list) (root : string)
   let prog = "fcc" in
   List_utils.fold_left_result
     (fun current_file_count curr_file ->
-      Printf.printf "compiling file %s%!" curr_file;
+      Printf.eprintf "compiling file %s%!" curr_file;
       let curr_args = make_args_compile_files root curr_file in
       let* _status =
         Process_runner.run_process_silent ~env:base_env ~args:curr_args prog
@@ -222,7 +222,7 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
   and summary = opts.summary
   and jobs_opt = opts.jobs in
 
-  let out = Format.std_formatter in
+  let out = Format.err_formatter in
   let reporter =
     Logs_fmt.reporter ~pp_header:pp_header_no_app ~app:out ~dst:out ()
   in
@@ -279,14 +279,14 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
           | CompileDependencies ->
               with_dependencies ~input_file:input ~project_dir:input_dir
                 (fun project deps ->
-                  Printf.printf "Compiling %d dependencies\n%!"
+                  Printf.eprintf "Compiling %d dependencies\n%!"
                     (List.length deps);
                   compile_files deps project (Unix.environment ()))
           | TransformDependencies ->
               with_dependencies ~input_file:input ~project_dir:input_dir
                 (fun project deps ->
                   let length_dep = List.length deps in
-                  Printf.printf "Transforming %d dependencies\n%!" length_dep;
+                  Printf.eprintf "Transforming %d dependencies\n%!" length_dep;
                   transform_files project deps "fcc" length_dep base_env true
                     verbose)
         in

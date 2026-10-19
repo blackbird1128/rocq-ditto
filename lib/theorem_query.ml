@@ -67,7 +67,7 @@ let rec matches (q : sexp_query) (sexp : Sexplib.Sexp.t) : bool =
       in
       go sexp
   | Q_sequence seq, sexp ->
-      print_endline "Not sure if this is correct";
+      prerr_endline "Not sure if this is correct";
       List.fold_left (fun acc action -> acc && matches action sexp) true seq
   | _, _ -> false
 

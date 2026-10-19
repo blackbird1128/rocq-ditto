@@ -32,4 +32,4 @@ let diagnostic_to_string (diag : Lang.Diagnostic.t) : string =
   Format.asprintf "%a" pp_diagnostic diag
 
 let print_diagnostics (errors : Lang.Diagnostic.t list) : unit =
-  List.iter (fun diag -> print_endline (diagnostic_to_string diag)) errors
+  List.iter (fun diag -> prerr_endline (diagnostic_to_string diag)) errors
