@@ -335,15 +335,17 @@ let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
       Ok steps
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
-let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
+let fold_add_time_taken_with_clock ~(now : unit -> float)
+    (doc : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
+  let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
 
   Runner.fold_proof_with_state doc token
     (fun state acc node ->
-      let t1 = Unix.gettimeofday () in
+      let t1 = now () in
       let new_state_run = Runner.run_node token state node in
-      let t2 = Unix.gettimeofday () in
+      let t2 = now () in
       let time_to_run = t2 -. t1 in
       let new_state = Result.get_ok new_state_run in
       if time_to_run > 0.0 then
@@ -351,33 +353,29 @@ let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
           "Time spent on this step: " ^ string_of_float time_to_run
         in
 
-        let nodes_on_same_line =
-          List.filter
+        let last_node_same_line_opt =
+          List_utils.find_last_opt
             (fun x -> x != node && x.range.start.line = node.range.start.line)
             (Proof.all_nodes proof)
         in
-        let furthest_char_node =
-          List.fold_left
-            (fun max_char_node elem ->
-              if
-                elem.range.start.character > max_char_node.range.start.character
-              then elem
-              else max_char_node)
-            node nodes_on_same_line
-        in
 
-        let comment_start_point =
-          Code_point.shift ~lines:0 ~chars:5 furthest_char_node.range.end_
-          |> Result.get_ok
+        let* comment_node =
+          Syntax_node.comment_of_string comment_content Code_point.dummy
         in
-        (* TODO: Maybe change when we change shifting but a fixed positive shift is alway ok anyway *)
-        match
-          Syntax_node.comment_of_string comment_content comment_start_point
-        with
-        | Ok comment_node -> Ok (new_state, Add comment_node :: acc)
-        | Error err -> Error err
+        match last_node_same_line_opt with
+        | Some last_node_same_line ->
+            let attach_step =
+              Attach (comment_node, SameLine, last_node_same_line.id)
+            in
+
+            Ok (new_state, attach_step :: acc)
+        | None -> Error.string_to_or_error "Could not find a node to attach to"
       else Ok (new_state, acc))
     [] proof
+
+let fold_add_time_taken (doc : Rocq_document.t) (proof : Proof.t) :
+    (Transforming_step.t list, Error.t) result =
+  fold_add_time_taken_with_clock ~now:Unix.gettimeofday doc proof
 
 let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
