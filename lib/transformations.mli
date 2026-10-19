@@ -9,6 +9,12 @@ val id_transform :
 val remove_unecessary_steps :
   Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result
 
+val fold_add_time_taken_with_clock :
+  now:(unit -> float) ->
+  Rocq_document.t ->
+  Proof.t ->
+  (Transforming_step.t list, Error.t) result
+
 val fold_add_time_taken :
   Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result
 
