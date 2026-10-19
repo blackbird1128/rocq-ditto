@@ -350,26 +350,14 @@ let fold_add_time_taken_with_clock ~(now : unit -> float)
       let new_state = Result.get_ok new_state_run in
       if time_to_run > 0.0 then
         let comment_content =
-          "Time spent on this step: " ^ string_of_float time_to_run
-        in
-
-        let last_node_same_line_opt =
-          List_utils.find_last_opt
-            (fun x -> x != node && x.range.start.line = node.range.start.line)
-            (Proof.all_nodes proof)
+          "(* Time spent on this step: " ^ string_of_float time_to_run ^ " *)"
         in
 
         let* comment_node =
           Syntax_node.comment_of_string comment_content Code_point.dummy
         in
-        match last_node_same_line_opt with
-        | Some last_node_same_line ->
-            let attach_step =
-              Attach (comment_node, SameLine, last_node_same_line.id)
-            in
-
-            Ok (new_state, attach_step :: acc)
-        | None -> Error.string_to_or_error "Could not find a node to attach to"
+        let attach_step = Attach (comment_node, SameLine, node.id) in
+        Ok (new_state, attach_step :: acc)
       else Ok (new_state, acc))
     [] proof
 
@@ -582,31 +570,24 @@ let replace_auto_with_steps (doc : Rocq_document.t) (proof : Proof.t) :
               List.filter (fun repr -> repr != "idtac.") tactics
             in
 
-            let tactic_nodes =
-              List.mapi
-                (fun i repr ->
-                  let shifted =
-                    Code_point.shift ~lines:i ~chars:0 node.range.start
-                    |> Result.get_ok
-                  in
-                  (* i is positive here *)
-                  Result.get_ok (Syntax_node.syntax_node_of_string repr shifted))
+            let* tactic_nodes =
+              List_utils.map_result
+                (fun repr ->
+                  Syntax_node.syntax_node_of_string repr Code_point.dummy)
                 filtered_tactics
             in
-            let shifted_nodes =
-              snd
-                (List.fold_left_map
-                   (fun acc node ->
-                     let char_shift =
-                       if acc != 0 then node.range.start.character else 0
-                     in
-                     (acc + char_shift + String.length (repr node) + 1, node))
-                   0 tactic_nodes)
-            in
 
-            let add_steps = List.map (fun node -> Add node) shifted_nodes in
-
-            Ok (new_state, (Remove node.id :: add_steps) @ acc))
+            match tactic_nodes with
+            | [] -> Ok (new_state, acc)
+            | first :: rest ->
+                let _, attachments =
+                  List.fold_left_map
+                    (fun previous current ->
+                      (current, Attach (current, LineAfter, previous.id)))
+                    first rest
+                in
+                let steps = Replace (node.id, first) :: attachments in
+                Ok (new_state, steps @ acc))
           else Ok (new_state, acc))
       [] proof
   in
@@ -1592,8 +1573,8 @@ let proof_contains_explicit_apply_candidate (p : Proof.t) : bool =
 
 (** map apply to explicit apply *)
 let map_apply_to_explicit_apply_in_tacexpr (state_before : Coq.State.t)
-    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr)
-    : Ltac_plugin.Tacexpr.raw_tactic_expr =
+    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
   let open Ltac_plugin in
   let token = Coq.Limits.Token.create () in
 
