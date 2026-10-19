@@ -17,11 +17,39 @@ type transformation_options = {
   jobs : int option;
 }
 
-type stats_option = {
+type transformation_settings = {
+  transformation : transformation_kind;
+  verbosity : verbosity;
+  save_vo : bool;
+  reverse_order : bool;
+  summary : bool;
+}
+
+type document_options = {
+  settings : transformation_settings;
+  source : string;
+  destination : string;
+  dependencies_action : dependencies_action;
+}
+
+type project_options = {
+  settings : transformation_settings;
+  project : Project.t;
+  destination : string;
+  jobs : int;
+}
+
+type statistic_options = {
   input : string;
   statistic : statistic_kind;
   format : output_format;
 }
+
+type operation =
+  | TransformDocument of document_options
+  | TransformProject of project_options
+  | ComputeStatistic of statistic_options
+  | ListTransformations
 
 type running_job = { target : string }
 
@@ -33,16 +61,22 @@ let warn_if_exists (dir_state : Filesystem.creation_status) =
   | _ -> ()
 
 let validate_transformation_opts (opts : transformation_options)
-    (pathkind : Filesystem.path_kind) =
+    (input_pathkind : Filesystem.path_kind) =
   if opts.input = opts.output then
     Error.string_to_or_error "Input folder is equal to output folder, aborting"
-  else if opts.dependencies_action != NoAction && pathkind = Filesystem.Dir then
+  else if
+    opts.dependencies_action != NoAction && input_pathkind = Filesystem.Dir
+  then
     Error.string_to_or_error
       "Using a dependency action when targeting a folder doesn't make sense"
-  else if Option.has_some opts.jobs && pathkind = Filesystem.File then
+  else if Option.has_some opts.jobs && input_pathkind = Filesystem.File then
     Error.string_to_or_error "Cannot use --jobs on a single file"
   else if opts.verbose && opts.quiet then
     Error.string_to_or_error "Cannot use both --verbose and --quiet"
+  else if input_pathkind = File && Filesystem.is_directory opts.output then
+    Error.string_to_or_error "Output must be a filename when input is a file"
+  else if input_pathkind = File && not (Sys.file_exists opts.input) then
+    Error.string_to_or_error "Input must be an existing file"
   else Ok ()
 
 let make_args_transform_files (prog : string) (root : string) (verbose : bool)
@@ -97,7 +131,7 @@ let compile_files (files : string list) (root : string)
     1 files
   |> Result.map (fun _ -> ())
 
-let run_stats (opts : stats_option) : (unit, Error.t) result =
+let run_stats (opts : statistic_options) : (unit, Error.t) result =
   let input = opts.input in
   let input_dir = Filename.dirname opts.input in
   let statistic = statistic_kind_to_string opts.statistic in
@@ -260,43 +294,37 @@ let transform_project (opts : transformation_options) : (unit, Error.t) result =
   let prog = "fcc" in
   match pathkind with
   | File ->
-      if Filesystem.is_directory output then
-        Error.string_to_or_error
-          "Output must be a filename when input is a file"
-      else if not (Sys.file_exists input) then
-        Error.string_to_or_error "Input must be an existing file"
-      else
-        let coqproject_opt = Project.find_project input in
-        let input_dir =
-          match coqproject_opt with
-          | Some project -> Project.directory project
-          | None -> Filename.dirname input
-        in
+      let coqproject_opt = Project.find_project input in
+      let input_dir =
+        match coqproject_opt with
+        | Some project -> Project.directory project
+        | None -> Filename.dirname input
+      in
 
-        let* _ =
-          match opts.dependencies_action with
-          | NoAction -> Ok ()
-          | CompileDependencies ->
-              with_dependencies ~input_file:input ~project_dir:input_dir
-                (fun project deps ->
-                  Printf.eprintf "Compiling %d dependencies\n%!"
-                    (List.length deps);
-                  compile_files deps project (Unix.environment ()))
-          | TransformDependencies ->
-              with_dependencies ~input_file:input ~project_dir:input_dir
-                (fun project deps ->
-                  let length_dep = List.length deps in
-                  Printf.eprintf "Transforming %d dependencies\n%!" length_dep;
-                  transform_files project deps "fcc" length_dep base_env true
-                    verbose)
-        in
+      let* _ =
+        match opts.dependencies_action with
+        | NoAction -> Ok ()
+        | CompileDependencies ->
+            with_dependencies ~input_file:input ~project_dir:input_dir
+              (fun project deps ->
+                Printf.eprintf "Compiling %d dependencies\n%!"
+                  (List.length deps);
+                compile_files deps project (Unix.environment ()))
+        | TransformDependencies ->
+            with_dependencies ~input_file:input ~project_dir:input_dir
+              (fun project deps ->
+                let length_dep = List.length deps in
+                Printf.eprintf "Transforming %d dependencies\n%!" length_dep;
+                transform_files project deps "fcc" length_dep base_env true
+                  verbose)
+      in
 
-        let env = Env.extend_env base_env [ ("OUTPUT_FILENAME", output) ] in
+      let env = Env.extend_env base_env [ ("OUTPUT_FILENAME", output) ] in
 
-        let args =
-          make_args_transform_files prog input_dir verbose save_vo input
-        in
-        Process_runner.run_process_loud ~env ~args prog
+      let args =
+        make_args_transform_files prog input_dir verbose save_vo input
+      in
+      Process_runner.run_process_loud ~env ~args prog
   | Dir -> (
       match Project.find_project input with
       | None ->
@@ -517,7 +545,7 @@ let main (opts : transformation_options) =
       Logs.err (fun m -> m "%s" (Error.to_string_hum err));
       exit 1
 
-let main_stats (opts : stats_option) =
+let main_stats (opts : statistic_options) =
   match run_stats opts with
   | Ok _ -> exit 0
   | Error err ->
