@@ -28,3 +28,10 @@ val add_proof_status_count :
 val get_lemma_names : Rocq_document.t -> (string list, Error.t) result
 val pp_lemma_names : Format.formatter -> string list -> unit
 val lemma_names_to_json : string list -> Yojson.Safe.t
+
+type lemma = { name : string; axioms : string list }
+
+val pp_lemmas : Format.formatter -> lemma list -> unit
+val lemmas_to_json : lemma list -> Yojson.Safe.t
+
+val get_lemma_and_assoc_axioms : Rocq_document.t -> (lemma list, Error.t) result

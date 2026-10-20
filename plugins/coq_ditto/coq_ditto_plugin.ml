@@ -47,6 +47,16 @@ let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
           pp = Statistics.pp_lemma_names;
           to_json = Statistics.lemma_names_to_json;
         }
+  | ListLemmaAndAxioms ->
+      Statistics.Statistic
+        {
+          name = "list each lemma and their axiom";
+          scope = DocScope Statistics.get_lemma_and_assoc_axioms;
+          empty = [];
+          combine = List.append;
+          pp = Statistics.pp_lemmas;
+          to_json = Statistics.lemmas_to_json;
+        }
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :
     (Syntax_node.t Nary_tree.t, Error.t) result =
