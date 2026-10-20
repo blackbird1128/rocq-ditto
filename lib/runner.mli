@@ -19,24 +19,33 @@ val run_raw_tactic_expr :
   Ltac_plugin.Tacexpr.raw_tactic_expr ->
   (Coq.State.t, Error.t) result
 
-(** [run_nodes init_state token nodes] executes [nodes] in order from
-    [init_state] and returns the resulting state. Stops at the first error,
-    annotated with the failing node's location and source text. *)
 val run_nodes :
   Coq.State.t ->
   Coq.Limits.Token.t ->
   Syntax_node.t list ->
   (Coq.State.t, Error.t) result
+(** [run_nodes init_state token nodes] executes [nodes] in order from
+    [init_state] and returns the resulting state. Stops at the first error,
+    annotated with the failing node's location and source text. *)
 
-(** [get_state_before doc node token] returns the state immediately before
-    executing [node] by executing all preceding nodes from [doc.root_state].
-    The target node is identified by its ID and is not executed. Returns an
-    error if the node is absent from [doc] or a preceding node fails. *)
 val get_state_before :
   Rocq_document.t ->
   Syntax_node.t ->
   Coq.Limits.Token.t ->
   (Coq.State.t, Error.t) result
+(** [get_state_before doc node token] returns the state immediately before
+    executing [node] by executing all preceding nodes from [doc.root_state]. The
+    target node is identified by its ID and is not executed. Returns an error if
+    the node is absent from [doc] or a preceding node fails. *)
+
+val get_state_after :
+  Rocq_document.t ->
+  Syntax_node.t ->
+  Coq.Limits.Token.t ->
+  (Coq.State.t, Error.t) result
+(** [get_state_after doc node token] returns the state immediately after
+    executing [node], starting from [get_state_before doc node token]. Returns
+    an error if the node is absent from [doc] or execution fails. *)
 
 val goals :
   token:Coq.Limits.Token.t ->
@@ -58,6 +67,12 @@ val proof_steps_with_goalcount :
 
 val get_hypothesis_names : 'a Coq.Goals.Reified_goal.t -> string list
 val goal_hyps_at_state : Coq.State.t -> string list list
+
+val resolve_global :
+  token:Coq.Limits.Token.t ->
+  Coq.State.t ->
+  string ->
+  (Names.GlobRef.t, Error.t) result
 
 val get_new_vars :
   ?keep:string list ->

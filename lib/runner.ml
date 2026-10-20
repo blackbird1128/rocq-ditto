@@ -120,6 +120,12 @@ let get_state_before (doc : Rocq_document.t) (node : Syntax_node.t)
   let* nodes_before, _ = Rocq_document.split_at_id node.id doc in
   run_nodes doc.root_state token nodes_before
 
+let get_state_after (doc : Rocq_document.t) (node : Syntax_node.t)
+    (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
+  let ( let* ) = Result.bind in
+  let* state = get_state_before doc node token in
+  run_node token state node
+
 let get_hypothesis_names (goal : 'a Coq.Goals.Reified_goal.t) : string list =
   List.concat_map
     (fun (hyp : 'a Coq.Goals.Reified_goal.hyp) -> hyp.names)
@@ -179,6 +185,14 @@ let goal_hyps_at_state (state : Coq.State.t) : string list list =
   match Fleche.Info.Goals.get_goals_unit ~st:state with
   | None -> []
   | Some goals -> List.map get_hypothesis_names goals.goals
+
+let resolve_global ~(token : Coq.Limits.Token.t) (state : Coq.State.t)
+    (global_name : string) : (Names.GlobRef.t, Error.t) result =
+  Coq.State.in_state ~token ~st:state
+    ~f:(fun global_name ->
+      Nametab.global (Libnames.qualid_of_string global_name))
+    global_name
+  |> Error.protect_to_result
 
 (* TODO: relocate somewhere better ? *)
 let get_new_vars ?(keep : string list = [])
