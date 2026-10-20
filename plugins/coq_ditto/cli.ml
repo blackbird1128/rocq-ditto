@@ -1,3 +1,121 @@
+open Ditto
+open Plugin_configuration
+
+type transformation_options = {
+  input : string;
+  output : string;
+  transformation : transformation_kind;
+  verbose : bool;
+  quiet : bool;
+  save_vo : bool;
+  reverse_order : bool;
+  summary : bool;
+  dependencies_action : dependencies_action;
+  jobs : int option;
+}
+
+type transformation_settings = {
+  transformation : transformation_kind;
+  verbosity : verbosity;
+  save_vo : bool;
+  reverse_order : bool;
+  summary : bool;
+}
+
+type document_options = {
+  settings : transformation_settings;
+  source : string;
+  source_directory : string;
+  destination : string;
+  dependencies_action : dependencies_action;
+}
+
+type project_options = {
+  settings : transformation_settings;
+  source_directory : string;
+  project : Project.t;
+  destination : string;
+  jobs : int;
+}
+
+type statistic_options = {
+  input : string;
+  statistic : statistic_kind;
+  format : output_format;
+}
+
+type operation =
+  | TransformDocument of document_options
+  | TransformProject of project_options
+
+let resolve (args : transformation_options) : (operation, Error.t) result
+    =
+  let ( let* ) = Result.bind in
+  let input_pathkind = Filesystem.get_pathkind args.input in
+
+  if args.input = args.output then
+    Error.string_to_or_error "Input folder is equal to output folder, aborting"
+  else if
+    args.dependencies_action != NoAction && input_pathkind = Filesystem.Dir
+  then
+    Error.string_to_or_error
+      "Using a dependency action when targeting a folder doesn't make sense"
+  else if Option.has_some args.jobs && input_pathkind = Filesystem.File then
+    Error.string_to_or_error "Cannot use --jobs on a single file"
+  else if args.verbose && args.quiet then
+    Error.string_to_or_error "Cannot use both --verbose and --quiet"
+  else if input_pathkind = File && Filesystem.is_directory args.output then
+    Error.string_to_or_error "Output must be a filename when input is a file"
+  else if input_pathkind = File && not (Sys.file_exists args.input) then
+    Error.string_to_or_error "Input must be an existing file"
+  else
+    let* verbosity =
+      Plugin_configuration.verbosity_of_flags ~verbose:args.verbose
+        ~quiet:args.quiet
+    in
+    let transformation_settings =
+      {
+        transformation = args.transformation;
+        verbosity;
+        save_vo = args.save_vo;
+        reverse_order = args.reverse_order;
+        summary = args.summary;
+      }
+    in
+
+    match input_pathkind with
+    | File ->
+        let source_directory =
+          match Project.find_project args.input with
+          | Some project -> Project.directory project
+          | None -> Filename.dirname args.input
+        in
+        Ok
+          (TransformDocument
+             {
+               settings = transformation_settings;
+               source = args.input;
+               source_directory;
+               destination = args.output;
+               dependencies_action = args.dependencies_action;
+             })
+    | Dir -> (
+        match Project.find_project args.input with
+        | None ->
+            Error.format_to_or_error
+              "No _CoqProject or _RocqProject file found in %s" args.input
+        | Some project ->
+            let jobs = Option.default 1 args.jobs in
+            Ok
+              (TransformProject
+                 {
+                   settings = transformation_settings;
+                   source_directory = args.input;
+                   project;
+                   destination = args.output;
+                   jobs;
+                 }))
+
 let transformation_help_fun (kind : Plugin_configuration.transformation_kind) :
     Plugin_configuration.transformation_kind * string =
   let help_text =

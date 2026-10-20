@@ -4,53 +4,6 @@ open Ditto_cli_lib
 open Ditto
 open Cmdliner
 
-type transformation_options = {
-  input : string;
-  output : string;
-  transformation : transformation_kind;
-  verbose : bool;
-  quiet : bool;
-  save_vo : bool;
-  reverse_order : bool;
-  summary : bool;
-  dependencies_action : dependencies_action;
-  jobs : int option;
-}
-
-type transformation_settings = {
-  transformation : transformation_kind;
-  verbosity : verbosity;
-  save_vo : bool;
-  reverse_order : bool;
-  summary : bool;
-}
-
-type document_options = {
-  settings : transformation_settings;
-  source : string;
-  destination : string;
-  dependencies_action : dependencies_action;
-}
-
-type project_options = {
-  settings : transformation_settings;
-  project : Project.t;
-  destination : string;
-  jobs : int;
-}
-
-type statistic_options = {
-  input : string;
-  statistic : statistic_kind;
-  format : output_format;
-}
-
-type operation =
-  | TransformDocument of document_options
-  | TransformProject of project_options
-  | ComputeStatistic of statistic_options
-  | ListTransformations
-
 type running_job = { target : string }
 
 let warn_if_exists (dir_state : Filesystem.creation_status) =
@@ -59,25 +12,6 @@ let warn_if_exists (dir_state : Filesystem.creation_status) =
       Logs.warn (fun m ->
           m "output directory already exists: replacing files\n%!")
   | _ -> ()
-
-let validate_transformation_opts (opts : transformation_options)
-    (input_pathkind : Filesystem.path_kind) =
-  if opts.input = opts.output then
-    Error.string_to_or_error "Input folder is equal to output folder, aborting"
-  else if
-    opts.dependencies_action != NoAction && input_pathkind = Filesystem.Dir
-  then
-    Error.string_to_or_error
-      "Using a dependency action when targeting a folder doesn't make sense"
-  else if Option.has_some opts.jobs && input_pathkind = Filesystem.File then
-    Error.string_to_or_error "Cannot use --jobs on a single file"
-  else if opts.verbose && opts.quiet then
-    Error.string_to_or_error "Cannot use both --verbose and --quiet"
-  else if input_pathkind = File && Filesystem.is_directory opts.output then
-    Error.string_to_or_error "Output must be a filename when input is a file"
-  else if input_pathkind = File && not (Sys.file_exists opts.input) then
-    Error.string_to_or_error "Input must be an existing file"
-  else Ok ()
 
 let make_args_transform_files (prog : string) (root : string) (verbose : bool)
     (save_vo : bool) (input_file : string) : string array =
@@ -244,138 +178,102 @@ let with_dependencies ~(input_file : string) ~(project_dir : string) run =
   in
   run (Project.directory project) dependencies
 
-let transform_project (opts : transformation_options) : (unit, Error.t) result =
-  let ( let* ) = Result.bind in
-  let input = opts.input
-  and output = opts.output
-  and transformation = transformation_kind_to_string opts.transformation
-  and verbose = opts.verbose
-  and quiet = opts.quiet
-  and save_vo = opts.save_vo
-  and reverse_order = opts.reverse_order
-  and summary = opts.summary
-  and jobs_opt = opts.jobs in
+let environment_of_settings (settings : transformation_settings) : string array =
+  let verbose = settings.verbosity = Plugin_configuration.Verbose in
+  let quiet = settings.verbosity = Plugin_configuration.Quiet in
+  Env.extend_env (Unix.environment ())
+    [
+      ("DITTO_ACTION", "transform");
+      ("DITTO_TRANSFORMATION", transformation_kind_to_string settings.transformation);
+      ("DEBUG_LEVEL", string_of_bool verbose);
+      ("SAVE_VO", string_of_bool settings.save_vo);
+      ("QUIET", string_of_bool quiet);
+      ("REVERSE_ORDER", string_of_bool settings.reverse_order);
+      ("SUMMARY", string_of_bool settings.summary);
+    ]
 
-  let out = Format.err_formatter in
-  let reporter =
-    Logs_fmt.reporter ~pp_header:pp_header_no_app ~app:out ~dst:out ()
-  in
-  Logs.set_reporter reporter;
-  Logs.set_level (Some (if verbose then Debug else Info));
-
-  let exec_name = Filename.basename Sys.argv.(0) in
-  (match exec_name with
-  | "coq-ditto" ->
-      Logs.warn (fun m ->
-          m
-            "Alias coq-ditto might disappear in the future, please use \
-             rocq-ditto instead")
-  | _ -> ());
-
-  let pathkind = Filesystem.get_pathkind input in
-
-  let* _ = validate_transformation_opts opts pathkind in
-
-  let base_env =
-    Env.extend_env (Unix.environment ())
-      [
-        ("DITTO_ACTION", "transform");
-        ("DITTO_TRANSFORMATION", transformation);
-        ("DEBUG_LEVEL", string_of_bool verbose);
-        ("SAVE_VO", string_of_bool save_vo);
-        ("QUIET", string_of_bool quiet);
-        ("REVERSE_ORDER", string_of_bool reverse_order);
-        ("SUMMARY", string_of_bool summary);
-      ]
-  in
-
-  let jobs = Option.default 1 jobs_opt in
-
+let transform_document (opts : document_options) : (unit, Error.t) result =
   let prog = "fcc" in
-  match pathkind with
-  | File ->
-      let coqproject_opt = Project.find_project input in
-      let input_dir =
-        match coqproject_opt with
-        | Some project -> Project.directory project
-        | None -> Filename.dirname input
-      in
 
-      let* _ =
-        match opts.dependencies_action with
-        | NoAction -> Ok ()
-        | CompileDependencies ->
-            with_dependencies ~input_file:input ~project_dir:input_dir
-              (fun project deps ->
-                Printf.eprintf "Compiling %d dependencies\n%!"
-                  (List.length deps);
-                compile_files deps project (Unix.environment ()))
-        | TransformDependencies ->
-            with_dependencies ~input_file:input ~project_dir:input_dir
-              (fun project deps ->
-                let length_dep = List.length deps in
-                Printf.eprintf "Transforming %d dependencies\n%!" length_dep;
-                transform_files project deps "fcc" length_dep base_env true
-                  verbose)
-      in
+  let verbose = opts.settings.verbosity = Plugin_configuration.Verbose in
+  let base_env = environment_of_settings opts.settings in
 
-      let env = Env.extend_env base_env [ ("OUTPUT_FILENAME", output) ] in
+  let ( let* ) = Result.bind in
+  let* _ =
+    match opts.dependencies_action with
+    | NoAction -> Ok ()
+    | CompileDependencies ->
+        with_dependencies ~input_file:opts.source ~project_dir:opts.source_directory
+          (fun project deps ->
+            Printf.eprintf "Compiling %d dependencies\n%!" (List.length deps);
+            compile_files deps project (Unix.environment ()))
+    | TransformDependencies ->
+        with_dependencies ~input_file:opts.source ~project_dir:opts.source_directory
+          (fun project deps ->
+            let length_dep = List.length deps in
+            Printf.eprintf "Transforming %d dependencies\n%!" length_dep;
+            transform_files project deps "fcc" length_dep base_env true verbose)
+  in
 
-      let args =
-        make_args_transform_files prog input_dir verbose save_vo input
-      in
-      Process_runner.run_process_loud ~env ~args prog
-  | Dir -> (
-      match Project.find_project input with
-      | None ->
-          Error.format_to_or_error
-            "No _CoqProject or _RocqProject file found in %s" input
-      | Some project ->
-          let* p = Project.read_project_file project in
+  let env = Env.extend_env base_env [ ("OUTPUT_FILENAME", opts.destination) ] in
 
-          let filenames =
-            List.map
-              (fun (x : string CoqProject_file.sourced) ->
-                Filename.basename x.thing)
-              p.files
-          in
+  let args =
+    make_args_transform_files prog opts.source_directory verbose opts.settings.save_vo
+      opts.source
+  in
+  Process_runner.run_process_loud ~env ~args prog
 
-          let makefile_path =
-            Filename.concat (Project.directory project) "Makefile"
-          in
+let transform_project (opts : project_options) : (unit, Error.t) result =
+  let ( let* ) = Result.bind in
+  let prog = "fcc" in
+  let verbose = opts.settings.verbosity = Plugin_configuration.Verbose in
+  let base_env = environment_of_settings opts.settings in
+  let* p = Project.read_project_file opts.project in
 
-          let* new_dir_state = Filesystem.make_dir output in
-          warn_if_exists new_dir_state;
-          let* _ = Filesystem.copy_dir input output filenames in
-          let* _ =
-            Filesystem.copy_file (Project.path project)
-              (Filename.concat output (Project.filename project))
-          in
+  let filenames =
+    List.map
+      (fun (x : string CoqProject_file.sourced) -> Filename.basename x.thing)
+      p.files
+  in
 
-          let* _ =
-            if Sys.file_exists makefile_path then
-              Filesystem.copy_file makefile_path
-                (Filename.concat output "Makefile")
-            else Ok ()
-          in
+  let makefile_path =
+    Filename.concat (Project.directory opts.project) "Makefile"
+  in
 
-          let* project =
-            Project.find_project output
-            |> Option_utils.to_result
-                 ~none:
-                   (Error.string_to_or_error
-                      "Can't find the newly created _CoqProject")
-          in
-          let* depgraph : Dependency_graph.t =
-            Compile.coqproject_to_dep_graph project
-          in
+  let* new_dir_state = Filesystem.make_dir opts.destination in
+  warn_if_exists new_dir_state;
+  let* _ =
+    Filesystem.copy_dir opts.source_directory opts.destination filenames
+  in
+  let* _ =
+    Filesystem.copy_file
+      (Project.path opts.project)
+      (Filename.concat opts.destination (Project.filename opts.project))
+  in
 
-          let dependents = Dependency_graph.build_dependents depgraph in
+  let* _ =
+    if Sys.file_exists makefile_path then
+      Filesystem.copy_file makefile_path
+        (Filename.concat opts.destination "Makefile")
+    else Ok ()
+  in
 
-          let outdeg_graph = Dependency_graph.build_outdegrees depgraph in
+  let* project =
+    Project.find_project opts.destination
+    |> Option_utils.to_result
+         ~none:
+           (Error.string_to_or_error "Can't find the newly created _CoqProject")
+  in
+  let* depgraph : Dependency_graph.t =
+    Compile.coqproject_to_dep_graph project
+  in
 
-          run_parallel ~jobs ~env:base_env ~prog ~root:output ~save_vo ~verbose
-            ~dependents ~outdegree:outdeg_graph)
+  let dependents = Dependency_graph.build_dependents depgraph in
+
+  let outdeg_graph = Dependency_graph.build_outdegrees depgraph in
+
+  run_parallel ~jobs:opts.jobs ~env:base_env ~prog ~root:opts.destination
+    ~save_vo:opts.settings.save_vo ~verbose ~dependents ~outdegree:outdeg_graph
 
 (* --- Cmdliner definitions ------------------------------------------- *)
 
@@ -524,9 +422,15 @@ let transformation_options_t =
       jobs;
     }
   in
-  Term.(
-    const combine $ input_t $ output_t $ transformation_t $ verbose_t $ quiet_t
-    $ save_vo_t $ reverse_order_t $ summary_t $ dependencies_action_t $ jobs_t)
+
+  let requested_options_t =
+    Term.(
+      const combine $ input_t $ output_t $ transformation_t $ verbose_t
+      $ quiet_t $ save_vo_t $ reverse_order_t $ summary_t
+      $ dependencies_action_t $ jobs_t)
+  in
+
+  Term.(const Cli.resolve $ requested_options_t)
 
 let statistic_t =
   Arg.(
@@ -538,12 +442,29 @@ let stats_options_t =
   let make input statistic format = { input; statistic; format } in
   Term.(const make $ input_t $ statistic_t $ output_format_t)
 
-let main (opts : transformation_options) =
-  match transform_project opts with
-  | Ok _ -> exit 0
+let result_to_exit (result : (unit, Error.t) result) : 'a =
+  match result with
+  | Ok () -> exit 0
   | Error err ->
       Logs.err (fun m -> m "%s" (Error.to_string_hum err));
       exit 1
+
+let main (resolved : (operation, Error.t) result) =
+  let ( let* ) = Result.bind in
+  let result =
+    let* op = resolved in
+    let verbosity =
+      match op with
+      | TransformDocument opts -> opts.settings.verbosity
+      | TransformProject opts -> opts.settings.verbosity
+    in
+    Logs.set_level
+      (Some (if verbosity = Plugin_configuration.Verbose then Debug else Info));
+    match op with
+    | TransformDocument opts -> transform_document opts
+    | TransformProject opts -> transform_project opts
+  in
+  result_to_exit result
 
 let main_stats (opts : statistic_options) =
   match run_stats opts with
@@ -581,5 +502,11 @@ let cmd =
   Cmd.group ~default:default_term info [ list_cmd; stats_cmd ]
 
 let () =
+  let out = Format.err_formatter in
+  let reporter =
+    Logs_fmt.reporter ~pp_header:pp_header_no_app ~app:out ~dst:out ()
+  in
+  Logs.set_reporter reporter;
+  Logs.set_level (Some Info);
   let exit_code = Cmd.eval cmd in
   exit exit_code
