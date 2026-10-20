@@ -73,3 +73,12 @@ let count_proof_status (doc : Rocq_document.t) :
 let add_proof_status_count (a : proof_status_count) (b : proof_status_count) :
     proof_status_count =
   { proved = a.proved + b.proved; admitted = a.admitted + b.admitted }
+
+let get_lemma_names (doc : Rocq_document.t) : (string list, Error.t) result =
+  let ( let* ) = Result.bind in
+  let* proofs = Rocq_document.get_proofs doc in
+
+  Ok
+    (List.filter_map
+       (fun p -> Option.map Names.Id.to_string (Proof.get_proof_name p))
+       proofs)
