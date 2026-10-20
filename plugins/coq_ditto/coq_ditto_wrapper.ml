@@ -67,7 +67,11 @@ let compile_files (files : string list) (root : string)
 
 let run_stats (opts : statistic_options) : (unit, Error.t) result =
   let input = opts.input in
-  let input_dir = Filename.dirname opts.input in
+  let input_dir =
+    match Project.find_project input with
+    | Some project -> Project.directory project
+    | None -> Filename.dirname input
+  in
   let statistic = statistic_kind_to_string opts.statistic in
   let format = opts.format in
 
