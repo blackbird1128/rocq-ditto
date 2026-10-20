@@ -23,7 +23,7 @@ let simple_proof_repair (doc : Rocq_document.t)
   end) in
   let ignore_set = SyntaxNodeSet.empty in
 
-  match get_init_state doc (root proof_tree) token with
+  match get_state_before doc (root proof_tree) token with
   | Ok state ->
       let* _, steps_acc, ignore_acc, _ =
         Nary_tree.depth_first_fold_with_children_as_trees
@@ -231,7 +231,7 @@ let remove_unecessary_steps (doc : Rocq_document.t) (proof : Proof.t) :
           | Ok state_node -> aux state_node acc tail
           | Error err -> Error err)
   in
-  match get_init_state doc proof.opening token_reduce with
+  match get_state_before doc proof.opening token_reduce with
   | Ok state -> aux state (Ok []) (Proof.all_nodes proof)
   | _ -> Error.string_to_or_error "Unable to retrieve initial state"
 
@@ -329,7 +329,7 @@ let compress_intro (doc : Rocq_document.t) (proof : Proof.t) :
         else aux state_node ([], rev_steps) tail
   in
 
-  match get_init_state doc proof.opening token with
+  match get_state_before doc proof.opening token with
   | Ok state ->
       let steps = aux state ([], []) (Proof.all_nodes proof) in
       Ok steps
@@ -702,7 +702,7 @@ let rename_definition (doc : Rocq_document.t) :
 
           let _preload_fizz =
             ignore
-              (Runner.get_state_after doc.root_state token
+              (Runner.run_nodes doc.root_state token
                  [ fizz_def_node; foo_def_node ])
           in
 
@@ -761,7 +761,7 @@ let rename_definition (doc : Rocq_document.t) :
                 let token = Coq.Limits.Token.create () in
                 List_utils.concat_map_result
                   (fun node ->
-                    let* st = Runner.get_init_state original_doc node token in
+                    let* st = Runner.get_state_before original_doc node token in
                     let* step_opt =
                       Transformation_utils.map_definition_body_in_state ~token
                         ~st replace_fun node

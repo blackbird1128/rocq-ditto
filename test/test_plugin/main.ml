@@ -375,7 +375,7 @@ let test_of_coq_ast_in_state (doc : Doc.t) () =
       (Syntax_node.expect_vernacular lemma_node)
   in
   let st =
-    Runner.get_init_state parsed_doc lemma_node token |> expect_result_ok
+    Runner.get_state_before parsed_doc lemma_node token |> expect_result_ok
   in
   let new_node =
     Syntax_node.of_coq_ast_in_state ~token ~st ast.v lemma_node.range.start
@@ -531,7 +531,7 @@ let test_selecting_first_goal_with_goal_select (doc : Doc.t) () : unit =
   let third_node = expect_nth_default 2 parsed_document.elements in
 
   let state =
-    Runner.get_init_state parsed_document third_node token |> expect_result_ok
+    Runner.get_state_before parsed_document third_node token |> expect_result_ok
   in
   let goals_at_state =
     Runner.reified_goals_at_state token state |> expect_result_ok
@@ -565,7 +565,7 @@ let test_selecting_all_goal_with_goal_select (doc : Doc.t) () : unit =
   let fith_node = expect_nth_default 4 parsed_document.elements in
 
   let state =
-    Runner.get_init_state parsed_document fith_node token |> expect_result_ok
+    Runner.get_state_before parsed_document fith_node token |> expect_result_ok
   in
   let goals_at_state =
     Runner.reified_goals_at_state token state |> expect_result_ok
@@ -1421,7 +1421,7 @@ let test_count_goals_proof_with_brackets_without_focus (doc : Doc.t) () : unit =
   in
 
   let state =
-    Runner.get_init_state doc first_proof.opening token |> expect_result_ok
+    Runner.get_state_before doc first_proof.opening token |> expect_result_ok
   in
 
   let steps_with_goalcount =
@@ -1467,7 +1467,7 @@ let test_count_goals_proof_with_nested_bullets_without_focus (doc : Doc.t) () :
   in
 
   let state =
-    Runner.get_init_state doc first_proof.opening token |> expect_result_ok
+    Runner.get_state_before doc first_proof.opening token |> expect_result_ok
   in
 
   let steps_with_goalcount =
@@ -1512,7 +1512,7 @@ let test_count_goals_proof_with_brackets_bullets_without_focus (doc : Doc.t) ()
   in
 
   let state =
-    Runner.get_init_state doc first_proof.opening token |> expect_result_ok
+    Runner.get_state_before doc first_proof.opening token |> expect_result_ok
   in
 
   let steps_with_goalcount =

@@ -168,7 +168,7 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
         in
 
         let status_before =
-          Runner.get_init_state curr_state.doc proof.opening token
+          Runner.get_state_before curr_state.doc proof.opening token
         in
         let proof_name =
           Option.default "anonymous"
@@ -250,7 +250,7 @@ let save_vo_to_file (filename : string) (doc : Rocq_document.t)
 
   let ldir = Coq.Workspace.dirpath_of_uri ~uri:doc_uri in
   let in_file = Lang.LUri.File.to_string_file uri in
-  let* state = Runner.get_state_after doc.root_state token doc.elements in
+  let* state = Runner.run_nodes doc.root_state token doc.elements in
 
   let res =
     Coq.Save.save_vo ~token ~st:state ~ldir ~in_file |> Error.protect_to_result

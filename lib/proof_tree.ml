@@ -96,7 +96,7 @@ let treeify_proof (doc : Rocq_document.t) (p : Proof.t) :
     (Syntax_node.t Nary_tree.t, Error.t) result =
   let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
-  match Runner.get_init_state doc p.opening token with
+  match Runner.get_state_before doc p.opening token with
   | Ok init_state ->
       let* steps_with_goals =
         Runner.proof_steps_with_goalcount token init_state (Proof.all_nodes p)

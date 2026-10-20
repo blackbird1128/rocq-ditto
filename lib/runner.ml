@@ -94,7 +94,7 @@ let run_raw_tactic_expr (token : Coq.Limits.Token.t)
   in
   run_node token state node
 
-let get_state_after (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
+let run_nodes (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
     (nodes : Syntax_node.t list) : (Coq.State.t, Error.t) result =
   let open Sexplib.Std in
   let tag_error (x : Syntax_node.t) (err : Error.t) : Error.t =
@@ -114,11 +114,11 @@ let get_state_after (init_state : Coq.State.t) (token : Coq.Limits.Token.t)
 
   aux init_state nodes
 
-let get_init_state (doc : Rocq_document.t) (node : Syntax_node.t)
+let get_state_before (doc : Rocq_document.t) (node : Syntax_node.t)
     (token : Coq.Limits.Token.t) : (Coq.State.t, Error.t) result =
   let ( let* ) = Result.bind in
   let* nodes_before, _ = Rocq_document.split_at_id node.id doc in
-  get_state_after doc.root_state token nodes_before
+  run_nodes doc.root_state token nodes_before
 
 let get_hypothesis_names (goal : 'a Coq.Goals.Reified_goal.t) : string list =
   List.concat_map
@@ -161,7 +161,7 @@ let proof_steps_with_goalcount (token : Coq.Limits.Token.t) (st : Coq.State.t)
 
 let can_reduce_to_zero_goals (token : Coq.Limits.Token.t)
     (init_state : Coq.State.t) (nodes : Syntax_node.t list) : bool =
-  let end_state = get_state_after init_state token nodes in
+  let end_state = run_nodes init_state token nodes in
   match end_state with Ok state -> count_goals state = 0 | Error _ -> false
 
 let get_current_goal (token : Coq.Limits.Token.t) (state : Coq.State.t) :
@@ -198,7 +198,7 @@ let get_new_vars ?(keep : string list = [])
 
 let is_valid_proof (token : Coq.Limits.Token.t) (doc : Rocq_document.t)
     (p : Proof.t) : bool =
-  match get_init_state doc p.opening token with
+  match get_state_before doc p.opening token with
   | Ok init_state -> can_reduce_to_zero_goals token init_state p.proof_steps
   | Error _ -> false
 
@@ -232,7 +232,7 @@ let depth_first_fold_with_state (doc : Rocq_document.t)
   in
 
   let proposition = match tree with Node (node, _) -> node in
-  match get_init_state doc proposition token with
+  match get_state_before doc proposition token with
   | Ok state ->
       let* _, acc = aux state acc tree in
       Ok acc
@@ -268,7 +268,7 @@ let fold_proof_with_state (doc : Rocq_document.t) (token : Coq.Limits.Token.t)
     ('acc, Error.t) result =
   let all_nodes = Proof.all_nodes p in
 
-  match get_init_state doc p.opening token with
+  match get_state_before doc p.opening token with
   | Ok state -> fold_nodes_with_state f state acc all_nodes
   | Error err ->
       Error
