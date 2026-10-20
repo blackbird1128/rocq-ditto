@@ -4,6 +4,14 @@ open Ditto.Proof
 open Ditto_cli_lib
 open Ditto_cli_lib.Plugin_configuration
 
+let pp_list pp fmt xs =
+  Format.fprintf fmt "@[<hov>[%a]@]"
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ") pp)
+    xs
+
+let to_string pp x = Format.asprintf "%a" pp x
+let list_to_json to_json xs : Yojson.Safe.t = `List (List.map to_json xs)
+
 type scoped_function =
   | ProofScope of
       (Rocq_document.t -> Proof.t -> (Transforming_step.t list, Error.t) result)
@@ -44,8 +52,8 @@ let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
           scope = DocScope Statistics.get_lemma_names;
           empty = [];
           combine = List.append;
-          pp = Statistics.pp_lemma_names;
-          to_json = Statistics.lemma_names_to_json;
+          pp = pp_list Format.pp_print_string;
+          to_json = list_to_json (fun name -> `String name);
         }
   | ListLemmaAndAxioms ->
       Statistics.Statistic
@@ -54,8 +62,18 @@ let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
           scope = DocScope Statistics.get_lemma_and_assoc_axioms;
           empty = [];
           combine = List.append;
-          pp = Statistics.pp_lemmas;
-          to_json = Statistics.lemmas_to_json;
+          pp = pp_list Statistics.pp_lemma;
+          to_json = list_to_json Statistics.lemma_to_json;
+        }
+  | GetProofTerms ->
+      Statistics.Statistic
+        {
+          name = "extract each proof term";
+          scope = DocScope Statistics.get_proof_terms;
+          empty = [];
+          combine = List.append;
+          pp = pp_list Statistics.pp_printed_proof_term;
+          to_json = list_to_json Statistics.printed_proof_term_to_json;
         }
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :

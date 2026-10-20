@@ -102,20 +102,77 @@ let pp_lemma (fmt : Format.formatter) ({ name; axioms } : lemma) : unit =
 let lemma_to_json ({ name; axioms } : lemma) : Yojson.Safe.t =
   `Assoc [ ("name", `String name); ("axioms", lemma_names_to_json axioms) ]
 
-let pp_lemmas (fmt : Format.formatter) (lemmas : lemma list) : unit =
-  Format.fprintf fmt "@[<hov>[%a]@]"
-    (Format.pp_print_list
-       ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
-       pp_lemma)
-    lemmas
-
-let lemmas_to_json (lemmas : lemma list) : Yojson.Safe.t =
-  `List (List.map lemma_to_json lemmas)
-
 (* (\* parse "Print Assumptions lemma_name." for the used axioms *\) *)
 (* let parse_print_assumptions (content : string) : (string list, Error.t) result = *)
 (*   if String.equal content "Closed under the global context" then Ok [] *)
 (*   else Ok [] *)
+
+type printed_proof_term = { name : string; term : string }
+
+let pp_printed_proof_term (fmt : Format.formatter)
+    ({ name; term } : printed_proof_term) : unit =
+  Format.fprintf fmt "@[<hov>{ name = %s;@ term = %s }@]" name term
+
+let printed_proof_term_to_json ({ name; term } : printed_proof_term) :
+    Yojson.Safe.t =
+  `Assoc [ ("name", `String name); ("term", `String term) ]
+
+let string_of_constr ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
+    (term : Constr.t) =
+  Coq.State.in_state ~token ~st
+    ~f:(fun () ->
+      let env = Global.env () in
+      let sigma = Evd.from_env env in
+      Pp.string_of_ppcmds (Printer.pr_lconstr_env env sigma term))
+    ()
+  |> Error.protect_to_result
+
+let get_proof_terms (doc : Rocq_document.t) :
+    (printed_proof_term list, Error.t) result =
+  let ( let* ) = Result.bind in
+  let token = Coq.Limits.Token.create () in
+  let* proofs = Rocq_document.get_proofs doc in
+  let* proof_names_and_after_states =
+    List.filter_map
+      (fun (proof : Proof.t) ->
+        let closing_node = proof.closing.node in
+        let proof_name_opt =
+          Option.map Names.Id.to_string (Proof.get_proof_name proof)
+        in
+        Option.map
+          (fun proof_name ->
+            let after_state = Runner.get_state_after doc closing_node token in
+            match after_state with
+            | Ok after_state -> Ok (proof_name, after_state)
+            | Error err -> Error err)
+          proof_name_opt)
+      proofs
+    |> List_utils.result_all
+  in
+
+  let* proof_tems =
+    List_utils.map_result
+      (fun (proof_name, after_state) ->
+        let* global = Runner.resolve_global ~token after_state proof_name in
+        let* constant =
+          Proof_term.constant_of_global_ref global
+          |> Option_utils.to_result
+               ~none:
+                 (Error.string_to_or_error
+                    "Couldn't find an associated constant")
+        in
+        let* term_opt = Proof_term.get ~token after_state constant in
+        let* term_repr =
+          match term_opt with
+          | Some term -> string_of_constr ~token ~st:after_state term
+          | None -> Ok "NO TERM FOUND"
+        in
+
+        Ok { name = proof_name; term = term_repr })
+      proof_names_and_after_states
+  in
+
+  Ok proof_tems
 
 let get_lemma_and_assoc_axioms (doc : Rocq_document.t) :
     (lemma list, Error.t) result =

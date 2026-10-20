@@ -38,6 +38,7 @@ type statistic_kind =
   | CountProofStatus
   | ListLemmaNames
   | ListLemmaAndAxioms
+  | GetProofTerms
 [@@deriving show { with_path = false }, enum]
 
 type transformation_configuration = {
