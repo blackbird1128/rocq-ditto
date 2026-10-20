@@ -11,7 +11,7 @@ type 'a t = {
   to_json : 'a -> Yojson.Safe.t;
 }
 
-type packed = Statistic : 'ax t -> packed
+type packed = Statistic : 'a t -> packed
 
 val run : Rocq_document.t -> 'a t -> ('a, Error.t) result
 val count_induction : Rocq_document.t -> (int, Error.t) result
@@ -24,3 +24,7 @@ val count_proof_status : Rocq_document.t -> (proof_status_count, Error.t) result
 
 val add_proof_status_count :
   proof_status_count -> proof_status_count -> proof_status_count
+
+val get_lemma_names : Rocq_document.t -> (string list, Error.t) result
+val pp_lemma_names : Format.formatter -> string list -> unit
+val lemma_names_to_json : string list -> Yojson.Safe.t

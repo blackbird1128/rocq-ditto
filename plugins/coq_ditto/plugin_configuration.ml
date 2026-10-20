@@ -33,7 +33,7 @@ type transformation_kind =
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
 
-type statistic_kind = CountInduction | CountProofStatus
+type statistic_kind = CountInduction | CountProofStatus | ListLemmaNames
 [@@deriving show { with_path = false }, enum]
 
 type transformation_configuration = {

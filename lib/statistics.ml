@@ -82,3 +82,13 @@ let get_lemma_names (doc : Rocq_document.t) : (string list, Error.t) result =
     (List.filter_map
        (fun p -> Option.map Names.Id.to_string (Proof.get_proof_name p))
        proofs)
+
+let pp_lemma_names (fmt : Format.formatter) (names : string list) : unit =
+  Format.fprintf fmt "@[<hov>[%a]@]"
+    (Format.pp_print_list
+       ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
+       Format.pp_print_string)
+    names
+
+let lemma_names_to_json (names : string list) : Yojson.Safe.t =
+  `List (List.map (fun name -> `String name) names)

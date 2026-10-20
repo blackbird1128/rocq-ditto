@@ -37,6 +37,16 @@ let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
           pp = Statistics.pp_proof_status_count;
           to_json = Statistics.proof_status_count_to_json;
         }
+  | ListLemmaNames ->
+      Statistics.Statistic
+        {
+          name = "list proof names";
+          scope = DocScope Statistics.get_lemma_names;
+          empty = [];
+          combine = List.append;
+          pp = Statistics.pp_lemma_names;
+          to_json = Statistics.lemma_names_to_json;
+        }
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :
     (Syntax_node.t Nary_tree.t, Error.t) result =
@@ -196,7 +206,8 @@ let local_apply_proof_transformation (doc_acc : Rocq_document.t)
       (doc_acc, empty_summary)
 
 let print_info (filename : string) (verbosity : verbosity) : unit =
-  Printf.eprintf "\nAll transformations applied, writing to file %s\n%!" filename;
+  Printf.eprintf "\nAll transformations applied, writing to file %s\n%!"
+    filename;
 
   match verbosity with
   | Verbose ->
