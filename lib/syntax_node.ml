@@ -260,8 +260,9 @@ let is_proof_with (x : t) : bool =
 
 [%%if rocq_version <= (9, 0, 1)]
 
+(* let type inference pick the correct raw_gen_tac type based on the version *)
 let proof_with_tactic_of_raw_generic_tactic (env : Environ.env)
-    (evd : Evd.evar_map) (raw_gen_tac : Gentactic.raw_generic_tactic) : string =
+    (evd : Evd.evar_map) raw_gen_tac : string =
   Pp.string_of_ppcmds (Pputils.pr_raw_generic env evd raw_gen_tac)
 
 [%%else]
