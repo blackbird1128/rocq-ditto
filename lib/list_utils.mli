@@ -23,6 +23,7 @@ val fold_left_result :
   ('acc -> 'a -> ('acc, 'e) result) -> 'acc -> 'a list -> ('acc, 'e) result
 
 val map_result : ('a -> ('b, 'e) result) -> 'a list -> ('b list, 'e) result
+val filter_result : ('a -> (bool, 'e) result) -> 'a list -> ('a list, 'e) result
 val result_all : ('a, 'e) result list -> ('a list, 'e) result
 val concat_result : ('a list, 'e) result list -> ('a list, 'e) result
 

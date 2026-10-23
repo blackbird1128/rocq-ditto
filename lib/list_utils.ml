@@ -132,6 +132,18 @@ let map_result (f : 'a -> ('b, 'e) result) (l : 'a list) : ('b list, 'e) result
   in
   aux [] l
 
+let filter_result (p : 'a -> (bool, 'e) result) (l : 'a list) :
+    ('a list, 'e) result =
+  let rec aux acc = function
+    | [] -> Ok (List.rev acc)
+    | x :: tail -> (
+        let p_res = p x in
+        match p_res with
+        | Ok b -> if b then aux (x :: acc) tail else aux acc tail
+        | Error err -> Error err)
+  in
+  aux [] l
+
 let result_all (l : ('a, 'e) result list) : ('a list, 'e) result =
   let rec aux acc l =
     match l with
