@@ -55,6 +55,16 @@ let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
           pp = pp_list Format.pp_print_string;
           to_json = list_to_json (fun name -> `String name);
         }
+  | ListStableLemmas ->
+      Statistics.Statistic
+        {
+          name = "list stable lemmas names";
+          scope = DocScope Statistics.get_stable_lemma_names;
+          empty = [];
+          combine = List.append;
+          pp = pp_list Format.pp_print_string;
+          to_json = list_to_json (fun name -> `String name);
+        }
   | ListLemmaAndAxioms ->
       Statistics.Statistic
         {

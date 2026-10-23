@@ -107,6 +107,58 @@ let lemma_to_json ({ name; axioms } : lemma) : Yojson.Safe.t =
 (*   if String.equal content "Closed under the global context" then Ok [] *)
 (*   else Ok [] *)
 
+let get_stable_lemma_names (doc : Rocq_document.t) :
+    (string list, Error.t) result =
+  let ( let* ) = Result.bind in
+
+  let token = Coq.Limits.Token.create () in
+
+  let* require_prelude_node =
+    Syntax_node.syntax_node_of_string
+      "Require Import GeoCoq.Constructive.Prelude.Prelude." Code_point.dummy
+  in
+
+  let* is_stable_node =
+    Syntax_node.syntax_node_of_string
+      "Ltac is_stable :=\n\
+      \  intros;\n\
+      \  match goal with\n\
+      \  | |- ?G =>   assert (stable G);[solve_stable|]\n\
+      \  end. \n\
+      \  "
+      Code_point.dummy
+  in
+
+  let* initial_state =
+    Runner.run_nodes doc.root_state token
+      [ require_prelude_node; is_stable_node ]
+  in
+  let* proofs = Rocq_document.get_proofs doc in
+  let* check_stability_node =
+    Syntax_node.syntax_node_of_string "is_stable." Code_point.dummy
+  in
+  let* stable_proofs =
+    List_utils.filter_result
+      (fun (p : Proof.t) ->
+        let* before, _ = Rocq_document.split_at_id p.opening.id doc in
+        let* st = Runner.run_nodes initial_state token before in
+        let* st = Runner.run_node token st p.opening in
+        match Runner.run_node token st check_stability_node with
+        | Ok _ -> Ok true
+        | Error err
+          when String.starts_with
+                 ~prefix:
+                   "Tactic failure: Could not deduce the stability of the goal"
+                 (Error.to_string_hum err) ->
+            Ok false
+        | Error err -> Error err)
+      proofs
+  in
+  Ok
+    (List.filter_map
+       (fun p -> Option.map Names.Id.to_string (Proof.get_proof_name p))
+       stable_proofs)
+
 type printed_proof_term = { name : string; term : string }
 
 let pp_printed_proof_term (fmt : Format.formatter)

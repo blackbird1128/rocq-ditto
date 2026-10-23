@@ -26,6 +26,7 @@ val add_proof_status_count :
   proof_status_count -> proof_status_count -> proof_status_count
 
 val get_lemma_names : Rocq_document.t -> (string list, Error.t) result
+val get_stable_lemma_names : Rocq_document.t -> (string list, Error.t) result
 
 type lemma = { name : string; axioms : string list }
 

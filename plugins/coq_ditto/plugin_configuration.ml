@@ -37,6 +37,7 @@ type statistic_kind =
   | CountInduction
   | CountProofStatus
   | ListLemmaNames
+  | ListStableLemmas
   | ListLemmaAndAxioms
   | GetProofTerms
 [@@deriving show { with_path = false }, enum]
