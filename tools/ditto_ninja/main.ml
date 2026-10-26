@@ -3,8 +3,15 @@ open Ditto
 type cli_options = {
   path : string;
   output_folder : string;
-  transformed_file_list : string option;
+  input_file_list : string option;
   output_file_map : string option;
+  ditto_flags : string;
+}
+
+type resolved_options = {
+  project : Project.t;
+  selected_files : string list;
+  outputs : (string * string) list; (* project input path, output path *)
   ditto_flags : string;
 }
 
@@ -47,108 +54,68 @@ let mapped_output_path ~(project_dir : string) ~(output_folder : string)
   | Some mapped_path -> Filename.concat output_folder mapped_path
   | None -> Filesystem.relocate_path project_dir output_folder file
 
-let validate_unique_outputs ~(project_dir : string) ~(output_folder : string)
-    ~(output_file_map : (string * string) list) (files : string list) :
-    (unit, Error.t) result =
-  let outputs = Hashtbl.create 16 in
-  let rec loop = function
-    | [] -> Ok ()
-    | file :: rest -> (
-        let output_path =
-          mapped_output_path ~project_dir ~output_folder ~output_file_map file
-        in
-        let normalized =
-          Filesystem.normalize_path ~containing_dir:project_dir file
-        in
-        match Hashtbl.find_opt outputs output_path with
-        | None ->
-            Hashtbl.add outputs output_path normalized;
-            loop rest
-        | Some previous ->
-            Error.format_to_or_error
-              "Multiple input files map to the same output path %S: %S and %S"
-              output_path previous normalized)
+let resolve_outputs ~(project_dir : string) ~(output_folder : string)
+    ~(project_files : string list) ~(depfiles : string list)
+    (output_file_map : (string * string) list) :
+    ((string * string) list, Error.t) result =
+  let unknown_inputs =
+    output_file_map |> List.map fst
+    |> List.filter (fun file -> not (List.mem file project_files))
   in
-  loop files
+  if unknown_inputs <> [] then
+    Error.format_to_or_error "Unknown input file(s) in output file map: %s"
+      (String.concat ", " unknown_inputs)
+  else
+    let seen_outputs = Hashtbl.create 16 in
+    let rec loop acc = function
+      | [] -> Ok (List.rev acc)
+      | file :: rest -> (
+          let output_path =
+            mapped_output_path ~project_dir ~output_folder ~output_file_map file
+          in
+          let normalized =
+            Filesystem.normalize_path ~containing_dir:project_dir file
+          in
+          match Hashtbl.find_opt seen_outputs output_path with
+          | None ->
+              Hashtbl.add seen_outputs output_path normalized;
+              loop ((file, output_path) :: acc) rest
+          | Some previous ->
+              Error.format_to_or_error
+                "Multiple input files map to the same output path %S: %S and %S"
+                output_path previous normalized)
+    in
+    loop [] depfiles
 
-let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
-    ~(transformed_file_list : string option) ~(output_file_map : string option)
-    ~(ditto_flags : string) : (Ninja.t, Error.t) result =
+let coqproject_to_ninja_file (opts : resolved_options) :
+    (Ninja.t, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let* transformed_files =
-    match transformed_file_list with
-    | None -> Ok []
-    | Some file_list_path ->
-        let* files = Filesystem.read_nonempty_lines file_list_path in
-        Ok files
-  in
-
-  let* output_file_map =
-    match output_file_map with
-    | None -> Ok []
-    | Some map_path -> read_output_file_map map_path
-  in
-
-  let* depgraph = Compile.coqproject_to_dep_graph project in
-  let* depfiles = Compile.coqproject_sorted_files project in
-  let project_depfiles =
-    List.map
-      (Filesystem.normalize_path ~containing_dir:(Project.directory project))
-      depfiles
-  in
-
-  let* () =
-    let unknown_inputs =
-      output_file_map |> List.map fst
-      |> List.filter (fun file -> not (List.mem file project_depfiles))
-    in
-    if unknown_inputs = [] then Ok ()
-    else
-      Error.format_to_or_error "Unknown input file(s) in output file map: %s"
-        (String.concat ", " unknown_inputs)
-  in
-  let* () =
-    validate_unique_outputs
-      ~project_dir:(Project.directory project)
-      ~output_folder ~output_file_map depfiles
-  in
-
   let ditto_var = Ninja.variable "ditto" "rocq-ditto" in
-
-  let ditto_flags_var = Ninja.variable "dittoflags" ditto_flags in
-
+  let ditto_flags_var = Ninja.variable "dittoflags" opts.ditto_flags in
   let ditto_rule = get_ninja_rule () in
 
+  let* depgraph = Compile.coqproject_to_dep_graph opts.project in
   let depsgraph_seq = Dependency_graph.to_seq depgraph |> List.of_seq in
 
   let builds =
     List.concat_map
       (fun (file, neighbors) ->
         let filepath = file |> Ninja.Path.v in
-        let output_filepath =
-          mapped_output_path
-            ~project_dir:(Project.directory project)
-            ~output_folder ~output_file_map file
-          |> Ninja.Path.v
-        in
+        let output_filepath = List.assoc file opts.outputs |> Ninja.Path.v in
         let neighbors_paths =
           List.map
-            (fun file ->
-              mapped_output_path
-                ~project_dir:(Project.directory project)
-                ~output_folder ~output_file_map file
-              |> Ninja.Path.v)
+            (fun file -> List.assoc file opts.outputs |> Ninja.Path.v)
             neighbors
         in
 
         let normalized_input =
-          Filesystem.normalize_path ~containing_dir:(Project.directory project)
+          Filesystem.normalize_path
+            ~containing_dir:(Project.directory opts.project)
             file
         in
 
-        if transformed_files = [] || List.mem normalized_input transformed_files
-        then
+        if List.mem normalized_input opts.selected_files then
           [
             Ninja.make_build ~inputs:[ filepath ] ~outputs:[ output_filepath ]
               ~implicit:neighbors_paths ~rule:"ditto" ();
@@ -163,13 +130,7 @@ let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
   in
 
   let all_files =
-    List.map
-      (fun file ->
-        mapped_output_path
-          ~project_dir:(Project.directory project)
-          ~output_folder ~output_file_map file
-        |> Ninja.Path.v)
-      depfiles
+    List.map (fun (_, output) -> Ninja.Path.v output) opts.outputs
   in
 
   let defaults = all_files |> Ninja.default in
@@ -185,24 +146,74 @@ let coqproject_to_ninja_file (project : Project.t) (output_folder : string)
          defaults;
        ])
 
-let output_ditto_ninja_of_coqproject (project : Project.t)
-    (output_folder : string) ~(transformed_file_list : string option)
-    ~(output_file_map : string option) ~(ditto_flags : string) :
+let output_ditto_ninja_of_coqproject (opts : resolved_options) :
     (unit, Error.t) result =
   let ( let* ) = Result.bind in
 
-  let* ninja_file =
-    coqproject_to_ninja_file project output_folder ~transformed_file_list
-      ~output_file_map ~ditto_flags
-  in
+  let* ninja_file = coqproject_to_ninja_file opts in
   Format.printf "%a\n%!" Ninja.pp ninja_file;
   Ok ()
 
+let resolve_selected_files ~(project_files : string list)
+    (input_file_list : string option) : (string list, Error.t) result =
+  let ( let* ) = Result.bind in
+  match input_file_list with
+  | None -> Ok project_files
+  | Some file_list_path -> (
+      let* files = Filesystem.read_nonempty_lines file_list_path in
+      match files with
+      | [] ->
+          Error.string_to_or_error
+            "Please provide a non-empty file list when using --input-file-list"
+      | files ->
+          let unknown_inputs =
+            List.filter (fun file -> not (List.mem file project_files)) files
+          in
+          if unknown_inputs = [] then Ok files
+          else
+            Error.format_to_or_error
+              "Unknown input file(s) in --input-file-list: %s"
+              (String.concat ", " unknown_inputs))
+
+let resolve_options (opts : cli_options) : (resolved_options, Error.t) result =
+  let ( let* ) = Result.bind in
+
+  let* output_folder =
+    if String.length opts.output_folder > 0 then Ok opts.output_folder
+    else Error.string_to_or_error "Please provide a non-empty output folder"
+  in
+
+  let* project = Project.resolve_project_path opts.path in
+  let project_dir = Project.directory project in
+  let* depfiles = Compile.coqproject_sorted_files project in
+  let project_depfiles =
+    List.map
+      (Filesystem.normalize_path ~containing_dir:(Project.directory project))
+      depfiles
+  in
+
+  let* selected_files =
+    resolve_selected_files ~project_files:project_depfiles opts.input_file_list
+  in
+
+  let* raw_output_file_map =
+    match opts.output_file_map with
+    | None -> Ok []
+    | Some map_path -> read_output_file_map map_path
+  in
+
+  let* outputs =
+    resolve_outputs ~project_dir ~output_folder ~project_files:project_depfiles
+      ~depfiles raw_output_file_map
+  in
+
+  Ok { project; selected_files; outputs; ditto_flags = opts.ditto_flags }
+
 let parse_args () : (cli_options, Error.t) result =
   let path = ref None in
-  let output_folder = ref "" in
+  let output_folder = ref None in
   let ditto_flags = ref "" in
-  let transformed_file_list = ref None in
+  let input_file_list = ref None in
   let output_file_map = ref None in
 
   let usage_msg =
@@ -211,11 +222,11 @@ let parse_args () : (cli_options, Error.t) result =
   let specs =
     [
       ( "--output-folder",
-        Arg.Set_string output_folder,
+        Arg.String (fun folder -> output_folder := Some folder),
         "Set the output folder of the ninja file" );
-      ( "--transformed-file-list",
-        Arg.String (fun path -> transformed_file_list := Some path),
-        "Restrict files transformed by rocq-ditto to project-relative paths \
+      ( "--input-file-list",
+        Arg.String (fun path -> input_file_list := Some path),
+        "Restrict file transformed by rocq-ditto to project-relative paths \
          listed in this file, one per line" );
       ( "--output-file-map",
         Arg.String (fun path -> output_file_map := Some path),
@@ -233,17 +244,18 @@ let parse_args () : (cli_options, Error.t) result =
   in
   try
     Arg.parse specs set_path usage_msg;
-    match !path with
-    | Some path ->
+    match (!path, !output_folder) with
+    | Some path, Some output_folder ->
         Ok
           {
             path;
-            output_folder = !output_folder;
-            transformed_file_list = !transformed_file_list;
+            output_folder;
+            input_file_list = !input_file_list;
             output_file_map = !output_file_map;
             ditto_flags = !ditto_flags;
           }
-    | None -> Error.string_to_or_error "Please provide a path"
+    | None, _ -> Error.string_to_or_error "Please provide a path"
+    | _, None -> Error.string_to_or_error "Please provide --output-folder"
   with
   | Arg.Bad msg -> Error.string_to_or_error msg
   | Arg.Help msg ->
@@ -252,22 +264,11 @@ let parse_args () : (cli_options, Error.t) result =
 
 let get_project_ninja () : (unit, Error.t) result =
   let ( let* ) = Result.bind in
-  let* {
-         path;
-         output_folder;
-         transformed_file_list;
-         output_file_map;
-         ditto_flags;
-       } =
-    parse_args ()
-  in
+  let* args = parse_args () in
 
-  if output_folder = "" then
-    Error.string_to_or_error "Please provide an output folder"
-  else
-    let* project = Project.resolve_project_path path in
-    output_ditto_ninja_of_coqproject project output_folder
-      ~transformed_file_list ~output_file_map ~ditto_flags
+  let* resolved_options = resolve_options args in
+
+  output_ditto_ninja_of_coqproject resolved_options
 
 let main =
   match get_project_ninja () with
