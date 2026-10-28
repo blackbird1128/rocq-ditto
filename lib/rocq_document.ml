@@ -185,9 +185,7 @@ let shift_block_checked ~(line : int) ~(char : int)
     List.fold_left
       (fun acc n ->
         if pred n then
-          let node_min =
-            min n.range.start.character n.range.end_.character
-          in
+          let node_min = min n.range.start.character n.range.end_.character in
           Some
             (match acc with
             | None -> node_min
@@ -209,6 +207,15 @@ let shift_block_checked ~(line : int) ~(char : int)
             if pred node then Syntax_node.move_by ~lines:line ~chars:char node
             else Ok node)
           nodes
+
+let with_elements (elements : Syntax_node.t list) (doc : t) :
+    (t, Error.t) result =
+  let* document_repr =
+    dump_sorted_elements_to_string
+      ~initial_capacity:(String.length doc.document_repr)
+      elements
+  in
+  Ok { doc with elements; document_repr }
 
 let remove_node_from_elements ~(target_id : Uuidm.t)
     ~(remove_method : remove_method) (elements : Syntax_node.t list) :
@@ -270,12 +277,7 @@ let remove_node_with_id (target_id : Uuidm.t) ?(remove_method = ShiftNode)
   let* elements =
     remove_node_from_elements ~target_id ~remove_method doc.elements
   in
-  let* document_repr =
-    dump_sorted_elements_to_string
-      ~initial_capacity:(String.length doc.document_repr)
-      elements
-  in
-  Ok { doc with elements; document_repr }
+  with_elements elements doc
 
 let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
     (doc : t) : (t, Error.t) result =
@@ -342,12 +344,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
                   after
             in
             let elements = before @ (new_node :: new_after) in
-            let* document_repr =
-              dump_sorted_elements_to_string
-                ~initial_capacity:(String.length doc.document_repr)
-                elements
-            in
-            Ok { doc with elements; document_repr }
+            with_elements elements doc
       | ShiftVertically ->
           (* Push down only if we overlap the next node; and push by number of
            newlines inserted, not "height in lines". *)
@@ -368,12 +365,7 @@ let insert_node (new_node : Syntax_node.t) ?(shift_method = ShiftVertically)
               shift_block_checked ~line:push_lines ~char:0 after
           in
           let elements = before @ (new_node :: new_after) in
-          let* document_repr =
-            dump_sorted_elements_to_string
-              ~initial_capacity:(String.length doc.document_repr)
-              elements
-          in
-          Ok { doc with elements; document_repr })
+          with_elements elements doc)
 
 let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
     (t, Error.t) result =
@@ -411,12 +403,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
             after
         in
         let elements = before @ (replacement :: shifted_after) in
-        let* document_repr =
-          dump_sorted_elements_to_string
-            ~initial_capacity:(String.length doc.document_repr)
-            elements
-        in
-        Ok { doc with elements; document_repr }
+        with_elements elements doc
       else
         let old_width =
           target.range.end_.character - target.range.start.character
@@ -437,12 +424,7 @@ let replace_node (target_id : Uuidm.t) (replacement : Syntax_node.t) (doc : t) :
           else shift_block_checked ~line:0 ~char:delta ~pred:predicate after
         in
         let elements = before @ (replacement :: shifted_after) in
-        let* document_repr =
-          dump_sorted_elements_to_string
-            ~initial_capacity:(String.length doc.document_repr)
-            elements
-        in
-        Ok { doc with elements; document_repr }
+        with_elements elements doc
 
 let apply_transformation_step (step : Transforming_step.t) (doc : t) :
     (t, Error.t) result =
