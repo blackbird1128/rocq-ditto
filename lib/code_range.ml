@@ -2,7 +2,7 @@ type t = { start : Code_point.t; end_ : Code_point.t }
 [@@deriving sexp_of, to_yojson]
 
 let make (start : Code_point.t) (end_ : Code_point.t) : (t, Error.t) result =
-  if compare start end_ > 0 then
+  if Code_point.compare start end_ > 0 then
     Error.format_to_or_error "start: %s is bigger than end_: %s"
       (Code_point.to_string start)
       (Code_point.to_string end_)
