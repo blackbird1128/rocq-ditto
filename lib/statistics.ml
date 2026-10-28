@@ -134,6 +134,10 @@ let get_stable_lemma_names (doc : Rocq_document.t) :
       [ require_prelude_node; is_stable_node ]
   in
   let* proofs = Rocq_document.get_proofs doc in
+  (* Definitions and instances may have goals in Type, while stable expects Prop. *)
+  let proofs =
+    List.filter (fun proof -> Option.has_some (Proof.get_proof_name proof)) proofs
+  in
   let* check_stability_node =
     Syntax_node.syntax_node_of_string "is_stable." Code_point.dummy
   in
