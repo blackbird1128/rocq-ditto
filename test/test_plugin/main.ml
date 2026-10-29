@@ -1637,7 +1637,67 @@ let test_parse_proof_with_bullets_to_proof_tree (doc : Doc.t) () : unit =
       (result sexp_testable error_testable)
       "Tree should match the expected tree" (Ok expected_tree) proof_tree_sexp)
 
+let test_constructivisation_imports_and_proof_layout (doc : Doc.t) () =
+  let rewrite name =
+    let qualid = Libnames.qualid_of_string name in
+    let rec find = function
+      | [] -> name
+      | (old_prefix, new_prefix) :: rest -> (
+          match
+            Constructivisation.rewrite_qualid_prefix ~old_prefix ~new_prefix qualid
+          with
+          | Some rewritten -> Libnames.string_of_qualid rewritten
+          | None -> find rest)
+    in
+    find Constructivisation.require_prefix_rules
+  in
+  let prefix = "GeoCoq.Main.Meta_theory.Parallel_postulates." in
+  List.iter
+    (fun suffix ->
+      Alcotest.(check string) "rewrite the complete module name"
+        "GeoCoq.Constructive.Parallel_postulates.parallel_postulates_2"
+        (rewrite (prefix ^ suffix)))
+    [ "parallel_postulates"; "parallel_postulates_2" ];
+  let doc = Rocq_document.parse_document doc |> expect_result_ok in
+  let proofs = Rocq_document.get_proofs doc |> expect_result_ok in
+  Alcotest.(check int) "all layout cases were parsed" 5 (List.length proofs);
+  let steps =
+    List_utils.concat_map_result
+      (Constructivisation.prove_dec_using_solve_dec doc) proofs
+    |> expect_result_ok
+  in
+  let rebuilt =
+    Rocq_document.apply_transformations_steps steps doc |> expect_result_ok
+  in
+  let rebuilt_proofs = Rocq_document.get_proofs rebuilt |> expect_result_ok in
+  List.iter2
+    (fun original proof ->
+      Alcotest.(check string) "preserve the statement"
+        (Syntax_node.repr original.opening) (Syntax_node.repr proof.opening);
+      Alcotest.(check (list string)) "rebuild the complete proof body"
+        [ "Proof."; "  solve_dec." ]
+        (List.map Syntax_node.repr proof.proof_steps);
+      let expected_closing =
+        if original.closing.status = Proof.Admitted then "Qed."
+        else Syntax_node.repr original.closing.node
+      in
+      Alcotest.(check string) "prove admitted inputs and preserve Defined"
+        expected_closing (Syntax_node.repr proof.closing.node);
+      List.iteri
+        (fun i (node : Syntax_node.t) ->
+          Alcotest.(check int) "put each proof command on its own line"
+            (proof.opening.range.end_.line + i + 1) node.range.start.line)
+        (Proof.body_and_closing proof))
+    proofs rebuilt_proofs;
+  ignore
+    (Runner.run_nodes rebuilt.root_state (Coq.Limits.Token.create ())
+       rebuilt.elements
+     |> expect_result_ok)
+
 let setup_test_table table (doc : Doc.t) =
+  Hashtbl.add table "ex_constructivisation_imports_and_proof_layout.v"
+    (create_fixed_test "constructive imports and decidability proof layouts"
+       test_constructivisation_imports_and_proof_layout doc);
   Hashtbl.add table "test_dummy.v"
     (create_fixed_test "Check if is_auto detect \"auto.\""
        test_is_auto_simple_auto doc);

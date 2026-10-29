@@ -10,8 +10,10 @@ let rewrite_qualid_prefix ~(old_prefix : string) ~(new_prefix : string)
     (qualid : Libnames.qualid) : Libnames.qualid option =
   let qualid_str = Libnames.string_of_qualid qualid in
   match String_utils.split_prefix ~prefix:old_prefix qualid_str with
-  | Some (_, postfix) -> Some (Libnames.qualid_of_string (new_prefix ^ postfix))
-  | None -> None
+  | Some (_, postfix)
+    when String.equal postfix "" || String.starts_with ~prefix:"." postfix ->
+      Some (Libnames.qualid_of_string (new_prefix ^ postfix))
+  | _ -> None
 
 (* each import command only import a single file in the target library *)
 let rewrite_first_import ~(rules : (string * string) list)
@@ -36,6 +38,8 @@ let require_prefix_rules : (string * string) list =
     ("GeoCoq.Main.Meta_theory.Models", "GeoCoq.Constructive.Tactic_instances");
     ( "GeoCoq.Main.Meta_theory.Dimension_axioms",
       "GeoCoq.Constructive.Dimension_axioms" );
+    ( "GeoCoq.Main.Meta_theory.Parallel_postulates.parallel_postulates",
+      "GeoCoq.Constructive.Parallel_postulates.parallel_postulates_2" );
     ( "GeoCoq.Main.Meta_theory.Parallel_postulates",
       "GeoCoq.Constructive.Parallel_postulates" );
     ("GeoCoq.Main.Tactics", "GeoCoq.Constructive.Tactics");
@@ -773,29 +777,28 @@ let remove_named_sections (section_names : string list) (doc : Rocq_document.t)
 let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     (Transforming_step.t list, Error.t) result =
   let remove_steps =
-    List.filter_map
-      (fun (step : Syntax_node.t) ->
-        if Syntax_node.is_proof_command step || Syntax_node.can_close_proof step
-        then None
-        else Some (Remove step.id))
-      proof.proof_steps
+    Proof.body_and_closing proof
+    |> List.map (fun (step : Syntax_node.t) -> Remove step.id)
   in
-  let* proof_command, insert_proof_steps =
-    match List.find_opt Syntax_node.is_proof_command proof.proof_steps with
-    | Some proof_command -> Ok (proof_command, [])
-    | None ->
-        let* proof_command =
-          Syntax_node.syntax_node_of_string "Proof." Code_point.dummy
-        in
-        Ok
-          (proof_command, [ Attach (proof_command, LineAfter, proof.opening.id) ])
+  let* proof_command =
+    Syntax_node.syntax_node_of_string "Proof." Code_point.dummy
   in
   let* solve_dec_node =
-    Syntax_node.syntax_node_of_string "solve_dec." Code_point.dummy
+    Syntax_node.syntax_node_of_string "  solve_dec." Code_point.dummy
+  in
+  let* closing_node =
+    match proof.closing.status with
+    | Proof.Admitted ->
+        Syntax_node.syntax_node_of_string "Qed." Code_point.dummy
+    | Proof.Proved | Proof.Aborted -> Ok proof.closing.node
   in
   Ok
-    (remove_steps @ insert_proof_steps
-    @ [ Attach (solve_dec_node, LineAfter, proof_command.id) ])
+    (remove_steps
+    @ [
+        Attach (proof_command, LineAfter, proof.opening.id);
+        Attach (solve_dec_node, LineAfter, proof_command.id);
+        Attach (closing_node, LineAfter, solve_dec_node.id);
+      ])
 
 let get_proofs_named (proofs : Proof.t list) (names : string list) =
   List.filter
