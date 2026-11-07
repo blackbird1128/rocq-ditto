@@ -246,39 +246,38 @@ let replace_contexts (doc : Rocq_document.t) :
       context_groups
   in
   let res = List.map2 (fun a b -> (a, b)) context_groups_names context_groups in
-  let a =
+  let transformation_steps =
     List.map
       (fun group ->
-        match group with
-        | [ "Tarski_neutral_dimensionless" ], nodes
-        | ( [ "Tarski_neutral_dimensionless_with_decidable_point_equality" ],
-            nodes )
-        | ( [
-              "Tarski_neutral_dimensionless";
-              "Tarski_neutral_dimensionless_with_decidable_point_equality";
-            ],
-            nodes )
-        | ( [
-              "Tarski_neutral_dimensionless_with_decidable_point_equality";
-              "Tarski_neutral_dimensionless";
-            ],
-            nodes ) ->
-            Ok
-              (replace_group_with_new_node nodes
-                 context_neutral_dimensionless_node)
-        | [ "Tarski_2D" ], nodes ->
-            Ok (replace_group_with_new_node nodes context_tarski_2d_node)
-        | [ "Tarski_euclidean" ], nodes ->
-            Ok (replace_group_with_new_node nodes context_tarski_euclidean)
-        | [ "Tarski_2D"; "Tarski_euclidean" ], nodes
-        | [ "Tarski_euclidean"; "Tarski_2D" ], nodes ->
-            Ok (replace_group_with_new_node nodes context_tarski_2d_euclidean)
-        | context, _ ->
-            Error.format_to_or_error "Found an unknown context %s"
-              (String.concat " " context))
+        let context, nodes = group in
+        let context = List.sort_uniq String.compare context in
+
+        let is_neutral_dimensionless =
+          List.mem "Tarski_neutral_dimensionless" context
+          || List.mem
+               "Tarski_neutral_dimensionless_with_decidable_point_equality"
+               context
+        in
+        let is_2d = List.mem "Tarski_2D" context in
+        let is_euclidean = List.mem "Tarski_euclidean" context in
+        let is_2d_euclidean = is_2d && is_euclidean in
+
+        if is_2d_euclidean then
+          Ok (replace_group_with_new_node nodes context_tarski_2d_euclidean)
+        else if is_euclidean then
+          Ok (replace_group_with_new_node nodes context_tarski_euclidean)
+        else if is_2d then
+          Ok (replace_group_with_new_node nodes context_tarski_2d_node)
+        else if is_neutral_dimensionless then
+          Ok
+            (replace_group_with_new_node nodes
+               context_neutral_dimensionless_node)
+        else
+          Error.format_to_or_error "Found an unknown context %s"
+            (String.concat " " context))
       res
   in
-  List_utils.concat_result a
+  List_utils.concat_result transformation_steps
 
 let replace_euclid_proof (doc : Rocq_document.t) :
     (Transforming_step.t list, Error.t) result =
@@ -403,8 +402,8 @@ let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
         | Some [ args0; args1; args2; args3; args4 ] -> (
             let segment_construction_str =
               Printf.sprintf
-                "destructC (by_segment_construction %s %s %s %s) as [%s \
-                 [?H ?H]]."
+                "destructC (by_segment_construction %s %s %s %s) as [%s [?H \
+                 ?H]]."
                 args0 args1 args3 args4
                 args2 (* args1 args3 used in ? H before *)
             in
@@ -488,7 +487,8 @@ type constructive_tactic_kind =
 let all_constructive_tactic_kinds =
   List.init
     (max_constructive_tactic_kind - min_constructive_tactic_kind + 1)
-    (fun i -> constructive_tactic_kind_of_enum (i + min_constructive_tactic_kind))
+    (fun i ->
+      constructive_tactic_kind_of_enum (i + min_constructive_tactic_kind))
   |> List.map Option.get
 (* TODO factor construction with cli.ml *)
 
@@ -503,13 +503,15 @@ let dummy_tactic_for_kind = function
   | ApplyC -> "applyC (lower_dim)."
   | EapplyC -> "eapplyC (lower_dim)."
 
-let compute_alias_kername (k : constructive_tactic_kind) : Names.KerName.t option =
+let compute_alias_kername (k : constructive_tactic_kind) :
+    Names.KerName.t option =
   let s = dummy_tactic_for_kind k in
   match Syntax_node.string_to_raw_tactic_expr s with
   | Error _ -> None
   | Ok raw -> Ltac.get_alias_kername raw
 
-let alias_kername_cache : (constructive_tactic_kind * Names.KerName.t option Lazy.t) list =
+let alias_kername_cache :
+    (constructive_tactic_kind * Names.KerName.t option Lazy.t) list =
   List.map
     (fun kind -> (kind, lazy (compute_alias_kername kind)))
     all_constructive_tactic_kinds
@@ -615,9 +617,7 @@ let replace_destruct_fun_with_destructC
                   h_constrexpr
               in
 
-              let kername =
-                get_alias_kn DestructC_with_args |> Option.get
-              in
+              let kername = get_alias_kn DestructC_with_args |> Option.get in
 
               make_alias kername [ open_constr_arg; intro_pattern_arg ]
           | None, None ->
@@ -646,7 +646,8 @@ let replace_destruct_fun_with_destructC
                   let fun_args =
                     get_func_args constrexpr
                     |> List.map
-                         Raw_gen_args_converter.raw_generic_argument_of_open_constr
+                         Raw_gen_args_converter
+                         .raw_generic_argument_of_open_constr
                   in
                   make_alias kername (fun_args @ [ intro_pattern_arg ])
               | _, None ->
@@ -677,9 +678,7 @@ let replace_destruct_fun_with_destructC
                   make_alias kername
                     [ openconstr_constrexpr; intro_pattern_arg ]
               | _, None ->
-                  let kername =
-                    get_alias_kn DestructC_no_args |> Option.get
-                  in
+                  let kername = get_alias_kn DestructC_no_args |> Option.get in
                   make_alias kername
                     [
                       constrexpr
@@ -772,7 +771,7 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
         let* proof_command =
           Syntax_node.syntax_node_of_string "Proof." Code_point.dummy
         in
-        Ok  (proof_command)
+        Ok proof_command
   in
   let* solve_dec_node =
     Syntax_node.syntax_node_of_string "  solve_dec." Code_point.dummy
