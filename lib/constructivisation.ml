@@ -894,7 +894,7 @@ let constructivise_doc (doc : Rocq_document.t) :
           attach_require_to_file doc
             ~require_text:
               "Require Export GeoCoq.Constructive.Prelude.Upper_dim."
-            "Ch10_line_reflexivity_2.v"
+            "line_reflexivity.v"
         in
 
         let* attach_euclid_import_to_ch12_parallel_inter_dec_steps =
