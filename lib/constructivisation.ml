@@ -643,27 +643,12 @@ let replace_destruct_fun_with_destructC
                     raw_genarg_from_intro_pattern intro_or_and_pattern
                   in
 
-                  let fun_args = get_func_args constrexpr in
-                  let fun_args_str_opt =
-                    List.map
-                      (fun x ->
-                        get_cref_qualid x
-                        |> Option.map Libnames.string_of_qualid)
-                      fun_args
-                    |> List_utils.option_all
+                  let fun_args =
+                    get_func_args constrexpr
+                    |> List.map
+                         Raw_gen_args_converter.raw_generic_argument_of_open_constr
                   in
-
-                  let fun_args_name_id_arg =
-                    Option.map
-                      (List.map (fun x ->
-                           Names.Id.of_string x
-                           |> Raw_gen_args_converter.raw_generic_argument_of_id))
-                      fun_args_str_opt
-                    |> Option.get
-                  in
-
-                  make_alias kername
-                    (fun_args_name_id_arg @ [ intro_pattern_arg ])
+                  make_alias kername (fun_args @ [ intro_pattern_arg ])
               | _, None ->
                   make_alias kername
                     [
