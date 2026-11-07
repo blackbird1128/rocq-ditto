@@ -103,7 +103,7 @@ let replace_congr (doc : Rocq_document.t) :
                Syntax_node.syntax_node_of_string
                  "Ltac congr :=\n\
                  \  let tpoint := constr:(Tpoint) in\n\
-                 \  let cong := constr:(CongC) in\n\
+                 \  let cong := constr:(congruentC) in\n\
                  \    Cong_refl tpoint cong."
                  Code_point.dummy
                |> Result.get_ok
@@ -127,7 +127,7 @@ let replace_cong_theory (doc : Rocq_document.t) :
              let new_global_instance_node =
                Syntax_node.syntax_node_of_string
                  "Global Instance Tarski_is_a_Cong_theory : (Cong_theory \
-                  Tpoint CongC)."
+                  Tpoint congruentC)."
                  Code_point.dummy
                |> Result.get_ok
              in
@@ -139,7 +139,7 @@ let replace_cong_theory (doc : Rocq_document.t) :
            then
              let new_exact_node =
                Syntax_node.syntax_node_of_string
-                 "exact (Build_Cong_theory Tpoint CongC cong_reflexivity \
+                 "exact (Build_Cong_theory Tpoint congruentC cong_reflexivity \
                   cong_left_commutativity cong_symmetry cong_transitivity)."
                  Code_point.dummy
                |> Result.get_ok
@@ -375,8 +375,8 @@ let replace_notation_in_constrexpr (old_notation : string)
 let replace_bet_and_cong_in_constrexpr (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
   term
-  |> replace_fun_name_in_constrexpr "Bet" "BetC"
-  |> replace_fun_name_in_constrexpr "Cong" "CongC"
+  |> replace_fun_name_in_constrexpr "Bet" "betweenC"
+  |> replace_fun_name_in_constrexpr "Cong" "congruentC"
 
 let replace_notation_in_proof_proposition (old_notation : string)
     (new_notation : string) (x : Proof.t) : Transforming_step.t option =
@@ -781,7 +781,13 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
     |> List.map (fun (step : Syntax_node.t) -> Remove step.id)
   in
   let* proof_command =
-    Syntax_node.syntax_node_of_string "Proof." Code_point.dummy
+    match List.find_opt Syntax_node.is_proof_command proof.proof_steps with
+    | Some proof_command -> Ok proof_command
+    | None ->
+        let* proof_command =
+          Syntax_node.syntax_node_of_string "Proof." Code_point.dummy
+        in
+        Ok  (proof_command)
   in
   let* solve_dec_node =
     Syntax_node.syntax_node_of_string "  solve_dec." Code_point.dummy
@@ -792,6 +798,7 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
         Syntax_node.syntax_node_of_string "Qed." Code_point.dummy
     | Proof.Proved | Proof.Aborted -> Ok proof.closing.node
   in
+  (* Qed may share the Proof line; insert immediately after the command. *)
   Ok
     (remove_steps
     @ [
