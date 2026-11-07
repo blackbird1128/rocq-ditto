@@ -403,7 +403,7 @@ let replace_prolong_by_segment_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
         | Some [ args0; args1; args2; args3; args4 ] -> (
             let segment_construction_str =
               Printf.sprintf
-                "stab_destruct (by_segment_construction %s %s %s %s) as [%s \
+                "destructC (by_segment_construction %s %s %s %s) as [%s \
                  [?H ?H]]."
                 args0 args1 args3 args4
                 args2 (* args1 args3 used in ? H before *)
@@ -474,47 +474,47 @@ let replace_decompose_or_with_decompose_stab_or
       | _ -> x)
   | _ -> x
 
-type stab_kind =
+type constructive_tactic_kind =
   | Inner_pasch
   | Segment_construction
   | Eq_Dec_Points
-  | Stab_destruct_with_args
-  | Stab_destruct_no_args
-  | Stab_elim_no_args
+  | DestructC_with_args
+  | DestructC_no_args
+  | ElimC_no_args
   | ApplyC
   | EapplyC
 [@@deriving enum]
 
-let all_stab_kinds =
+let all_constructive_tactic_kinds =
   List.init
-    (max_stab_kind - min_stab_kind + 1)
-    (fun i -> stab_kind_of_enum (i + min_stab_kind))
+    (max_constructive_tactic_kind - min_constructive_tactic_kind + 1)
+    (fun i -> constructive_tactic_kind_of_enum (i + min_constructive_tactic_kind))
   |> List.map Option.get
 (* TODO factor construction with cli.ml *)
 
 let dummy_tactic_for_kind = function
-  | Inner_pasch -> "stab_destruct (by_inner_pasch A B C D X X X) as [I []]."
+  | Inner_pasch -> "destructC (by_inner_pasch A B C D X X X) as [I []]."
   | Segment_construction ->
-      "stab_destruct (by_segment_construction A B C D) as [I []]."
-  | Eq_Dec_Points -> "stab_destruct (by_eq_dec_points B C)."
-  | Stab_destruct_no_args -> "stab_destruct H."
-  | Stab_destruct_with_args -> "stab_destruct H as [HL|HR]."
-  | Stab_elim_no_args -> "stab_elim H."
+      "destructC (by_segment_construction A B C D) as [I []]."
+  | Eq_Dec_Points -> "destructC (by_eq_dec_points B C)."
+  | DestructC_no_args -> "destructC H."
+  | DestructC_with_args -> "destructC H as [HL|HR]."
+  | ElimC_no_args -> "elimC H."
   | ApplyC -> "applyC (lower_dim)."
   | EapplyC -> "eapplyC (lower_dim)."
 
-let compute_alias_kername (k : stab_kind) : Names.KerName.t option =
+let compute_alias_kername (k : constructive_tactic_kind) : Names.KerName.t option =
   let s = dummy_tactic_for_kind k in
   match Syntax_node.string_to_raw_tactic_expr s with
   | Error _ -> None
   | Ok raw -> Ltac.get_alias_kername raw
 
-let alias_kername_cache : (stab_kind * Names.KerName.t option Lazy.t) list =
+let alias_kername_cache : (constructive_tactic_kind * Names.KerName.t option Lazy.t) list =
   List.map
     (fun kind -> (kind, lazy (compute_alias_kername kind)))
-    all_stab_kinds
+    all_constructive_tactic_kinds
 
-let get_alias_kn (kind : stab_kind) : Names.KerName.t option =
+let get_alias_kn (kind : constructive_tactic_kind) : Names.KerName.t option =
   match List.assoc_opt kind alias_kername_cache with
   | Some cached -> Lazy.force cached
   | None -> None
@@ -527,7 +527,7 @@ let make_alias (kername : Names.KerName.t)
   in
   Ltac_plugin.Tacexpr.TacAlias (kername, gen_tactic_args) |> CAst.make
 
-let replace_elim_with_stab_elim (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+let replace_elim_with_elimC (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
   match x.v with
   | TacAtom (TacElim (false, binding_args, None)) ->
@@ -538,7 +538,7 @@ let replace_elim_with_stab_elim (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
         Raw_gen_args_converter.raw_generic_argument_of_open_constr constrexpr
       in
 
-      let kername = get_alias_kn Stab_elim_no_args |> Option.get in
+      let kername = get_alias_kn ElimC_no_args |> Option.get in
       make_alias kername [ open_constr_arg ]
   | _ -> x
 
@@ -573,7 +573,7 @@ let replace_apply_by_applyC (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       else x
   | _ -> x
 
-let constrexpr_to_stab_destruct_fun_name (c : Constrexpr.constr_expr) =
+let constrexpr_to_destructC_fun_name (c : Constrexpr.constr_expr) =
   if is_constrexpr_c_app_named c "inner_pasch" then get_alias_kn Inner_pasch
   else if is_constrexpr_c_app_named c "segment_construction" then
     get_alias_kn Segment_construction
@@ -590,7 +590,7 @@ let raw_genarg_from_intro_pattern
   Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
     intro_pattern_expr
 
-let replace_destruct_fun_with_stab_destruct
+let replace_destruct_fun_with_destructC
     (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
     Ltac_plugin.Tacexpr.raw_tactic_expr =
   match x.v with
@@ -616,7 +616,7 @@ let replace_destruct_fun_with_stab_destruct
               in
 
               let kername =
-                get_alias_kn Stab_destruct_with_args |> Option.get
+                get_alias_kn DestructC_with_args |> Option.get
               in
 
               make_alias kername [ open_constr_arg; intro_pattern_arg ]
@@ -630,12 +630,12 @@ let replace_destruct_fun_with_stab_destruct
                   h_constrexpr
               in
 
-              let kername = get_alias_kn Stab_destruct_no_args |> Option.get in
+              let kername = get_alias_kn DestructC_no_args |> Option.get in
 
               make_alias kername [ open_constr_arg ]
           | _ -> x)
       | ElimOnConstr (constrexpr, NoBindings) -> (
-          match constrexpr_to_stab_destruct_fun_name constrexpr with
+          match constrexpr_to_destructC_fun_name constrexpr with
           | Some kername -> (
               match intro_pattern_naming_expr with
               | _, Some (ArgArg intro_or_and_pattern) ->
@@ -676,7 +676,7 @@ let replace_destruct_fun_with_stab_destruct
               match intro_pattern_naming_expr with
               | _, Some (ArgArg intro_or_and_pattern) ->
                   let kername =
-                    get_alias_kn Stab_destruct_with_args |> Option.get
+                    get_alias_kn DestructC_with_args |> Option.get
                   in
 
                   let intro_pattern_arg =
@@ -693,7 +693,7 @@ let replace_destruct_fun_with_stab_destruct
                     [ openconstr_constrexpr; intro_pattern_arg ]
               | _, None ->
                   let kername =
-                    get_alias_kn Stab_destruct_no_args |> Option.get
+                    get_alias_kn DestructC_no_args |> Option.get
                   in
                   make_alias kername
                     [
@@ -999,8 +999,8 @@ let constructivise_doc (doc : Rocq_document.t) :
         let replace_tactic_calls =
           replace_taccalls_steps
             [
-              ("left", "stab_left");
-              ("right", "stab_right");
+              ("left", "leftC");
+              ("right", "rightC");
               ("tauto", "tautoC");
               ("CongR", "CongRC");
               ("contradiction", "contradictionC");
@@ -1037,10 +1037,10 @@ let constructivise_doc (doc : Rocq_document.t) :
 
   let stage_4 =
     make_stage "stage4" (fun doc ->
-        let replace_elim_with_stab_elim_steps =
-          map_raw_tactic_expr_steps replace_elim_with_stab_elim doc
+        let replace_elim_with_elimC_steps =
+          map_raw_tactic_expr_steps replace_elim_with_elimC doc
         in
-        Ok replace_elim_with_stab_elim_steps)
+        Ok replace_elim_with_elimC_steps)
   in
 
   let stage_5 : stage =
@@ -1072,7 +1072,7 @@ let constructivise_doc (doc : Rocq_document.t) :
   let stage_7 : stage =
     make_stage "stage7" (fun doc ->
         let steps =
-          map_raw_tactic_expr_steps replace_destruct_fun_with_stab_destruct doc
+          map_raw_tactic_expr_steps replace_destruct_fun_with_destructC doc
         in
         Ok steps)
   in
