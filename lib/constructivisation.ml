@@ -96,7 +96,7 @@ let replace_congr (doc : Rocq_document.t) :
              String.equal (Syntax_node.repr node)
                "Ltac congr :=\n\
                \  let tpoint := constr:(Tpoint) in\n\
-               \  let cong := constr:(Cong) in\n\
+               \  let cong := constr:(congruent) in\n\
                \    Cong_refl tpoint cong."
            then
              let new_congr =
@@ -122,7 +122,7 @@ let replace_cong_theory (doc : Rocq_document.t) :
            if
              String.equal (Syntax_node.repr node)
                "Global Instance Tarski_is_a_Cong_theory : (Cong_theory Tpoint \
-                Cong)."
+                congruent)."
            then
              let new_global_instance_node =
                Syntax_node.syntax_node_of_string
@@ -134,8 +134,9 @@ let replace_cong_theory (doc : Rocq_document.t) :
              Some (Replace (node.id, new_global_instance_node))
            else if
              String.equal (Syntax_node.repr node)
-               "exact (Build_Cong_theory Tpoint Cong cong_reflexivity \
-                cong_left_commutativity cong_symmetry cong_transitivity)."
+               "exact (Build_Cong_theory Tpoint congruent cong_reflexivity\n\
+               \                         cong_left_commutativity cong_symmetry\n\
+               \                         cong_transitivity)."
            then
              let new_exact_node =
                Syntax_node.syntax_node_of_string
@@ -374,8 +375,8 @@ let replace_notation_in_constrexpr (old_notation : string)
 let replace_bet_and_cong_in_constrexpr (term : Constrexpr.constr_expr) :
     Constrexpr.constr_expr =
   term
-  |> replace_fun_name_in_constrexpr "Bet" "betweenC"
-  |> replace_fun_name_in_constrexpr "Cong" "congruentC"
+  |> replace_fun_name_in_constrexpr "betweenNonStrict" "betweenC"
+  |> replace_fun_name_in_constrexpr "congruent" "congruentC"
 
 let replace_notation_in_proof_proposition (old_notation : string)
     (new_notation : string) (x : Proof.t) : Transforming_step.t option =
