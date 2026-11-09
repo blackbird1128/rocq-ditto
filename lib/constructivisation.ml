@@ -986,9 +986,9 @@ let constructivise_doc (doc : Rocq_document.t) :
              ]))
   in
 
-  let stage_beeson_ch03 : stage =
-    make_stage "stage_beeson_ch03" (fun doc ->
-        if String.equal (Filename.basename doc.filename) "Ch03_bet.v" then
+  let stage_beeson_bet : stage =
+    make_stage "stage_beeson_bet" (fun doc ->
+        if String.equal (Filename.basename doc.filename) "bet.v" then
           remove_named_sections [ "Beeson_1"; "Beeson_2" ] doc
         else Ok [])
   in
@@ -1134,7 +1134,7 @@ let constructivise_doc (doc : Rocq_document.t) :
     run_pipeline doc
       [
         stage_0;
-        stage_beeson_ch03;
+        stage_beeson_bet;
         stage_replace_context;
         stage_1;
         stage_2;
