@@ -56,6 +56,27 @@ let map_assert_constr_expr
           (TacAtom (TacAssert (a, b, c, d, asrt_mapped)))
   | _ -> tacexpr
 
+(* restrict mapping to the cut tactic, used to avoid a too general rewrite *)
+(* restricted to terms *)
+let map_cut_constr_expr (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
+    (tacexpr : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  let open Ltac_plugin.Tacexpr in
+  match tacexpr.v with
+  | TacArg (TacCall call_arg) -> (
+      let call_qualid, args = call_arg.v in
+      match (Libnames.string_of_qualid call_qualid, args) with
+      | "cut", [ ConstrMayEval term ] ->
+          let term =
+            May_eval_view.map_term (Constrexpr_map.constr_expr_map f) term
+          in
+          let call_arg =
+            CAst.make ?loc:call_arg.loc (call_qualid, [ ConstrMayEval term ])
+          in
+          CAst.make ?loc:tacexpr.loc (TacArg (TacCall call_arg))
+      | _ -> tacexpr)
+  | _ -> tacexpr
+
 let map_bindings (f : Constrexpr.constr_expr -> Constrexpr.constr_expr)
     (bindings : Constrexpr.constr_expr Tactypes.bindings) :
     Constrexpr.constr_expr Tactypes.bindings =

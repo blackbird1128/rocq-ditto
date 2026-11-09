@@ -18,6 +18,11 @@ val map_assert_constr_expr :
   Ltac_plugin.Tacexpr.raw_tactic_expr ->
   Ltac_plugin.Tacexpr.raw_tactic_expr
 
+val map_cut_constr_expr :
+  (Constrexpr.constr_expr -> Constrexpr.constr_expr) ->
+  Ltac_plugin.Tacexpr.raw_tactic_expr ->
+  Ltac_plugin.Tacexpr.raw_tactic_expr
+
 val map_exists_constr_expr :
   (Constrexpr.constr_expr -> Constrexpr.constr_expr) ->
   Ltac_plugin.Tacexpr.raw_tactic_expr ->

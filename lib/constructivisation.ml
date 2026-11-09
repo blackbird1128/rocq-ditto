@@ -1048,20 +1048,21 @@ let constructivise_doc (doc : Rocq_document.t) :
 
   let stage_3 =
     make_stage "stage3" (fun doc ->
-        let f_assert =
+        let f_rewrite =
           Fun.compose
             (replace_notation_in_constrexpr "_ \\/ _" "_ \\_/ _")
             replace_bet_and_cong_in_constrexpr
         in
 
-        let replace_bet_by_betc_and_or_by_cons_or_in_assert_steps =
+        let replace_bet_by_betc_and_or_by_cons_or_in_assert_and_cut_steps =
           List.filter_map
-            (Transformation_utils.map_raw_tactic_expr_in_node
-               (Ltac.map_assert_constr_expr f_assert))
+            (Transformation_utils.map_raw_tactic_expr_in_node (fun tacexpr ->
+                 Ltac.map_assert_constr_expr f_rewrite tacexpr
+                 |> Ltac.map_cut_constr_expr f_rewrite))
             doc.elements
         in
 
-        Ok replace_bet_by_betc_and_or_by_cons_or_in_assert_steps)
+        Ok replace_bet_by_betc_and_or_by_cons_or_in_assert_and_cut_steps)
   in
 
   let stage_4 =
