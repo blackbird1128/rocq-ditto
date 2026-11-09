@@ -511,6 +511,14 @@ let compute_alias_kername (k : constructive_tactic_kind) :
   | Error _ -> None
   | Ok raw -> Ltac.get_alias_kername raw
 
+let get_intros_cons_kername (arity : int) : Names.KerName.t option =
+  let arity_as_params = String.concat " " (List.init arity (fun _ -> "A")) in
+  let intros_cons_repr = "introsC " ^ arity_as_params ^ "." in
+
+  match Syntax_node.string_to_raw_tactic_expr intros_cons_repr with
+  | Error _ -> None
+  | Ok raw -> Ltac.get_alias_kername raw
+
 let alias_kername_cache :
     (constructive_tactic_kind * Names.KerName.t option Lazy.t) list =
   List.map
@@ -688,6 +696,42 @@ let replace_destruct_fun_with_destructC
                     ]
               | _ -> x))
       | _ -> x)
+  | _ -> x
+
+let get_tacexpr_sexp_of_string (x : string) =
+  let node =
+    Syntax_node.syntax_node_of_string x Code_point.dummy |> Result.get_ok
+  in
+  let node_raw_tac_expr = Syntax_node.get_raw_tactic_expr node |> Option.get in
+  Serlib_ltac.Ser_tacexpr.sexp_of_raw_tactic_expr node_raw_tac_expr
+  |> Sexp_utils.strip_loc
+
+let replace_intros_by_intros_cons (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
+    Ltac_plugin.Tacexpr.raw_tactic_expr =
+  match x.v with
+  (* only match intros not eintros *)
+  | TacAtom (TacIntroPattern (false, pattern_list)) -> (
+      let arity =
+        match pattern_list with
+        | [ { v = Tactypes.IntroForthcoming false; _ } ] -> 0
+        | _ -> List.length pattern_list
+      in
+      (* annoyingly, "intros." is parsed as a list with a single argument: Tactypes.IntroForthcoming false *)
+      match get_intros_cons_kername arity with
+      | Some intros_kername ->
+          if arity > 0 then
+            let mapped_args =
+              List.map
+                Raw_gen_args_converter.raw_generic_argument_of_intro_pattern
+                pattern_list
+            in
+            make_alias intros_kername mapped_args
+          else make_alias intros_kername []
+      | None ->
+          let tactic_string = Ltac.string_of_raw_tactic x in
+          Printf.eprintf "Pattern of length %d not handled for:\n%s" arity
+            tactic_string;
+          exit 1)
   | _ -> x
 
 let rec update_replaces (l : Transforming_step.t list) =
@@ -1056,10 +1100,20 @@ let constructivise_doc (doc : Rocq_document.t) :
 
   let stage_7 : stage =
     make_stage "stage7" (fun doc ->
-        let steps =
+        let steps_destruct =
           map_raw_tactic_expr_steps replace_destruct_fun_with_destructC doc
         in
-        Ok steps)
+
+        Ok steps_destruct)
+  in
+
+  let stage_7_bis : stage =
+    make_stage "stage7_bis" (fun doc ->
+        let steps_intros =
+          map_raw_tactic_expr_steps replace_intros_by_intros_cons doc
+        in
+
+        Ok steps_intros)
   in
 
   let stage_8 : stage =
@@ -1090,6 +1144,7 @@ let constructivise_doc (doc : Rocq_document.t) :
         stage_5_bis;
         stage_6;
         stage_7;
+        stage_7_bis;
         stage_8;
       ]
   in
