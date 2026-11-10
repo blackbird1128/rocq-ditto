@@ -42,3 +42,11 @@ val get_proof_terms :
   Rocq_document.t -> (printed_proof_term list, Error.t) result
 
 val get_lemma_and_assoc_axioms : Rocq_document.t -> (lemma list, Error.t) result
+
+type lemma_deps = { name : string; dependencies : string list }
+
+val pp_lemma_deps : Format.formatter -> lemma_deps -> unit
+val lemma_deps_to_json : lemma_deps -> Yojson.Safe.t
+
+val get_lemma_and_assoc_deps :
+  Rocq_document.t -> (lemma_deps list, Error.t) result
