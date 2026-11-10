@@ -92,8 +92,8 @@ let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
           scope = DocScope Statistics.get_lemma_and_assoc_deps;
           empty = [];
           combine = List.append;
-          pp = Statistics.pp_lemma_deps;
-          to_json = Statistics.lemma_deps_to_json;
+          pp = pp_list Statistics.pp_lemma_deps;
+          to_json = list_to_json Statistics.lemma_deps_to_json;
         }
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :
