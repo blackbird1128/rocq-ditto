@@ -35,3 +35,50 @@ let get ~(token : Coq.Limits.Token.t) (state : Coq.State.t)
       | None -> None)
     constant
   |> Error.protect_to_result
+
+type name_ref =
+  | Var of Names.Id.t
+  | Const of Names.Constant.t
+  | Inductive of Names.inductive
+  | Constructor of Names.constructor
+
+let collect_names (term : Constr.t) : name_ref list =
+  let rec aux acc term =
+    match Constr.kind term with
+    | Constr.Rel _ -> acc
+    | Constr.Var name -> Var name :: acc
+    | Constr.Meta _ -> acc
+    | Constr.Evar _ -> acc
+    | Constr.Sort _ -> acc
+    | Constr.Cast (init_term, _, end_term) ->
+        let acc_init = aux acc init_term in
+        aux acc_init end_term
+    | Constr.Prod (_, c1, c2) ->
+        let acc_c1 = aux acc c1 in
+        aux acc_c1 c2
+    | Constr.Lambda (_, c1, c2) ->
+        let acc_c1 = aux acc c1 in
+        aux acc_c1 c2
+    | Constr.LetIn (_, c1, c2, c3) ->
+        let acc_c1 = aux acc c1 in
+        let acc_c2 = aux acc_c1 c2 in
+        aux acc_c2 c3
+    | Constr.App (app_constr, app_args) ->
+        let acc_app = aux acc app_constr in
+        Array.fold_left aux acc_app app_args
+    | Constr.Const (c, _) -> Const c :: acc
+    | Constr.Ind (ind, _) -> Inductive ind :: acc
+    | Constr.Construct (cons, _) -> Constructor cons :: acc
+    | Constr.Case (_, _, _, _, _, _, _) -> acc
+    | Constr.Fix _ -> acc
+    | Constr.CoFix _ -> acc
+    | Constr.Proj (_, _, c) -> aux acc c
+    | Constr.Int _ -> acc
+    | Constr.Float _ -> acc
+    | Constr.String _ -> acc
+    | Constr.Array (_, c_arr, c1, c2) ->
+        let acc_arr = Array.fold_left aux acc c_arr in
+        let acc_c1 = aux acc_arr c1 in
+        aux acc_c1 c2
+  in
+  aux [] term
