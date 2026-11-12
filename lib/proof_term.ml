@@ -42,6 +42,20 @@ type name_ref =
   | Inductive of Names.inductive
   | Constructor of Names.constructor
 
+let pp_name_ref (fmt : Format.formatter) (name_ref : name_ref) : unit =
+  match name_ref with
+  | Var var_name -> Format.fprintf fmt "Var(%s)" (Names.Id.to_string var_name)
+  | Const const_name ->
+      Format.fprintf fmt "Const(%s)" (Names.Constant.debug_to_string const_name)
+  | Inductive (ind_name, _ind_idx) ->
+      Format.fprintf fmt "Inductive(%s)" (Names.MutInd.debug_to_string ind_name)
+  | Constructor ((ind_name, _ind_idx), _idx) ->
+      Format.fprintf fmt "Constructor(%s)"
+        (Names.MutInd.debug_to_string ind_name)
+
+let name_ref_to_string (name_ref : name_ref) : string =
+  Format.asprintf "%a" pp_name_ref name_ref
+
 let collect_names (term : Constr.t) : name_ref list =
   let rec aux acc term =
     match Constr.kind term with

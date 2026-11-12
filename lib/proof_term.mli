@@ -12,4 +12,6 @@ val get :
   Names.Constant.t ->
   (Constr.t option, Error.t) result
 
+val pp_name_ref : Format.formatter -> name_ref -> unit
+val name_ref_to_string : name_ref -> string
 val collect_names : Constr.t -> name_ref list
