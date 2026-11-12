@@ -174,9 +174,9 @@ let pp_printed_proof_term (fmt : Format.formatter)
     ({ name; term } : printed_proof_term) : unit =
   Format.fprintf fmt "@[<hov>{ name = %s;@ term = %s }@]" name term
 
-(* let printed_proof_term_to_json ({ name; term } : printed_proof_term) : *)
-(*     Yojson.Safe.t = *)
-(*   `Assoc [ ("name", `String name); ("term", `String term) ] *)
+let printed_proof_term_to_json ({ name; term } : printed_proof_term) :
+    Yojson.Safe.t =
+  `Assoc [ ("name", `String name); ("term", `String term) ]
 
 let string_of_constr ~(token : Coq.Limits.Token.t) ~(st : Coq.State.t)
     (term : Constr.t) =
@@ -235,6 +235,51 @@ let get_proof_terms (doc : Rocq_document.t) :
 
   Ok proof_tems
 
+type proof_dependencies = {
+  name : string;
+  dependencies : Proof_term.name_ref list;
+}
+
+(* get the lemma names used by a specific proof *)
+let get_proof_used_lemmas (doc : Rocq_document.t) :
+    (proof_dependencies list, Error.t) result =
+  let ( let* ) = Result.bind in
+  let token = Coq.Limits.Token.create () in
+  let* proofs = Rocq_document.get_proofs doc in
+  let* proof_names_and_after_states =
+    List.filter_map
+      (fun (proof : Proof.t) ->
+        let closing_node = proof.closing.node in
+        let proof_name_opt =
+          Option.map Names.Id.to_string (Proof.get_proof_name proof)
+        in
+        Option.map
+          (fun proof_name ->
+            let after_state = Runner.get_state_after doc closing_node token in
+            match after_state with
+            | Ok after_state -> Ok (proof_name, after_state)
+            | Error err -> Error err)
+          proof_name_opt)
+      proofs
+    |> List_utils.result_all
+  in
+
+  List_utils.map_result
+    (fun (proof_name, after_state) ->
+      let* global = Runner.resolve_global ~token after_state proof_name in
+      let* constant =
+        Proof_term.constant_of_global_ref global
+        |> Option_utils.to_result
+             ~none:
+               (Error.string_to_or_error "Couldn't find an associated constant")
+      in
+      let* term_opt = Proof_term.get ~token after_state constant in
+      match term_opt with
+      | Some term ->
+          Ok { name = proof_name; dependencies = Proof_term.collect_names term }
+      | None -> Ok { name = proof_name; dependencies = [] })
+    proof_names_and_after_states
+
 let get_lemma_and_assoc_axioms (doc : Rocq_document.t) :
     (lemma list, Error.t) result =
   let ( let* ) = Result.bind in
@@ -285,71 +330,3 @@ let get_lemma_and_assoc_axioms (doc : Rocq_document.t) :
   in
 
   Ok [ { name = "dummy"; axioms = [] } ]
-
-type lemma_deps = { name : string; dependencies : string list }
-
-let pp_lemma_deps (fmt : Format.formatter) ({ name; dependencies } : lemma_deps)
-    : unit =
-  Format.fprintf fmt "@[<hov>{ name = %s;@ dependencies = %a }@]" name
-    pp_string_list dependencies
-
-let lemma_deps_to_json ({ name; dependencies } : lemma_deps) : Yojson.Safe.t =
-  `Assoc
-    [
-      ("name", `String name);
-      ("dependencies", `List (List.map (fun name -> `String name) dependencies));
-    ]
-
-let printed_proof_term_to_json ({ name; term } : printed_proof_term) :
-    Yojson.Safe.t =
-  `Assoc [ ("name", `String name); ("term", `String term) ]
-
-let get_lemma_and_assoc_deps (doc : Rocq_document.t) :
-    (lemma_deps list, Error.t) result =
-  let ( let* ) = Result.bind in
-  let token = Coq.Limits.Token.create () in
-  let* proofs = Rocq_document.get_proofs doc in
-
-  let* proof_names_and_after_states =
-    List.filter_map
-      (fun (proof : Proof.t) ->
-        let closing_node = proof.closing.node in
-        let proof_name_opt =
-          Option.map Names.Id.to_string (Proof.get_proof_name proof)
-        in
-        Option.map
-          (fun proof_name ->
-            let after_state = Runner.get_state_after doc closing_node token in
-            match after_state with
-            | Ok after_state -> Ok (closing_node, proof_name, after_state)
-            | Error err -> Error err)
-          proof_name_opt)
-      proofs
-    |> List_utils.result_all
-  in
-  let _ =
-    List_utils.map_result
-      (fun ( (closing_node : Syntax_node.t),
-             (proof_name : string),
-             (state : Coq.State.t) ) ->
-        let* command_node =
-          Syntax_node.syntax_node_of_string
-            ("Print Assumptions " ^ proof_name ^ ".")
-            closing_node.range.end_
-        in
-        let diagnostics_err =
-          Runner.run_node_with_diagnostics token state command_node
-        in
-        match diagnostics_err with
-        | Ok (_, [ diag ]) ->
-            let str_repr = Pp.string_of_ppcmds diag.message in
-            Printf.eprintf "%s" str_repr;
-            Ok str_repr
-        | Ok (_, _) ->
-            Error.string_to_or_error
-              "Parsed more than a single diagnostic from Print assumptions."
-        | Error (err, _) -> Error err)
-      proof_names_and_after_states
-  in
-
-  Ok [ { name = "dummy"; dependencies = [] } ]
