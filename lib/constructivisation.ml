@@ -187,7 +187,7 @@ let replace_contexts (doc : Rocq_document.t) :
   let* context_neutral_dimensionless_node =
     Syntax_node.syntax_node_of_string
       "Context {Pred : predicates}\n\
-      \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
+      \        {ITn  : independent_Tarski_neutral Pred}\n\
       \        {ES   : Eq_stability Pred ITn}\n\
       \        {Dim  : dimension}\n\
       \        {ITnD : independent_Tarski_nD Pred ITn (incr (incr Dim))}."
@@ -198,7 +198,7 @@ let replace_contexts (doc : Rocq_document.t) :
   let* context_tarski_2d_node =
     Syntax_node.syntax_node_of_string
       "Context {Pred : predicates}\n\
-      \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
+      \        {ITn  : independent_Tarski_neutral Pred}\n\
       \        {ES   : Eq_stability Pred ITn}\n\
       \        {IT2D : independent_Tarski_nD Pred ITn (incr (incr Dim0))}."
       Code_point.dummy
@@ -207,7 +207,7 @@ let replace_contexts (doc : Rocq_document.t) :
   let* context_tarski_euclidean =
     Syntax_node.syntax_node_of_string
       "Context {Pred : predicates}\n\
-      \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
+      \        {ITn  : independent_Tarski_neutral Pred}\n\
       \        {ES   : Eq_stability Pred ITn}\n\
       \        {Dim  : dimension}\n\
       \        {ITnD : independent_Tarski_nD Pred ITn (incr (incr Dim))}\n\
@@ -218,7 +218,7 @@ let replace_contexts (doc : Rocq_document.t) :
   let* context_tarski_2d_euclidean =
     Syntax_node.syntax_node_of_string
       "Context {Pred : predicates}\n\
-      \        {ITn  : independent_Tarski_neutral_dimensionless Pred}\n\
+      \        {ITn  : independent_Tarski_neutral Pred}\n\
       \        {ES   : Eq_stability Pred ITn}\n\
       \        {IT2D : independent_Tarski_nD Pred ITn (incr (incr Dim0))}\n\
       \        {TE   : independent_Tarski_euclidean Pred ITn}."
@@ -253,11 +253,9 @@ let replace_contexts (doc : Rocq_document.t) :
         let context, nodes = group in
         let context = List.sort_uniq String.compare context in
 
-        let is_neutral_dimensionless =
-          List.mem "Tarski_neutral_dimensionless" context
-          || List.mem
-               "Tarski_neutral_dimensionless_with_decidable_point_equality"
-               context
+        let is_neutral_with_maybe_lower_dim =
+          List.mem "Tarski_neutral" context
+          || List.mem "Tarski_neutral_dec" context
         in
         let is_2d = List.mem "Tarski_2D" context in
         let is_euclidean = List.mem "Tarski_euclidean" context in
@@ -269,7 +267,7 @@ let replace_contexts (doc : Rocq_document.t) :
           Ok (replace_group_with_new_node nodes context_tarski_euclidean)
         else if is_2d then
           Ok (replace_group_with_new_node nodes context_tarski_2d_node)
-        else if is_neutral_dimensionless then
+        else if is_neutral_with_maybe_lower_dim then
           Ok
             (replace_group_with_new_node nodes
                context_neutral_dimensionless_node)
