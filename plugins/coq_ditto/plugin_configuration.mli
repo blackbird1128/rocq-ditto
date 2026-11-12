@@ -27,7 +27,6 @@ type statistic_kind =
   | ListStableLemmas
   | ListLemmaAndAxioms
   | GetProofTerms
-  | ListLemmaAndDependencies
 [@@deriving show { with_path = false }, enum]
 
 type dependencies_action =

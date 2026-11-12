@@ -85,16 +85,6 @@ let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
           pp = pp_list Statistics.pp_printed_proof_term;
           to_json = list_to_json Statistics.printed_proof_term_to_json;
         }
-  | ListLemmaAndDependencies ->
-      Statistics.Statistic
-        {
-          name = "list each lemma and their dependencies";
-          scope = DocScope Statistics.get_lemma_and_assoc_deps;
-          empty = [];
-          combine = List.append;
-          pp = pp_list Statistics.pp_lemma_deps;
-          to_json = list_to_json Statistics.lemma_deps_to_json;
-        }
 
 let wrap_to_treeify (doc : Rocq_document.t) (x : Proof.t) :
     (Syntax_node.t Nary_tree.t, Error.t) result =
