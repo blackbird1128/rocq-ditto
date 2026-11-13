@@ -56,8 +56,19 @@ let pp_name_ref (fmt : Format.formatter) (name_ref : name_ref) : unit =
 let name_ref_to_string (name_ref : name_ref) : string =
   Format.asprintf "%a" pp_name_ref name_ref
 
+let name_ref_to_json (name_ref : name_ref) : Yojson.Safe.t =
+  match name_ref with
+  | Var var_name -> `Assoc [ ("var", `String (Names.Id.to_string var_name)) ]
+  | Const const_name ->
+      `Assoc [ ("const", `String (Names.Constant.debug_to_string const_name)) ]
+  | Inductive (ind_name, _ind_idx) ->
+      `Assoc [ ("inductive", `String (Names.MutInd.debug_to_string ind_name)) ]
+  | Constructor ((ind_name, _ind_idx), _idx) ->
+      `Assoc
+        [ ("constructor", `String (Names.MutInd.debug_to_string ind_name)) ]
+
 let collect_names (term : Constr.t) : name_ref list =
-  let rec aux acc term =
+  let rec aux (acc : name_ref list) (term : Constr.t) =
     match Constr.kind term with
     | Constr.Rel _ -> acc
     | Constr.Var name -> Var name :: acc
@@ -95,4 +106,5 @@ let collect_names (term : Constr.t) : name_ref list =
         let acc_c1 = aux acc_arr c1 in
         aux acc_c1 c2
   in
-  aux [] term
+  let acc = aux [] term in
+  List_utils.dedup acc
