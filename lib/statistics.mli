@@ -48,5 +48,8 @@ type proof_dependencies = {
   dependencies : Proof_term.name_ref list;
 }
 
-val get_proof_used_lemmas :
+val pp_proof_dependencies : Format.formatter -> proof_dependencies -> unit
+val proof_dependencies_to_json : proof_dependencies -> Yojson.Safe.t
+
+val get_lemma_and_assoc_dependencies :
   Rocq_document.t -> (proof_dependencies list, Error.t) result

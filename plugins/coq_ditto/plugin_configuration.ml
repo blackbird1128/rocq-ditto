@@ -39,6 +39,7 @@ type statistic_kind =
   | ListLemmaNames
   | ListStableLemmas
   | ListLemmaAndAxioms
+  | ListLemmaAndDependencies
   | GetProofTerms
 [@@deriving show { with_path = false }, enum]
 

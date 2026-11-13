@@ -83,15 +83,14 @@ let get_lemma_names (doc : Rocq_document.t) : (string list, Error.t) result =
        (fun p -> Option.map Names.Id.to_string (Proof.get_proof_name p))
        proofs)
 
-let pp_string_list (fmt : Format.formatter) (l : string list) : unit =
+let pp_list (fmt : Format.formatter) (pt : Format.formatter -> 'a -> unit)
+    (l : 'a list) : unit =
   Format.fprintf fmt "@[<hov>[%a]@]"
-    (Format.pp_print_list
-       ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
-       Format.pp_print_string)
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ") pt)
     l
 
 let pp_lemma_names (fmt : Format.formatter) (names : string list) : unit =
-  pp_string_list fmt names
+  pp_list fmt Format.pp_print_string names
 
 let lemma_names_to_json (names : string list) : Yojson.Safe.t =
   `List (List.map (fun name -> `String name) names)
@@ -240,8 +239,24 @@ type proof_dependencies = {
   dependencies : Proof_term.name_ref list;
 }
 
+let pp_dep_list (fmt : Format.formatter) (dep_list : Proof_term.name_ref list) =
+  pp_list fmt Proof_term.pp_name_ref dep_list
+
+let pp_proof_dependencies (fmt : Format.formatter)
+    ({ name; dependencies } : proof_dependencies) : unit =
+  Format.fprintf fmt "@[<hov>{ name = %s; dependencies = %a}@]" name pp_dep_list
+    dependencies
+
+let proof_dependencies_to_json ({ name; dependencies } : proof_dependencies) :
+    Yojson.Safe.t =
+  `Assoc
+    [
+      ("name", `String name);
+      ("dependencies", `List (List.map Proof_term.name_ref_to_json dependencies));
+    ]
+
 (* get the lemma names used by a specific proof *)
-let get_proof_used_lemmas (doc : Rocq_document.t) :
+let get_lemma_and_assoc_dependencies (doc : Rocq_document.t) :
     (proof_dependencies list, Error.t) result =
   let ( let* ) = Result.bind in
   let token = Coq.Limits.Token.create () in
