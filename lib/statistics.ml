@@ -255,7 +255,7 @@ let proof_dependencies_to_json ({ name; dependencies } : proof_dependencies) :
       ("dependencies", `List (List.map Proof_term.name_ref_to_json dependencies));
     ]
 
-(* get the lemma names used by a specific proof *)
+(* get the dependencies used by a specific proof *)
 let get_lemma_and_assoc_dependencies (doc : Rocq_document.t) :
     (proof_dependencies list, Error.t) result =
   let ( let* ) = Result.bind in
@@ -294,6 +294,38 @@ let get_lemma_and_assoc_dependencies (doc : Rocq_document.t) :
           Ok { name = proof_name; dependencies = Proof_term.collect_names term }
       | None -> Ok { name = proof_name; dependencies = [] })
     proof_names_and_after_states
+
+let get_lemma_requirement_in_file (doc : Rocq_document.t) :
+    (proof_dependencies list, Error.t) result =
+  let open Proof_term in
+  let ( let* ) = Result.bind in
+
+  let* dependencies = get_lemma_and_assoc_dependencies doc in
+  let filename = Filename.basename doc.filename in
+  let file_modname = Filename.chop_extension filename in
+
+  Ok
+    (List.map
+       (fun { name; dependencies } ->
+         {
+           name;
+           dependencies =
+             List.filter
+               (function
+                 | Const constant_name ->
+                     let modpath = Names.Constant.modpath constant_name in
+                     let dirpath = Names.ModPath.dp modpath in
+
+                     let modname =
+                       List.hd (Names.DirPath.repr dirpath)
+                       |> Names.Id.to_string
+                     in
+
+                     String.equal file_modname modname
+                 | _ -> false)
+               dependencies;
+         })
+       dependencies)
 
 let get_lemma_and_assoc_axioms (doc : Rocq_document.t) :
     (lemma list, Error.t) result =

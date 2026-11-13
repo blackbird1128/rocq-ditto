@@ -85,6 +85,16 @@ let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
           pp = pp_list Statistics.pp_proof_dependencies;
           to_json = list_to_json Statistics.proof_dependencies_to_json;
         }
+  | ListLemmaAndRequirements ->
+      Statistics.Statistic
+        {
+          name = "list each lemma and their in file dependencies";
+          scope = DocScope Statistics.get_lemma_requirement_in_file;
+          empty = [];
+          combine = List.append;
+          pp = pp_list Statistics.pp_proof_dependencies;
+          to_json = list_to_json Statistics.proof_dependencies_to_json;
+        }
   | GetProofTerms ->
       Statistics.Statistic
         {

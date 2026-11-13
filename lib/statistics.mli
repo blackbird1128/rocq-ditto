@@ -53,3 +53,6 @@ val proof_dependencies_to_json : proof_dependencies -> Yojson.Safe.t
 
 val get_lemma_and_assoc_dependencies :
   Rocq_document.t -> (proof_dependencies list, Error.t) result
+
+val get_lemma_requirement_in_file :
+  Rocq_document.t -> (proof_dependencies list, Error.t) result
