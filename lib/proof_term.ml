@@ -40,7 +40,6 @@ type name_ref =
   | Var of Names.Id.t
   | Const of Names.Constant.t
   | Inductive of Names.inductive
-  | Constructor of Names.constructor
 
 let pp_name_ref (fmt : Format.formatter) (name_ref : name_ref) : unit =
   match name_ref with
@@ -49,9 +48,6 @@ let pp_name_ref (fmt : Format.formatter) (name_ref : name_ref) : unit =
       Format.fprintf fmt "Const(%s)" (Names.Constant.debug_to_string const_name)
   | Inductive (ind_name, _ind_idx) ->
       Format.fprintf fmt "Inductive(%s)" (Names.MutInd.debug_to_string ind_name)
-  | Constructor ((ind_name, _ind_idx), _idx) ->
-      Format.fprintf fmt "Constructor(%s)"
-        (Names.MutInd.debug_to_string ind_name)
 
 let name_ref_to_string (name_ref : name_ref) : string =
   Format.asprintf "%a" pp_name_ref name_ref
@@ -63,48 +59,71 @@ let name_ref_to_json (name_ref : name_ref) : Yojson.Safe.t =
       `Assoc [ ("const", `String (Names.Constant.debug_to_string const_name)) ]
   | Inductive (ind_name, _ind_idx) ->
       `Assoc [ ("inductive", `String (Names.MutInd.debug_to_string ind_name)) ]
-  | Constructor ((ind_name, _ind_idx), _idx) ->
-      `Assoc
-        [ ("constructor", `String (Names.MutInd.debug_to_string ind_name)) ]
 
 let collect_names (term : Constr.t) : name_ref list =
-  let rec aux (acc : name_ref list) (term : Constr.t) =
+  let rec aux_invert (acc : name_ref list) (invert : Constr.case_invert) =
+    match invert with
+    | Constr.NoInvert -> acc
+    | Constr.CaseInvert { indices } -> Array.fold_left aux_constr acc indices
+  and aux_constr (acc : name_ref list) (term : Constr.t) =
     match Constr.kind term with
     | Constr.Rel _ -> acc
     | Constr.Var name -> Var name :: acc
     | Constr.Meta _ -> acc
-    | Constr.Evar _ -> acc
+    | Constr.Evar (_, args) -> SList.Skip.fold aux_constr acc args
     | Constr.Sort _ -> acc
     | Constr.Cast (init_term, _, end_term) ->
-        let acc_init = aux acc init_term in
-        aux acc_init end_term
+        let acc_init = aux_constr acc init_term in
+        aux_constr acc_init end_term
     | Constr.Prod (_, c1, c2) ->
-        let acc_c1 = aux acc c1 in
-        aux acc_c1 c2
-    | Constr.Lambda (_, c1, c2) ->
-        let acc_c1 = aux acc c1 in
-        aux acc_c1 c2
+        let acc_c1 = aux_constr acc c1 in
+        aux_constr acc_c1 c2
+    | Constr.Lambda (_, domain, body) ->
+        let acc_domain = aux_constr acc domain in
+        aux_constr acc_domain body
     | Constr.LetIn (_, c1, c2, c3) ->
-        let acc_c1 = aux acc c1 in
-        let acc_c2 = aux acc_c1 c2 in
-        aux acc_c2 c3
+        let acc_c1 = aux_constr acc c1 in
+        let acc_c2 = aux_constr acc_c1 c2 in
+        aux_constr acc_c2 c3
     | Constr.App (app_constr, app_args) ->
-        let acc_app = aux acc app_constr in
-        Array.fold_left aux acc_app app_args
+        let acc_app = aux_constr acc app_constr in
+        Array.fold_left aux_constr acc_app app_args
     | Constr.Const (c, _) -> Const c :: acc
     | Constr.Ind (ind, _) -> Inductive ind :: acc
-    | Constr.Construct (cons, _) -> Constructor cons :: acc
-    | Constr.Case (_, _, _, _, _, _, _) -> acc
-    | Constr.Fix _ -> acc
-    | Constr.CoFix _ -> acc
-    | Constr.Proj (_, _, c) -> aux acc c
+    | Constr.Construct (cons, _) ->
+        let ind = Names.inductive_of_constructor cons in
+        Inductive ind :: acc
+    | Constr.Case
+        ( info,
+          _univ,
+          params,
+          ((_, pred_return_type), _),
+          invert,
+          scrutinee,
+          branches ) ->
+        let acc = Inductive info.ci_ind :: acc in
+        let acc_params = Array.fold_left aux_constr acc params in
+        let acc_pred_return_type = aux_constr acc_params pred_return_type in
+        let acc_invert = aux_invert acc_pred_return_type invert in
+        let acc_scrutinee = aux_constr acc_invert scrutinee in
+        Array.fold_left
+          (fun acc (_binder, constr) -> aux_constr acc constr)
+          acc_scrutinee branches
+    | Constr.Fix (_, (_names, types, bodies)) ->
+        let acc_types = Array.fold_left aux_constr acc types in
+        Array.fold_left aux_constr acc_types bodies
+    | Constr.CoFix (_, (_names, types, bodies)) ->
+        let acc_types = Array.fold_left aux_constr acc types in
+        Array.fold_left aux_constr acc_types bodies
+    | Constr.Proj (proj, _, c) ->
+        aux_constr (Const (Names.Projection.constant proj) :: acc) c
     | Constr.Int _ -> acc
     | Constr.Float _ -> acc
     | Constr.String _ -> acc
     | Constr.Array (_, c_arr, c1, c2) ->
-        let acc_arr = Array.fold_left aux acc c_arr in
-        let acc_c1 = aux acc_arr c1 in
-        aux acc_c1 c2
+        let acc_arr = Array.fold_left aux_constr acc c_arr in
+        let acc_c1 = aux_constr acc_arr c1 in
+        aux_constr acc_c1 c2
   in
-  let acc = aux [] term in
+  let acc = aux_constr [] term in
   List_utils.dedup acc
