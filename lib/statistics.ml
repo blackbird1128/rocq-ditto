@@ -89,8 +89,8 @@ let pp_list (fmt : Format.formatter) (pt : Format.formatter -> 'a -> unit)
     (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ") pt)
     l
 
-let pp_lemma_names (fmt : Format.formatter) (names : string list) : unit =
-  pp_list fmt Format.pp_print_string names
+let pp_string_list (fmt : Format.formatter) (l : string list) : unit =
+  pp_list fmt Format.pp_print_string l
 
 let lemma_names_to_json (names : string list) : Yojson.Safe.t =
   `List (List.map (fun name -> `String name) names)
@@ -98,7 +98,7 @@ let lemma_names_to_json (names : string list) : Yojson.Safe.t =
 type lemma = { name : string; axioms : string list }
 
 let pp_lemma (fmt : Format.formatter) ({ name; axioms } : lemma) : unit =
-  Format.fprintf fmt "@[<hov>{ name = %s;@ axioms = %a }@]" name pp_lemma_names
+  Format.fprintf fmt "@[<hov>{ name = %s;@ axioms = %a }@]" name pp_string_list
     axioms
 
 let lemma_to_json ({ name; axioms } : lemma) : Yojson.Safe.t =
@@ -295,37 +295,49 @@ let get_lemma_and_assoc_dependencies (doc : Rocq_document.t) :
       | None -> Ok { name = proof_name; dependencies = [] })
     proof_names_and_after_states
 
+type proof_requirements = { name : string; requirements : string list }
+
+let pp_proof_requirements (fmt : Format.formatter)
+    ({ name; requirements } : proof_requirements) : unit =
+  Format.fprintf fmt "@[<hov>{ name = %s; requirements = %a}@]" name
+    pp_string_list requirements
+
+let proof_requirements_to_json ({ name; requirements } : proof_requirements) :
+    Yojson.Safe.t =
+  `Assoc
+    [
+      ("name", `String name);
+      ("requirements", `List (List.map (fun r -> `String r) requirements));
+    ]
+
+let requirement_in_file ~(file_modname : string)
+    (dependency : Proof_term.name_ref) : string option =
+  match dependency with
+  | Proof_term.Const constant -> (
+      let dirpath = Names.Constant.modpath constant |> Names.ModPath.dp in
+      match Names.DirPath.repr dirpath with
+      | id :: _ when String.equal file_modname (Names.Id.to_string id) ->
+          Some (Names.Constant.to_string constant)
+      | _ -> None)
+  | _ -> None
+
+let requirements_in_file ~(file_modname : string)
+    ({ name; dependencies } : proof_dependencies) : proof_requirements =
+  {
+    name;
+    requirements =
+      List.filter_map (requirement_in_file ~file_modname) dependencies;
+  }
+
 let get_lemma_requirement_in_file (doc : Rocq_document.t) :
-    (proof_dependencies list, Error.t) result =
+    (proof_requirements list, Error.t) result =
   let open Proof_term in
   let ( let* ) = Result.bind in
-
   let* dependencies = get_lemma_and_assoc_dependencies doc in
-  let filename = Filename.basename doc.filename in
-  let file_modname = Filename.chop_extension filename in
-
-  Ok
-    (List.map
-       (fun { name; dependencies } ->
-         {
-           name;
-           dependencies =
-             List.filter
-               (function
-                 | Const constant_name ->
-                     let modpath = Names.Constant.modpath constant_name in
-                     let dirpath = Names.ModPath.dp modpath in
-
-                     let modname =
-                       List.hd (Names.DirPath.repr dirpath)
-                       |> Names.Id.to_string
-                     in
-
-                     String.equal file_modname modname
-                 | _ -> false)
-               dependencies;
-         })
-       dependencies)
+  let file_modname =
+    Filename.basename doc.filename |> Filename.chop_extension
+  in
+  Ok (List.map (requirements_in_file ~file_modname) dependencies)
 
 let get_lemma_and_assoc_axioms (doc : Rocq_document.t) :
     (lemma list, Error.t) result =

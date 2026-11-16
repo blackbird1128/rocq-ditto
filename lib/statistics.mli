@@ -54,5 +54,10 @@ val proof_dependencies_to_json : proof_dependencies -> Yojson.Safe.t
 val get_lemma_and_assoc_dependencies :
   Rocq_document.t -> (proof_dependencies list, Error.t) result
 
+type proof_requirements = { name : string; requirements : string list }
+
+val pp_proof_requirements : Format.formatter -> proof_requirements -> unit
+val proof_requirements_to_json : proof_requirements -> Yojson.Safe.t
+
 val get_lemma_requirement_in_file :
-  Rocq_document.t -> (proof_dependencies list, Error.t) result
+  Rocq_document.t -> (proof_requirements list, Error.t) result

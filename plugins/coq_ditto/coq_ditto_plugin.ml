@@ -92,8 +92,8 @@ let statistic_kind_to_statistic (kind : statistic_kind) : Statistics.packed =
           scope = DocScope Statistics.get_lemma_requirement_in_file;
           empty = [];
           combine = List.append;
-          pp = pp_list Statistics.pp_proof_dependencies;
-          to_json = list_to_json Statistics.proof_dependencies_to_json;
+          pp = pp_list Statistics.pp_proof_requirements;
+          to_json = list_to_json Statistics.proof_requirements_to_json;
         }
   | GetProofTerms ->
       Statistics.Statistic
