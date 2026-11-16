@@ -16,3 +16,4 @@ val pp_name_ref : Format.formatter -> name_ref -> unit
 val name_ref_to_string : name_ref -> string
 val name_ref_to_json : name_ref -> Yojson.Safe.t
 val collect_names : Constr.t -> name_ref list
+val constant_name_in_module : module_name:string -> name_ref -> string option

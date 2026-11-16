@@ -36,7 +36,7 @@ let get ~(token : Coq.Limits.Token.t) (state : Coq.State.t)
     constant
   |> Error.protect_to_result
 
-(* convience option for now, not sure if this is the right place *)
+(* convenience option for now, not sure if this is the right place *)
 let of_proof (doc : Rocq_document.t) (proof : Proof.t) :
     (Constr.t option, Error.t) result =
   let ( let* ) = Result.bind in
@@ -149,3 +149,15 @@ let collect_names (term : Constr.t) : name_ref list =
   in
   let acc = aux_constr [] term in
   List_utils.dedup acc
+
+(* convenience for now, not sure where to move it *)
+let constant_name_in_module ~(module_name : string) (name_ref : name_ref) :
+    string option =
+  match name_ref with
+  | Const constant -> (
+      let dirpath = Names.Constant.modpath constant |> Names.ModPath.dp in
+      match Names.DirPath.repr dirpath with
+      | id :: _ when String.equal module_name (Names.Id.to_string id) ->
+          Some (Names.Constant.to_string constant)
+      | _ -> None)
+  | _ -> None

@@ -310,28 +310,18 @@ let proof_requirements_to_json ({ name; requirements } : proof_requirements) :
       ("requirements", `List (List.map (fun r -> `String r) requirements));
     ]
 
-let requirement_in_file ~(file_modname : string)
-    (dependency : Proof_term.name_ref) : string option =
-  match dependency with
-  | Proof_term.Const constant -> (
-      let dirpath = Names.Constant.modpath constant |> Names.ModPath.dp in
-      match Names.DirPath.repr dirpath with
-      | id :: _ when String.equal file_modname (Names.Id.to_string id) ->
-          Some (Names.Constant.to_string constant)
-      | _ -> None)
-  | _ -> None
-
 let requirements_in_file ~(file_modname : string)
     ({ name; dependencies } : proof_dependencies) : proof_requirements =
   {
     name;
     requirements =
-      List.filter_map (requirement_in_file ~file_modname) dependencies;
+      List.filter_map
+        (Proof_term.constant_name_in_module ~module_name:file_modname)
+        dependencies;
   }
 
 let get_lemma_requirement_in_file (doc : Rocq_document.t) :
     (proof_requirements list, Error.t) result =
-  let open Proof_term in
   let ( let* ) = Result.bind in
   let* dependencies = get_lemma_and_assoc_dependencies doc in
   let file_modname =
