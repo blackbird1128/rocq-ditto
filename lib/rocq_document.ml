@@ -194,6 +194,24 @@ let split_around_id (target_id : Uuidm.t) (node_list : Syntax_node.t list) :
     (Syntax_node.t list * Syntax_node.t * Syntax_node.t list) option =
   List_utils.split_around (fun x -> Uuidm.equal x.id target_id) node_list
 
+let sections_of_node (doc : t) (node : Syntax_node.t) :
+    (Names.Id.t list, Error.t) result =
+  let rec aux sec_acc (nodes : Syntax_node.t list) =
+    match nodes with
+    | [] -> sec_acc
+    | n :: rest -> (
+        match Syntax_node.synterp_expr n with
+        | Some (VernacBeginSection ident) -> aux (ident.v :: sec_acc) rest
+        | Some (VernacEndSegment ident) -> (
+            match sec_acc with
+            | cur_sec :: outer when Names.Id.equal cur_sec ident.v ->
+                aux outer rest
+            | _ -> aux sec_acc rest)
+        | _ -> aux sec_acc rest)
+  in
+  let* before, _ = split_at_id node.id doc in
+  Ok (aux [] before)
+
 let shift_block_checked ~(line : int) ~(char : int)
     ?(pred : Syntax_node.t -> bool = fun _ -> true) (nodes : Syntax_node.t list)
     : (Syntax_node.t list, Error.t) result =

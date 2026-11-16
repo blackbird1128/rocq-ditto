@@ -52,6 +52,8 @@ val split_at_id :
     [target_id]. [target_id] node is excluded, and if not found, return an Error
 *)
 
+val sections_of_node : t -> Syntax_node.t -> (Names.Id.t list, Error.t) result
+
 val remove_node_with_id :
   Uuidm.t -> ?remove_method:remove_method -> t -> (t, Error.t) result
 (** Remove a node with a specific ID from the document.
