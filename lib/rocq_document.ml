@@ -128,6 +128,22 @@ let dump_to_string (doc : t) : (string, Error.t) result =
   (* For now, this is maintained by every other functions *)
   Ok doc.document_repr
 
+let parse_template ~(root_state : Coq.State.t) (filename : string) :
+    (t, Error.t) result =
+  let raw = In_channel.with_open_bin filename In_channel.input_all in
+  let* asts = Syntax_node.generate_ast raw in
+  let _, reversed_nodes =
+    List.fold_left
+      (fun (position, nodes) ast ->
+        let node = Syntax_node.of_coq_ast (Coq.Ast.of_coq ast) position in
+        let next = Code_point.advance_by_text node.range.end_ "\n" in
+        (next, node :: nodes))
+      (Code_point.origin, []) asts
+  in
+  let elements = List.rev reversed_nodes in
+  let* document_repr = dump_elements_to_string elements in
+  Ok { filename; elements; document_repr; root_state }
+
 let element_with_id_opt (element_id : Uuidm.t) (doc : t) : Syntax_node.t option
     =
   List.find_opt (fun elem -> Uuidm.equal elem.id element_id) doc.elements

@@ -18,6 +18,12 @@ val parse_document : Doc.t -> (t, Error.t) result
     comments of a Rocq document, merge them with the sentences of the document
     and returns [Ok doc] if the comments are correctly parsed *)
 
+val parse_template : root_state:Coq.State.t -> string -> (t, Error.t) result
+(** Parse a .v document to a Rocq document. [parse_template root_state filename]
+    only parse the document, and doesn't execute any node inside. As such, the
+    output document may not execute properly in context, even if it parses
+    correctly *)
+
 val element_with_id_opt : Uuidm.t -> t -> Syntax_node.t option
 (** Find an element with a specific ID in a document.
     [element_with_id_opt element_id doc] returns [Some element] if an element
