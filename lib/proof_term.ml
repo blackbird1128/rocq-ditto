@@ -36,6 +36,28 @@ let get ~(token : Coq.Limits.Token.t) (state : Coq.State.t)
     constant
   |> Error.protect_to_result
 
+(* convience option for now, not sure if this is the right place *)
+let of_proof (doc : Rocq_document.t) (proof : Proof.t) :
+    (Constr.t option, Error.t) result =
+  let ( let* ) = Result.bind in
+  let token = Coq.Limits.Token.create () in
+  let* after_state = Runner.get_state_after doc proof.closing.node token in
+  let proof_name_opt =
+    Option.map Names.Id.to_string (Proof.get_proof_name proof)
+  in
+  match proof_name_opt with
+  | Some proof_name ->
+      let* global = Runner.resolve_global ~token after_state proof_name in
+      let* constant =
+        constant_of_global_ref global
+        |> Option_utils.to_result
+             ~none:
+               (Error.string_to_or_error "Couldn't find an associated constant")
+      in
+
+      get ~token after_state constant
+  | None -> Ok None
+
 type name_ref =
   | Var of Names.Id.t
   | Const of Names.Constant.t

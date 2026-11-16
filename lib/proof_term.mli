@@ -11,6 +11,7 @@ val get :
   Names.Constant.t ->
   (Constr.t option, Error.t) result
 
+val of_proof : Rocq_document.t -> Proof.t -> (Constr.t option, Error.t) result
 val pp_name_ref : Format.formatter -> name_ref -> unit
 val name_ref_to_string : name_ref -> string
 val name_ref_to_json : name_ref -> Yojson.Safe.t
