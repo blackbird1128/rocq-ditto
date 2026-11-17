@@ -1,11 +1,5 @@
 open Transforming_step
 
-let split_prefix (prefix : string) (s : string) =
-  let plen = String.length prefix in
-  if String.length s >= plen && String.sub s 0 plen = prefix then
-    Some (prefix, String.sub s plen (String.length s - plen))
-  else None
-
 let rocq_to_lean (doc : Rocq_document.t) :
     (Transforming_step.t list, Error.t) result =
   (* let proofs = Rocq_document.get_proofs doc in *)
@@ -31,7 +25,8 @@ let rocq_to_lean (doc : Rocq_document.t) :
                         let qualid_str = Libnames.string_of_qualid qualid in
                         Logs.debug (fun m -> m "qualid_str: %s" qualid_str);
                         let _, postfix =
-                          split_prefix "GeoCoq." qualid_str |> Option.get
+                          String_utils.split_prefix ~prefix:"GeoCoq." qualid_str
+                          |> Option.get
                         in
                         let lean_require_str =
                           "import GeoLean.theories." ^ postfix
