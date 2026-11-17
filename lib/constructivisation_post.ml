@@ -158,18 +158,55 @@ let proof_replace_to_steps (orig_doc : Rocq_document.t) (pr : proof_replace) :
 
     let name_refs = Proof_term.collect_names new_proof_proof_term in
 
-    let previous_proofs =
+    let previous_proof_names =
       List.filter_map
         (Proof_term.constant_name_in_module ~module_name:orig_doc_modname)
         name_refs
     in
+
     Printf.eprintf "previous_proofs:\n";
-    List.iter (fun p -> Printf.eprintf "%s\n" p) previous_proofs;
+    List.iter (fun p -> Printf.eprintf "%s\n" p) previous_proof_names;
+
+    let* orig_doc_proofs = Rocq_document.get_proofs orig_doc in
+
+    let previous_proofs =
+      get_proofs_named orig_doc_proofs previous_proof_names
+    in
+    (* here the previous proofs are ordered so the last one is the anchor point *)
+    let* anchor_node =
+      match List_utils.last previous_proofs with
+      | Some last_proof -> Ok last_proof.closing.node
+      | None ->
+          List_utils.last orig_doc.elements
+          |> Option_utils.to_result
+               ~none:(Error.string_to_or_error "should not happen 3")
+    in
+    Printf.eprintf "anchor node: %s\n" (Syntax_node.repr anchor_node);
 
     let* attach_new_require_steps =
       List_utils.concat_map_result
         (fun node -> attach_node_after_requires orig_doc node)
         pr_doc_non_self_imports
+    in
+
+    let aux_proofs_attach_steps, replacement_anchor_id =
+      let steps_rev, anchor_id =
+        List.fold_left
+          (fun (steps_rev, anchor_id) (node : Syntax_node.t) ->
+            (Attach (node, LineAfter, anchor_id) :: steps_rev, node.id))
+          ([], anchor_node.id) pr_aux_proofs_nodes
+      in
+      (List.rev steps_rev, anchor_id)
+    in
+
+    let replacement_proof_attach_steps =
+      let steps_rev, _ =
+        List.fold_left
+          (fun (steps_rev, anchor_id) (node : Syntax_node.t) ->
+            (Attach (node, LineAfter, anchor_id) :: steps_rev, node.id))
+          ([], replacement_anchor_id) (Proof.all_nodes pr_proof)
+      in
+      List.rev steps_rev
     in
 
     let remove_original_proof_steps =
@@ -178,7 +215,9 @@ let proof_replace_to_steps (orig_doc : Rocq_document.t) (pr : proof_replace) :
         (Proof.all_nodes replaced_proof)
     in
 
-    Ok (attach_new_require_steps @ remove_original_proof_steps))
+    Ok
+      (attach_new_require_steps @ aux_proofs_attach_steps
+     @ replacement_proof_attach_steps @ remove_original_proof_steps))
   else Ok []
 
 let constructivisation_post (doc : Rocq_document.t) :
