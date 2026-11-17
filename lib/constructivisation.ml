@@ -49,18 +49,6 @@ let require_prefix_rules : (string * string) list =
       "GeoCoq.Constructive.Prelude.parallel_postulates" );
   ]
 
-let rebuild_require_node (x : Syntax_node.t)
-    (option_libname : Libnames.qualid option)
-    (export_with_cats_opt : export_with_cats option)
-    (libnames_import_list : (Libnames.qualid * import_filter_expr) list) :
-    (Syntax_node.t, Error.t) result =
-  let new_expr =
-    VernacSynterp
-      (VernacRequire (option_libname, export_with_cats_opt, libnames_import_list))
-  in
-  let new_vernac_control = Syntax_node.mk_vernac_control new_expr in
-  Ok (Syntax_node.of_coq_ast (Coq.Ast.of_coq new_vernac_control) x.range.start)
-
 (** replace require: Only replaces the first import as the target repository
     only has this shape*)
 let replace_require (x : Syntax_node.t) :
@@ -80,10 +68,16 @@ let replace_require (x : Syntax_node.t) :
           with
           | None -> Ok []
           | Some new_libnames_import_list ->
-              let* new_node =
-                rebuild_require_node x option_libname export_with_cats_opt
-                  new_libnames_import_list
+              let new_node =
+                Syntax_node.of_vernacexpr
+                  (VernacSynterp
+                     (VernacRequire
+                        ( option_libname,
+                          export_with_cats_opt,
+                          new_libnames_import_list )))
+                  x.range.start
               in
+
               Ok [ Replace (x.id, new_node) ]))
   | _ -> Ok []
 
