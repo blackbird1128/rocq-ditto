@@ -30,6 +30,7 @@ type transformation_kind =
   | IdProofTransformation
   | IdDocTransformation
   | ConstructiviseGeocoq
+  | ConstructivisationPost
   | RocqToLean
 [@@deriving show { with_path = false }, enum]
 

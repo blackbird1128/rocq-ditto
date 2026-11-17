@@ -136,6 +136,8 @@ let transformation_kind_to_scoped_function (kind : transformation_kind) :
   | RemoveProofWith -> ProofScope Transformations.remove_proof_with
   | RemoveProofWithDoc -> DocScope Transformations.remove_proof_with_doc
   | ConstructiviseGeocoq -> DocScope Constructivisation.constructivise_doc
+  | ConstructivisationPost ->
+      DocScope Constructivisation_post.constructivisation_post
   | RocqToLean -> DocScope Rocq_to_lean.rocq_to_lean
   | IdProofTransformation -> ProofScope Transformations.id_transform
   | IdDocTransformation -> DocScope (fun _ -> Ok [])

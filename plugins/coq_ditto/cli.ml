@@ -48,8 +48,7 @@ type operation =
   | TransformDocument of document_options
   | TransformProject of project_options
 
-let resolve (args : transformation_options) : (operation, Error.t) result
-    =
+let resolve (args : transformation_options) : (operation, Error.t) result =
   let ( let* ) = Result.bind in
   let input_pathkind = Filesystem.get_pathkind args.input in
 
@@ -161,6 +160,8 @@ let transformation_help_fun (kind : Plugin_configuration.transformation_kind) :
     | ConstructiviseGeocoq ->
         "Experimental Constructivisation: Transformation to use to \
          constructivise Geocoq"
+    | ConstructivisationPost ->
+        "Experimental: Post transformation after first constructivisation phase"
     | RocqToLean -> "Experimental: Turn Rocq code to lean"
   in
   (kind, help_text)
