@@ -155,9 +155,11 @@ let constant_name_in_module ~(module_name : string) (name_ref : name_ref) :
     string option =
   match name_ref with
   | Const constant -> (
+      let constant = Names.Constant.canonize constant in
       let dirpath = Names.Constant.modpath constant |> Names.ModPath.dp in
-      match Names.DirPath.repr dirpath with
+      let dirpath_repr = Names.DirPath.repr dirpath in
+      match dirpath_repr with
       | id :: _ when String.equal module_name (Names.Id.to_string id) ->
-          Some (Names.Constant.to_string constant)
+          Some (Names.Label.to_string (Names.Constant.label constant))
       | _ -> None)
   | _ -> None
