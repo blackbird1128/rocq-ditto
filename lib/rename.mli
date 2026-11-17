@@ -17,8 +17,6 @@ val rename_in_local_binder_expr :
 val rename_in_vernac_assumption :
   string -> string -> Vernacexpr.vernac_expr -> Vernacexpr.vernac_expr
 
-val rename_definition_node : string -> string -> Syntax_node.t -> Syntax_node.t
-
 val rename_in_vernac_induction :
   string -> string -> Vernacexpr.vernac_expr -> Vernacexpr.vernac_expr
 

@@ -228,6 +228,22 @@ let synterp_expr (x : t) =
   | Some (VernacSynterp expr) -> Some expr
   | Some (VernacSynPure _) | None -> None
 
+let rename_definition_node (old_name : string) (new_name : string) (x : t) : t =
+  match synpure_expr x with
+  | Some (Vernacexpr.VernacDefinition (kind, (name, name_univ), expr)) ->
+      let name_mapped = Rename.rename_name old_name new_name name.v in
+      if Names.Name.equal name.v name_mapped then x
+      else
+        let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in
+        let vernac_mapped =
+          Vernacexpr.VernacSynPure
+            (VernacDefinition (kind, name_decl_mapped, expr))
+        in
+        let vernac_control_mapped = mk_vernac_control vernac_mapped in
+
+        of_coq_ast (Coq.Ast.of_coq vernac_control_mapped) x.range.start
+  | _ -> x
+
 let rename_theorem_node (old_name : string) (new_name : string) (node : t) :
     (t, Error.t) result =
   match synpure_expr node with
