@@ -967,11 +967,19 @@ let proof_replace_to_steps (orig_doc : Rocq_document.t) (pr : proof_replace) :
       Runner.get_state_before orig_doc section_close token
     in
 
-    let virtual_proof_start = pr_proof.opening in
+    let synthetic_proof_name = pr.proof_name ^ "__synth" in
+    let* virtual_proof_opening =
+      Syntax_node.rename_theorem_node pr.proof_name synthetic_proof_name
+        pr_proof.opening
+    in
+    let* synthetic_proof =
+      Proof.make ~opening:virtual_proof_opening ~body:pr_proof.proof_steps
+        ~closing_node:pr_proof.closing.node
+    in
 
     let* state_after_executing_new_proof =
       Runner.run_nodes before_section_close_state token
-        (Proof.all_nodes pr_proof)
+        (Proof.all_nodes synthetic_proof)
     in
     let* _new_proof_constant =
       Runner.resolve_global ~token state_after_executing_new_proof pr.proof_name
