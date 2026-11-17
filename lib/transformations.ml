@@ -861,8 +861,8 @@ let rename_definition (doc : Rocq_document.t) :
                 Ok
                   (List.filter_map
                      (Transformation_utils.map_syntax_node
-                        (Rename.rename_definition_node first_rename.old_name
-                           first_rename.new_name))
+                        (Syntax_node.rename_definition_node
+                           first_rename.old_name first_rename.new_name))
                      doc.elements))
           in
 
