@@ -53,6 +53,7 @@ val split_at_id :
 *)
 
 val sections_of_node : t -> Syntax_node.t -> (Names.Id.t list, Error.t) result
+val get_section_nodes : t -> string -> (Syntax_node.t * Syntax_node.t) option
 
 val remove_node_with_id :
   Uuidm.t -> ?remove_method:remove_method -> t -> (t, Error.t) result

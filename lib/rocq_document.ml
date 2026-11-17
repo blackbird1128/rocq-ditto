@@ -212,6 +212,30 @@ let sections_of_node (doc : t) (node : Syntax_node.t) :
   let* before, _ = split_at_id node.id doc in
   Ok (aux [] before)
 
+let get_section_nodes (doc : t) (section_name : string) :
+    (Syntax_node.t * Syntax_node.t) option =
+  let section_open =
+    List.find_opt
+      (fun node ->
+        match Syntax_node.synterp_expr node with
+        | Some (VernacBeginSection ident)
+          when String.equal (Names.Id.to_string ident.v) section_name ->
+            true
+        | _ -> false)
+      doc.elements
+  in
+  let section_end =
+    List.find_opt
+      (fun node ->
+        match Syntax_node.synterp_expr node with
+        | Some (VernacEndSegment ident)
+          when String.equal (Names.Id.to_string ident.v) section_name ->
+            true
+        | _ -> false)
+      doc.elements
+  in
+  Option_utils.pair section_open section_end
+
 let shift_block_checked ~(line : int) ~(char : int)
     ?(pred : Syntax_node.t -> bool = fun _ -> true) (nodes : Syntax_node.t list)
     : (Syntax_node.t list, Error.t) result =
