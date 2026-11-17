@@ -235,13 +235,12 @@ let rename_definition_node (old_name : string) (new_name : string) (x : t) : t =
       if Names.Name.equal name.v name_mapped then x
       else
         let name_decl_mapped = (name_mapped |> CAst.make, name_univ) in
+
         let vernac_mapped =
           Vernacexpr.VernacSynPure
             (VernacDefinition (kind, name_decl_mapped, expr))
         in
-        let vernac_control_mapped = mk_vernac_control vernac_mapped in
-
-        of_coq_ast (Coq.Ast.of_coq vernac_control_mapped) x.range.start
+        of_vernacexpr vernac_mapped x.range.start
   | _ -> x
 
 let rename_theorem_node (old_name : string) (new_name : string) (node : t) :
@@ -253,14 +252,12 @@ let rename_theorem_node (old_name : string) (new_name : string) (node : t) :
       let node_name_str = Names.Id.to_string name.v in
       if String.equal old_name node_name_str then
         let new_name_ident = Rename.rename_lident old_name new_name name in
-        let new_expr_syn =
-          Vernacexpr.VernacStartTheoremProof
-            (kind, [ ((new_name_ident, universe), (binders, expr)) ])
+        let vernac_mapped =
+          Vernacexpr.VernacSynPure
+            (Vernacexpr.VernacStartTheoremProof
+               (kind, [ ((new_name_ident, universe), (binders, expr)) ]))
         in
-        let synpure_expr = Vernacexpr.VernacSynPure new_expr_syn in
-        let control = mk_vernac_control synpure_expr in
-        let new_ast = Coq.Ast.of_coq control in
-        Ok (of_coq_ast new_ast node.range.start)
+        Ok (of_vernacexpr vernac_mapped node.range.start)
       else Ok node
   | _ -> Ok node
 
