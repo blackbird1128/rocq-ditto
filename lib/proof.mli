@@ -13,6 +13,12 @@ type t = private {
 (** Represents a proof in a Coq document. [proof] contains the initial
     proposition and a list of proof steps. *)
 
+val make :
+  opening:Syntax_node.t ->
+  body:Syntax_node.t list ->
+  closing_node:Syntax_node.t ->
+  (t, Error.t) result
+
 val equal : t -> t -> bool
 
 val get_theorem_kind : t -> Decls.theorem_kind option

@@ -20,6 +20,37 @@ type theorem_components = {
   expr : Constrexpr.constr_expr;
 }
 
+let closing_from_last_node (node : Syntax_node.t) : (closing, Error.t) result =
+  match Syntax_node.synpure_expr node with
+  | Some expr -> (
+      match expr with
+      | Vernacexpr.VernacEndProof Admitted -> Ok { node; status = Admitted }
+      | Vernacexpr.VernacEndProof (Proved _) -> Ok { node; status = Proved }
+      | Vernacexpr.VernacAbort | Vernacexpr.VernacAbortAll ->
+          Ok { node; status = Aborted }
+      | _ ->
+          Error.format_to_or_error "(%s) is not a valid closing node"
+            (Syntax_node.repr node))
+  | None -> (
+      match node.kind with
+      | Vernac _ ->
+          Error.format_to_or_error "(%s) is not a valid closing node"
+            (Syntax_node.repr node)
+      | Comment ->
+          Error.format_to_or_error
+            "(%s) is not a valid closing node (is a comment)"
+            (Syntax_node.repr node))
+
+let make ~(opening : Syntax_node.t) ~(body : Syntax_node.t list)
+    ~(closing_node : Syntax_node.t) : (t, Error.t) result =
+  let ( let* ) = Result.bind in
+  if not (Syntax_node.can_open_proof opening) then
+    Error.format_to_or_error "The provided first node (%s) can't open a proof"
+      (Syntax_node.repr opening)
+  else
+    let* closing = closing_from_last_node closing_node in
+    Ok { opening; proof_steps = body; closing }
+
 let equal (a : t) (b : t) =
   Syntax_node.equal a.opening b.opening
   && List.equal Syntax_node.equal a.proof_steps b.proof_steps
@@ -61,27 +92,6 @@ let syntax_node_of_theorem_components_in_state ~(token : Coq.Limits.Token.t)
     (Syntax_node.t, Error.t) result =
   let coq_ast = coq_ast_of_theorem_components c in
   Syntax_node.of_coq_ast_in_state ~token ~st coq_ast start_point
-
-let closing_from_last_node (node : Syntax_node.t) : (closing, Error.t) result =
-  match Syntax_node.synpure_expr node with
-  | Some expr -> (
-      match expr with
-      | Vernacexpr.VernacEndProof Admitted -> Ok { node; status = Admitted }
-      | Vernacexpr.VernacEndProof (Proved _) -> Ok { node; status = Proved }
-      | Vernacexpr.VernacAbort | Vernacexpr.VernacAbortAll ->
-          Ok { node; status = Aborted }
-      | _ ->
-          Error.format_to_or_error "(%s) is not a valid closing node"
-            (Syntax_node.repr node))
-  | None -> (
-      match node.kind with
-      | Vernac _ ->
-          Error.format_to_or_error "(%s) is not a valid closing node"
-            (Syntax_node.repr node)
-      | Comment ->
-          Error.format_to_or_error
-            "(%s) is not a valid closing node (is a comment)"
-            (Syntax_node.repr node))
 
 let status (p : t) : proof_status = p.closing.status
 
@@ -135,18 +145,10 @@ let body_and_closing (p : t) : Syntax_node.t list =
   p.proof_steps @ [ p.closing.node ]
 
 let of_nodes (nodes : Syntax_node.t list) : (t, Error.t) result =
-  let ( let* ) = Result.bind in
   match List_utils.split_head_last nodes with
   | None ->
       Error.string_to_or_error
         ("Not enough elements to create a proof from the nodes.\nnodes: ["
         ^ String.concat " " (List.map (fun node -> Syntax_node.repr node) nodes)
         ^ "]")
-  | Some (opening, body, last) ->
-      if not (Syntax_node.can_open_proof opening) then
-        Error.format_to_or_error
-          "The provided first node (%s) can't open a proof"
-          (Syntax_node.repr opening)
-      else
-        let* closing = closing_from_last_node last in
-        Ok { opening; proof_steps = body; closing }
+  | Some (opening, body, closing_node) -> make ~opening ~body ~closing_node
