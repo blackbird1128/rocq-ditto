@@ -865,6 +865,7 @@ let replace_taccalls_steps (renames : (string * string) list)
   map_raw_tactic_expr_steps (replace_taccalls_in_tacexpr renames) doc
 
 type proof_replace = {
+  proof_filename : string;
   proof_name : string;
   new_proof_file : string;
   new_proof_aux : string list;
@@ -888,53 +889,102 @@ let get_proof_local_requirements (proof_doc : Rocq_document.t) (p : Proof.t) :
 
 let proof_replace_to_steps (orig_doc : Rocq_document.t) (pr : proof_replace) :
     (Transforming_step.t list, Error.t) result =
-  let filepath =
-    Filename.concat "../geocoq-support/theories/Constructive/Stability_proofs/"
-      pr.new_proof_file
-  in
+  let orig_doc_filename = Filename.basename orig_doc.filename in
 
-  let* pr_doc =
-    Rocq_document.parse_template ~root_state:orig_doc.root_state filepath
-  in
+  if String.equal orig_doc_filename pr.proof_filename then
+    let token = Coq.Limits.Token.create () in
 
-  let* _pr_aux_proofs =
-    List_utils.map_result
-      (fun aux_name ->
-        match Rocq_document.proof_with_name_opt aux_name pr_doc with
-        | Ok (Some proof) -> Ok proof
-        | _ ->
-            Error.format_to_or_error
-              "Could not find required auxiliary proof %S for proof %S" aux_name
-              pr.proof_name)
-      pr.new_proof_aux
-  in
+    let filepath =
+      Filename.concat
+        "../geocoq-support/theories/Constructive/Stability_proofs/"
+        pr.new_proof_file
+    in
 
-  let* pr_proof =
-    match Rocq_document.proof_with_name_opt pr.proof_name pr_doc with
-    | Ok (Some proof) -> Ok proof
-    | _ ->
-        Error.format_to_or_error "Could not find replacement proof %S in %S"
-          pr.proof_name pr.new_proof_file
-  in
+    let* pr_doc =
+      Rocq_document.parse_template ~root_state:orig_doc.root_state filepath
+    in
 
-  let* pr_proof_requirements = get_proof_local_requirements pr_doc pr_proof in
-  Printf.eprintf "requirements:\n";
-  List.iter (fun r -> Printf.eprintf "%s\n" r) pr_proof_requirements;
-  let* replaced_proof =
-    match Rocq_document.proof_with_name_opt pr.proof_name orig_doc with
-    | Ok (Some proof) -> Ok proof
-    | _ ->
-        Error.format_to_or_error "Could not find the proof %S in %S"
-          pr.proof_name orig_doc.filename
-  in
+    let* _pr_aux_proofs =
+      List_utils.map_result
+        (fun aux_name ->
+          match Rocq_document.proof_with_name_opt aux_name pr_doc with
+          | Ok (Some proof) -> Ok proof
+          | _ ->
+              Error.format_to_or_error
+                "Could not find required auxiliary proof %S for proof %S"
+                aux_name pr.proof_name)
+        pr.new_proof_aux
+    in
 
-  let remove_original_proof_steps =
-    List.map
-      (fun (n : Syntax_node.t) -> Remove n.id)
-      (Proof.all_nodes replaced_proof)
-  in
+    let* pr_proof =
+      match Rocq_document.proof_with_name_opt pr.proof_name pr_doc with
+      | Ok (Some proof) -> Ok proof
+      | _ ->
+          Error.format_to_or_error "Could not find replacement proof %S in %S"
+            pr.proof_name pr.new_proof_file
+    in
 
-  Ok remove_original_proof_steps
+    (* let* pr_proof_requirements = get_proof_local_requirements pr_doc pr_proof in *)
+    (* Printf.eprintf "requirements:\n"; *)
+    (* List.iter (fun r -> Printf.eprintf "%s\n" r) pr_proof_requirements; *)
+    let* replaced_proof =
+      match Rocq_document.proof_with_name_opt pr.proof_name orig_doc with
+      | Ok (Some proof) -> Ok proof
+      | _ ->
+          Error.format_to_or_error "Could not find the proof %S in %S"
+            pr.proof_name orig_doc.filename
+    in
+
+    let* replaced_proof_sections =
+      Rocq_document.sections_of_node orig_doc replaced_proof.closing.node
+    in
+    let replaced_proof_inner_section_opt =
+      replaced_proof_sections |> List_utils.head_opt
+    in
+
+    let section_close_opt =
+      Option.map
+        (fun (inner_section : Names.variable) ->
+          let inner_section_str = Names.Id.to_string inner_section in
+          Option.map snd
+            (Rocq_document.get_section_nodes orig_doc inner_section_str))
+        replaced_proof_inner_section_opt
+      |> Option.flatten
+    in
+
+    let* section_close =
+      match section_close_opt with
+      | Some section_close -> Ok section_close
+      | None ->
+          List_utils.last orig_doc.elements
+          |> Option_utils.to_result
+               ~none:
+                 (Error.string_to_or_error
+                    "Got an empty document (this should not happen)")
+    in
+
+    let* before_section_close_state =
+      Runner.get_state_before orig_doc section_close token
+    in
+
+    let virtual_proof_start = pr_proof.opening in
+
+    let* state_after_executing_new_proof =
+      Runner.run_nodes before_section_close_state token
+        (Proof.all_nodes pr_proof)
+    in
+    let* _new_proof_constant =
+      Runner.resolve_global ~token state_after_executing_new_proof pr.proof_name
+    in
+
+    let remove_original_proof_steps =
+      List.map
+        (fun (n : Syntax_node.t) -> Remove n.id)
+        (Proof.all_nodes replaced_proof)
+    in
+
+    Ok remove_original_proof_steps
+  else Ok []
 
 let constructivise_doc (doc : Rocq_document.t) :
     (Transforming_step.t list, Error.t) result =
@@ -949,6 +999,19 @@ let constructivise_doc (doc : Rocq_document.t) :
   let* _preload_prelude =
     Runner.run_nodes doc.root_state token [ require_prelude_node ]
     (* Require Geocoq.Constructive.Stable in the context for syntax_node_of_string ? this is a bit weird but for now, we need to inform Rocq of other export like this, this is not pure at all :[ *)
+  in
+
+  let stage_replace_with_manual_proofs : stage =
+    make_stage "stage replace proof with manual proofs" (fun doc ->
+        let sym_point_replace =
+          {
+            proof_filename = "Ch07_midpoint.v";
+            proof_name = "symmetric_point_construction";
+            new_proof_file = "SymPoint.v";
+            new_proof_aux = [ "ext" ];
+          }
+        in
+        proof_replace_to_steps doc sym_point_replace)
   in
 
   let stage_0 : stage =
@@ -1201,21 +1264,10 @@ let constructivise_doc (doc : Rocq_document.t) :
              ltac_nodes))
   in
 
-  let stage_replace_with_manual_proofs : stage =
-    make_stage "stage replace proof with manual proofs" (fun doc ->
-        let sym_point_replace =
-          {
-            proof_name = "symmetric_point_construction";
-            new_proof_file = "SymPoint.v";
-            new_proof_aux = [ "ext" ];
-          }
-        in
-        proof_replace_to_steps doc sym_point_replace)
-  in
-
   let* _, steps =
     run_pipeline doc
       [
+        stage_replace_with_manual_proofs;
         stage_0;
         stage_beeson_bet;
         stage_replace_context;
@@ -1229,7 +1281,6 @@ let constructivise_doc (doc : Rocq_document.t) :
         stage_7;
         stage_7_bis;
         stage_8;
-        stage_replace_with_manual_proofs;
       ]
   in
   Ok (update_replaces steps)
