@@ -228,6 +228,26 @@ let synterp_expr (x : t) =
   | Some (VernacSynterp expr) -> Some expr
   | Some (VernacSynPure _) | None -> None
 
+let rename_theorem_node (old_name : string) (new_name : string) (node : t) :
+    (t, Error.t) result =
+  match synpure_expr node with
+  | Some
+      (VernacStartTheoremProof (kind, [ ((name, universe), (binders, expr)) ]))
+    ->
+      let node_name_str = Names.Id.to_string name.v in
+      if String.equal old_name node_name_str then
+        let new_name_ident = Rename.rename_lident old_name new_name name in
+        let new_expr_syn =
+          Vernacexpr.VernacStartTheoremProof
+            (kind, [ ((new_name_ident, universe), (binders, expr)) ])
+        in
+        let synpure_expr = Vernacexpr.VernacSynPure new_expr_syn in
+        let control = mk_vernac_control synpure_expr in
+        let new_ast = Coq.Ast.of_coq control in
+        Ok (of_coq_ast new_ast node.range.start)
+      else Ok node
+  | _ -> Ok node
+
 let is_command_allowed_in_proof (x : t) : bool =
   match synpure_expr x with
   (* Proof structuring *)

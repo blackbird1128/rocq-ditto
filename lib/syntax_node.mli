@@ -106,6 +106,7 @@ val is_goal : t -> bool
 
 val get_definition_name : t -> string option
 val get_definition_constrexpr : t -> Constrexpr.constr_expr option
+val rename_theorem_node : string -> string -> t
 
 val is_proof_start : t -> bool
 (** [is_proof_start x] checks if [x] marks the start of a proof. meaning if it's
