@@ -444,7 +444,8 @@ let replace_decompose_or_with_decompose_stab_or
   | _ -> x
 
 type constructive_tactic_kind =
-  | Inner_pasch
+  | Inner_pasch_full
+  | Inner_pasch_partial
   | Segment_construction
   | Eq_Dec_Points
   | DestructC_with_args
@@ -463,7 +464,8 @@ let all_constructive_tactic_kinds =
 (* TODO factor construction with cli.ml *)
 
 let dummy_tactic_for_kind = function
-  | Inner_pasch -> "destructC (by_inner_pasch A B C D X X X) as [I []]."
+  | Inner_pasch_full -> "destructC (by_inner_pasch A B C D X X X) as [I []]."
+  | Inner_pasch_partial -> "destructC (by_inner_pasch A B C D X) as [I []]."
   | Segment_construction ->
       "destructC (by_segment_construction A B C D) as [I []]."
   | Eq_Dec_Points -> "destructC (by_eq_dec_points B C)."
@@ -553,8 +555,19 @@ let replace_apply_by_applyC (x : Ltac_plugin.Tacexpr.raw_tactic_expr) :
       else x
   | _ -> x
 
-let constrexpr_to_destructC_fun_name (c : Constrexpr.constr_expr) =
-  if is_constrexpr_c_app_named c "inner_pasch" then get_alias_kn Inner_pasch
+let is_constrexpr_destructC_special_case (c : Constrexpr.constr_expr) =
+  if is_constrexpr_c_app_named c "inner_pasch" then true
+  else if is_constrexpr_c_app_named c "segment_construction" then true
+  else false
+
+let constrexpr_to_destructC_fun_name (c : Constrexpr.constr_expr) (arity : int)
+    =
+  Logs.debug (fun m -> m "constrexpr: %s" (constrexpr_to_string c));
+  Logs.debug (fun m -> m "arity: %d" arity);
+  if is_constrexpr_c_app_named c "inner_pasch" && arity = 7 then
+    get_alias_kn Inner_pasch_full
+  else if is_constrexpr_c_app_named c "inner_pasch" && arity = 5 then
+    get_alias_kn Inner_pasch_partial
   else if is_constrexpr_c_app_named c "segment_construction" then
     get_alias_kn Segment_construction
   else None
@@ -613,57 +626,59 @@ let replace_destruct_fun_with_destructC
               make_alias kername [ open_constr_arg ]
           | _ -> x)
       | ElimOnConstr (constrexpr, NoBindings) -> (
-          match constrexpr_to_destructC_fun_name constrexpr with
-          | Some kername -> (
-              match intro_pattern_naming_expr with
-              | _, Some (ArgArg intro_or_and_pattern) ->
-                  let intro_pattern_arg =
-                    raw_genarg_from_intro_pattern intro_or_and_pattern
-                  in
+          if
+            (* match constrexpr_to_destructC_fun_name constrexpr with *)
+            (* | Some kername -> ( *)
+            is_constrexpr_destructC_special_case constrexpr
+          then
+            let fun_args =
+              get_func_args constrexpr
+              |> List.map
+                   Raw_gen_args_converter.raw_generic_argument_of_open_constr
+            in
+            let arity = List.length fun_args in
+            match constrexpr_to_destructC_fun_name constrexpr arity with
+            | Some kername -> (
+                match intro_pattern_naming_expr with
+                | _, Some (ArgArg intro_or_and_pattern) ->
+                    let intro_pattern_arg =
+                      raw_genarg_from_intro_pattern intro_or_and_pattern
+                    in
 
-                  let fun_args =
-                    get_func_args constrexpr
-                    |> List.map
-                         Raw_gen_args_converter
-                         .raw_generic_argument_of_open_constr
-                  in
-                  make_alias kername (fun_args @ [ intro_pattern_arg ])
-              | _, None ->
-                  make_alias kername
-                    [
-                      constrexpr
-                      |> Raw_gen_args_converter
-                         .raw_generic_argument_of_open_constr;
-                    ]
-              | _ -> x)
-          | None -> (
-              match intro_pattern_naming_expr with
-              | _, Some (ArgArg intro_or_and_pattern) ->
-                  let kername =
-                    get_alias_kn DestructC_with_args |> Option.get
-                  in
+                    make_alias kername (fun_args @ [ intro_pattern_arg ])
+                | _, None ->
+                    make_alias kername
+                      [
+                        constrexpr
+                        |> Raw_gen_args_converter
+                           .raw_generic_argument_of_open_constr;
+                      ]
+                | _ -> x)
+            | None -> x
+          else
+            match intro_pattern_naming_expr with
+            | _, Some (ArgArg intro_or_and_pattern) ->
+                let kername = get_alias_kn DestructC_with_args |> Option.get in
 
-                  let intro_pattern_arg =
-                    raw_genarg_from_intro_pattern intro_or_and_pattern
-                  in
+                let intro_pattern_arg =
+                  raw_genarg_from_intro_pattern intro_or_and_pattern
+                in
 
-                  let openconstr_constrexpr =
+                let openconstr_constrexpr =
+                  constrexpr
+                  |> Raw_gen_args_converter.raw_generic_argument_of_open_constr
+                in
+
+                make_alias kername [ openconstr_constrexpr; intro_pattern_arg ]
+            | _, None ->
+                let kername = get_alias_kn DestructC_no_args |> Option.get in
+                make_alias kername
+                  [
                     constrexpr
                     |> Raw_gen_args_converter
-                       .raw_generic_argument_of_open_constr
-                  in
-
-                  make_alias kername
-                    [ openconstr_constrexpr; intro_pattern_arg ]
-              | _, None ->
-                  let kername = get_alias_kn DestructC_no_args |> Option.get in
-                  make_alias kername
-                    [
-                      constrexpr
-                      |> Raw_gen_args_converter
-                         .raw_generic_argument_of_open_constr;
-                    ]
-              | _ -> x))
+                       .raw_generic_argument_of_open_constr;
+                  ]
+            | _ -> x)
       | _ -> x)
   | _ -> x
 
