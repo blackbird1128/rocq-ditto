@@ -280,7 +280,7 @@ let constructivisation_post (doc : Rocq_document.t) :
       proof_name = "symmetric_point_construction";
       new_proof_file = "SymPoint.v";
       new_proof_aux = [ "ext" ];
-      new_stability_proofs = [ "rightAngle_stab" ];
+      new_stability_proofs = [ "rightAngle_stab"; "perpendicularAt_stab" ];
     }
   in
   proof_replace_to_steps doc sym_point_replace
