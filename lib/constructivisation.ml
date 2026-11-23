@@ -823,6 +823,19 @@ let prove_dec_using_solve_dec (_ : Rocq_document.t) (proof : Proof.t) :
 let definitions_of (d : Rocq_document.t) : Syntax_node.t list =
   List.filter Syntax_node.is_definition d.elements
 
+let remove_definition_named (doc : Rocq_document.t) (def_name : string) :
+    Transforming_step.t option =
+  let defname_name : Names.Name.t = Name (Names.Id.of_string_soft def_name) in
+  List.find_map
+    (fun node ->
+      match Syntax_node.synpure_expr node with
+      | Some (Vernacexpr.VernacDefinition (_, (curr_lname, _), _)) ->
+          let curr_name = curr_lname.v in
+          if Names.Name.equal curr_name defname_name then Some (Remove node.id)
+          else None
+      | _ -> None)
+    doc.elements
+
 let map_raw_tactic_expr_steps
     (f :
       Ltac_plugin.Tacexpr.raw_tactic_expr -> Ltac_plugin.Tacexpr.raw_tactic_expr)
@@ -970,6 +983,51 @@ let constructivise_doc (doc : Rocq_document.t) :
         else Ok [])
   in
 
+  let stage_remove_saccheri_hypotheses : stage =
+    make_stage "remove_saccheri_hypotheses" (fun doc ->
+        if String.equal (Filename.basename doc.filename) "saccheri.v" then
+          let* remove_hyp_of_right_sac =
+            remove_definition_named doc
+              "hypothesis_of_right_saccheri_quadrilaterals"
+            |> Option_utils.to_result
+                 ~none:
+                   (Error.string_to_or_error
+                      "Failed to locate \
+                       hypothesis_of_right_saccheri_quadrilaterals in \
+                       saccheri.v")
+          in
+
+          let* remove_hyp_of_acute_quad =
+            remove_definition_named doc
+              "hypothesis_of_acute_saccheri_quadrilaterals"
+            |> Option_utils.to_result
+                 ~none:
+                   (Error.string_to_or_error
+                      "Failed to locate \
+                       hypothesis_of_acute_saccheri_quadrilaterals in \
+                       saccheri.v")
+          in
+
+          let* remove_hyp_of_obtuse_quad =
+            remove_definition_named doc
+              "hypothesis_of_obtuse_saccheri_quadrilaterals"
+            |> Option_utils.to_result
+                 ~none:
+                   (Error.string_to_or_error
+                      "Failed to locate \
+                       hypothesis_of_obtuse_saccheri_quadrilaterals in \
+                       saccheri.v")
+          in
+
+          Ok
+            [
+              remove_hyp_of_right_sac;
+              remove_hyp_of_acute_quad;
+              remove_hyp_of_obtuse_quad;
+            ]
+        else Ok [])
+  in
+
   let stage_replace_context : stage =
     make_stage "stage replace context" (fun doc -> replace_contexts doc)
   in
@@ -1113,6 +1171,7 @@ let constructivise_doc (doc : Rocq_document.t) :
       [
         stage_0;
         stage_beeson_bet;
+        stage_remove_saccheri_hypotheses;
         stage_replace_context;
         stage_1;
         stage_2;
